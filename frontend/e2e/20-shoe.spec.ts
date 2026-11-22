@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { axeViolations, sideways } from './a11y';
-import { expect, PASS, test } from './fixtures';
+import { expect, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 const PHONE = { width: 390, height: 844 };
@@ -73,10 +73,7 @@ test.describe('a shoe drawn from its photo', () => {
   test("Add takes all of a shoe's photos in one step, and the item page sorts them, falls back and draws the shoe", async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
 
     // one Add for everything: no switch, a word on shoes, and it fits a phone
     await page.goto(backend.url + '/add');
@@ -330,9 +327,7 @@ test.describe('a shoe drawn from its photo', () => {
   test("a traced shoe's drawing, fixed in Fix the details", async ({ page }) => {
     test.setTimeout(90_000);
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase').fill(PASS);
-    await page.getByRole('button', { name: 'Open my closet' }).click();
-    await expect(page.getByLabel('Passphrase')).toHaveCount(0);
+    await expect(page.locator('#closet-title, #today-title').first()).toBeVisible();
     expect((await page.request.post(`${backend.url}/api/profile`, { data: { profile: 'demo' } })).ok()).toBe(true);
     const id = demoId('Grey runners');
     await page.goto(`${backend.url}/item/${id}`);

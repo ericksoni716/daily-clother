@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, clearSavedData, connection, UNREACHABLE } from './api';
+import { api, ApiError, connection, UNREACHABLE } from './api';
 import { Shell } from './Shell';
 import { ClosetProvider } from './store';
 import type { Profile, Session } from './types';
 import { navigate } from './router';
-import { SetupScreen, ReadyScreen } from './screens/Setup';
-import { LoginScreen } from './screens/Login';
-import { forgetLanding } from './landing';
-import { ClosedScreen, UnreachableScreen, LoadingScreen } from './screens/Static';
+import { ClosedScreen, RefusedScreen, UnreachableScreen, LoadingScreen } from './screens/Static';
 
 type Toast = { id: number; message: string; kind: 'ok' | 'error' };
+
+/** Whether an error is the door turning this device away (backend/closet/gate.py), not the computer being out of reach. */
+export function refusedBy(e: unknown): string | null {
+  return e instanceof ApiError && (e.status === 401 || e.status === 403) ? e.message : null;
+}
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [unreachable, setUnreachable] = useState(false);
-  const [justSetUp, setJustSetUp] = useState(false);
+  // the sentence the door answered with, when it turned this device away (a page kept by the service worker, say)
+  const [refused, setRefused] = useState<string | null>(null);
   const [closed, setClosed] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastSeq = useRef(0);
@@ -24,8 +27,11 @@ export function App() {
       const s = await api.session();
       setSession(s);
       setUnreachable(false);
-    } catch {
-      setUnreachable(true);
+      setRefused(null);
+    } catch (e) {
+      const why = refusedBy(e);
+      if (why) setRefused(why);
+      else setUnreachable(true);
     }
   }, []);
 
@@ -40,10 +46,9 @@ export function App() {
     return () => window.clearInterval(t);
   }, [unreachable, loadSession]);
 
-  // Any 401 means the session ended: go to the login screen.
-  useEffect(() => connection.onUnauthorized(() => {
-    setSession((s) => (s ? { ...s, authenticated: false } : s));
-  }), []);
+  // A 401 on any call means this device's way in no longer holds (the window's key, Cloudflare's sign-in, Tailscale's
+  // word): say what the server said, instead of a page whose every call fails.
+  useEffect(() => connection.onUnauthorized((message) => setRefused(message)), []);
 
   const toast = useCallback((message: string, kind: 'ok' | 'error' = 'ok') => {
     const id = ++toastSeq.current;
@@ -56,16 +61,6 @@ export function App() {
     navigate('/');
   }, []);
 
-  const onLogout = useCallback(async () => {
-    try {
-      await api.logout();
-    } finally {
-      await clearSavedData().catch(() => undefined);
-      setSession((s) => (s ? { ...s, authenticated: false } : s));
-      navigate('/', { replace: true });
-    }
-  }, []);
-
   const onQuit = useCallback(async () => {
     await api.quit();
     setClosed(true);
@@ -73,27 +68,11 @@ export function App() {
 
   let screen;
   if (closed) screen = <ClosedScreen />;
+  else if (refused) screen = <RefusedScreen message={refused} onReload={() => window.location.reload()} />;
   else if (!session) screen = unreachable ? <UnreachableScreen message={UNREACHABLE} onRetry={loadSession} /> : <LoadingScreen />;
-  else if (session.setup_required) {
-    screen = <SetupScreen onDone={async () => {
-      setJustSetUp(true);
-      await loadSession();
-    }} />;
-  } else if (!session.authenticated) {
-    screen = <LoginScreen onDone={() => {
-      forgetLanding();
-      return loadSession();
-    }} />;
-  } else if (justSetUp) {
-    screen = <ReadyScreen onChoose={async (profile) => {
-      if (profile === 'demo') await api.setProfile('demo');
-      setSession((s) => (s ? { ...s, profile } : s));
-      setJustSetUp(false);
-      navigate('/', { replace: true });
-    }} />;
-  } else {
+  else {
     screen = (
-      <ClosetProvider key={session.profile} profile={session.profile} onProfile={onProfile} onLogout={onLogout} onQuit={onQuit} toast={toast}>
+      <ClosetProvider key={session.profile} profile={session.profile} onProfile={onProfile} onQuit={onQuit} toast={toast}>
         <Shell version={session.version} />
       </ClosetProvider>
     );

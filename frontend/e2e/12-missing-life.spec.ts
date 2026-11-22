@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import type { Gap, GapsAnswer } from '../src/gaps';
 import type { Life, SituationId } from '../src/life';
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, goToCloset, test, useProfile } from './fixtures';
 
 const example: Life = {
   situations: { work: 4, everyday: 4, going_out: 1, lounging: 0, exercise: 0, vacation: .25 },
@@ -103,7 +103,7 @@ async function mockLife(page: Page, initial: Life | null = null, demo = false) {
 }
 
 async function open(page: Page, life: Life | null = null, demo = false) {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, demo ? 'demo' : 'main');
   const state = await mockLife(page, life, demo);
   await page.goto('/wardrobe');
@@ -153,7 +153,7 @@ test('review 10: the Based on row can be read in full, opens How you live, and l
 
 test('real demo: all six situation filters and the first suggestion fit above phone navigation', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.goto('/wardrobe');
   const filters = page.getByRole('group', { name: 'Suggestions for' });
@@ -449,7 +449,7 @@ test('saved life answers are read-only offline; old saved answers still render',
 });
 
 test('real settings and gaps endpoints keep the same answers across screens and a reload', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'main');
   const before = await (await page.request.get('/api/settings')).json();
   try {

@@ -13,7 +13,7 @@ from closet import db, sources, spend
 from closet.tagger import garments
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError, TagResult
 
-from .conftest import ANSWER, GARMENT_BOXES, PASSPHRASE, FakeApi, FakeFinder, fake_cutter, photo_bytes, pile_bytes, upload
+from .conftest import ANSWER, GARMENT_BOXES, FakeApi, FakeFinder, fake_cutter, photo_bytes, pile_bytes, upload
 
 
 @pytest.fixture
@@ -34,7 +34,6 @@ def sv(cfg, claude, finder):
 @pytest.fixture
 def c(sv):
     client = TestClient(app_module.create_app(sv))
-    assert client.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     return client
 
 
@@ -173,7 +172,6 @@ def api_build(cfg):
         sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, routes=lambda: ("api",), api_client=api)
         held["sv"] = sv
         client = TestClient(app_module.create_app(sv))
-        assert client.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         return sv, client
     yield build
     if "sv" in held:
@@ -303,7 +301,6 @@ def test_a_patterned_piece_is_measured_like_any_other(cfg, finder):
     sv.worker.is_ready = lambda: True
     try:
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         src = found(c, sv)
         c.post(f"/api/sources/{src['id']}/add")
         sv.worker.drain()

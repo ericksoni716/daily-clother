@@ -1,7 +1,7 @@
-import { expect, login, PHOTOS, test, useProfile } from './fixtures';
+import { expect, goToCloset, PHOTOS, test, useProfile } from './fixtures';
 
 test('upload a photo: it shows up waiting for background removal', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'main');
   const before = (await (await page.request.get('/api/items')).json()).items.length;
 
@@ -37,7 +37,7 @@ test('upload a photo: it shows up waiting for background removal', async ({ page
 });
 
 test('a file that is not a photo shows the server message in the queue', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'main');
   await page.goto('/add');
   await page.getByTestId('library-input').setInputFiles({ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('this is not a picture') });
@@ -48,7 +48,7 @@ test('a file that is not a photo shows the server message in the queue', async (
 });
 
 test('a dropped connection is retried with the same key and never duplicates', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'main');
   const before = (await (await page.request.get('/api/items')).json()).items.length;
   const keys: string[] = [];

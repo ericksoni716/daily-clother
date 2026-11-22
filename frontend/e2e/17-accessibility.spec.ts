@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import type { Page, Route } from '@playwright/test';
 import { axeViolations, sideways, smallTargets } from './a11y';
-import { ensureSetUp, expect, login, openFold, test, useProfile } from './fixtures';
+import { expect, goToCloset, openFold, test, useProfile } from './fixtures';
 
 /**
  * Accessibility over the main screens of the demo closet, on a phone and a computer, in light and dark: axe-core
@@ -58,7 +58,7 @@ for (const [layout, use] of LAYOUTS) {
         const shot = `${layout}-${theme}`;
         await page.addInitScript((t) => localStorage.setItem('closet.theme', t), theme);
         await fakeWeather(page);
-        await login(page);
+        await goToCloset(page);
         await useProfile(page, 'demo');
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
 
@@ -142,16 +142,15 @@ for (const [layout, use] of LAYOUTS) {
 test.describe('on a phone', () => {
   test.use(LAYOUTS[0][1]);
 
-  test('the login screen passes the accessibility checks', async ({ page }) => {
-    await ensureSetUp(page);
-    await page.context().clearCookies();
+  test('the screen for a device the door turned away passes the accessibility checks', async ({ page }) => {
+    await page.route('**/api/session', (route) => route.fulfill({ status: 401, json: { detail: 'Open Nines from its icon to use it on this computer.' } }));
     await page.goto('/');
-    await expect(page.getByLabel('Passphrase')).toBeVisible();
-    await check(page, 'login', true, 'phone-light');
+    await expect(page.getByTestId('refused')).toHaveText('Open Nines from its icon to use it on this computer.');
+    await check(page, 'refused', true, 'phone-light');
   });
 
   test('a long item name wraps instead of running off the screen', async ({ page }) => {
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     await page.getByTestId('tile').first().click();
     const field = page.getByRole('textbox', { name: 'Name' });
@@ -177,7 +176,7 @@ test.describe('by keyboard', () => {
   test.use(LAYOUTS[1][1]);
 
   test('a sheet keeps focus inside, closes on Escape and gives focus back', async ({ page }) => {
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     const filter = page.getByRole('button', { name: /^Filter/ });
     await filter.focus();
@@ -201,7 +200,7 @@ test.describe('by keyboard', () => {
   });
 
   test('the ⋯ menu keeps focus inside and Escape returns it to the button', async ({ page }) => {
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     await page.goto('/today/worn');
     const more = page.getByRole('button', { name: 'More for this outfit' }).first();
@@ -220,7 +219,7 @@ test.describe('by keyboard', () => {
 
   test('with reduced motion asked for, nothing slides or fades', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     await page.getByRole('button', { name: /^Filter/ }).click();
     await expect(page.getByRole('dialog', { name: 'Filter' })).toBeVisible();

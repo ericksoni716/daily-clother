@@ -64,7 +64,7 @@ describe('worn outfits in plain words', () => {
 });
 
 describe('the worn list saved for offline', () => {
-  it('keeps one copy per closet, and logout forgets it', () => {
+  it('keeps one copy per closet, and forgetting the saved copies forgets it', () => {
     const kv = new Mem();
     saveWorn('demo', { outfits: [worn('d1', '2026-11-12')], next: null }, kv, new Date('2026-11-13T08:00:00Z'));
     expect(loadSavedWorn('demo', kv)?.page.outfits.map((o) => o.id)).toEqual(['d1']);

@@ -497,10 +497,10 @@ class MergeBody(BaseModel):
     ids: list[str]
 
 
-def router(conn_dep, images_dir: Callable[[], Path], state: State, protected, wake_finder: Callable[[], None],
+def router(conn_dep, images_dir: Callable[[], Path], state: State, wake_finder: Callable[[], None],
            wake_cutouts: Callable[[], None], cutter: Callable[[Image.Image], Image.Image],
            cutter_ready: Callable[[], bool]) -> APIRouter:
-    r = APIRouter(dependencies=protected)
+    r = APIRouter()
 
     @r.post("/api/sources")
     async def upload(response: Response, photo: UploadFile = File(...), client_key: str | None = Form(None),

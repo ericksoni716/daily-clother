@@ -12,7 +12,7 @@ from closet import db, patjobs
 from closet.drawing import stored
 from closet.tagger.tagging import RouteUnavailable
 
-from .conftest import PASSPHRASE, fake_cutter, upload
+from .conftest import fake_cutter, upload
 
 STRIPES = {"version": stored.VERSION, "kind": "stripes", "orientation": "horizontal",
            "bands": [["#1b2a49", 0.04], ["#f4f1ea", 0.06]] * 10, "trim_bands": None, "sleeves_banded": None}
@@ -53,7 +53,6 @@ def make(cfg, claude):
                                        measurer=measurer, landmarker=landmarker)
         made.append(sv)
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         return sv, c
     yield build
     for sv in made:

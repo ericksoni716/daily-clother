@@ -1,11 +1,11 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, goToCloset, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
 });
 
 test('settings show which routes to Claude can be used, in order', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
   // Settings says it in one line, and Manage opens the details on the Advanced screen

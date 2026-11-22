@@ -159,6 +159,3 @@ def test_the_endpoint_lists_only_items_under_way(client, services, claude):
     assert got == {"items": [], "going": 0, "waiting": 0, "why": None}
     assert client.get(f"/api/items/{first['id']}").json()["progress"] is None
 
-
-def test_the_endpoint_needs_a_login(anon):
-    assert anon.get("/api/progress").status_code == 401

@@ -20,7 +20,7 @@ from closet import backup, db, spend, tagjobs
 from closet.tagger import routes as tagger_routes
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError, TagResult, tag_item
 
-from .conftest import ANSWER, PASSPHRASE, FakeApi, fake_cutter, upload
+from .conftest import ANSWER, FakeApi, fake_cutter, upload
 
 SECRET_KEY = "sk-ant-api03-test-only-not-a-real-key"
 # what FakeApi reports for each request to describe an item, on the describing model (Sonnet since 18 November)
@@ -95,11 +95,6 @@ def preload(cfg, usd, month=None):
     conn.execute("INSERT INTO claude_calls (at, month, purpose, route, model, cost_usd) VALUES (?, ?, 'tag_item', 'api', "
                  "'claude-haiku-5-5', ?)", (db.now(), month or spend.this_month(), usd))
     conn.close()
-
-
-def test_spend_needs_login(anon):
-    assert anon.get("/api/tagging/spend").status_code == 401
-    assert anon.put("/api/settings", json={"tagging_api_cap_usd": 5}).status_code == 401
 
 
 def test_the_api_key_cannot_be_allowed_without_a_monthly_limit(client, services):
@@ -371,7 +366,6 @@ def test_the_record_survives_a_restart_and_is_in_backups(client, services, cfg, 
     again = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, api_client=fake_api)
     try:
         c2 = TestClient(app_module.create_app(again))
-        assert c2.post("/api/login", json={"passphrase": PASSPHRASE}).status_code == 204
         assert c2.get("/api/tagging/spend").json()["api_calls"] == 1
     finally:
         again.stop()

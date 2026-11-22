@@ -96,13 +96,6 @@ def test_the_laundry_is_not_a_location_any_more(client):
     assert client.patch(f"/api/items/{item['id']}", json={"location": "drawer"}).json()["location"] == "drawer"
 
 
-def test_wears_need_login(anon):
-    assert anon.get("/api/items/x/wears").status_code == 401
-    assert anon.post("/api/items/x/wears").status_code == 401
-    assert anon.delete(f"/api/items/x/wears/{TODAY.isoformat()}").status_code == 401
-    assert anon.post("/api/items/x/laundry", json={"state": "clean"}).status_code == 401
-
-
 def test_an_outfit_is_worn_and_undone_in_one_call(client):
     a, b, c = (upload(client, key=k, data=photo_bytes(color=col)).json()["id"] for k, col in
                (("a", (10, 20, 30)), ("b", (40, 50, 60)), ("c", (70, 80, 90))))
@@ -154,11 +147,6 @@ def test_removing_an_outfit_wear_after_a_wash_keeps_the_count_right(client):
     client.post(f"/api/items/{a}/laundry", json={"state": "clean"})
     after = client.post("/api/wears/remove", json={"item_ids": [a], "worn_on": TODAY.isoformat()}).json()["items"][0]
     assert (after["wear_count"], after["wears_since_wash"]) == (0, 0)
-
-
-def test_outfit_wears_need_login(anon):
-    assert anon.post("/api/wears", json={"item_ids": ["x"]}).status_code == 401
-    assert anon.post("/api/wears/remove", json={"item_ids": ["x"], "worn_on": TODAY.isoformat()}).status_code == 401
 
 
 def test_demo_has_a_recent_history_and_is_separate_from_the_main_closet(client):

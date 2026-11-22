@@ -328,10 +328,6 @@ def test_a_print_lifted_from_the_photo_is_drawn_on_its_top_and_needs_no_opencv()
 
 # ------------------------------------------------------------------ the route
 
-def test_the_figure_route_needs_login(anon):
-    assert anon.post("/api/outfits/figure", json={"base": "x"}).status_code == 401
-
-
 def test_the_figure_route_draws_the_open_closets_items(client):
     a, b = upload(client, key="a").json(), upload(client, key="b").json()
     assert client.patch(f"/api/items/{a['id']}", json={"category": "tee", "color": "red"}).status_code == 200
@@ -1461,7 +1457,6 @@ def test_cropped_trousers_leave_a_gap_above_the_shoe(shoe, leg):
     assert not fig._legs(layout)[2]   # so the sock is drawn, in the gap
     assert 'fill="#2e7d4f"' in figure(dict(base=TEE, bottom=_legged(leg, "cropped"), shoes=HEM_SHOES[shoe],
                                            accessories=[socks]))
-
 
 
 def test_his_sleeves_hang_in_front_of_an_open_jacket():

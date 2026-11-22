@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 /** Takes back whatever a test decided, so the demo closet's suggestions start the same in every test. */
 async function undoDecisions(page: Page) {
@@ -19,7 +19,7 @@ test.afterEach(async ({ page, context }) => {
 
 /** Opens the Wardrobe (what was What's missing) from the sidebar, with every thing worth buying showing. */
 async function openMissing(page: Page) {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Wardrobe' }).first().click();
   await expect(page.locator('#wardrobe-title')).toBeVisible();
@@ -47,7 +47,7 @@ async function gapNames(page: Page): Promise<string[]> {
 }
 
 test("the wardrobe shows the three most worth buying first, then the rest, with the reasons and what to look for", async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.goto('/wardrobe');
   await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });
@@ -172,7 +172,7 @@ test('a wish added by hand; "I bought it" takes it off the list and opens Add', 
 
 test('on a phone: the Wardrobe is in the tab bar, and the wishlist follows the things worth buying on the same page', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.locator('nav.tabbar').getByRole('link', { name: 'Wardrobe' }).click();
   await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });

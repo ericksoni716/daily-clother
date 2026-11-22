@@ -1,5 +1,5 @@
 import { axeViolations } from './a11y';
-import { expect, PASS, test } from './fixtures';
+import { expect, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 /** A synthetic photo of three pieces laid out (coloured shapes, as conftest.pile_bytes draws them), made in the page. */
@@ -37,10 +37,7 @@ test.describe('several items from one photo', () => {
   test('find the pieces, remove one, fit another, and add them', async ({ page }) => {
     test.setTimeout(150_000);
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
 
     await page.goto(backend.url + '/add');
     // one Add for everything: the photo is sorted as several pieces (a stand-in for Claude reads the file name) and

@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from closet import app as app_module
 from closet import autostart, backup, cli, config, db, demo, instance, phone
 
-from .conftest import PASSPHRASE, FakeClaude, fake_cutter, upload
+from .conftest import FakeClaude, fake_cutter, upload
 
 
 def test_backup_then_restore_brings_everything_back(client, services, cfg, tmp_path):
@@ -472,7 +472,6 @@ def test_a_restore_cut_short_without_all_its_new_files_is_undone(client, service
         assert notice["message"] == ("A restore was interrupted; your closet was put back as it was before the "
                                      "restore.")
         anon = TestClient(app_module.create_app(again))
-        assert anon.post("/api/login", json={"passphrase": PASSPHRASE}).status_code == 204
         assert anon.get("/api/restore-notice").json()["notice"]["message"] == notice["message"]
         assert anon.delete("/api/restore-notice").status_code == 204
         assert anon.get("/api/restore-notice").json() == {"notice": None}   # shown once

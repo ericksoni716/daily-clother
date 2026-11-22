@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, goToCloset, test, useProfile } from './fixtures';
 
 
 const PLACE = { name: 'Lisbon, Portugal', latitude: 38.7167, longitude: -9.1333, timezone: 'Europe/Lisbon' };
@@ -46,7 +46,7 @@ test.afterEach(async ({ page }) => {
 for (const viewport of [{ name: 'computer', width: 1280, height: 800 }, { name: 'phone', width: 390, height: 844 }]) {
   test(`plan, pack and swap a trip on ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     await stubTripWeather(page);
     let tripId: string | null = null;
@@ -92,7 +92,7 @@ for (const viewport of [{ name: 'computer', width: 1280, height: 800 }, { name: 
 }
 
 test('laundry on the trip and the explained counts', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await stubTripWeather(page);
   let tripId: string | null = null;
@@ -139,7 +139,7 @@ test('laundry on the trip and the explained counts', async ({ page }) => {
 });
 
 test('"Before it needs washing" is set in Settings, per kind of clothing', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   try {
     await page.goto('/settings');
     // Settings → Everyday, folded under the laundry
@@ -165,7 +165,7 @@ test('"Before it needs washing" is set in Settings, per kind of clothing', async
 });
 
 test('a saved trip names archived and deleted pieces and offers to plan again', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const items = await page.request.get('/api/items');
   const closet = (await items.json()).items as { id: string; name: string }[];
@@ -199,7 +199,7 @@ test('a saved trip names archived and deleted pieces and offers to plan again', 
 });
 
 test('the offline trip list is kept separately for the demo and real closet', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const first = futureDay(8);
   const weather = tripWeather(first, first);
@@ -227,7 +227,7 @@ test('the offline trip list is kept separately for the demo and real closet', as
 for (const viewport of [{ name: 'computer', width: 1280, height: 800 }, { name: 'phone', width: 390, height: 844 }]) {
   test(`a trip's days shown as worn on ${viewport.name}, remembered with Today's choice`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     const first = futureDay(9);
     const last = futureDay(11);

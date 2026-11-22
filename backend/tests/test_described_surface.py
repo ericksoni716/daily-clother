@@ -13,7 +13,7 @@ from closet.patterns import surface
 from closet.tagger import claude_cli, surfaceform, tagging
 from closet.tagger.schema import SCHEMA_VERSION, ItemTags
 
-from .conftest import PASSPHRASE, fake_cutter
+from .conftest import fake_cutter
 from .test_patjobs import Landmarker, described, row
 
 
@@ -32,7 +32,6 @@ def make(cfg, claude):
                                        measurer=measurer, landmarker=landmarker)
         made.append(sv)
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         return sv, c
     yield build
     for sv in made:

@@ -580,8 +580,8 @@ class PriceScheduler:
 
 
 # ------------------------------------------------------------------ the routes
-def router(shopper: Shopper, state: State, conn_dep: Callable, protected: list) -> APIRouter:
-    r = APIRouter(dependencies=protected)
+def router(shopper: Shopper, state: State, conn_dep: Callable) -> APIRouter:
+    r = APIRouter()
 
     def payload(conn, profile: str, wish_id: str) -> dict:
         run = shopper.run(profile, wish_id)   # first: a run is only over once its finds are saved, so they are read

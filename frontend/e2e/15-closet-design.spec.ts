@@ -1,4 +1,4 @@
-import { expect, login, openFold, test, useProfile } from './fixtures';
+import { expect, goToCloset, openFold, test, useProfile } from './fixtures';
 
 /** Design 3: the Closet grid and the item page, on a phone and a computer, saved as pictures. */
 
@@ -11,7 +11,7 @@ test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
   test('the first row of clothes is above the fold; filters open as a sheet; the item page reads first', async ({ page }) => {
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     await expect(page.getByTestId('tile').first()).toBeVisible();
     await page.waitForLoadState('networkidle');
@@ -68,7 +68,7 @@ test.describe('phone', () => {
   });
 
   test('an item opens at its top, and the closet keeps its search when you come back', async ({ page }) => {
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     await expect(page.getByTestId('tile').first()).toBeVisible();
     // far down the grid, the item page opens at its picture, not at the grid's scroll position
@@ -96,7 +96,7 @@ test.describe('computer', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
   test('the grid takes the width until an item is chosen, then a 420px panel opens beside it', async ({ page }) => {
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     await expect(page.getByTestId('tile').first()).toBeVisible();
     await expect(page.locator('.detail-panel')).toHaveCount(0);

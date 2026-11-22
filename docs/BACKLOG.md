@@ -59,18 +59,19 @@ only here); take a line out when it is done.
     --side` has no trace to read, so it runs without the measured proportions.
 - The program file and the data folder renamed to Nines (21 November; DECISIONS, "The program file: Nines"): the folder's move and the carrying over of start at login were tried only on Linux and with a stand-in registry; the first run on Windows is the owner's own, from `Closet.exe` 0.11.0. The release notes' first-run steps still say the program opens in the browser and shows a coat-hanger icon.
 - Also left by the rename: comments, docstrings and log lines in the code still say Closet, and older docs (past CHANGELOG entries, DECISIONS entries before it, the assessment) keep the old name.
-- **The computer's own door and the doors from outside** (the first two of three pull requests
-  to the other app's access model, 20 November): the address check, the page's header and the
-  window's key; then Tailscale's word on who is asking (recorded, not yet required), Funnel
-  refused, and Cloudflare Access on its own hostname (required there). Left: the third pull
-  request, which refuses a Tailscale request that names no one (the marked line in `gate.py`)
-  and removes the passphrase. Before it, the owner must try on the real devices: the key in the
-  Windows and Mac window (WebView2 and WebKit keeping the cookie across restarts); Settings →
-  This device on the real iPhone saying "through Tailscale as" the owner's login (not "did not
-  say"), on the Windows hub too, where the Tailscale service check runs; and, if wanted, a real
-  Cloudflare tunnel and Access application, including what happens when Cloudflare's sign-in
-  runs out on an open page (the page should load again and Cloudflare ask for a code; this was
-  only tested at the unit level, from what Cloudflare is assumed to answer).
+- **The doors decide who comes in** (the three pull requests to the other app's access model,
+  20 to 22 November; DECISIONS, "The doors decide who comes in"): the passphrase is gone, and a
+  Tailscale request that names no one is refused. Still to try on real devices after the
+  release: the phone through Tailscale opening straight onto the closet with no passphrase and
+  This device naming the owner; the Windows hub, where the Tailscale service check runs,
+  including a copy Windows keeps running before sign-in (the check may not be allowed to ask
+  for the service there, which is meant to be believed, not refused; only reasoned, never run);
+  a device on the tailnet that Tailscale does not name (a tagged device) showing "Nines could not
+  tell who you are"; a page from 0.12.0 left open on the phone across the update (it should open
+  the closet, or say to reload); Forget saved copies on the phone; and, if wanted, a real
+  Cloudflare tunnel, including Cloudflare's sign-in running out on an open page (only tested at
+  the unit level). `packaging/smoke_test.py` was changed for the missing passphrase and has not
+  been run against a packaged build yet; the release workflow runs it.
 - **Shoe drawing made faster** (20 November): two shoes at once, and a check that says good
   stops being read there. Left: the plan route still reads every check's whole answer; nobody
   has yet timed a real shoe with either change, so "four to ten minutes" in the app is

@@ -1,4 +1,4 @@
-import { expect, PASS, PHOTOS, test } from './fixtures';
+import { expect, PHOTOS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 const model = process.env.CLOSET_E2E_MODEL;
@@ -17,10 +17,7 @@ test.describe('with the background-removal model', () => {
   test('a real photo gets its cutout', async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
     await expect(page.getByTestId('model-banner')).toHaveCount(0);
 
     await page.goto(backend.url + '/add');

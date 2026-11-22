@@ -7,7 +7,7 @@ and its SHA-256 compared with the digest GitHub lists for the file; a file that 
 never run. Installing backs up every closet first, then puts the new program where this one is (the old one is
 kept beside it), and starts a small helper (this very program, from its kept copy) that starts the new one and
 watches it. The new program hands over through the launcher's usual "newer copy replaces older" path, so the port
-and the login stay the same. If it has not answered within a minute, the helper puts the old program back,
+and the window's key stay the same. If it has not answered within a minute, the helper puts the old program back,
 starts it, and writes down why.
 
 The owner chooses in Settings: install by themselves, ask first (the default), or never check. Only the packaged

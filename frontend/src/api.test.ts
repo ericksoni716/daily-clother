@@ -50,7 +50,7 @@ describe("Closet's own page", () => {
     await api.session();
     await api.patch('abc', { notes: 'soft' });
     await api.upload(new Blob(['x']), 'x.jpg', 'k');
-    await api.logout();
+    await api.retag('abc');
     expect(calls.map((c) => (c.headers as Record<string, string>)[CLIENT_HEADER])).toEqual(['1', '1', '1', '1']);
     expect((calls[1].headers as Record<string, string>)['Content-Type']).toBe('application/json');
     expect((calls[2].headers as Record<string, string>)['Content-Type']).toBeUndefined();   // the browser sets the form's
@@ -58,7 +58,7 @@ describe("Closet's own page", () => {
 });
 
 describe('saves outlive the page', () => {
-  it('sends a save with keepalive and the login cookie', async () => {
+  it('sends a save with keepalive and its cookies', async () => {
     const calls = answering();
     await api.patch('abc', { notes: 'soft' });
     expect(calls[0]).toMatchObject({ method: 'PATCH', keepalive: true, credentials: 'same-origin' });

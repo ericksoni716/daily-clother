@@ -1,4 +1,4 @@
-import { expect, PASS, test } from './fixtures';
+import { expect, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 const KEY = 'sk-ant-api03-' + 'r'.repeat(80);
@@ -17,10 +17,7 @@ test.describe('choosing which route to Claude is tried first', () => {
 
   test('the key-first choices wait for a key, the list follows the choice, and removing the key resets it', async ({ page }) => {
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
 
     await page.goto(backend.url + '/settings/advanced');
     const section = page.getByRole('region', { name: 'Claude' });

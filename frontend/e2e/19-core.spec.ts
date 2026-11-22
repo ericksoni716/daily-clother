@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, goToCloset, test, useProfile } from './fixtures';
 
 test.use({ serviceWorkers: 'block' });
 
@@ -8,7 +8,7 @@ test.afterEach(async ({ page }) => {
 });
 
 test('a list requested before an edit cannot replace the saved item', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const tile = page.getByTestId('tile').filter({ hasText: 'Oatmeal henley' });
   await expect(tile).toBeVisible();
@@ -49,7 +49,7 @@ test('a list requested before an edit cannot replace the saved item', async ({ p
 });
 
 test('browser Back saves a text field without waiting for blur', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Oatmeal henley' }).click();
   const id = new URL(page.url()).pathname.split('/').at(-1)!;
@@ -69,7 +69,7 @@ test('browser Back saves a text field without waiting for blur', async ({ page }
 });
 
 test('a delayed save cannot roll back a newer edit of the same field', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Oatmeal henley' }).click();
   const id = new URL(page.url()).pathname.split('/').at(-1)!;
@@ -111,7 +111,7 @@ test('a delayed save cannot roll back a newer edit of the same field', async ({ 
 test('slow polling makes progress when a poll takes longer than the interval', async ({ page }) => {
   // The closet follows the work under way through GET /api/progress (src/work.ts): here one item is being described,
   // and the poll's second answer is slow. When it lands, saying the item is done, the closet's list is read again.
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await expect(page.getByTestId('tile').first()).toBeVisible();
   const list = await (await page.request.get('/api/items')).json();
@@ -157,7 +157,7 @@ test('slow polling makes progress when a poll takes longer than the interval', a
 
 for (const saved of [false, true]) {
   test(`a late reconnect response preserves a newer ${saved ? 'saved edit' : 'unsaved draft'}`, async ({ page, context }) => {
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     await page.getByTestId('tile').filter({ hasText: 'Oatmeal henley' }).click();
     const id = new URL(page.url()).pathname.split('/').at(-1)!;

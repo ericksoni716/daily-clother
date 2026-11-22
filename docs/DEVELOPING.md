@@ -42,8 +42,8 @@ folder chosen with `CLOSET_DATA_DIR` is never moved), so its tests pass a stand-
 
 | Area | Modules |
 | --- | --- |
-| The program | `cli.py` (entry point: start, restore, backup, reset-passphrase), `config.py` (where things live, from the environment), `datafolder.py` (moving the data folder from `Closet` to `Nines` at start), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, its port, whether it is a background copy, and the lock a window onto a background copy keeps so it is opened only once), `window.py`, `window_mac.py` (Nines' own window), `tray.py` (with `icon.png`, the tray's and the program's icon, rendered by the frontend's `npm run icons`), `autostart.py` (start at login, and at start carrying over an entry left by `Closet.exe`), `background.py` (Windows keeping Nines running: the scheduled task behind the administrator prompt, turning it on and off, waiting for its copy, moving it to a newer program), `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
-| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (the address, who came in from outside, the key of Nines' own window, the page's header, the login and size limits, all before a body is read), `access.py` (the door through Cloudflare: its three settings, and checking the token Cloudflare Access signs), `tailnet.py` (who Tailscale says is asking, and on Windows whether the connection really is the Tailscale service's), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone, looked up in the background by `phone.Watch`). |
+| The program | `cli.py` (entry point: start, restore, backup, selfcheck), `config.py` (where things live, from the environment), `datafolder.py` (moving the data folder from `Closet` to `Nines` at start), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, its port, whether it is a background copy, and the lock a window onto a background copy keeps so it is opened only once), `window.py`, `window_mac.py` (Nines' own window), `tray.py` (with `icon.png`, the tray's and the program's icon, rendered by the frontend's `npm run icons`), `autostart.py` (start at login, and at start carrying over an entry left by `Closet.exe`), `background.py` (Windows keeping Nines running: the scheduled task behind the administrator prompt, turning it on and off, waiting for its copy, moving it to a newer program), `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
+| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (each door's check: the address, Tailscale's word or Cloudflare's sign-in from outside, the key of Nines' own window on the computer; then the page's header and the size limits, all before a body is read; there is no passphrase), `access.py` (the door through Cloudflare: its three settings, and checking the token Cloudflare Access signs), `tailnet.py` (who Tailscale says is asking, and on Windows whether the connection is the Tailscale service's: yes, no, or could not tell), `limits.py`, `phone.py` (the Tailscale address for the phone, looked up in the background by `phone.Watch`). |
 | Data | `db.py` (SQLite, and migrations by `PRAGMA user_version`), `migrations/NNNN_name.sql`, `items.py` (reading and changing items), `images.py` (a photo into the files the closet keeps), `backup.py`, `storage.py`, `demo.py` and `demo_data/` (the demo closet, a database of its own). |
 | A photo becomes an item | `jobs.py` (the cutout queue, in the `jobs` table), `cutout.py`, `modelstore.py` (the background-removal models), `tagjobs.py` (the queue that asks Claude to describe an item, and `apply_answer`), `illustrations.py` (each item's drawing, kept up to date), `patjobs.py` (measuring a pattern), `progress.py` (how far the work on an item has got, in the page's words, and `GET /api/progress`), `palette.py`, `sources.py` (several items from one photo), `failures.py` (why a step failed, in words safe to show). |
 | What an item is | `look.py` (its look, read from one place: the description the drawing was made from, with the owner's corrections over it, and its coarse shape as drawn; every screen and rule that tells how a garment looks reads it here), `kinds.py` (its kind, from the taxonomy), `vocab.py` (the small coarse vocabulary), `details.py` (the details the owner can set), `corrections.py` (picking a detail, saying what is wrong, undo), `history.py`, `review.py` (the review queue). |
@@ -87,7 +87,7 @@ PyInstaller build and its smoke test).
 
 | Place | What's in it |
 | --- | --- |
-| `src/main.tsx`, `src/App.tsx` | Start-up: first run, login, the "can't reach Nines" screens. |
+| `src/main.tsx`, `src/App.tsx` | Start-up: the "can't reach Nines" screen, and the one for a device the door turned away (a 401 on any call). |
 | `src/Shell.tsx` | The frame: sidebar on a computer, tab bar on a phone (the four places and Add), the banners, which screen a route shows, and taking the new address in place of a moved one. |
 | `src/places.ts` | The four places and Add: `placeOf` (which place a route belongs to, the link lit in the sidebar and the tab bar) and `movedTo` (where the addresses of merged places lead now). |
 | `src/router.tsx` | The router, written by hand: `parseRoute` (every route; a moved address parses as the screen it moved to), `navigate`, `Link`, `itemPath`, the `WIDE` media query. |
@@ -100,7 +100,7 @@ PyInstaller build and its smoke test).
 | `src/queries.ts` | The queries more than one screen reads (`useItems`, `useItemSummary`, `itemQuery`, `useVocab`, `useModel`, `useProgress`, `useItemProgress`, …), writing a saved item into the cache (`itemSaved`, `writeItem`, `dropItem`), saving (`useEdit`, `useItemEdit`) and `usePoll`. |
 | `src/work.ts` | How often to ask for the work under way (`progressPoll`) and which items to read again when it moves on (`movedOn`), as pure functions. |
 | `src/progress.ts` | An item's progress as the page shows it: which entry wins, the strip's dots and note, the tile's mark, the "Working on N items" line, a row's title on Add, the drawing's placeholder. The words come from the server (`progress.py`). |
-| `src/screens/` | One file per screen, with its CSS beside it. Today: `Today`, `Worn` (the history, and `RecentOutfits` and the rating that Today shows), `Trips`. Closet: `Closet`, `ItemDetail`, `Review`. Add: `Add`, `Several`. Wardrobe: `Wardrobe` (the page: it reads the gaps, the wishlist and the insights, and lays them out), with its parts in `Missing` (worth buying, the wishlist, a wish's card), `Insights` (not worn, worn most, More numbers), `Shop` (finds for a wish) and `WouldWork`. Settings: `Settings` and `Advanced` (`/settings/advanced`, loaded only when opened, with `React.lazy` in `Shell.tsx`). `Setup`, `Login`, `Static` come before the shell. |
+| `src/screens/` | One file per screen, with its CSS beside it. Today: `Today`, `Worn` (the history, and `RecentOutfits` and the rating that Today shows), `Trips`. Closet: `Closet`, `ItemDetail`, `Review`. Add: `Add`, `Several`. Wardrobe: `Wardrobe` (the page: it reads the gaps, the wishlist and the insights, and lays them out), with its parts in `Missing` (worth buying, the wishlist, a wish's card), `Insights` (not worn, worn most, More numbers), `Shop` (finds for a wish) and `WouldWork`. Settings: `Settings` and `Advanced` (`/settings/advanced`, loaded only when opened, with `React.lazy` in `Shell.tsx`). `Static` (opening, closed, can't reach, turned away) comes before the shell. |
 | `src/components/ui/` | The shared pieces every screen is built from, exported from `index.ts` and listed with the tokens in its `README.md`: `Button`, `Card` and `Section`, `Chips`, `EmptyState`, `Fold`, `HowItWorks`, `ItemThumb`, `Markdown` (a small safe part of Markdown, read by `src/markdown.ts`, drawn as text), `Notice`, `PageHeader`, `SaveStatus` (with `useSaveStatus`), `SegmentedControl`, `Sheet` (and `PHONE`, the phone-or-wider query), `ShowMore`, with `focus.ts` for keeping Tab inside what is open. Their tests are `ui.test.ts`, drawn to markup in Node. |
 | `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `ItemAbout` (the item page's summary line and notes box, with their test drawn by `react-dom/server`), `KindPicker`, `ItemPic`, `OutfitFigure`, `Progress` (the strip and the step's mark) and `WorkingLine`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Talk` (talking to Claude: the turns, the things to remember with Save and Undo, the box; on Today and in Settings), `StyleTalk` (the style conversation and its questions) and `StyleLines` (every line of Your style, to change, remove or add), `CloudflareDoor` (the door through Cloudflare, folded under Phone on the computer), `KeepRunning` (Windows keeping Nines running, under Phone), `Updates` (the banner, the Settings line `UpdatesLine` and the Advanced part `UpdatesManage`), `Toggle` (the switch and `StatusLine`), `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`, `NinesMark` (the app's mark, the jacket of the icon, and its name in the brand's serif). |
 | `src/<feature>.ts` | The logic and the words of a feature, with no React in it and its test beside it (`today.ts` and `today.test.ts`, `trips.ts`, `gaps.ts`, `insights.ts`, `worn.ts`, `wouldwork.ts`, `shop.ts`, `shoe.ts`, `spend.ts`, `updates.ts`, `corrections.ts`, `tagging.ts`, `drawing.ts`, `progress.ts`, `look.ts` (the item page's summary line and its one notes box), `style.ts` (Your style: its lines, where each came from, the conversation's polling), `figure.ts`, `kinds.ts`, `review.ts`, `several.ts`, `addsort.ts`, `added.ts`). `labels.ts` has the plain words for the server's vocabulary. |
@@ -108,7 +108,7 @@ PyInstaller build and its smoke test).
 | `src/leave.ts`, `src/landing.ts`, `src/theme.ts`, `src/location.ts`, `src/signin.ts` | Saves still waiting when the page closes; which screen the app opens on; light or dark; asking the browser where you are; loading the page again in full when Cloudflare's sign-in ran out (on the Cloudflare address only). |
 | `src/styles.css` | The tokens (`:root`) and the shared styles. `src/design.test.ts` fails on a size, radius, colour or motion value that is not a token. |
 | `sw/sw.js`, `public/` | The service worker (written by hand; the build fills in the files to keep) and the manifest and icons. |
-| `e2e/` | The browser tests (see *The browser tests* below): `server.ts` starts a backend on a fresh data folder, `fixtures.ts` gives each spec file its own backend and logs in (`signIn`, `login`), `a11y.ts` runs axe. |
+| `e2e/` | The browser tests (see *The browser tests* below): `server.ts` starts a backend on a fresh data folder, `fixtures.ts` gives each spec file its own backend and opens the closet (`goToCloset`), `a11y.ts` runs axe. |
 | `scripts/` | `phone-check.mjs` (below; it also counts each screen's words) and `make-icons.mjs` (`npm run icons`: renders `nines-icon.svg` with the browser tests' Chromium into `public/icons/` and `backend/closet/icon.png`). |
 
 ## Structure rules
@@ -125,7 +125,7 @@ PyInstaller build and its smoke test).
 - **Slow work never holds a request.** Uploads return at once and the work is done by a
   worker started in `build_services`. Anything that has to survive a restart is kept in the
   database.
-- **Two kinds of settings.** What belongs to the program (the passphrase, the place, the
+- **Two kinds of settings.** What belongs to the program (the window's key, the place, the
   backup folder, how Claude is reached) is a key in `state.py`'s `DEFAULTS`. What belongs to
   a closet is in that closet's database, so the real and the demo closet keep theirs apart
   and a backup takes it along.
@@ -234,8 +234,8 @@ look at the first failure.
 A new spec file:
 
 - imports `test` and `expect` from `./fixtures`, never from `@playwright/test`;
-- starts from a first run: no passphrase, the owner's own closet, empty. `login(page)` logs in
-  (through the API, by `signIn`) and opens the closet; `useProfile(page, 'demo')` switches to
+- starts from a first run: the owner's own closet, empty. `goToCloset(page)` opens it (the
+  tests' backend has no window key, so this computer's door lets the page straight in); `useProfile(page, 'demo')` switches to
   the demo closet. Anything else it needs (an item, a setting, a place) it makes itself,
   through the API where it can;
 - going offline: calls `serviceWorkerInCharge(page)` first, which reloads the page until the
@@ -244,8 +244,9 @@ A new spec file:
   starts its own with `startBackend` from `server.ts` in a `beforeAll` and stops it in
   `afterAll`, as `16-several.spec.ts` does.
 
-Logging in is in one place: `signIn` in `fixtures.ts` (the first-run screens themselves are
-tested in `01-auth.spec.ts`). When the login changes, change it there.
+There is nothing to log in to. A spec that opens the page by a Tailscale name gives the headers
+Tailscale Serve would (`extraHTTPHeaders`, as `18-phone-qr.spec.ts` does); without them the
+page is refused, as it would be.
 
 ## The phone check
 
@@ -343,7 +344,8 @@ export function TripsScreen() {
 
 1. The work, as a function in the feature's module, tested there.
 2. The route in `create_app` (`app.py`), beside the feature's other routes, with
-   `dependencies=protected` unless it has to answer before login. The request body is a
+   nothing to add for who may call it: the gate (`gate.py`) checks the door before any route
+   runs, the same for every route. The request body is a
    Pydantic model; what comes back is a plain dict. Make the route a plain `def` (FastAPI runs
    it on a worker thread). An `async def` route runs on the one event loop, so it must not
    draw, decode a photo, start a command, ask Claude or write to the closet itself: it awaits

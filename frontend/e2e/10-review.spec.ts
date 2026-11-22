@@ -1,4 +1,4 @@
-import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -8,7 +8,7 @@ type Field = { field: string; value: string | Record<string, string>; allowed: s
 type Queued = { id: string; name: string; fields: Field[] };
 
 test('review in the demo closet: confirm one, change one, skip one', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const queued = (await (await page.request.get('/api/review')).json()).items as Queued[];
   const before = queued.length;
@@ -75,7 +75,7 @@ test('review in the demo closet: confirm one, change one, skip one', async ({ pa
 });
 
 test('review is unavailable offline, and says what is not described yet when empty', async ({ page, context }) => {
-  await login(page);
+  await goToCloset(page);
   await serviceWorkerInCharge(page);
   await page.route('/api/review', (route) => route.fulfill({
     json: { count: 0, items: [], waiting: 2, failed: 1, waiting_items: [{ id: 'a', name: 'Navy polo', category: 'polo' }, { id: 'b', name: null, category: 'jeans' }],

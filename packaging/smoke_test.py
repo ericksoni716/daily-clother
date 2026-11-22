@@ -18,8 +18,8 @@ Default mode:
      library without opening a window), model_state == "missing".
   2. `PROGRAM --no-browser --no-tray --port N` (no tray, no window):
      /api/health answers within
-     the startup timeout with app == "closet", model_state == "missing",
-     setup_required == true; the key of Closet's own window is in force:
+     the startup timeout with app == "closet", model_state == "missing";
+     the key of Closet's own window is in force:
      GET / -> 401 (the page saying to open Closet from its icon), a request
      by another name -> 403, GET /?key=<window_key from settings.json> -> 303
      to / with the key's cookie; with that cookie (and, on every call, the
@@ -27,7 +27,7 @@ Default mode:
      the scripts and styles it links to are served with the right types;
      POST /api/instance/show -> 403 without the token from closet.lock,
      200 with it and shown == false (this copy has no window);
-     POST /api/setup -> 204 + session cookie; GET /api/items -> 200;
+     with only the key's cookie (there is no passphrase) GET /api/items -> 200;
      GET /api/tagging -> 200 with the plan route then the API route;
      POST /api/profile demo -> GET /api/items has 49 items, and a demo
      item's drawing is served;
@@ -67,7 +67,6 @@ import urllib.request
 from pathlib import Path
 
 DEMO_ITEMS = 49
-PASSPHRASE = "smoke-test-passphrase"
 MIGRATIONS = Path(__file__).resolve().parent.parent / "backend" / "closet" / "migrations"
 BASE_CHECKS = ("webp", "heic", "avif", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger",
                "updater", "window", "cloudflare")
@@ -389,7 +388,7 @@ def _drive_server(proc: subprocess.Popen, base: str, data_dir: Path, startup_tim
     if health is None:
         raise SmokeFailure(f"/api/health did not answer within {startup_timeout:.0f}s (last error: {last_error})")
     log(f"  GET /api/health after {time.monotonic() - started:.1f}s: {json.dumps(health)}")
-    wanted = {"app": "closet", "status": "ok", "model_state": "missing", "setup_required": True}
+    wanted = {"app": "closet", "status": "ok", "model_state": "missing"}
     if expect_version:
         wanted["version"] = expect_version
     wrong = {k: health.get(k) for k, v in wanted.items() if health.get(k) != v}
@@ -406,13 +405,7 @@ def _drive_server(proc: subprocess.Popen, base: str, data_dir: Path, startup_tim
 
     check_show(base, data_dir)
 
-    headers, _ = expect("POST", base + "/api/setup", 204, body={"passphrase": PASSPHRASE}, cookie=door)
-    cookies = [c.split(";", 1)[0].strip() for c in headers["_set_cookie"]]
-    session = next((c for c in cookies if c.startswith("closet_session=") and len(c) > len("closet_session=")), None)
-    if not session:
-        raise SmokeFailure(f"POST /api/setup gave no closet_session cookie (Set-Cookie: {headers['_set_cookie']!r})")
-    cookie = f"{door}; {session}"
-    log("  POST /api/setup -> 204 with a session cookie")
+    cookie = door   # the computer's own door needs only the window's key: there is no passphrase
 
     _, body = expect("GET", base + "/api/items", 200, cookie=cookie)
     log(f"  GET /api/items -> 200, {len(as_json('GET', '/api/items', body).get('items', []))} items in the main closet")

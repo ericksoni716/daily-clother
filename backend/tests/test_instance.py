@@ -27,23 +27,23 @@ def test_versions_are_compared_as_releases():
     assert not instance.is_newer("0.2.0", "")
 
 
-def test_quit_endpoint_needs_this_copys_token(cfg, anon, services):
+def test_quit_endpoint_needs_this_copys_token(cfg, client, services):
     quits = []
     services.on_quit = lambda: quits.append(1)
     # no lock file yet: nothing is accepted
-    assert anon.post("/api/instance/quit", headers={instance.QUIT_HEADER: "x"}).status_code == 403
+    assert client.post("/api/instance/quit", headers={instance.QUIT_HEADER: "x"}).status_code == 403
     instance.write_lock(cfg, 8765)
     token = json.loads(cfg.lock_path.read_text())["token"]
     assert len(token) >= 32
-    assert anon.post("/api/instance/quit").status_code == 403
-    assert anon.post("/api/instance/quit", headers={instance.QUIT_HEADER: token + "x"}).status_code == 403
+    assert client.post("/api/instance/quit").status_code == 403
+    assert client.post("/api/instance/quit", headers={instance.QUIT_HEADER: token + "x"}).status_code == 403
     # a lock written by another process does not let its token through here
     cfg.lock_path.write_text(json.dumps({"pid": os.getpid() + 1, "port": 8765, "token": token}))
-    assert anon.post("/api/instance/quit", headers={instance.QUIT_HEADER: token}).status_code == 403
+    assert client.post("/api/instance/quit", headers={instance.QUIT_HEADER: token}).status_code == 403
     assert not quits
     instance.write_lock(cfg, 8765)
     token = json.loads(cfg.lock_path.read_text())["token"]
-    assert anon.post("/api/instance/quit", headers={instance.QUIT_HEADER: token}).status_code == 202
+    assert client.post("/api/instance/quit", headers={instance.QUIT_HEADER: token}).status_code == 202
     time.sleep(0.6)
     assert quits == [1]
 

@@ -18,7 +18,7 @@ from closet.drawing import trace as T
 from closet.drawing import traced
 
 from . import shoe_photos as S
-from .conftest import PASSPHRASE, fake_cutter, photo_for, upload
+from .conftest import fake_cutter, photo_for, upload
 from .test_shoeviews import Sorter, add, answer, later
 from .test_tracejobs import Tagger, Tracer, tags
 
@@ -44,7 +44,6 @@ def make(cfg, side_shoe):
         sv.worker.is_ready = lambda: True
         built.append(sv)
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         return SimpleNamespace(sv=sv, c=c, sorter=sorter, tracer=tracer)
     yield build
     for sv in built:

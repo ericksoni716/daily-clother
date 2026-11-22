@@ -25,7 +25,6 @@ from .conftest import (
     CUT,
     GREY_SIDE_SVG,
     GREY_UPPER,
-    PASSPHRASE,
     SIDE_AGAINST,
     SIDE_CHANGED,
     SIDE_FEATURES,
@@ -79,7 +78,6 @@ def made(cfg):
                                    routes=lambda: routes["now"], sorter=sorter, drawer=drawer,
                                    drawing_corrector=corrector, side_drawer=sider, side_corrector=side_corrector)
     c = TestClient(app_module.create_app(sv))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     yield SimpleNamespace(sv=sv, c=c, routes=routes, sorter=sorter, drawer=drawer, corrector=corrector, sider=sider,
                           side_corrector=side_corrector)
     sv.stop()
@@ -508,7 +506,6 @@ def test_a_side_note_through_the_api_key_is_counted_as_a_correction(cfg, cut_clo
                                    sorter=lambda photos, routes: sorter.reply)
     try:
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         item = a_shoe(c)
         add(c, item, 1)
         sorter.reply = answer(("outer", True), ("inner", True))

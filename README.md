@@ -32,12 +32,11 @@ open **System Settings → Privacy & Security**, scroll down to the message abou
 Nines, click **Open Anyway**, confirm with your password, then **Open**.
 Requires macOS 14 or later.
 
-Nines then opens in its own window, titled **Nines**:
-
-1. Choose a passphrase (at least 8 characters). This is the only login.
-2. The background-removal model (about 170 MB) downloads once, with progress
-   shown at the top of the closet. You can add photos
-   straight away; they are processed when the download finishes.
+Nines then opens in its own window, titled **Nines**, on your empty closet.
+There is no passphrase to choose (see "Who can open your closet" below). The
+background-removal model (about 170 MB) downloads once, with progress shown at
+the top of the closet. You can add photos straight away; they are processed
+when the download finishes.
 
 After you add a photo, Nines removes its background, then asks Claude to
 describe the item (see "Installing Claude Code" below). The name, category,
@@ -92,7 +91,7 @@ background, with no icon, so your phone can still reach it and the nightly
 backup still runs. Opening the program again (double-clicking it) brings the
 window back. To stop the program use **Quit** at the bottom of Settings (on a
 Mac, **Quit** in the Nines menu, ⌘Q, quits it too). If you would rather have an
-icon near the clock (in the menu bar on a Mac), start Nines with `--tray`. The window remembers your login
+icon near the clock (in the menu bar on a Mac), start Nines with `--tray`. The window remembers its settings
 the way a browser does; links to shops and other sites open in your usual
 browser. If the window cannot open on your computer, Nines opens in your
 browser instead, as it used to; on Windows that happens if the Microsoft Edge
@@ -534,8 +533,8 @@ in a folder of your own. Not in **Downloads** either, so it is not tidied away.
 
 A few seconds later Nines opens in its own window (it is the page at
 `http://127.0.0.1:8765`; typed into a browser, that address asks you to open
-Nines from its icon instead). Choose your
-passphrase; the background-removal model starts downloading. Closing the
+Nines from its icon instead), on your empty closet; the background-removal
+model starts downloading. Closing the
 window leaves Nines running in the background; double-click `Nines.exe` to
 bring it back.
 
@@ -608,6 +607,25 @@ computer, because Nines started before you sign in cannot read Credential
 Manager. Backups never include it, and it is removed when you turn **Keep Nines
 running** off.
 
+## Who can open your closet
+
+Nines has no passphrase of its own. Who can open it is decided by the way in:
+
+- **On this computer**, only Nines' own window (or the browser it opens for
+  you) gets in. It carries a key Nines made for it; a website you visit, or
+  another program that only knows the address, is turned away.
+- **Through Tailscale**, Tailscale must say who is asking. Anyone signed in to
+  your Tailscale network can open your closet, and so can anyone you share
+  this computer with in Tailscale. A device that Tailscale does not name (or
+  Tailscale Funnel, the public way in) is turned away.
+- **Through Cloudflare**, if you set that up, only after Cloudflare's sign-in
+  with the email you allowed.
+
+That is your choice for what Nines holds: a closet is not worth a second
+password. It also means that if someone takes over your Tailscale or
+Cloudflare account, or one of them is set up more widely than you meant, Nines
+has nothing more to ask. Keep those two accounts to yourself.
+
 ## Use it from your iPhone
 
 The phone reaches your computer privately over Tailscale, and this way Nines is
@@ -624,7 +642,7 @@ the next section, and only if you set that up yourself.)
    `https://your-pc.your-tailnet.ts.net`.
 3. On the iPhone, with Tailscale connected, point the Camera app at the QR
    code in Settings (**Show the QR code** under the address) and tap the link it shows (or type the
-   address into Safari). Log in with your passphrase.
+   address into Safari). Your closet opens; there is nothing to type.
 4. Tap **Share → Add to Home Screen**. Open Nines from the new icon.
 
 **If another app on this computer already uses Tailscale Serve.** Tailscale
@@ -643,7 +661,7 @@ is the line that points to `http://127.0.0.1:` and Nines' port (on Windows,
 
 **If Nines' address changes** (for example it moved to `:8443`), the icon on
 the iPhone's home screen still opens the old one. Press and hold that icon
-and delete it, then open the new address in Safari, log in, and add it to
+and delete it, then open the new address in Safari and add it to
 the home screen again.
 
 `tailscale serve` shares only inside your own Tailscale network. Do not use
@@ -658,10 +676,10 @@ anything. When it is not, the phone still shows your closet from its last
 visit, read-only.
 
 Settings on the phone says, under **This device**, how it came in: for
-example "This device came in through Tailscale as you@example.com". If it
-says Tailscale did not say who is using it, Nines still asks for your
-passphrase as before; tell whoever looks after Nines, since a later version
-will let a phone in only when Tailscale says who it is.
+example "This device came in through Tailscale as you@example.com". If the
+phone shows "Nines could not tell who you are" instead, check that it is
+signed in to your Tailscale, then open Nines on the computer and check that
+Tailscale is set up there (**Settings → Phone**).
 
 ## Use it without Tailscale, through Cloudflare
 
@@ -671,7 +689,7 @@ have an address of its own on a domain you own, through Cloudflare. Know what
 this means before you set it up: Nines then has an address on the public
 internet. Anyone can find it, and Cloudflare asks whoever opens it for a code
 sent to your email, letting only your email through; Nines then checks
-Cloudflare's signed sign-in on every request and still asks for your passphrase.
+Cloudflare's signed sign-in on every request; nothing else is asked.
 Cloudflare carries everything between that browser and your computer, so
 Cloudflare can read what passes through, your photos included. Nothing changes
 for Tailscale, which stays the private way in. Until you do the steps below,
@@ -705,7 +723,7 @@ your own.
    there only once all three are filled in.
 4. **Try it.** In a browser that is not on Tailscale, open
    `https://closet.example.com`. Cloudflare asks for your email and sends a
-   code; after the code, Nines asks for your passphrase. Under **Settings →
+   code; after the code, your closet opens. Under **Settings →
    This device** it says it came in through Cloudflare, signed in as your
    email.
 
@@ -884,7 +902,7 @@ Nines backs up there once a day while it is running, catches up at the next
 start if the computer was off, and shows the date of the last good backup. It
 keeps the 14 most recent database snapshots, each with the photos and cutouts
 it had; a picture that did not change is stored only once. The settings file
-with your passphrase is not included.
+(with the key of Nines' own window) is not included.
 
 ### Restore
 
@@ -902,11 +920,6 @@ If the computer loses power or Nines is stopped while a restore is putting
 files in place, the next start finishes the restore, or puts your closet back as
 it was before it, never half of each. A message at the top of the screen says
 which, until you press **OK**.
-
-### Forgotten passphrase
-
-Quit Nines and run `Nines.exe reset-passphrase`. The next start asks for a
-new one. Your closet is untouched.
 
 ### Placing the model by hand
 

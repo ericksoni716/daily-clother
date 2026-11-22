@@ -4,8 +4,6 @@ Claude is never called: `FakeClaude` (conftest) stands in, and each test chooses
 """
 import json
 
-import pytest
-
 from closet import db, demo, review, vocab
 from closet.tagger.tagging import TagResult
 
@@ -205,8 +203,3 @@ def test_an_older_demo_closet_gets_the_confidences(cfg):
     finally:
         conn.close()
 
-
-@pytest.mark.parametrize("method, path", [("get", "/api/review"), ("post", "/api/items/x/confirm")])
-def test_reviewing_needs_login(anon, method, path):
-    r = getattr(anon, method)(path, **({"json": {"fields": ["color"]}} if method == "post" else {}))
-    assert r.status_code == 401

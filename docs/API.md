@@ -2,12 +2,11 @@
 
 The backend serves JSON under `/api`, images under `/media`, and the built web
 page for every other path. All errors are `{"detail": "a sentence the owner can
-read"}` with a matching status code. Everything except `health`, `session`,
-`setup` and `login` needs the session cookie (set by `setup` or `login`,
-HttpOnly, SameSite=Strict); without it the answer is 401, given before any of
-the request's body is read.
+read"}` with a matching status code. There is no passphrase and no session of
+Nines' own: who may come in is decided by the way in (DECISIONS, "The doors
+decide who comes in").
 
-Before that, and before any body is read, every request (pages, images and calls
+Before any body is read, every request (pages, images and calls
 alike) goes through these checks, in this order (`backend/closet/gate.py`):
 
 1. **The address.** The `Host` header, without its port, must be `127.0.0.1`,
@@ -34,12 +33,18 @@ alike) goes through these checks, in this order (`backend/closet/gate.py`):
    Cloudflare first"; the reason is logged, never the token. The email comes from
    the token only, never from `Cf-Access-Authenticated-User-Email`. On a `.ts.net`
    name, `Tailscale-User-Login` and `Tailscale-User-Name` (RFC 2047 decoded) say
-   who is asking; on Windows they are believed only when the other end of the
-   connection is the Tailscale service (`backend/closet/tailnet.py`), elsewhere
-   always. A `.ts.net` request that names no one is not refused yet: it goes on to
-   the passphrase as before. Those headers are never read under any other name.
-   Who came in is what `GET /api/settings` gives as `came_in`. The passphrase
-   below is still asked on every device, whichever way it came in.
+   who is asking; on Windows they are checked against the other end of the
+   connection (`backend/closet/tailnet.py`), elsewhere believed. On Windows: believed when Windows shows the Tailscale service at the
+   other end, refused when it shows something else (another program, a connection
+   no longer there, or no Tailscale service running), and believed when Windows
+   could not be asked at all. Every `.ts.net` request but `GET /api/health` that
+   Tailscale's word does not name is 401 `{"detail": "Nines opens through
+   Tailscale only when Tailscale says who you are. Open it on a device signed in
+   to your Tailscale, or open Nines on the computer to check that Tailscale is
+   set up there."}`, or outside `/api/` a small page titled "Nines could not tell
+   who you are". Those headers are never read under any other name. Who came in
+   is what `GET /api/settings` gives as `came_in`. Nothing else is asked at any
+   door.
 3. **The key of Nines' own window,** when the program runs from its launcher (it
    always does; tests and the browser tests make the app without one). A request by
    a local name (`127.0.0.1`, `localhost`, `[::1]`) must carry the cookie
@@ -71,18 +76,15 @@ photo (`POST /api/items`, `POST /api/sources`, `POST /api/would-this-work`, `POS
 request. Try again with less."}` for any other request over 1 MB. Nothing of a
 refused upload is kept. The limits are in `backend/closet/limits.py`.
 
-Malformed requests to `POST /api/setup`, `POST /api/login` and
-`PUT /api/settings/api-key` return 422 with a fixed sentence, never the
-submitted passphrase, key, field names or values.
+Malformed requests to `PUT /api/settings/api-key` return 422 with a fixed sentence, never the
+submitted key, field names or values.
 
 ## Session
 | Call | Result |
 |---|---|
-| `GET /api/health` | `{app:"closet", status:"ok", version, model_state, setup_required, profile}` |
-| `GET /api/session` | `{authenticated, setup_required, version, profile}` |
-| `POST /api/setup {passphrase}` | 204 and logs in. 422 if shorter than 8 characters, 409 if already set. |
-| `POST /api/login {passphrase}` | 204. 401 if wrong; 429 with `Retry-After` after 5 wrong tries in 5 minutes. |
-| `POST /api/logout` | 204 |
+| `GET /api/health` | `{app:"closet", status:"ok", version, model_state, profile}` |
+| `GET /api/session` | `{authenticated: true, version, profile}`: what the page opens with. `authenticated` is always true, for a page from Nines 0.12.0 or earlier, which would otherwise show its passphrase screen. A leftover `closet_session` cookie is ignored and taken away (`Max-Age=0`). |
+| `POST /api/setup`, `POST /api/login`, `POST /api/logout` | Gone with the passphrase: 410 `{"detail": "This page is from an older Nines. Reload the page, then try again."}`, so a page from an older Nines that calls them says to reload. |
 
 ## Items
 `ItemSummary`: `id, name, category, color, color_hex, pattern, location, rating, status, cutout_state, tag_state, tag_error, thumb_url, has_illustration, illustration_url, has_photo, last_worn, wear_count, wears_since_wash, laundry, created_at, updated_at, kind, kind_name, group, drawn_state, drawn_version, progress`.
@@ -352,12 +354,12 @@ The answer (`answer`, when `ready`): `{enough, message, verdict, verdict_words, 
 | `POST /api/background/restart` | On the computer only (403 as above). While it is on but an ordinary copy answers (the background copy did not start): this copy hands over again, as after `on`; the state with `handing_over: true`. 409 when this copy is the background one or it is not on. |
 | `POST /api/background/off` | On the computer only (403 as above). In the copy Windows runs: asks the window open onto it on this computer, which shows Windows' prompt, removes the task and the copy, puts the key back in Credential Manager, turns start at login back on if it was on, and opens an ordinary copy; the state with `turning_off: true` (then watch `problem`, or the page going offline as the window gives way). 409 "Open Nines from its icon on this computer, then turn this off in its window." when no window is open onto it (a browser). In an ordinary copy it is done there and then: the state with `on` false and `note` (null, or the sentence saying where the program that carries on is now, when the copy Windows ran was newer than the owner's program), or 409 with a sentence (the prompt declined). Already off: the state, `turning_off` false. The closet's data is never touched. |
 | `POST /api/quit` | 202; the program exits shortly after. |
-| `POST /api/instance/quit` (header `X-Closet-Instance-Token`) | Not for the page: a newer copy of the program asks this one to quit. Needs no session, only the token this copy wrote into `closet.lock` in the data folder; 202 and the program exits shortly after, 403 otherwise. |
-| `POST /api/instance/show` (header `X-Closet-Instance-Token`) | Not for the page: the program, opened again while this copy runs, asks it to show its window. Needs no session, only the same token as `instance/quit`; 200 `{"shown": true}` when the window is coming up, `{"shown": false}` when this copy has no window (it uses the browser, or runs with neither tray nor window) and the browser should be opened instead; 403 otherwise. |
+| `POST /api/instance/quit` (header `X-Closet-Instance-Token`) | Not for the page: a newer copy of the program asks this one to quit. Needs no key, only the token this copy wrote into `closet.lock` in the data folder; 202 and the program exits shortly after, 403 otherwise. |
+| `POST /api/instance/show` (header `X-Closet-Instance-Token`) | Not for the page: the program, opened again while this copy runs, asks it to show its window. Needs no key, only the same token as `instance/quit`; 200 `{"shown": true}` when the window is coming up, `{"shown": false}` when this copy has no window (it uses the browser, or runs with neither tray nor window) and the browser should be opened instead; 403 otherwise. |
 
 ## Trips
 
-All behind the login, kept per closet (demo and real closet apart).
+Kept per closet (demo and real closet apart).
 
 - `POST /api/trips/plan` — body `{place, first_day, last_day, occasion?, day_occasions?, laundry?, leave_out?, pin?, weather?}`; works out the weather and packing plan, saves nothing. A trip is at most 30 days and starts today or later. Optional `weather` supplies every trip day as `[{date, low_c, high_c, rain}]`; it is intended for deterministic tests and browser checks, and those days return with `source: "given"`. `laundry` is null (none), `{"day": n}` (a wash on day n, from day 2 to the day before the last) or `{"every": n}` (every n days, from 1 to the number of days less 2); a trip shorter than 3 days has no day for laundry. Counts follow the owner's "Before it needs washing" setting (`rewear` in `/api/settings`).
 - `POST /api/trips` — same body; plans and saves. 201 with the trip.
@@ -397,6 +399,5 @@ allowed; `style_words`: one line, at most 200 characters, trimmed but never
 interpreted. Unknown/missing questionnaire fields and invalid values return
 422 with a plain sentence. `life:null` restores the original analysis.
 The demo reads fixed example answers and refuses edits to either life setting
-(422); it never changes the owner's answers. All routes require the normal
-login. No migration, new endpoint, key or external service other than
+(422); it never changes the owner's answers. No migration, new endpoint, key or external service other than
 Open-Meteo's archive is involved.

@@ -30,6 +30,14 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- Nines no longer has a passphrase. Who can open it is decided by the way in: on this computer,
+  Nines' own window; through Tailscale, anyone Tailscale names as signed in to your Tailscale
+  network (a device it does not name is turned away, with a page saying what to check); through
+  Cloudflare, Cloudflare's sign-in with your email. Nothing is asked when you open Nines, on any
+  device. **Log out** is gone from Settings; what it also did, forgetting the copy of your closet a
+  device keeps for when Nines can't be reached, is now **Forget saved copies** under **Settings →
+  This device**. `Nines.exe reset-passphrase` is gone too. A page left open from an older
+  version opens your closet as it is, or says to reload.
 - The program is now called Nines too: `Nines.exe` on Windows, and `Nines.app` in
   `Nines-mac-arm64.zip` on a Mac. If you have `Closet.exe`, it cannot install this version by
   itself and says there is no download for this computer. Download `Nines.exe` once from the

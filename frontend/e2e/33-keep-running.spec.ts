@@ -1,6 +1,6 @@
 import type { APIRequestContext, Page, Route } from '@playwright/test';
 import { axeViolations } from './a11y';
-import { expect, login, PASS, signIn, test } from './fixtures';
+import { expect, goToCloset, test } from './fixtures';
 import type { Backend } from './server';
 
 /**
@@ -39,7 +39,7 @@ test('on the computer: what it is, the port, and turning it on hands over to Win
   await fakeWindows(page, OFF, {
     on: (route) => { asked += 1; return route.fulfill({ json: { ...OFF, on: true, starts: 'startup', handing_over: true } }); },
   });
-  await login(page);
+  await goToCloset(page);
   await page.goto('/settings');
   const card = page.getByRole('region', { name: 'Phone', exact: true }).getByTestId('keep-running');
   await expect(card.getByRole('heading', { name: 'Keep Nines running' })).toBeVisible();
@@ -61,7 +61,7 @@ test('on the computer: what it is, the port, and turning it on hands over to Win
 
 test('a declined prompt is said in plain words, and nothing changes', async ({ page }) => {
   await fakeWindows(page, OFF, { on: (route) => route.fulfill({ status: 409, json: { detail: DECLINED } }) });
-  await login(page);
+  await goToCloset(page);
   await page.goto('/settings');
   const card = page.getByTestId('keep-running');
   await card.getByRole('button', { name: 'Keep Nines running' }).click();
@@ -75,7 +75,7 @@ test('on but not running: start it again or turn it off, with the port that stay
   await fakeWindows(page, stopped, {
     restart: (route) => { restarted += 1; return route.fulfill({ json: { ...stopped, handing_over: true } }); },
   });
-  await login(page);
+  await goToCloset(page);
   await page.goto('/settings');
   const card = page.getByTestId('keep-running');
   await expect(card.getByTestId('keep-running-status')).toHaveText('Nines is set to start when you sign in to this computer, but it is not running in the background now.');
@@ -93,7 +93,7 @@ test('turning it off from the window waits for Windows, and says why when it was
     off: (route) => route.fulfill({ json: { ...running, turning_off: true } }),
     background: (route) => { reads += 1; return route.fulfill({ json: reads < 2 ? running : { ...running, problem: DECLINED } }); },
   });
-  await login(page);
+  await goToCloset(page);
   await page.goto('/settings');
   const card = page.getByTestId('keep-running');
   await expect(card.getByTestId('keep-running-status')).toHaveText('Nines starts when this computer turns on, and it is running now.');
@@ -107,7 +107,7 @@ test('turned off in an ordinary copy, it says where the program that carries on 
   const stopped: State = { ...OFF, on: true, starts: 'startup', running: false };
   const note = 'Windows had kept Nines up to date, so your Nines.exe in C:\\Users\\you\\Apps\\Nines is now Nines 0.13.0.';
   await fakeWindows(page, stopped, { off: (route) => route.fulfill({ json: { ...OFF, turning_off: false, note } }) });
-  await login(page);
+  await goToCloset(page);
   await page.goto('/settings');
   const card = page.getByTestId('keep-running');
   await card.getByRole('button', { name: 'Turn this off' }).click();
@@ -116,7 +116,7 @@ test('turned off in an ordinary copy, it says where the program that carries on 
 });
 
 test('where Windows cannot do it (here, from source), Settings shows nothing about it', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await page.goto('/settings');
   await expect(page.getByRole('region', { name: 'Phone', exact: true })).toBeVisible();
   await expect(page.getByTestId('keep-running')).toHaveCount(0);
@@ -126,23 +126,18 @@ test('where Windows cannot do it (here, from source), Settings shows nothing abo
 test.describe('opened on the phone', () => {
   test.use({
     viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+    // Tailscale Serve says who is asking; the page by the phone's name is refused without it (backend/closet/gate.py)
+    extraHTTPHeaders: { 'Tailscale-User-Login': 'owner@example.com', 'Tailscale-User-Name': 'Sam Owner' },
     baseURL: async ({ backend }, use) => {
       await use(backend.url.replace('127.0.0.1', PHONE_HOST));
     },
   });
 
   async function openSettings(page: Page, request: APIRequestContext, backend: Backend, background: State) {
-    await signIn(request, backend.url);
     const original = await (await request.get(`${backend.url}/api/settings`)).json();
     await page.route('**/api/settings', (route) => route.request().method() === 'GET'
       ? route.fulfill({ json: { ...original, background } }) : route.fallback());
     await page.goto('/');
-    const field = page.getByLabel('Passphrase');
-    await expect(field.or(page.locator('#closet-title, #today-title'))).toBeVisible();
-    if (await field.isVisible()) {
-      await field.fill(PASS);
-      await page.getByRole('button', { name: 'Open my closet' }).click();
-    }
     await expect(page.locator('#closet-title, #today-title')).toBeVisible();
     await page.goto('/settings');
     await expect(page.getByRole('region', { name: 'Updates', exact: true })).toBeVisible();

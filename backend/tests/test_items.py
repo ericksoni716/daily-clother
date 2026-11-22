@@ -118,15 +118,13 @@ def test_filtering_search_archive_and_delete(client, cfg):
     assert client.get(f"/api/items/{a['id']}").status_code == 404
 
 
-def test_media_needs_login_and_cannot_escape_the_images_folder(client, cfg):
+def test_media_cannot_escape_the_images_folder(client, cfg):
     item = upload(client).json()
     for sneaky in ("/media/../settings.json", "/media/%2e%2e/settings.json", "/media/..%2fsettings.json",
                    f"/media/{item['id']}/../../settings.json"):
         r = client.get(sneaky)
-        assert "sessions" not in r.text and "salt" not in r.text
+        assert "update_mode" not in r.text and "window_key" not in r.text   # names in the settings file
         assert r.status_code == 404 or "<" in r.text  # a 404 or the page itself, never the settings file
-    client.post("/api/logout")
-    assert client.get(item["thumb_url"]).status_code == 401
 
 
 def test_vocabulary_is_served_and_matches_the_tagger(client):
@@ -160,7 +158,7 @@ def test_built_page_is_served_with_fallback_for_app_routes(services, tmp_path):
     assert "closet app" in c.get("/").text and "closet app" in c.get("/items/123").text
     js = c.get("/assets/a.js")
     assert js.text == "console.log(1)" and "immutable" in js.headers["cache-control"]
-    assert c.get("/../settings.json").status_code in (200, 404) and "passphrase" not in c.get("/../settings.json").text
+    assert c.get("/../settings.json").status_code in (200, 404) and "update_mode" not in c.get("/../settings.json").text
 
 
 def test_database_is_migrated_and_a_newer_one_is_refused(cfg, tmp_path):

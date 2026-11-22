@@ -1,11 +1,11 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, goToCloset, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
 });
 
 test('settings show how much space the demo closet takes, on the Advanced screen', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.goto('/settings/advanced');
 
@@ -27,8 +27,8 @@ test('settings show how much space the demo closet takes, on the Advanced screen
   }
 });
 
-test('settings: short groups in one column beside the sidebar, the technical parts on Advanced, Log out and Quit at the end', async ({ page }) => {
-  await login(page);
+test('settings: short groups in one column beside the sidebar, the technical parts on Advanced, Quit at the end', async ({ page }) => {
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.goto('/settings');
   const groups = ['Your style', 'Everyday', 'Claude', 'Updates', 'Phone', 'This device', 'Your data'];
@@ -45,9 +45,9 @@ test('settings: short groups in one column beside the sidebar, the technical par
   await expect(page.getByLabel('Download address')).toHaveCount(0);
   await expect(page.getByText('Your closet is stored in')).toHaveCount(0);
 
-  // Log out and Quit are a row after the last group, not a card
+  // Quit is a row after the last group, not a card; there is nothing to log out of
   const leave = page.getByRole('group', { name: 'Leave' });
-  await expect(leave.getByRole('button', { name: 'Log out' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Log out' })).toHaveCount(0);
   await expect(leave.getByRole('button', { name: 'Quit Nines' })).toBeVisible();
   expect(await leave.evaluate((el) => el.classList.contains('card'))).toBe(false);
   expect((await leave.boundingBox())!.y).toBeGreaterThan((await page.getByRole('region', { name: 'Your data' }).boundingBox())!.y);
@@ -60,7 +60,7 @@ test('settings: short groups in one column beside the sidebar, the technical par
 });
 
 test('the Advanced screen: opened from Settings, kept through a reload, and Back and "‹ Settings" return to Settings', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
   await page.getByRole('link', { name: 'Advanced settings' }).click();

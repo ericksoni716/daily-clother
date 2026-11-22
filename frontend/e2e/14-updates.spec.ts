@@ -1,6 +1,6 @@
 import { type Page } from '@playwright/test';
 import { axeViolations } from './a11y';
-import { expect, login, test } from './fixtures';
+import { expect, goToCloset, test } from './fixtures';
 
 // GitHub is never asked from a test: the shared server runs from source (it never checks by itself), and the
 // test that installs answers /api/updates and /api/health with a stand-in.
@@ -15,7 +15,7 @@ async function openUpdates(page: Page) {
 }
 
 test('settings: Updates is one line with this version; the choice is on Advanced and is kept', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   const version = (await (await page.request.get('/api/updates')).json()).version;
   const line = (await openUpdates(page)).getByTestId('update-line');
   await expect(line).toHaveText(new RegExp(`^Nines ${version.replace(/\./g, '\\.')}`));
@@ -94,7 +94,7 @@ test('updates (stand-in): the banner offers the new version, Install restarts Ni
     return route.fulfill({ json: { ok: true, version: '0.3.0' } });
   });
 
-  await login(page);
+  await goToCloset(page);
   const banner = page.getByTestId('update-banner');
   await expect(banner).toContainText('Nines 0.3.0 is ready');
 
@@ -151,7 +151,7 @@ test('updates (stand-in): a problem before restarting is shown and Nines keeps r
     return route.fulfill({ status: 202, json: standIn({ busy: 'backing-up' }) });
   });
   await page.route('**/api/health', (route) => route.fulfill({ json: { ok: true, version: '0.2.1' } }));
-  await login(page);
+  await goToCloset(page);
   const section = await openUpdates(page);
   await expect(section.getByTestId('update-available')).toBeVisible();
   await expect(section.getByTestId('update-notes')).toHaveCount(0);   // no notes, nothing to open

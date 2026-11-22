@@ -16,7 +16,7 @@ from closet import db, outfits, spend, stylejobs, styling, wears, weather
 from closet.stylejobs import DRIFT_C, MAX_PER_DAY, MESSAGES, RETRY_S, STALE_S
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError, Unreachable
 
-from .conftest import PASSPHRASE, fake_cutter, upload
+from .conftest import fake_cutter, upload
 
 TODAY = date(2026, 11, 17)
 DAY = {"low_c": 8, "high_c": 14, "rain": False}   # the whole day given: no forecast is looked up
@@ -108,7 +108,6 @@ def styled(cfg, claude):
     sv.stylist.start = held.append
     sv.stylist.clock = lambda: now["t"]
     anon = TestClient(app_module.create_app(sv))
-    assert anon.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     yield SimpleNamespace(c=anon, sv=sv, stand_in=stand_in, held=held, now=now, cfg=cfg, claude=claude)
     sv.stop()
 
@@ -680,10 +679,6 @@ def test_without_a_stylist_today_is_the_engines_as_before(client):
 def test_an_unknown_answer_is_a_404_with_a_sentence(styled):
     r = styled.c.get("/api/style/answers/nope")
     assert r.status_code == 404 and r.json()["detail"] == "That answer is not known. Open Today again."
-
-
-def test_an_answer_needs_login(anon):
-    assert anon.get("/api/style/answers/anything").status_code == 401
 
 
 def test_two_requests_together_start_one_question(styled):

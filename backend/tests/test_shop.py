@@ -20,7 +20,7 @@ from closet.tagger import correcting, shopping
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
 
-from .conftest import PASSPHRASE, fake_cutter
+from .conftest import fake_cutter
 
 
 def product(**changes) -> Found:
@@ -80,7 +80,6 @@ def services(cfg, fake_shop, usable):
 @pytest.fixture
 def client(services):
     c = TestClient(app_module.create_app(services))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     return c
 
 
@@ -567,7 +566,6 @@ def api_services(cfg):
                                        routes=lambda: ("api",), api_client=api)
         holder["sv"] = sv
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         return c
     yield build
     if "sv" in holder:

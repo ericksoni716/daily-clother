@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import type { Page, Request, Route } from '@playwright/test';
 import { axeViolations, sideways } from './a11y';
-import { expect, PASS, test } from './fixtures';
+import { expect, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // set CONVERSATION_SHOTS to a folder to also save the conversation on a phone and a computer, light and dark, to look at
@@ -22,11 +22,10 @@ const DAY = { low_c: 3.2, high_c: 9.8, rain: true };
 /** A message sent from Today (a POST to /api/outfits/today that carries `say`). */
 const said = (r: Request) => r.url().endsWith('/api/outfits/today') && r.method() === 'POST' && !!(r.postDataJSON() as { say?: string })?.say;
 
-/** Sets the passphrase the first time, logs in after that, and opens Today on a phone with a forecast (as 24-stylist). */
+/** Opens Today on a phone with a forecast (as 24-stylist). */
 async function open(page: Page, url: string) {
   await page.setViewportSize({ width: 390, height: 844 });
-  const session = await (await page.request.get(url + '/api/session')).json();
-  // The day is set before the first page opens: logging in can show Today for a moment, and a request of its own
+  // The day is set before the first page opens: opening can show Today for a moment, and a request of its own
   // without this day would reach Closet late, look like the weather moving and make Claude choose afresh just as a
   // test sends a message (which is then refused: seen once on GitHub).
   await page.route('**/api/outfits/today', async (route: Route) => {
@@ -39,16 +38,6 @@ async function open(page: Page, url: string) {
     await route.fulfill({ response, json });
   });
   await page.goto(url + '/');
-  if (session.setup_required) {
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
-  } else {
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByRole('button', { name: 'Open my closet' }).click();
-  }
-  // logged in: the closet or Today opens (before that, leaving the page would lose the login)
   await expect(page.locator('#closet-title, #today-title').first()).toBeVisible();
   await page.goto(url + '/today');
   await expect(read(page)).toBeVisible({ timeout: 20_000 });

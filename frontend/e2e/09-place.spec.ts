@@ -1,4 +1,4 @@
-import { expect, login, test } from './fixtures';
+import { expect, goToCloset, test } from './fixtures';
 
 const BROOKLYN = { name: 'Brooklyn, New York, United States', latitude: 40.6501, longitude: -73.9496, timezone: 'America/New_York' };
 
@@ -17,7 +17,7 @@ test('settings: search for a place (faked), choose it and see it saved', async (
       weather: { date: '2026-11-12', low_c: 3.2, high_c: 9.8, rain_chance: 70, rain: true, summary: 'rain', fetched_at: '2026-11-12T17:00:00Z' },
     },
   }));
-  await login(page);
+  await goToCloset(page);
   const weatherAsked = { n: 0 };
   page.on('request', (r) => { if (r.url().endsWith('/api/weather')) weatherAsked.n += 1; });
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();

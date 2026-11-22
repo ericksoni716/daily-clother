@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page, context }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -18,7 +18,7 @@ async function fakeWeather(page: Page) {
 }
 
 async function openToday(page: Page) {
-  await login(page);
+  await goToCloset(page);
   // these tests are about the Worn screen: the laundry stays as the owner puts it (automatic laundry has its own tests)
   await page.request.put('/api/settings', { data: { laundry: { auto: false } } });
   await useProfile(page, 'demo');
@@ -147,7 +147,7 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
 });
 
 test('worn: offline the saved list is shown as last changed, and rating says why it waits', async ({ page, context }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await serviceWorkerInCharge(page);
   await page.goto('/today/worn');
@@ -174,7 +174,7 @@ test('worn: offline the saved list is shown as last changed, and rating says why
 });
 
 test('worn: the list saved offline belongs to its closet', async ({ page, context }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await serviceWorkerInCharge(page);
   await page.goto('/today/worn');

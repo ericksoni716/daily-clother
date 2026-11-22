@@ -323,7 +323,7 @@ export function joinWords(words: string[]): string {
 
 // --------------------------------------------------------------------- kept on this device
 
-/** Everything under this prefix is closet data and is removed on logout with the other saved copies. */
+/** Everything under this prefix is closet data and is forgotten with this device's other saved copies (`clearSavedData`). */
 export const SAVED_PREFIX = 'closet-today-saved';
 const CHOICE_KEY = 'closet-today-choice';
 
@@ -455,7 +455,7 @@ export function keptFor(profile: string, kv: KV | null = local()) {
   };
 }
 
-/** Removes everything this screen kept about the closet (on logout). */
+/** Removes everything this screen kept about the closet (when this device's saved copies are forgotten). */
 export function forgetSaved(kv: Pick<Storage, 'length' | 'key' | 'removeItem'> | null = local()) {
   if (!kv) return;
   try {

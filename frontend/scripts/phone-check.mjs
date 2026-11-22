@@ -20,7 +20,6 @@ import { chromium, devices, request } from '@playwright/test';
 
 const BACKEND_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'backend');
 const OUT = resolve(process.argv[2] || 'phone-shots');
-const PASS = 'a long and quiet phone check';
 // 375 is the narrowest the app supports; 402 and 440 are the iPhone 17 Pro and Pro Max (Playwright has
 // both; if an older Playwright doesn't, the 15 Pro and Pro Max at 402×874 and 440×956 stand in).
 const at = (name, fallback, width, height) => devices[name] ?? { ...devices[fallback], viewport: { width, height: height - 193 }, screen: { width, height } };
@@ -119,7 +118,7 @@ function localDay(offset) {
   return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
 }
 
-/** Sets the passphrase (which logs in), gives things long names, and returns the login to reuse in every browser. */
+/** Gives things long names, and returns the browser state to reuse in every browser. */
 async function setUp(base) {
   const api = await request.newContext({ baseURL: base, extraHTTPHeaders: { 'X-Closet-Client': '1' } });   // as the page's own calls
   try {
@@ -128,7 +127,6 @@ async function setUp(base) {
       if (!res.ok()) throw new Error(`${method} ${route}: ${res.status()} ${await res.text()}`);
       return res.status() === 204 ? null : res.json();
     };
-    await call('/api/setup', 'POST', { passphrase: PASS });
     const { items } = await call('/api/items?status=active');
     if (!items.length) throw new Error('The closet copied from the demo has no clothes.');
     const item = items[0];
@@ -243,8 +241,8 @@ async function check(base, { state, itemId, tripId, wishId }) {
           page.on('pageerror', (e) => errors.push(e.message));
           await page.goto(base + route);
           await settle(page);
-          if (await page.getByLabel('Passphrase').isVisible()) {
-            failures.push(`${route} at ${size}px shows the login instead of the screen`);
+          if (await page.getByTestId('refused').isVisible()) {
+            failures.push(`${route} at ${size}px says the device was not let in instead of showing the screen`);
           }
           if (size === COUNTED_AT && scheme === 'light') reading.push({ route, ...(await page.evaluate(measure)) });
           await scrollThrough(page);

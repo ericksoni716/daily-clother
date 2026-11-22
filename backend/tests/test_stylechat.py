@@ -15,7 +15,7 @@ from closet.tagger import routes as tagger_routes
 from closet.tagger import stylist
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError, Unreachable
 
-from .conftest import PASSPHRASE, FakeApi, fake_cutter
+from .conftest import FakeApi, fake_cutter
 
 
 class StandIn:
@@ -48,7 +48,6 @@ def chatty(cfg, claude):
     sv.chat.start = held.append
     sv.chat.clock = lambda: now["t"]
     c = TestClient(app_module.create_app(sv))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     yield SimpleNamespace(c=c, sv=sv, stand_in=stand_in, held=held, now=now, cfg=cfg, claude=claude)
     sv.stop()
 
@@ -214,13 +213,6 @@ def test_a_message_that_is_not_one_is_refused(chatty, body, status):
     assert chatty.c.post("/api/style/talk", content=b"{", headers={"content-type": "application/json"}).status_code == 400
 
 
-def test_the_conversation_needs_login(chatty):
-    anon = TestClient(app_module.create_app(chatty.sv))
-    assert anon.get("/api/style/talk").status_code == 401
-    assert anon.post("/api/style/talk", json={"say": "Hi."}).status_code == 401
-    assert anon.post("/api/style/talk/x/remember", json={"index": 0, "save": True}).status_code == 401
-
-
 # ------------------------------------------------------------------ keeping what Claude offered
 def test_saving_a_line_adds_it_to_your_style_marked_as_from_a_conversation(chatty):
     [turn] = answered(chatty)["turns"]
@@ -299,7 +291,6 @@ def metered(cfg, monkeypatch):
     held: list = []
     sv.chat.start = held.append
     c = TestClient(app_module.create_app(sv))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     yield SimpleNamespace(c=c, sv=sv, api=api, held=held, cfg=cfg)
     sv.stop()
 

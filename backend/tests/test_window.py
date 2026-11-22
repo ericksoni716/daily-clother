@@ -611,16 +611,16 @@ def test_a_second_launch_shows_the_running_copys_window(cfg, launcher):
     assert launcher.run(a, drive) == 0
 
 
-def test_the_window_endpoint_needs_this_copys_token(cfg, anon, services):
+def test_the_window_endpoint_needs_this_copys_token(cfg, client, services):
     services.on_show = lambda: True
-    assert anon.post("/api/instance/show").status_code == 403
+    assert client.post("/api/instance/show").status_code == 403
     instance.write_lock(cfg, 8765)
     token = json.loads(cfg.lock_path.read_text())["token"]
-    assert anon.post("/api/instance/show", headers={instance.QUIT_HEADER: token + "x"}).status_code == 403
-    r = anon.post("/api/instance/show", headers={instance.QUIT_HEADER: token})
+    assert client.post("/api/instance/show", headers={instance.QUIT_HEADER: token + "x"}).status_code == 403
+    r = client.post("/api/instance/show", headers={instance.QUIT_HEADER: token})
     assert r.status_code == 200 and r.json() == {"shown": True}
     services.on_show = lambda: False
-    assert anon.post("/api/instance/show", headers={instance.QUIT_HEADER: token}).json() == {"shown": False}
+    assert client.post("/api/instance/show", headers={instance.QUIT_HEADER: token}).json() == {"shown": False}
 
 
 def test_a_copy_without_a_window_is_opened_in_the_browser(cfg, monkeypatch):

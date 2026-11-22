@@ -1,11 +1,11 @@
 /* Closet's service worker (hand-written).
  *
  * - The app's own files are saved at install so the closet opens without the server.
- * - Closet data (items, vocabulary, session) is fetched fresh and saved; when the server
+ * - Closet data (items, vocabulary, which closet is open) is fetched fresh and saved; when the server
  *   cannot be reached, the saved copy is used and marked with a header so the page can
  *   say "Offline".
  * - Images never change at a given address, so a saved copy is used first.
- * - Nothing but GET is ever saved, and never login/setup/logout.
+ * - Nothing but GET is ever saved.
  * - A page loaded with `?signin=` (after Cloudflare's sign-in ran out) always waits for the network.
  * - Saves (anything but GET) go straight to the server without passing through here, where the
  *   browser supports it: one sent as the page is reloaded or closed was otherwise sometimes lost.

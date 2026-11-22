@@ -23,7 +23,7 @@ from closet.tagger import views as tagger_views
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
 from closet.tagger.views import PhotoView, ShoeViews
 
-from .conftest import PASSPHRASE, FakeApi, FakeClaude, fake_cutter, photo_bytes, upload, views_answer
+from .conftest import FakeApi, FakeClaude, fake_cutter, photo_bytes, upload, views_answer
 
 MAIN = (900, 1200)    # the size of the main photo `upload` sends
 EXTRA = (640, 480)    # the size of the other photos these tests add
@@ -69,7 +69,6 @@ def made(cfg, sorter):
     sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, tagger=claude, routes=lambda: routes["now"],
                                    sorter=sorter)
     c = TestClient(app_module.create_app(sv))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     yield SimpleNamespace(sv=sv, c=c, routes=routes)
     sv.stop()
 
@@ -225,17 +224,6 @@ def test_an_extra_photo_is_removed_with_its_files_never_the_main_one(cfg, c, sv)
     other = a_shoe(c, key="k2")
     assert c.delete(f"/api/items/{other['id']}/photos/{two['id']}").status_code == 404   # not that item's photo
     assert len(get(c, item)["photos"]) == 2
-
-
-def test_the_photo_endpoints_need_the_login(cfg):
-    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, tagger=FakeClaude(), routes=lambda: ())
-    try:
-        anon = TestClient(app_module.create_app(sv))
-        assert anon.post("/api/items/x/photos", files={"photo": ("s.jpg", b"x", "image/jpeg")}).status_code == 401
-        assert anon.delete("/api/items/x/photos/y").status_code == 401
-        assert anon.put("/api/items/x/photos/y/view", json={"view": "outer"}).status_code == 401
-    finally:
-        sv.stop()
 
 
 # ------------------------------------------------------------------ sorting
@@ -614,7 +602,6 @@ def test_sorting_goes_through_the_api_key_and_its_monthly_limit(cfg):
     sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, routes=lambda: ("api",), api_client=api)
     try:
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         item = a_shoe(c)
         add(c, item, 1)
         c.put("/api/settings", json={"tagging_api_enabled": True, "tagging_api_cap_usd": 0.01})

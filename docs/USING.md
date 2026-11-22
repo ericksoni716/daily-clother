@@ -240,9 +240,12 @@ it, and optionally similar ones). "Based on…" opens How you live, the same que
 Settings; once the closet has enough to suggest from and they are not answered, "Tell it how
 you live" offers them. What holds suggestions back, the days you ruled out and what you hid
 are folded at the end of the section. **Thinking of buying something?**: Would this work?,
-and your wishlist, a row per wish that opens its page, with "Add by hand" (beside the rest on
-a computer). **Not worn**: pieces never worn and pieces not worn for a long time in their
-season, each to Archive or Keep. **Worn most**: over the last 30 or 90 days or all time.
+and your wishlist, a row per wish that opens its page, with "Add a link" (a product's page: a
+new wish made from it, then its page opens) and "Add by hand" (beside the rest on a computer).
+A row shows the note, what to look for, or the page it was sent as ("$68.00 at Example Shop"),
+and "Down from $68.00 to $54.40" when a price went down. **Not worn**: pieces never worn and
+pieces not worn for a long time in their season, each to Archive or Keep. **Worn most**: over
+the last 30 or 90 days or all time.
 **More numbers**, folded: how wears are spread in each kind of clothing, what the closet is
 made of, and cost per wear for pieces with a price. A piece opens in the Wardrobe
 (`/wardrobe/item/<id>`; beside the page on a computer). Offline, it shows what it last found,
@@ -253,8 +256,19 @@ marked as saved earlier.
 `/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wardrobe" goes back. What to look
 for, a note (saved when you leave the box or tap Save note, saying "Saving…", "Saved" or
 "Didn't save" with Try again), the price range and "Find some" (Claude searches shops; each
-find is checked against the closet and its price can be checked again later), "I found one:
-would it work?", "I bought it" and Remove.
+find is checked against the closet and its price can be checked again later), "Add a link" (a
+product's page added as a find: Nines reads its name and price from the page, and asks Claude
+only when the page gives no price; the find says "You sent this link", and when Claude read the
+price), "Check prices" (the pages you sent read by Nines, the rest by Claude), "I found one:
+would it work?", "I bought it" and Remove. While a page is read the wish says who is reading it.
+
+## Add a link
+
+`/wardrobe/link?url=<a product's page>` (or `text=` or `title=`, whichever holds the link),
+which the share sheet opens on Android and in Chrome on a computer, and an iPhone Shortcut
+opens (README). "‹ Wardrobe" goes back. The wishlist's "Add a link" box, filled in with the
+link; nothing is added until you tap "Add to the list", which makes the wish and opens its page.
+When what was shared holds no link, it says so and the box is empty.
 
 ## Would this work?
 

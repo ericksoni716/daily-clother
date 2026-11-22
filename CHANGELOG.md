@@ -18,22 +18,6 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   with no drawing yet shows its photo. The Photos / Drawings switch over the closet starts from
   it and no longer remembers its choice on the device: to keep drawings, turn the setting on.
 
-- On Windows, Nines can keep running for your phone: in **Settings → Other devices**, press **Keep Nines
-  running** and say Yes when Windows asks. Windows then starts Nines when the computer turns on,
-  before you sign in (or when you sign in, where Windows will not do that), and starts it again
-  within a few minutes if it stops. Opening Nines opens its window onto that copy, the port it
-  answers on stops changing, updates come back the same way, and a newer `Nines.exe` you open by
-  hand offers to move it to the new version. It replaces **Start Nines when I log in**, and
-  **Turn this off** in the same place puts things back as they were, keeping the newest version
-  of the program. Settings also says which port
-  Nines answers on, for setting up Tailscale and Cloudflare.
-
-- You can correct a shoe's side drawing with a one-line note, as you could its drawing for the
-  figure: under **What's wrong with the drawing?**, choose **The side**, and Claude changes only
-  the side, checks the change against the photos and says when your note goes against them.
-  The front stays as it was, **Go back to the drawing before** undoes the change, and your notes
-  on the side are kept for every later side drawing of that shoe.
-
 ### Changed
 
 - An item's page now reads in the order you go through a new piece: the picture and the name,
@@ -55,8 +39,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   shows it, so the photo and the side drawing show the same side. Before, a first photo of the
   inner side stayed as the shoe's photo. Shoes already in your closet are put right by
   themselves, without Claude looking at them again.
+
 - The **Phone** group in Settings is now called **Other devices**, and its sentences speak of your
   phone or another computer, since another computer on your Tailscale reaches Nines the same way.
+
 - Nines no longer has a passphrase. Who can open it is decided by the way in: on this computer,
   Nines' own window; through Tailscale, anyone Tailscale names as signed in to your Tailscale
   network (a device it does not name is turned away, with a page saying what to check); through
@@ -65,12 +51,36 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   device keeps for when Nines can't be reached, is now **Forget saved copies** under **Settings →
   This device**. `Nines.exe reset-passphrase` is gone too. A page left open from an older
   version opens your closet as it is, or says to reload.
+
+## 0.12.0
+
+### Added
+
+- On Windows, Nines can keep running for your phone: in **Settings → Other devices**, press **Keep Nines
+  running** and say Yes when Windows asks. Windows then starts Nines when the computer turns on,
+  before you sign in (or when you sign in, where Windows will not do that), and starts it again
+  within a few minutes if it stops. Opening Nines opens its window onto that copy, the port it
+  answers on stops changing, updates come back the same way, and a newer `Nines.exe` you open by
+  hand offers to move it to the new version. It replaces **Start Nines when I log in**, and
+  **Turn this off** in the same place puts things back as they were, keeping the newest version
+  of the program. Settings also says which port
+  Nines answers on, for setting up Tailscale and Cloudflare.
+
+- You can correct a shoe's side drawing with a one-line note, as you could its drawing for the
+  figure: under **What's wrong with the drawing?**, choose **The side**, and Claude changes only
+  the side, checks the change against the photos and says when your note goes against them.
+  The front stays as it was, **Go back to the drawing before** undoes the change, and your notes
+  on the side are kept for every later side drawing of that shoe.
+
+### Changed
+
 - The program is now called Nines too: `Nines.exe` on Windows, and `Nines.app` in
   `Nines-mac-arm64.zip` on a Mac. If you have `Closet.exe`, it cannot install this version by
   itself and says there is no download for this computer. Download `Nines.exe` once from the
   release page, put it where `Closet.exe` was, start it (if the old one is still running, Nines
   offers to close it) and delete `Closet.exe`. If Nines started when you logged in, it still
   does. Later versions install themselves again.
+
 - The folder your closet is kept in is now called Nines too. The first time Nines starts, it
   renames the Closet folder in your user folder to Nines, with everything in it; nothing is
   copied or deleted. If the old program is still running, or the folder cannot be renamed, Nines

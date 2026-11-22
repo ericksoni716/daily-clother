@@ -27,6 +27,7 @@ function writeParts(qc: QueryClient, s: Settings): void {
   if (s.model) qc.setQueryData(queryKeys.model(), s.model);
   if (s.style_profile) qc.setQueryData(queryKeys.styleProfile(), s.style_profile);
   if (s.tagging_spend) qc.setQueryData(queryKeys.spend(), s.tagging_spend);
+  if (s.show_drawings !== undefined) qc.setQueryData(queryKeys.pictures(), { show_drawings: s.show_drawings });
   if (s.updates) {
     const before = qc.getQueryData(queryKeys.updates());
     // the same status keeps the same object, so the banner and the Updates card only draw again on a change
@@ -47,6 +48,10 @@ export const settingsQuery = () => queryOptions({
 /** How Claude is reached. Settings asks it once each time it opens (`refetchOnMount: 'always'` there: Claude Code
  * may have been signed in meanwhile), while what was known stays shown; the card itself only reads it. */
 export const taggingQuery = () => queryOptions({ queryKey: queryKeys.tagging(), queryFn: api.tagging });
+
+/** "Show drawings instead of photos" on its own: the open closet reads it for every screen, apart from the settings
+ * (whose read, freshness and parts stay Settings' own). A settings read or save writes it too (`writeParts`). */
+export const picturesQuery = () => queryOptions({ queryKey: queryKeys.pictures(), queryFn: api.pictures });
 
 export const storageQuery = () => queryOptions({ queryKey: queryKeys.storage(), queryFn: api.storage });
 

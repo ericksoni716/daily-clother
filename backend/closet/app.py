@@ -563,6 +563,7 @@ class SettingsPatch(BaseModel):
     rewear: object = None
     laundry: object = None
     stylist_on: bool | None = None
+    show_drawings: bool | None = None
     cloudflare_team: str | None = None   # the door through Cloudflare (closet/access.py); an empty value clears one
     cloudflare_aud: str | None = None
     cloudflare_host: str | None = None
@@ -1445,6 +1446,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             "rewear": savedtrips.rewear(state),
             "laundry": wears.laundry_setting(state.get("laundry")),
             "stylist_on": bool(state.get("stylist_on")),
+            "show_drawings": bool(state.get("show_drawings")),
             # each as its own endpoint answers it
             "model": model_payload(),                          # GET /api/model
             "updates": sv.updater.status() if sv.updater else None,   # GET /api/updates
@@ -1630,6 +1632,12 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     def get_settings(request: Request, conn=Depends(conn_dep)):
         return settings_payload(conn, request)
 
+    @app.get("/api/settings/pictures")
+    def get_pictures():
+        """Settings' "Show drawings instead of photos" on its own: what every screen's small pictures follow, read when
+        the closet opens without the rest of the settings (whose read is Settings' own)."""
+        return {"show_drawings": bool(state.get("show_drawings"))}
+
     @app.put("/api/settings")
     def put_settings(body: SettingsPatch, request: Request, conn=Depends(conn_dep)):
         sent = body.model_fields_set
@@ -1670,6 +1678,8 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
                     raise HTTPException(422, str(e))
         if "stylist_on" in sent and body.stylist_on is not None:
             state.update(stylist_on=body.stylist_on)
+        if "show_drawings" in sent and body.show_drawings is not None:
+            state.update(show_drawings=body.show_drawings)
         if "laundry" in sent:
             try:
                 state.update(laundry=wears.check_laundry_setting(body.laundry))

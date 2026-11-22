@@ -68,6 +68,8 @@ export const queryKeys = {
 
   // Settings and the program
   settings: () => ['settings'] as const,
+  /** `GET /api/settings/pictures`: "Show drawings instead of photos", read by the open closet for every screen. */
+  pictures: () => ['pictures'] as const,
   /** `GET /api/style/profile`: Your style. */
   styleProfile: () => ['styleProfile'] as const,
   /** `GET /api/style/talk`: the style conversation and its next question. */
@@ -120,7 +122,7 @@ export const TOUCHES = {
   /** The note about the day. */
   day: ['day'],
   /** Any of the settings (the place, the laundry and rewear rules, how Claude is reached, its monthly limit…). */
-  settings: ['settings', 'weather', 'tagging', 'spend', 'gaps', 'progress'],
+  settings: ['settings', 'pictures', 'weather', 'tagging', 'spend', 'gaps', 'progress'],
   /** The API key saved or removed. */
   apiKey: ['settings', 'tagging', 'spend', 'progress'],
   styleProfile: ['styleProfile'],

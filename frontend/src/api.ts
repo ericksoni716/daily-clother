@@ -303,7 +303,9 @@ export const api = {
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
   setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),
   settings: () => request<Settings>('/api/settings'),
-  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; tagging_route_order?: RouteOrder; life?: Life | null; life_prompt_dismissed?: boolean; rewear?: Partial<Rewear> | null; laundry?: Partial<LaundrySetting>; stylist_on?: boolean; cloudflare_team?: string; cloudflare_aud?: string; cloudflare_host?: string }) =>
+  /** Settings' "Show drawings instead of photos" on its own, for the open closet. */
+  pictures: () => request<{ show_drawings: boolean }>('/api/settings/pictures'),
+  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; tagging_route_order?: RouteOrder; life?: Life | null; life_prompt_dismissed?: boolean; rewear?: Partial<Rewear> | null; laundry?: Partial<LaundrySetting>; stylist_on?: boolean; show_drawings?: boolean; cloudflare_team?: string; cloudflare_aud?: string; cloudflare_host?: string }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   /** The owner's style profile: the text in force, the starting one until they write their own. */
   styleProfile: () => request<StyleProfile>('/api/style/profile'),

@@ -2,6 +2,7 @@ import { queryOptions, useQueries, useQueryClient, type QueryClient } from '@tan
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChevronIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
+import { Pic } from '../components/ItemPic';
 import { Button, Card, EmptyState, ItemThumb, PageHeader, SaveStatus, ShowMore, trapTab, useSaveStatus } from '../components/ui';
 import { label } from '../labels';
 import { setLaundryMany } from '../laundry';
@@ -466,7 +467,7 @@ function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCan
           return (
             <button key={i.id} type="button" className={`worn-record-item${on ? ' is-on' : ''}`} aria-pressed={on}
               onClick={() => setChosen((c) => (on ? c.filter((x) => x !== i.id) : [...c, i.id]))}>
-              <Pic item={i} />
+              <Pic item={i} alt={nameOf(i, false)} />
               <span>{nameOf(i, false)}</span>
             </button>
           );
@@ -481,14 +482,6 @@ function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCan
       </div>
     </Card>
   );
-}
-
-function Pic({ item, alt = nameOf(item, false) }: { item: ItemSummary | undefined; alt?: string }): ReactNode {
-  if (!item) return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
-  if (item.cutout_state === 'ready' && item.thumb_url) return <img className="pic-cutout" src={item.thumb_url} alt={alt} />;
-  if (item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={alt} />;
-  if (item.thumb_url) return <img className="pic-photo" src={item.thumb_url} alt={alt} />;
-  return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
 }
 
 function nameOf(item: ItemSummary | undefined, deleted: boolean): string {

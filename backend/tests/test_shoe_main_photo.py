@@ -162,21 +162,53 @@ def test_a_view_the_owner_named_wins_over_claudes(cfg, make):
                                          (model_outer, "detail", "outer")]
 
 
-def test_a_main_photo_the_owner_named_a_side_stays(cfg, make):
+def test_a_main_photo_the_owner_named_the_outer_side_stays(cfg, make):
+    m = make(answer(("top", S_), ("outer", S_)))
+    item, (first, other) = a_shoe(m, 1)
+    m.c.put(f"/api/items/{item['id']}/photos/{first}/view", json={"view": "outer"})
+    m.sv.views.drain(now=later())   # Claude says the main photo is from above: the owner's word is kept
+    assert main_and_views(m.c, item) == [(first, "front", "outer"), (other, "detail", "outer")]
+    assert queued(cfg, item["id"], "cutout") == []
+
+
+def test_a_main_photo_the_owner_named_the_inner_side_gives_way_to_the_outer_side(cfg, make):
+    # 22 November: the owner's word on the view stands, and the closet picture is still the outer side
     m = make(answer(("top", S_), ("outer", S_)))
     item, (first, other) = a_shoe(m, 1)
     m.c.put(f"/api/items/{item['id']}/photos/{first}/view", json={"view": "inner"})
-    m.sv.views.drain(now=later())   # Claude says the main photo is from above: the owner's word is kept
-    assert main_and_views(m.c, item) == [(first, "front", "inner"), (other, "detail", "outer")]
-    assert queued(cfg, item["id"], "cutout") == []
+    m.sv.views.drain(now=later())
+    got = get(m.c, item)
+    assert [(p["id"], p["kind"], p["view"], p["view_by"]) for p in got["photos"]] == [
+        (other, "front", "outer", "model"), (first, "detail", "inner", "owner")]
+    assert queued(cfg, item["id"], "cutout") == [other]
+
+
+def test_an_inner_side_main_photo_gives_way_to_the_outer_side(cfg, make):
+    # the owner, 22 November: the closet picture was the inside of the shoe while its drawing showed the outside
+    m = make(answer(("inner", S_), ("top", S_), ("outer", U), ("outer", S_)),
+             described=tags(shoes_in_photo="one", shoe_view="side"))
+    item, (first, top, unsure_outer, sure_outer) = a_shoe(m, 3)
+    m.sv.tag_worker.drain()
+    m.sv.views.drain(now=later())
+    got = get(m.c, item)
+    assert main_and_views(m.c, item) == [(sure_outer, "front", "outer"), (first, "detail", "inner"),
+                                         (top, "detail", "top"), (unsure_outer, "detail", "outer")]
+    assert got["views"]["state"] == "sorted" and got["cutout_state"] == "pending"
+    assert queued(cfg, item["id"], "cutout") == [sure_outer] and got["trace"]["state"] is None
+    m.sv.worker.drain()   # cut out and traced from the outer side, not described again
+    got = get(m.c, item)
+    assert got["thumb_url"] == got["photos"][0]["cutout_thumb_url"] and got["trace"]["state"] == "done"
+    assert queued(cfg, item["id"], "tag") == []
 
 
 @pytest.mark.parametrize("views", [
     [("top", S_), ("front", S_), ("back", S_)],     # no side photo: nothing changes
-    [("inner", S_), ("outer", S_)],                 # already a side photo (the inner one): nothing changes
-    [("outer", U), ("top", S_)],                    # already a side photo, even unsure
+    [("outer", S_), ("inner", S_)],                 # already the outer side: nothing changes
+    [("outer", U), ("top", S_)],                    # already the outer side, even unsure
+    [("outer", S_), ("outer", S_)],                 # already an outer side, with another one
+    [("inner", S_), ("top", S_), ("back", S_)],     # the inner side, with no outer side to give way to
 ])
-def test_nothing_changes_without_a_side_photo_or_with_one_already_the_main(cfg, make, views):
+def test_nothing_changes_without_a_side_photo_or_with_the_best_one_already_the_main(cfg, make, views):
     m = make(answer(*views))
     item, ids = a_shoe(m, len(views) - 1)
     m.sv.views.drain(now=later())
@@ -205,6 +237,73 @@ def test_while_the_owner_is_asked_the_main_photo_waits_for_the_answer(cfg, make)
         (guess_inner, "front", "outer", "owner"), (first, "detail", "top", "model"),
         (guess_outer, "detail", "inner", "owner")]
     assert got["views"]["state"] == "sorted" and got["cutout_state"] == "pending"
+
+
+def test_while_the_owner_is_asked_an_inner_side_main_photo_stays(cfg, make):
+    m = make(answer(("inner", U), ("outer", U), differ=True))
+    item, (first, other) = a_shoe(m, 1)
+    m.sv.views.drain(now=later())
+    m.sv.worker.drain()
+    got = get(m.c, item)
+    assert got["views"]["state"] == "asking" and main_and_views(m.c, item) == [
+        (first, "front", "inner"), (other, "detail", "outer")]
+    assert queued(cfg, item["id"], "cutout") == []
+
+
+def a_shoe_sorted_before(cfg, m, views: list[tuple[str, str]], state="sorted", key="k1") -> tuple[dict, list[str]]:
+    """A shoe whose photos were sorted by an earlier version, as `views` (each (view, by), the main photo first)."""
+    item, ids = a_shoe(m, len(views) - 1, key)
+    for photo_id, (view, by) in zip(ids, views, strict=True):
+        sql(cfg, "UPDATE photos SET view = ?, view_sure = 1, view_by = ? WHERE id = ?", (view, by, photo_id))
+    sql(cfg, "UPDATE items SET views_state = ? WHERE id = ?", (state, item["id"]))
+    return item, ids
+
+
+def test_a_shoe_sorted_before_with_the_inner_side_as_its_picture_is_put_right_once(cfg, make, side_shoe):
+    m = make(answer(("top", S_)), described=tags(shoes_in_photo="one", shoe_view="side"))
+    item, (inner, top, outer) = a_shoe_sorted_before(cfg, m, [("inner", "owner"), ("top", "model"),
+                                                              ("outer", "owner")])
+    m.sv.tag_worker.drain()
+    # traced from the inner side by the version before
+    sql(cfg, "UPDATE items SET trace_state = 'done', trace = ?, trace_version = ? WHERE id = ?",
+        (side_shoe.to_json(), tracejobs.TRACING_VERSION, item["id"]))
+    m.tracer.calls.clear()
+    m.sv.worker.drain()   # the cut-out queue, at its next round: no call to Claude, nothing for the owner to do
+    got = get(m.c, item)
+    assert main_and_views(m.c, item) == [(outer, "front", "outer"), (inner, "detail", "inner"), (top, "detail", "top")]
+    assert got["photos"][1]["view_by"] == "owner"   # the owner's word on the view stays
+    assert got["cutout_state"] == "ready" and got["thumb_url"] == got["photos"][0]["cutout_thumb_url"]
+    assert m.tracer.calls == [{}] and got["trace"]["state"] == "done"   # traced again, from the outer side
+    assert m.sorter.calls == [] and queued(cfg, item["id"], "tag") == []
+    # only once: nothing is left to put right
+    with closing(db.connect(cfg.db_path("main"))) as conn:
+        assert shoeviews.catch_up(conn) == 0
+    assert m.sv.worker.drain() == 0 and m.tracer.calls == [{}]
+    assert main_and_views(m.c, item)[0] == (outer, "front", "outer")
+
+
+@pytest.mark.parametrize("state", ["asking", "waiting", "failed"])
+def test_a_shoe_not_sorted_yet_is_not_caught_up(cfg, make, state):
+    m = make(answer(("top", S_)))
+    item, (inner, outer) = a_shoe_sorted_before(cfg, m, [("inner", "model"), ("outer", "model")], state=state)
+    with closing(db.connect(cfg.db_path("main"))) as conn:
+        assert shoeviews.catch_up(conn) == 0
+    m.sv.worker.drain()
+    assert main_and_views(m.c, item) == [(inner, "front", "inner"), (outer, "detail", "outer")]
+
+
+def test_the_demo_closet_is_never_caught_up(cfg, make):
+    m = make(answer(("top", S_)))
+    assert m.c.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    item = from_add(m.c, "demo-shoe")
+    other = add(m.c, item, 1).json()["photos"][-1]["id"]
+    m.c.patch(f"/api/items/{item['id']}", json={"category": "boots"})
+    with closing(db.connect(cfg.db_path("demo"))) as conn:
+        conn.execute("UPDATE photos SET view = CASE id WHEN ? THEN 'outer' ELSE 'inner' END WHERE item_id = ?",
+                     (other, item["id"]))
+        conn.execute("UPDATE items SET views_state = 'sorted' WHERE id = ?", (item["id"],))
+    m.sv.worker.drain()
+    assert get(m.c, item)["photos"][0]["id"] == item["photos"][0]["id"]
 
 
 def test_a_shoe_kept_from_before_is_unaffected_until_its_photos_are_sorted_again(cfg, make):

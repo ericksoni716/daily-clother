@@ -196,6 +196,8 @@ Turn what the owner says into changes: each change is one name from the list and
 - Change only what the owner's words say or plainly imply (for example "it's a henley, not a tee" sets the neckline to henley and the front to a henley placket; "three buttons" sets placket_buttons to 3). Do not change anything else.
 - Never guess. If part of what they say does not fit any listed value, or you cannot tell which value they mean, leave it out of the changes and say so in not_understood, in one short plain sentence to the owner.
 - Features are "yes" (it has it) or "no" (it does not).
+- trim_color is the colour the collar, the cuffs and any ribbing are drawn in, and a strip binding the edges; same draws them in the body's own cloth. "The collar is the same colour as the rest" or "the cuffs match" sets trim_color to same; a collar, cuffs or ribbing in a colour of their own set it to that colour. It is not the cloth.
+- fabric plain is a plain weave, a woven cloth. A smooth knit (a T-shirt, a sweatshirt) is jersey or french_terry, never plain.
 - The cloth and its lettering (`cloth` and `lettering` in the description) are not in the list: when the owner's words are about them, give the whole new cloth in `cloth` or the whole new lettering in `lettering`, keeping all they do not mention; otherwise leave both null. Lettering is only letters or words they give or you can read; a logo that is a picture or a symbol cannot be drawn, so say so in not_understood.
 - {"The image is the item with its background removed." if with_photo else "You have not been shown the item. If the sentence cannot be understood without seeing it (for example \"the colour is wrong\"), set needs_photo to true and give no changes."}"""
 

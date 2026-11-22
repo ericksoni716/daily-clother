@@ -372,6 +372,9 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
             extras["lace_color"] = taxonomy.RAWHIDE   # leather laces are tan unless their colour was told
         return "sneaker", p, extras, []
     # a top: the details decide, in the taxonomy's words; the coarse silhouette fills in what the details leave "na"
+    if d.fabric == "plain" and (d.garment in taxonomy.KNIT_KINDS
+                                or d.garment == "unknown" and tags.category in taxonomy.KNIT_CATEGORIES):
+        cloth["fabric"] = "unknown"   # the plain weave said of a knit meant a smooth face: no woven check on it
     category_neck = {"shirt": "collar", "polo": "collar", "hoodie": "hood", "jacket": "collar", "coat": "collar"}.get(tags.category, "crew")
     coarse_neck = s.neck or category_neck
     g = {"fit": d.fit_detail if d.fit_detail != "regular" else _COARSE_FIT.get(s.fit, "regular"),

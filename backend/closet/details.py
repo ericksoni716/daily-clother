@@ -71,7 +71,7 @@ TITLES = {
     "sleeve_construction": "sleeve seams", "pockets": "pockets", "hem": "hem", "fabric": "fabric", "fiber": "fibre",
     "weight": "weight of the cloth", "knit_gauge": "knit", "corduroy_wale": "corduroy ridges",
     "color_texture": "colour effect", "pattern_name": "pattern's name", "pattern_orientation": "pattern direction",
-    "trim_color": "trim colour", "waist": "waist", "pant_hem": "trouser hem", "shoe_style": "shoe style",
+    "trim_color": "collar and cuff colour", "waist": "waist", "pant_hem": "trouser hem", "shoe_style": "shoe style",
     "sole_color": "sole colour", "lace_color": "lace colour", "shade": "shade",
     "footwear": "kind of shoe", "toe_shape": "toe shape", "toe_treatment": "toe", "lacing": "fastening",
     "eyelets": "number of eyelets", "laces": "laces", "sole": "sole", "shoe_construction": "how the sole is attached",
@@ -137,6 +137,7 @@ _WORDS = {
     "denim_wash": {"washed_black": "washed black"},
 
     "trim_color": {"same": "same as the body"}, "button_color": {"same": "same as the cloth"},
+    "fabric": {"plain": "plain weave"},
     "garment": {"unknown": "not said", **kinds.WORDS},
 }
 

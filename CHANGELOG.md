@@ -52,6 +52,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   This device**. `Nines.exe reset-passphrase` is gone too. A page left open from an older
   version opens your closet as it is, or says to reload.
 
+- In **Fix the details**, the detail that colours a top's collar, cuffs and ribbing is now called
+  **collar and cuff colour** (it was "trim colour"), under Collar and neck. Choose **same as the
+  body** when the drawing shows the collar in a colour it does not have. Telling Claude "the collar
+  is the same colour as the rest" now changes it too.
+
 ### Fixed
 
 - Ribbed cuffs on trousers can be set and seen. In Fix the details, a pair of trousers' hem is
@@ -60,6 +65,13 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   instead of their ribbed cuffs. Joggers, sweatpants and a knit set's trousers say "ribbed cuff"
   for their hem, as their drawing shows. A ribbed cuff now looks knitted, with its ribs and the
   leg gathered into it, on the item's drawing and on the figure as worn.
+- The ribbed cuffs, hem band and neck of a sweatshirt, sweater, hoodie or polo are drawn in the
+  same colour as the rest of it, with fine ribs. Before, they were drawn a shade lighter or darker,
+  so a black sweatshirt looked as if it had grey cuffs, and nothing you told Claude could change it.
+  A contrast colour Claude saw, or you chose, still shows.
+- A knitted top that Claude described as "plain" (a plain weave, a woven cloth) is drawn as plain
+  cloth, not with a woven check. Claude is now told that plain means a woven cloth, and Fix the
+  details calls it **plain weave**. Your clothes are drawn again the next time you open them.
 
 ## 0.12.0
 

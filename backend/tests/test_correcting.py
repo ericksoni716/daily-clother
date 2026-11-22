@@ -15,7 +15,7 @@ from PIL import Image
 
 from closet import app as app_module
 from closet import db, spend, tagjobs
-from closet.tagger import correcting
+from closet.tagger import correcting, tagging
 from closet.tagger import routes as tagger_routes
 from closet.tagger.correcting import CorrectionAnswer
 from closet.tagger.tagging import CapReached, RouteUnavailable
@@ -80,6 +80,16 @@ def test_the_prompt_has_the_sentence_the_description_and_the_allowed_values_only
     assert "- color: navy, green" in text and "- placket_buttons: 0, 1, 2" in text
     assert "needs_photo" in text and "Never guess" in text
     assert "background removed" in correcting.prompt("x", DESCRIPTION, ALLOWED, with_photo=True)
+
+
+def test_the_prompt_says_trim_colour_is_the_collars_and_plain_is_a_weave():
+    # "the collar is the same colour as the rest" reached nothing: Claude was not told that trim_color is the collar's
+    # colour; and "plain" said of a sweatshirt drew it as a woven check
+    text = correcting.prompt("the collar is the same colour as the rest", DESCRIPTION, ALLOWED, with_photo=False)
+    assert "trim_color is the colour the collar, the cuffs and any ribbing are drawn in" in text
+    assert '"The collar is the same colour as the rest"' in text and "sets trim_color to same" in text
+    assert "fabric plain is a plain weave" in text
+    assert "The fabric plain is a plain weave" in tagging.PROMPT
 
 
 # ---- the plan route

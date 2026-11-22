@@ -111,7 +111,8 @@ category, group, laundry, and In use or Archived) whose choices stay visible as 
 switch between Photos and Drawings. The switch starts from Settings' **Show drawings instead of
 photos** each time Nines is opened, and changing it shows the other kind in the grid only, until
 then. One line over the grid says what wants seeing to: "5 to
-check · 4 in the laundry". Each part shows only those pieces, as a chip that removes
+check · 4 in the laundry" (to check: the pieces added and not checked yet, and those with a
+detail Claude was unsure of). Each part shows only those pieces, as a chip that removes
 itself: "Needs a check" then offers "Check them one at a time" (the review), and "In the
 laundry" offers "All clean". A tile shows the piece's picture and name, and, while
 Nines is working on it, a small round mark with the step it is at (1 cutting out, 2
@@ -124,32 +125,40 @@ phone it opens as its own page.
 
 ## An item
 
-`/item/<id>`. The picture (photo, cutout or drawing, and for some pieces the back), with a small
-mark on the drawing that lists what it leaves out. Under the name, one line says what the piece
-is, its colour and how it sits ("Polo · Navy · Regular fit · Short sleeves"). It is read from the
-same description the drawing is made from, with your corrections over it, so it never says
-something the drawing does not show; each word of how it sits opens its detail to fix.
-"Something wrong? Tell Claude" opens Fix the details: a sheet over the page (on a computer, a
-box under the button) with the drawing and a box, "What's wrong with it?". Claude reads your
-sentence, says what it understood, and nothing changes until you choose Make these changes.
-"Change the details one by one" shows every detail the drawing is made from, by group, marked
-when you set it, with when Claude described the piece. In the demo closet, or when Claude could
-not be reached, the button says "Something wrong? Change the details" and the sheet opens on the
-details one by one, saying why.
+`/item/<id>`. It reads in the order you go through a new piece. First the picture (photo, cutout
+or drawing, and for some pieces the back), with a small mark on the drawing that lists what it
+leaves out, and the name, which you type over in place. Straight under the name: **What is it?**
+(the kind, with who said it, a sheet of kinds on a phone), the brand and the price, each saved as
+you leave it. Changing any of these counts as having checked the piece, so it leaves the review.
 
 Then "Wearing and washing": Wore it today, put in the laundry or mark clean, and recent wears.
 About it holds how you feel about it and one box, Notes for you and Claude, which Claude reads
 when it chooses your outfits; it shows every note kept about the piece, and once you change it
-the whole text is kept there. Four folds follow, closed until opened: Details (what it is,
-colour, pattern, where it lives, formality, season, each a row that opens its choices, a sheet
-on a phone), Shopping facts (brand, size, material, price, date acquired, condition), History
-(every change, each of which can be undone), and the last one, with Describe it again, Archive
-and Delete. A new photo can be taken in place of the old one, and a cutout that failed can be
-tried again.
+the whole text is kept there.
 
-A shoe also shows its photos sorted into views. Once they are sorted, the photo of the outer
-side is its photo in the closet, so the photo and the side drawing show the same side (the
-inner side when no photo shows the outer one). Under "Drawn by Claude from its photos" are
+Then how it looks. One line says what the piece is, its colour and how it sits ("Polo · Navy ·
+Regular fit · Short sleeves"). It is read from the same description the drawing is made from,
+with your corrections over it, so it never says something the drawing does not show; each word
+of how it sits opens its detail to fix. "Something wrong? Tell Claude" opens Fix the details: a
+sheet over the page (on a computer, a box under the button) with the drawing and a box, "What's
+wrong with it?". Claude reads your sentence, says what it understood, and nothing changes until
+you choose Make these changes. "Change the details one by one" shows every detail the drawing is
+made from, by group, marked when you set it, with when Claude described the piece. In the demo
+closet, or when Claude could not be reached, the button says "Something wrong? Change the
+details" and the sheet opens on the details one by one, saying why.
+
+Folds follow, closed until opened: Details (colour, pattern, where it lives, formality, season,
+each a row that opens its choices, a sheet on a phone), Size, material and more (size, material,
+date acquired, condition), then a shoe's photos, then History (every change, each of which can
+be undone), and the last one, with Describe it again, Archive and Delete. A new photo can be
+taken in place of the old one, and a cutout that failed can be tried again.
+
+A shoe also shows its photos sorted into views, near the end of the page. Once they are sorted,
+the photo of the outer side is its photo in the closet, so the photo and the side drawing show
+the same side (the inner side when no photo shows the outer one). When Claude could not tell the
+outside from the inside, the photos ask which one shows the outside; at any other time, "Change
+which photo shows the outside" under them puts right a swap Claude was sure of. Under "How it
+looks", "Drawn by Claude from its photos" holds
 the two drawings Claude makes from them: the shoe from the side, which is its picture in the
 closet when it shows drawings, with a line on what makes it itself, and the drawing for the figure. Both are made
 together, in several minutes. Either can be corrected with a one-line note: once there is a
@@ -174,9 +183,14 @@ figure say the same words while their part is under way.
 ## Review
 
 `/review`, from "Check them one at a time" when the closet shows the pieces that need a
-check; "‹ Closet" goes back. After Claude describes a piece, only the details it was unsure
-of come here, one piece at a time: "That's right", pick the right value, or "Skip for now".
-On a computer with a mouse it also says which keys do the same; on a phone it does not.
+check, or on Add once a piece just added has been described; "‹ Closet" goes back. Every piece
+you add comes here once, new pieces first, and so does any piece with a detail Claude was unsure
+of. One piece at a time: its picture, its name to type over, **What is it?** (Claude's guess,
+with how sure it was, to change in a sheet), the brand and the price, and under them the details
+Claude was unsure of, its guess chosen. "That's right" (or Enter in a box) saves it all at once,
+makes what it is your word, and moves to the next; "Skip for now" leaves it for next time. A
+price that is not a price is said and nothing is saved. On a computer with a mouse it also says
+which keys do the same; on a phone it does not. Pieces kept before 22 November count as checked.
 
 ## Add
 
@@ -191,7 +205,9 @@ list shows each one's upload until it is in, then, in the same row, how far Nine
 with the piece (with the step's mark) and, once described, what Claude called it; it can be
 paused, retried and cleared, and survives closing the tab. Why pieces wait, when it is
 something you can see to in Settings, is said once above the rows. The same photo is not added twice. After that the piece is cut
-out, described and drawn in the background; you do not have to wait on this screen.
+out, described and drawn in the background; you do not have to wait on this screen. Once the
+uploads are done and a piece has been described, "Check them one at a time" leads to the review,
+to say what each is and give its name, brand and price.
 
 ## Several pieces in one photo
 

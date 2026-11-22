@@ -36,6 +36,21 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- An item's page now reads in the order you go through a new piece: the picture and the name,
+  then what it is, its brand and its price, straight under the name and changed in place; then
+  wearing and washing and About it; then how it looks (the line about it, Fix the details and a
+  shoe's drawings by Claude); a shoe's photos come near the end. Size, material, the date you got
+  it and its condition are under **Size, material and more**.
+
+- Every piece you add now comes to the review once, besides those Claude was unsure of: one at a
+  time, with its picture, its name to type over, what Claude thinks it is, and boxes for the brand
+  and the price. **That's right** saves it all at once. When a piece you just added has been
+  described, Add offers **Check them one at a time**. Pieces already in your closet count as
+  checked, and changing the name, kind, brand or price on an item's page counts too.
+
+- On a shoe's page, **Change which photo shows the outside** under its photos puts right a swap
+  Claude was sure of. Before, you could only say so when Claude was unsure.
+
 - A shoe's photo in the closet is now the photo of its outer side whenever one of its photos
   shows it, so the photo and the side drawing show the same side. Before, a first photo of the
   inner side stayed as the shoe's photo. Shoes already in your closet are put right by

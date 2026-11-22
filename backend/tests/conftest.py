@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw
 from pydantic import BaseModel
 
 from closet import app as app_module
-from closet import gate, tailnet, weather
+from closet import gate, productpage, tailnet, weather
 from closet.config import Config
 from closet.drawing import drawn
 from closet.tagger import correcting
@@ -48,6 +48,7 @@ class LocalClient(TestClient):
 
 fastapi.testclient.TestClient = LocalClient   # test modules import it from there after this file has run
 REAL_FETCH = weather.fetch   # for the tests of the request itself, which stop urlopen instead
+REAL_PAGE_GET = productpage._get   # for the tests of a product page's request itself, which stop the socket instead
 
 
 def pytest_runtest_setup(item):
@@ -90,6 +91,19 @@ def no_weather_service(monkeypatch):
     def unreachable(url: str) -> bytes:
         raise urllib.error.URLError("no network in tests")
     monkeypatch.setattr(weather, "fetch", unreachable)
+
+
+@pytest.fixture(autouse=True)
+def no_shop_pages(monkeypatch):
+    """No test reaches a shop: a product page's name is never looked up and no page is fetched, unless the test gives
+    its own `productpage.Reader` stand-ins (or a test of the request itself calls `REAL_PAGE_GET`)."""
+    def no_lookup(host: str) -> list[str]:
+        raise productpage.Unreadable("no network in tests")
+
+    def no_get(target, seconds):
+        raise productpage.Unreadable("no network in tests")
+    monkeypatch.setattr(productpage, "_resolve", no_lookup)
+    monkeypatch.setattr(productpage, "_get", no_get)
 
 
 def photo_bytes(fmt="JPEG", size=(900, 1200), color=(180, 60, 60)) -> bytes:

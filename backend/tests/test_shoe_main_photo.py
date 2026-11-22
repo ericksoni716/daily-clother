@@ -162,6 +162,19 @@ def test_a_view_the_owner_named_wins_over_claudes(cfg, make):
                                          (model_outer, "detail", "outer")]
 
 
+def test_the_owner_can_put_right_a_swap_claude_was_sure_of(cfg, make):
+    # 22 November: the item page asked only when Claude was unsure, so a sure but wrong outside could not be corrected;
+    # now the owner can say which photo shows the outside at any time
+    m = make(answer(("outer", S_), ("inner", S_), ("outer", S_)))
+    item, (first, inner, other_outer) = a_shoe(m, 2)
+    m.sv.views.drain(now=later())
+    assert get(m.c, item)["views"]["state"] == "sorted"
+    got = m.c.put(f"/api/items/{item['id']}/photos/{inner}/view", json={"view": "outer"}).json()
+    assert [(p["id"], p["kind"], p["view"], p["view_by"]) for p in got["photos"]] == [
+        (inner, "front", "outer", "owner"), (first, "detail", "inner", "owner"), (other_outer, "detail", "inner", "owner")]
+    assert got["views"]["state"] == "sorted" and queued(cfg, item["id"], "cutout") == [inner]
+
+
 def test_a_main_photo_the_owner_named_the_outer_side_stays(cfg, make):
     m = make(answer(("top", S_), ("outer", S_)))
     item, (first, other) = a_shoe(m, 1)

@@ -86,3 +86,8 @@
 @media (max-width: 520px) {
   .shoe-drawn-say-row { flex-direction: column; }
 }
+/* "Change which photo shows the outside": a small link under the photos, its choice in a sheet (a popover on a computer) */
+.shoe-say-outside { position: relative; justify-self: start; }
+.shoe-say-outside > .btn-link { min-height: var(--tap); padding: 0; font-size: var(--text-sm); }
+.sheet-popover.shoe-say-sheet { left: 0; width: min(26rem, calc(100vw - 32px)); }
+.shoe-say-sheet .shoe-ask-photo { max-width: 200px; }

@@ -1,8 +1,11 @@
-"""The review queue: only the fields the tagger was unsure of and the owner has not set.
+"""The review queue: every new item once, and the fields the tagger was unsure of and the owner has not set.
 
 Claude is never called: `FakeClaude` (conftest) stands in, and each test chooses how sure its answer is.
 """
 import json
+from contextlib import closing
+
+import pytest
 
 from closet import db, demo, review, vocab
 from closet.tagger.tagging import TagResult
@@ -20,16 +23,27 @@ def cut(services):
     return services.worker.drain()
 
 
-def tagged(client, services, claude, key, **sure):
-    """An item described by Claude, with these confidences (field -> number) in its answer."""
+def tagged(client, services, claude, key, new=False, garment=None, **sure):
+    """An item described by Claude, with these confidences (field -> number) in its answer. It counts as checked by
+    the owner already (as items kept before the review offered new ones), so only its doubtful fields queue it,
+    unless `new`. `garment`: the kind Claude's answer names."""
     answer = ANSWER.model_copy(update={f"{f}_confidence": v for f, v in sure.items()})
+    if garment:
+        answer = answer.model_copy(update={"details": answer.details.model_copy(update={"garment": garment})})
     services.tag_worker.tagger = lambda images, routes: TagResult(answer, "claude-haiku-5-5", 0.1, 100, 50, 0.0, 1, route=routes[0])
     claude.mode = "answers"
     item = upload(client, key=key).json()
     cut(services)
     assert services.tag_worker.drain() == 1
     claude.mode = "unavailable"
+    if not new:
+        checked(services, item["id"])
     return item["id"]
+
+
+def checked(services, item_id):
+    with closing(db.connect(services.cfg.db_path("main"))) as conn:
+        conn.execute("UPDATE items SET checked_at = ? WHERE id = ?", (db.now(), item_id))
 
 
 def queue(client):
@@ -203,3 +217,127 @@ def test_an_older_demo_closet_gets_the_confidences(cfg):
     finally:
         conn.close()
 
+
+
+# ------------------------------------------------------------ every new item, once (22 November)
+
+def test_a_new_item_is_offered_once_even_when_claude_was_sure(client, services, claude):
+    old = tagged(client, services, claude, "old", formality=0.9)
+    new = tagged(client, services, claude, "new", new=True, garment="polo", formality=0.9)
+    body = queue(client)
+    assert [i["id"] for i in body["items"]] == [new] and body["count"] == 1
+    shown = body["items"][0]
+    assert shown["new"] is True and shown["fields"] == []
+    # what the quick pass shows beside the picture: what Claude thinks it is, the name, brand and price
+    assert shown["kind"] == "polo" and shown["kind_by"] == "claude" and shown["name"] == "Navy polo"
+    assert shown["brand"] is None and shown["price_cents"] is None
+    assert old not in [i["id"] for i in body["items"]]
+
+
+def test_new_items_come_before_older_ones_with_doubts(client, services, claude):
+    unsure = tagged(client, services, claude, "unsure", color=0.5)
+    sure = tagged(client, services, claude, "sure", new=True, formality=0.9)
+    doubtful = tagged(client, services, claude, "doubtful", new=True, color=0.6)
+    assert [i["id"] for i in queue(client)["items"]] == [doubtful, sure, unsure]
+
+
+def test_an_item_still_being_cut_out_is_not_offered_yet(client, services, claude):
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    item = upload(client, key="demo-new").json()["id"]   # the demo closet never describes it, so it is not waiting
+    assert item not in [i["id"] for i in queue(client)["items"]]
+    cut(services)
+    found = next(i for i in queue(client)["items"] if i["id"] == item)
+    assert found["new"] is True and found["fields"] == []
+
+
+def test_checking_saves_the_essentials_confirms_the_kind_and_takes_it_out(client, services, claude):
+    item = tagged(client, services, claude, "a", new=True, garment="polo", color=0.5)
+    r = client.post(f"/api/items/{item}/check", json={
+        "kind": "polo", "changes": {"name": "Weekend polo", "brand": "Made-up Mills", "price_cents": 4250, "color": "black"},
+        "fields": ["formality"]})
+    assert r.status_code == 200
+    got = r.json()
+    assert (got["name"], got["brand"], got["price_cents"], got["color"]) == ("Weekend polo", "Made-up Mills", 4250, "black")
+    assert got["kind"] == "polo" and got["kind_by"] == "owner" and got["checked_at"]
+    assert got["source"]["name"] == "user" and got["source"]["color"] == "user" and got["source"]["formality"] == "user"
+    assert queue(client)["count"] == 0
+    # the owner's word wins: described again, Claude's name and kind do not come back
+    assert client.post(f"/api/items/{item}/retag").status_code == 202
+    claude.mode = "answers"
+    services.tag_worker.drain()
+    again = client.get(f"/api/items/{item}").json()
+    assert again["name"] == "Weekend polo" and again["kind_by"] == "owner" and again["brand"] == "Made-up Mills"
+    assert queue(client)["count"] == 0
+    # one change in the history, which can be undone
+    history = client.get(f"/api/items/{item}/history").json()
+    assert [e["by"] for e in history][:2] == ["claude", "owner"]   # described again after the owner's check
+
+
+def test_choosing_another_kind_while_checking(client, services, claude):
+    item = tagged(client, services, claude, "a", new=True, formality=0.9)
+    got = client.post(f"/api/items/{item}/check", json={"kind": "henley"}).json()
+    assert got["kind"] == "henley" and got["kind_by"] == "owner" and got["category"] == "tee"
+    assert queue(client)["count"] == 0
+
+
+def test_checking_with_no_kind_confirms_claudes_category(client, services, claude):
+    item = tagged(client, services, claude, "a", new=True, formality=0.9)
+    with closing(db.connect(services.cfg.db_path("main"))) as conn:   # an answer with no kind in it
+        conn.execute("UPDATE items SET tag_answer = NULL WHERE id = ?", (item,))
+    got = client.post(f"/api/items/{item}/check", json={}).json()
+    assert got["source"]["category"] == "user" and got["checked_at"]
+
+
+def test_a_doubtful_field_left_keeps_a_checked_item_in(client, services, claude):
+    item = tagged(client, services, claude, "a", new=True, color=0.5)
+    client.post(f"/api/items/{item}/check", json={"kind": "polo", "fields": ["formality"]})
+    assert fields(queue(client), item) == ["color"]
+
+
+def test_checking_is_all_or_nothing(client, services, claude):
+    item = tagged(client, services, claude, "a", new=True, garment="polo")
+    r = client.post(f"/api/items/{item}/check", json={"kind": "polo", "changes": {"name": "Kept?", "price_cents": -1}})
+    assert r.status_code == 422
+    got = client.get(f"/api/items/{item}").json()
+    assert got["name"] == "Navy polo" and got["kind_by"] == "claude" and got["checked_at"] is None
+    assert client.post(f"/api/items/{item}/check", json={"kind": "no such kind"}).status_code == 422
+    assert client.post(f"/api/items/{item}/check", json={"changes": {"status": "archived"}}).status_code == 422
+    assert client.post(f"/api/items/{item}/check", json={"fields": ["brand"]}).status_code == 422
+    assert client.post(f"/api/items/{item}/check", json={"other": 1}).status_code == 422
+    assert client.post("/api/items/nope/check", json={}).status_code == 404
+    assert [i["id"] for i in queue(client)["items"]] == [item]
+
+
+@pytest.mark.parametrize("change", [{"name": "My polo"}, {"brand": "Made-up Mills"}, {"price_cents": 3000}])
+def test_changing_an_essential_on_the_item_page_counts_as_checked(client, services, claude, change):
+    item = tagged(client, services, claude, "a", new=True, formality=0.9)
+    assert client.patch(f"/api/items/{item}", json=change).json()["checked_at"]
+    assert queue(client)["count"] == 0
+
+
+def test_saying_the_kind_on_the_item_page_counts_as_checked(client, services, claude):
+    item = tagged(client, services, claude, "a", new=True, formality=0.9)
+    client.patch(f"/api/items/{item}", json={"rating": "like"})   # not one of the essentials
+    assert queue(client)["count"] == 1
+    assert client.put(f"/api/items/{item}/kind", json={"kind": "polo"}).json()["checked_at"]
+    assert queue(client)["count"] == 0
+
+
+def test_items_kept_before_count_as_checked(cfg):
+    # migration 0039 marks every item already in a closet as checked; the demo closet's pieces are made checked
+    demo.ensure(cfg)
+    with closing(db.connect(cfg.db_path("demo"))) as conn:
+        assert conn.execute("SELECT count(*) FROM items WHERE checked_at IS NULL").fetchone()[0] == 0
+
+
+def test_the_migration_counts_every_item_kept_before_as_checked(cfg):
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    path = cfg.db_path("main")
+    with closing(db.connect(path)) as conn:   # a closet made by the previous version, with one item in it
+        for version, file in db.migration_files():
+            if version < 39:
+                conn.executescript(f"BEGIN;\n{file.read_text(encoding='utf-8')}\nPRAGMA user_version = {version};\nCOMMIT;")
+        conn.execute("INSERT INTO items (id, name, created_at, updated_at) VALUES ('kept', 'Kept', '2026-01-01', '2026-02-01')")
+    db.migrate(path, cfg.local_backups_dir)
+    with closing(db.connect(path)) as conn:
+        assert conn.execute("SELECT checked_at FROM items WHERE id = 'kept'").fetchone()[0] == "2026-02-01"

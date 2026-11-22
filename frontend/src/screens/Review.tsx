@@ -5,8 +5,10 @@ import { ChipGroup } from '../components/ui/Chips';
 import { Button, EmptyState, PageHeader } from '../components/ui';
 import { CloudOffIcon, HangerIcon } from '../components/Icons';
 import { FIELD_TITLES, label } from '../labels';
-import { notReadyText, progressText, reviewChanges, reviewRows, skippedText, sureText, type ReviewRow } from '../review';
-import { itemSaved, itemsQuery, reviewQuery } from '../queries';
+import { checkBody, notReadyText, progressText, reviewRows, skippedText, sureText, typedOf, type ReviewRow, type Typed } from '../review';
+import { itemSaved, itemsQuery, reviewQuery, useVocab } from '../queries';
+import { WhatItIs } from '../components/WhatItIs';
+import type { KindInfo } from '../kinds';
 import { queryKeys } from '../queryKeys';
 import { itemPath, Link, useMediaQuery } from '../router';
 import { useApp } from '../store';
@@ -146,37 +148,44 @@ const KEYBOARD = '(hover: hover) and (pointer: fine)';
 function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void; onSkip(): void }) {
   const { toast } = useApp();
   const qc = useQueryClient();
+  const vocab = useVocab();
   const rows = useMemo(() => reviewRows(item.fields), [item.fields]);
   const [chosen, setChosen] = useState<Record<string, string>>({});
+  const [kind, setKind] = useState<KindInfo | null>(null);
+  const [typed, setTyped] = useState<Typed>(() => typedOf(item));
   const [active, setActive] = useState(0);
   const [busy, setBusy] = useState(false);
   const name = item.name || label('category', item.category) || 'Item';
+  const type = (field: keyof Typed) => (e: { target: { value: string } }) => setTyped((t) => ({ ...t, [field]: e.target.value }));
 
   const choose = useCallback((row: ReviewRow, value: string) => setChosen((c) => ({ ...c, [row.key]: value })), []);
 
   const confirm = useCallback(async () => {
     if (busy) return;
+    const got = checkBody(item, typed, kind?.id ?? null, rows, chosen);
+    if ('error' in got) {
+      toast(got.error, 'error');
+      return;
+    }
     setBusy(true);
-    const { changes, confirm: keep } = reviewChanges(rows, chosen);
     try {
-      let saved = Object.keys(changes).length ? await api.patch(item.id, changes) : null;
-      if (keep.length) saved = await api.confirm(item.id, keep);
-      if (saved) itemSaved(qc, saved);
-      toast(Object.keys(changes).length ? 'Saved your changes' : 'Confirmed');
+      itemSaved(qc, await api.checkItem(item.id, got.body));
+      toast(Object.keys(got.body.changes).length || kind ? 'Saved your changes' : 'Confirmed');
       onDone();
     } catch (e) {
       toast((e as Error).message, 'error');
       setBusy(false);
     }
-  }, [busy, rows, chosen, item.id, qc, toast, onDone]);
+  }, [busy, item, typed, kind, rows, chosen, qc, toast, onDone]);
 
-  // On a computer: up and down move between fields, left and right (or 1–9) choose, Enter confirms, S skips.
+  // On a computer: up and down move between fields, left and right (or 1–9) choose, Enter confirms, S skips. In a box,
+  // Enter sends the form (the same "That's right") and the letters are typed.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey || busy) return;
       const target = e.target as HTMLElement | null;
-      if (target?.closest('input, textarea, select, a, summary')) return;
-      // a focused button outside the choices (Skip, the navigation) keeps its own Enter and space
+      if (target?.closest('input, textarea, select, a, summary, [role="dialog"]')) return;
+      // a focused button outside the choices (Skip, What is it?, the navigation) keeps its own Enter and space
       const onOtherButton = !!target?.closest('button') && !target.closest('.review-fields');
       const row = rows[Math.min(active, rows.length - 1)];
       const current = row ? (chosen[row.key] ?? row.value) : '';
@@ -188,10 +197,10 @@ function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void
       if (e.key === 'Enter' && !onOtherButton) {
         e.preventDefault();
         void confirm();
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' && row) {
         e.preventDefault();
         step(1);
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === 'ArrowLeft' && row) {
         e.preventDefault();
         step(-1);
       } else if (e.key === 'ArrowDown' && rows.length > 1) {
@@ -214,6 +223,7 @@ function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void
   // the keys are said only where there is a keyboard and a mouse: never on a phone
   const keys = useMediaQuery(KEYBOARD);
   const pictureClass = item.picture_kind === 'cutout' ? 'pic-cutout' : item.picture_kind === 'photo' ? 'pic-photo-full' : 'pic-illustration';
+  const shownKind = kind ? { ...item, kind: kind.id, kind_name: kind.name, group: kind.group, kind_by: 'owner' as const, kind_confidence: null } : item;
 
   return (
     <article className="review-card" aria-label={name} data-testid="review-card">
@@ -222,28 +232,55 @@ function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void
           ? <img className={pictureClass} src={item.picture_url} alt={name} />
           : <div className="pic-placeholder" role="img" aria-label={name}><HangerIcon /></div>}
       </div>
-      <div className="review-body">
-        <h2 className="review-name">{name}</h2>
-        <p className="muted">Claude wasn't sure about {rows.length === 1 ? 'this' : 'these'}. Its guess is chosen; tap another if it's wrong.</p>
-        <div className="review-fields">
-          {rows.map((r, i) => (
-            <div key={r.key} className={`review-field${i === active && rows.length > 1 ? ' is-active' : ''}`} data-testid="review-field"
-              onFocusCapture={() => setActive(i)} onPointerDown={() => setActive(i)}>
-              <ChipGroup field={r.part ?? r.field} options={r.options} value={chosen[r.key] ?? r.value} clearable={false}
-                swatches={r.field === 'color'} disabled={busy} title={FIELD_TITLES[r.part ?? r.field] ?? r.field}
-                onChange={(v) => v && choose(r, v)} />
-              <p className="review-sure">{sureText(r.confidence)}</p>
-            </div>
-          ))}
-        </div>
+      <form className="review-body" onSubmit={(e) => { e.preventDefault(); void confirm(); }}>
+        {/* the name, typed over in place, as on the item page */}
+        <h2 className="detail-title review-name">
+          <span className="name-field">
+            <input aria-label="Name" value={typed.name} placeholder={label('category', item.category) || 'Name this item'}
+              maxLength={120} disabled={busy} onChange={type('name')} onFocus={(e) => e.currentTarget.select()} />
+          </span>
+        </h2>
+        <section className="essentials" aria-label="What it is, brand and price">
+          <WhatItIs item={shownKind} groups={vocab?.kind_groups} disabled={busy} onPick={(k) => {
+            setKind(k);
+            return true;
+          }} />
+          <div className="essentials-fields">
+            <label className="field">
+              <span>Brand</span>
+              <input value={typed.brand} disabled={busy} onChange={type('brand')} />
+            </label>
+            <label className="field">
+              <span>Price</span>
+              <span className="input-prefix">
+                <span aria-hidden="true">$</span>
+                <input inputMode="decimal" value={typed.price} disabled={busy} onChange={type('price')} />
+              </span>
+            </label>
+          </div>
+        </section>
+        {rows.length > 0 && <>
+          <p className="muted">Claude wasn't sure about {rows.length === 1 ? 'this' : 'these'}. Its guess is chosen; tap another if it's wrong.</p>
+          <div className="review-fields">
+            {rows.map((r, i) => (
+              <div key={r.key} className={`review-field${i === active && rows.length > 1 ? ' is-active' : ''}`} data-testid="review-field"
+                onFocusCapture={() => setActive(i)} onPointerDown={() => setActive(i)}>
+                <ChipGroup field={r.part ?? r.field} options={r.options} value={chosen[r.key] ?? r.value} clearable={false}
+                  swatches={r.field === 'color'} disabled={busy} title={FIELD_TITLES[r.part ?? r.field] ?? r.field}
+                  onChange={(v) => v && choose(r, v)} />
+                <p className="review-sure">{sureText(r.confidence)}</p>
+              </div>
+            ))}
+          </div>
+        </>}
         <div className="row review-actions">
-          <button className="btn btn-primary" disabled={busy} onClick={() => void confirm()}>That's right</button>
-          <button className="btn" disabled={busy} onClick={onSkip}>Skip for now</button>
+          <button type="submit" className="btn btn-primary" disabled={busy}>That's right</button>
+          <button type="button" className="btn" disabled={busy} onClick={onSkip}>Skip for now</button>
         </div>
         {keys && <p className="muted review-keys">
-          On a computer: <kbd>←</kbd> <kbd>→</kbd> or <kbd>1</kbd>–<kbd>9</kbd> to choose{rows.length > 1 ? <>, <kbd>↑</kbd> <kbd>↓</kbd> for the next field</> : null}, <kbd>Enter</kbd> for “That's right”, <kbd>S</kbd> to skip.
+          On a computer: {rows.length ? <><kbd>←</kbd> <kbd>→</kbd> or <kbd>1</kbd>–<kbd>9</kbd> to choose{rows.length > 1 ? <>, <kbd>↑</kbd> <kbd>↓</kbd> for the next field</> : null}, </> : null}<kbd>Enter</kbd> for “That's right”, <kbd>S</kbd> to skip.
         </p>}
-      </div>
+      </form>
     </article>
   );
 }

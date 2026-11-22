@@ -81,6 +81,13 @@ export const OUTSIDE_QUESTION = 'Which photo shows the outside of the shoe?';
 export const ONE_SIDE_QUESTION = 'Is this the outside or the inside of the shoe?';
 export const OUTSIDE_HINT = 'When you wear them, the outside faces away from the other shoe.';
 
+/** Once a shoe's photos are sorted and nothing is being asked, the owner can still say which photo shows the outside
+ * (a swap Claude was sure of would otherwise stay). Not while they are sorted, nor for a shoe never sorted (the demo
+ * closet's, or one kept from before), whose main photo would not follow the answer. */
+export function canSayOutside(item: Pick<Item, 'photos' | 'views'>): boolean {
+  return item.views?.state === 'sorted' && item.photos.length > 0;
+}
+
 /** What the item page asks while Closet cannot tell the outside of the shoe from the inside: about one photo (outside
  * or inside?), or which of several shows the outside. Each photo comes with its number in the row of photos. */
 export function outsideQuestion(item: Pick<Item, 'photos' | 'views'>):

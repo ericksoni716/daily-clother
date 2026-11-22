@@ -1,6 +1,6 @@
 /** Plain words and small helpers for the review queue (the screen is in screens/Review.tsx). */
-import { SWATCH } from './labels';
-import type { ItemPatch, ReviewField } from './types';
+import { formatPrice, parsePrice, PRICE_HINT, SWATCH } from './labels';
+import type { CheckBody, Item, ItemPatch, ReviewField, ReviewItem } from './types';
 
 /** One choice to make: a field, or one part of the silhouette. */
 export interface ReviewRow {
@@ -47,6 +47,43 @@ export function reviewChanges(rows: ReviewRow[], chosen: Record<string, string>)
   if (Object.keys(silhouette).length) changes.silhouette = silhouette;
   const confirm = [...new Set(rows.map((r) => r.field))].filter((f) => !changed.has(f));
   return { changes, confirm };
+}
+
+/** Who said what it is, beside the kind: "Set by you", "Claude's guess · Claude was 80% sure", or nothing to say. */
+export function kindWho(item: Pick<Item, 'kind' | 'kind_by' | 'kind_confidence'>): string {
+  if (item.kind_by === 'owner') return 'Set by you';
+  if (item.kind_by === 'claude') return `Claude's guess${item.kind_confidence != null ? ` · ${sureText(item.kind_confidence)}` : ''}`;
+  return item.kind ? '' : 'Kind not said yet';
+}
+
+/** What you typed in the review's name, brand and price boxes. */
+export interface Typed {
+  name: string;
+  brand: string;
+  price: string;
+}
+
+/** The boxes as they start: what the item has now. */
+export const typedOf = (item: Pick<ReviewItem, 'name' | 'brand' | 'price_cents'>): Typed =>
+  ({ name: item.name ?? '', brand: item.brand ?? '', price: formatPrice(item.price_cents) });
+
+/**
+ * What "That's right" sends for an item: what it is (the kind you chose, else the one shown, so it becomes your word),
+ * the name, brand and price you changed, and the doubtful fields (changed, or confirmed as they are). An error, and
+ * nothing to send, when the price is not a price.
+ */
+export function checkBody(item: Pick<ReviewItem, 'name' | 'brand' | 'price_cents' | 'kind'>, typed: Typed, kind: string | null,
+  rows: ReviewRow[], chosen: Record<string, string>): { body: CheckBody } | { error: string } {
+  const price = parsePrice(typed.price);
+  if (price === undefined) return { error: PRICE_HINT };
+  const { changes, confirm } = reviewChanges(rows, chosen);
+  const name = typed.name.trim();
+  if (name !== (item.name ?? '')) changes.name = name || null;
+  const brand = typed.brand.trim();
+  if (brand !== (item.brand ?? '')) changes.brand = brand || null;
+  if (price !== item.price_cents) changes.price_cents = price;
+  const what = kind ?? item.kind ?? null;
+  return { body: { ...(what ? { kind: what } : {}), changes, fields: confirm } };
 }
 
 /** "4 of 23" */

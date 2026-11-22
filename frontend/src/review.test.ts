@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { notReadyText, progressText, reviewChanges, reviewRows, skippedText, sureText } from './review';
+import { checkBody, kindWho, notReadyText, progressText, reviewChanges, reviewRows, skippedText, sureText, typedOf } from './review';
 import type { ReviewField } from './types';
 
 const FIELDS: ReviewField[] = [
@@ -49,5 +49,45 @@ describe('review choices', () => {
     expect(reviewChanges(rows, { color: 'grey' })).toEqual({ changes: {}, confirm: ['color', 'silhouette'] });
     expect(reviewChanges(rows, { color: 'tan' })).toEqual({ changes: { color: 'tan', color_hex: '#c9a97c' }, confirm: ['silhouette'] });
     expect(reviewChanges(rows, { 'silhouette.neck': 'crew' })).toEqual({ changes: { silhouette: { neck: 'crew' } }, confirm: ['color'] });
+  });
+});
+
+describe('checking a new item', () => {
+  const item = { name: 'Navy polo', brand: null, price_cents: null, kind: 'polo' };
+  const typed = { name: 'Navy polo', brand: '', price: '' };
+
+  it("says who said what it is", () => {
+    expect(kindWho({ kind: 'polo', kind_by: 'owner', kind_confidence: null })).toBe('Set by you');
+    expect(kindWho({ kind: 'polo', kind_by: 'claude', kind_confidence: 0.8 })).toBe("Claude's guess · Claude was 80% sure");
+    expect(kindWho({ kind: 'polo', kind_by: 'claude', kind_confidence: null })).toBe("Claude's guess");
+    expect(kindWho({ kind: null, kind_by: null, kind_confidence: null })).toBe('Kind not said yet');
+  });
+
+  it('starts the boxes from what the item has', () => {
+    expect(typedOf({ name: null, brand: 'Made-up Mills', price_cents: 4550 })).toEqual({ name: '', brand: 'Made-up Mills', price: '45.50' });
+  });
+
+  it("with nothing changed, makes Claude's kind your word and changes nothing else", () => {
+    expect(checkBody(item, typed, null, [], {})).toEqual({ body: { kind: 'polo', changes: {}, fields: [] } });
+  });
+
+  it('sends the name, brand and price you changed, and the kind you chose', () => {
+    const got = checkBody(item, { name: '  Weekend polo ', brand: 'Made-up Mills', price: '$42.50' }, 'henley', [], {});
+    expect(got).toEqual({ body: { kind: 'henley', changes: { name: 'Weekend polo', brand: 'Made-up Mills', price_cents: 4250 }, fields: [] } });
+  });
+
+  it('clears a name or a price you emptied, and sends no kind when there is none', () => {
+    const got = checkBody({ ...item, kind: null, price_cents: 1000 }, { name: ' ', brand: '', price: '' }, null, [], {});
+    expect(got).toEqual({ body: { changes: { name: null, price_cents: null }, fields: [] } });
+  });
+
+  it('takes the doubtful fields along: changed ones as changes, the rest to confirm', () => {
+    const rows = reviewRows(FIELDS);
+    const got = checkBody(item, typed, null, rows, { color: 'black' });
+    expect(got).toEqual({ body: { kind: 'polo', changes: { color: 'black', color_hex: expect.anything() }, fields: ['silhouette'] } });
+  });
+
+  it('sends nothing and says so when the price is not a price', () => {
+    expect(checkBody(item, { ...typed, price: 'about forty' }, null, [], {})).toEqual({ error: 'Enter a price like 45 or 45.50.' });
   });
 });

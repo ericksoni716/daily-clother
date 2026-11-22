@@ -136,6 +136,8 @@ export interface Item extends ItemSummary {
   formality: string | null;
   season: string | null;
   brand: string | null;
+  /** when you last went through what it is, its name, brand and price; null: added and not checked yet */
+  checked_at?: string | null;
   size: string | null;
   material: string | null;
   fit_notes: string | null;
@@ -652,6 +654,21 @@ export interface ReviewItem extends ItemSummary {
   picture_url: string | null;
   picture_kind: 'cutout' | 'photo' | 'illustration' | null;
   fields: ReviewField[];
+  /** Added and not checked by you yet: offered once, for what it is, its name, brand and price. */
+  new: boolean;
+  brand: string | null;
+  price_cents: number | null;
+  kind_by: 'owner' | 'claude' | null;
+  kind_confidence: number | null;
+}
+
+/** What "That's right" in the review sends (`POST /api/items/{id}/check`): what it is (the kind shown, chosen or
+ * Claude's), the changes made (its name, brand and price, and any doubtful field changed), and the doubtful fields
+ * left as they were, to confirm. */
+export interface CheckBody {
+  kind?: string;
+  changes: ItemPatch;
+  fields: ReviewField['field'][];
 }
 
 /** The review queue, most doubtful first, and the items not in it because they are not described yet. */

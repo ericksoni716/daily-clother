@@ -131,6 +131,8 @@ async function setUp(base) {
     if (!items.length) throw new Error('The closet copied from the demo has no clothes.');
     const item = items[0];
     await call(`/api/items/${encodeURIComponent(item.id)}`, 'PATCH', { name: LONG.item });
+    // a shoe's page as well: its photos and drawings make it the longest item page
+    const shoe = items.find((i) => ['sneakers', 'boots', 'dress_shoes', 'sandals'].includes(i.category)) ?? item;
     // A trip asks the weather service for its forecast unless the weather is given, so it is given: mild and dry.
     const first = localDay(10), last = localDay(13);
     const weather = [];
@@ -144,7 +146,7 @@ async function setUp(base) {
     await call('/api/style/lines', 'POST', { text: LONG.line });
     await call('/api/style/talk', 'POST', { say: 'I always feel warm on the bus, even in winter' });
     for (let i = 0; i < 40 && (await call('/api/style/talk')).answering; i++) await new Promise((r) => setTimeout(r, 250));
-    return { state: await api.storageState(), itemId: item.id, tripId: trip.id, wishId: wish.id };
+    return { state: await api.storageState(), itemId: item.id, shoeId: shoe.id, tripId: trip.id, wishId: wish.id };
   } finally {
     await api.dispose();
   }
@@ -217,10 +219,10 @@ async function scrollThrough(page) {
   await page.waitForTimeout(600);
 }
 
-async function check(base, { state, itemId, tripId, wishId }) {
+async function check(base, { state, itemId, shoeId, tripId, wishId }) {
   // the four places and Add, then what each holds one level down
   const pages = ['/today', '/today/worn', '/trips', `/trips/${encodeURIComponent(tripId)}`,
-    '/', `/item/${encodeURIComponent(itemId)}`, '/archived', '/review',
+    '/', `/item/${encodeURIComponent(itemId)}`, `/item/${encodeURIComponent(shoeId)}`, '/archived', '/review',
     '/add',
     '/wardrobe', '/wardrobe/check', `/wardrobe/wish/${encodeURIComponent(wishId)}`,
     '/settings', '/settings/advanced'];

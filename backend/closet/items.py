@@ -33,6 +33,9 @@ from .tagger.taxonomy import SHADES, nearest_shade
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "wear_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
 PATCHABLE = set(TEXT_FIELDS) | set(ENUM_FIELDS) | {"silhouette", "price_cents", "status"}
+# the essentials the owner goes through on every new item (with what it is: `corrections.set_kind`); changing one counts
+# as having checked the item, so it leaves the review (`review.queue`)
+ESSENTIALS = ("name", "brand", "price_cents")
 RECENT_WEARS = 10
 
 
@@ -85,7 +88,7 @@ def detail(conn, row) -> dict:
     row = illustrations.current(conn, row)
     out = summary(conn, row)
     for f in ("formality", "season", "brand", "size", "material", "fit_notes", "wear_notes", "condition",
-              "price_cents", "acquired_on", "notes", "rating_reason", "illustration_svg", "cutout_error"):
+              "price_cents", "acquired_on", "notes", "rating_reason", "illustration_svg", "cutout_error", "checked_at"):
         out[f] = row[f]
     for f in ("confidence", "source"):
         out[f] = json.loads(row[f] or "{}")
@@ -361,6 +364,9 @@ def _update(conn, item_id: str, changes: dict, record: bool) -> dict:
             cloth.pop("surface")
             sets.append("own_cloth = ?")
             args.append(json.dumps(cloth, sort_keys=True) if cloth else None)
+        if any(f in changes for f in ESSENTIALS):
+            sets.append("checked_at = ?")
+            args.append(db.now())
         sets += ["source = ?", "confidence = ?", "updated_at = ?"]
         args += [json.dumps(source), json.dumps(confidence), db.now(), item_id]
         conn.execute(f"UPDATE items SET {', '.join(sets)} WHERE id = ?", args)

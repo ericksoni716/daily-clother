@@ -86,11 +86,12 @@ def _add_items(cfg: Config, conn, data: dict, chosen: list[dict]) -> int:
         kept = it.get("pattern_fill")
         conn.execute(
             f"INSERT INTO items (id, {', '.join(FIELDS)}, silhouette, source, confidence, cutout_state, illustration_notes, "
-            f"pattern_fill, pattern_state, created_at, updated_at) VALUES (?, {', '.join('?' for _ in FIELDS)}, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            f"pattern_fill, pattern_state, created_at, updated_at, checked_at) VALUES (?, {', '.join('?' for _ in FIELDS)}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [it["id"], *[it.get(f) for f in FIELDS], json.dumps(it.get("silhouette") or {}), json.dumps(src),
              json.dumps({f: 1.0 for f in src}), "ready" if it.get("photo") else "none",
              json.dumps(it["illustration_notes"]) if it.get("illustration_notes") else None,
-             json.dumps(kept) if kept else None, "done" if kept else None, created, created])
+             json.dumps(kept) if kept else None, "done" if kept else None, created, created,
+             created])   # the demo's pieces count as checked: only what is added to it is offered in the review
         if it.get("photo"):
             pid = it["photo"]["id"]
             folder = dest / it["id"]

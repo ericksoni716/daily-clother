@@ -5,7 +5,7 @@ import { queryKeys } from '../queryKeys';
 import { NinesMark } from './NinesMark';
 import { Button, Markdown, Notice, SegmentedControl } from './ui';
 import { formatSize } from '../labels';
-import { busyLine, checkedLine, lastInstallLine, MODES, showBanner, updates, useUpdates, type UpdateMode, type UpdateStatus } from '../updates';
+import { availableLine, busyLine, checkedLine, lastInstallLine, MODES, showBanner, updates, useUpdates, type UpdateMode, type UpdateStatus } from '../updates';
 import { updatesLine } from '../settingsLines';
 import { StatusLine } from './Toggle';
 
@@ -85,23 +85,11 @@ function useWhileBusy(offline: boolean) {
  * page's one copy; how updates are fetched and Check now are on the Advanced screen (`UpdatesManage`).
  */
 export function UpdatesLine({ offline, toast, version }: { offline: boolean; toast: Toast; version: string }) {
-  const { status, installing } = useUpdates();
-  const [installBusy, setInstallBusy] = useState(false);
+  const { status } = useUpdates();
   useWhileBusy(offline);
   const line = updatesLine(status, version, offline);
   const release = status?.available ?? null;
   const testId = status?.problem ? 'update-problem' : release ? 'update-available' : 'update-line';
-
-  async function installNow() {
-    setInstallBusy(true);
-    try {
-      await updates.install(toast);
-    } catch (e) {
-      toast((e as Error).message, 'error');
-    } finally {
-      setInstallBusy(false);
-    }
-  }
 
   return (
     <>
@@ -112,12 +100,7 @@ export function UpdatesLine({ offline, toast, version }: { offline: boolean; toa
           <Markdown text={release.notes} />
         </details>
       )}
-      {line.action === 'install' && (
-        <div className="settings-actions">
-          <Button variant="primary" disabled={offline || !!status?.busy || !!installing || installBusy} onClick={installNow}>Install now</Button>
-          <span className="hint">{status?.download_size ? `${formatSize(status.download_size)}. ` : ''}Your closets are backed up first.</span>
-        </div>
-      )}
+      {line.action === 'install' && status && <InstallNow offline={offline} toast={toast} status={status} />}
       {line.action === 'download' && release && (
         <p className="hint"><a href={release.page} target="_blank" rel="noreferrer noopener">Download it from the release page</a></p>
       )}
@@ -125,7 +108,31 @@ export function UpdatesLine({ offline, toast, version }: { offline: boolean; toa
   );
 }
 
-/** How updates are fetched, Check now, and how the last check and install went: on the Advanced screen. */
+/** Install now, with the download's size: under the Settings line, and beside Check now once it found a version. */
+function InstallNow({ offline, toast, status }: { offline: boolean; toast: Toast; status: UpdateStatus }) {
+  const { installing } = useUpdates();
+  const [busy, setBusy] = useState(false);
+
+  async function installNow() {
+    setBusy(true);
+    try {
+      await updates.install(toast);
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="settings-actions">
+      <Button variant="primary" disabled={offline || !!status.busy || !!installing || busy} onClick={installNow}>Install now</Button>
+      <span className="hint">{status.download_size ? `${formatSize(status.download_size)}. ` : ''}Your closets are backed up first.</span>
+    </div>
+  );
+}
+
+/** How updates are fetched, Check now and what it found, and how the last install went: on the Advanced screen. */
 export function UpdatesManage({ offline, toast }: { offline: boolean; toast: Toast }) {
   const qc = useQueryClient();
   const { status, installing } = useUpdates();
@@ -165,6 +172,7 @@ export function UpdatesManage({ offline, toast }: { offline: boolean; toast: Toa
   }
 
   const busy = status.busy;
+  const found = availableLine(status);   // what the last check found: "Nines 0.15.0 is out.", "You have the latest version."
   const last = lastInstallLine(status);
   const locked = offline || !!busy || !!installing;
   const mode = MODES.find((m) => m.value === status.mode);
@@ -187,6 +195,10 @@ export function UpdatesManage({ offline, toast }: { offline: boolean; toast: Toa
       </div>
       <Button disabled={locked || checking} onClick={checkNow}>{checking ? 'Checking…' : 'Check now'}</Button>
       {busy && !installing && <p className="state-line" role="status">{busyLine(busy)}</p>}
+      {/* what the check found, under Check now, so its answer comes in below the button rather than moving it */}
+      {found && !busy && <p className="state-line" data-testid="update-found">{found}</p>}
+      {status.problem && <Notice as="p" tone="error" testId="update-problem">{status.problem}</Notice>}
+      {status.available && status.can_install && <InstallNow offline={offline} toast={toast} status={status} />}
       {status.available && (
         <p className="hint"><a href={status.available.page} target="_blank" rel="noreferrer noopener">The release page</a></p>
       )}

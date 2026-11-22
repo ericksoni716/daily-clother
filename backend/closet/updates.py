@@ -608,6 +608,7 @@ class Updater:
         self.busy: str | None = None
         self._lock = threading.Lock()
         self._stop = threading.Event()
+        self._soon = threading.Event()     # Check now found a newer release: the loop looks again at once
         self._threads: list[threading.Thread] = []
 
     # ---------------------------------------------------------------- what the owner sees
@@ -691,6 +692,15 @@ class Updater:
         finally:
             self._lock.release()
         return self.status()
+
+    def check_now(self) -> dict:
+        """Check now, from the page. When it finds a newer release this computer can install, the loop below gets it
+        ready (and installs it, in "Install updates by themselves") at once, as it would at its next half-hourly
+        look: in "Ask me first" the banner then offers it within a minute instead of half an hour later."""
+        status = self.check()
+        if status["available"] and status["can_install"] and not status["ready"]:
+            self._soon.set()
+        return status
 
     def _check(self) -> None:
         previous = self.state.get("update_check") or {}
@@ -914,7 +924,8 @@ class Updater:
                     self.tick()
                 except Exception:
                     log.exception("update check failed")
-                self._stop.wait(self.check_every)
+                self._soon.wait(self.check_every)   # set by Check now, and by stop()
+                self._soon.clear()
 
         def tidy() -> None:
             try:
@@ -928,5 +939,6 @@ class Updater:
 
     def stop(self) -> None:
         self._stop.set()
+        self._soon.set()
         for t in self._threads:
             t.join(timeout=5)

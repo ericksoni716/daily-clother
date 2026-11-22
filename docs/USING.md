@@ -168,7 +168,11 @@ Folds follow, closed until opened: Details (colour, pattern, where it lives, for
 each a row that opens its choices, a sheet on a phone), Size, material and more (size, material,
 date acquired, condition), then a shoe's photos, then History (every change, each of which can
 be undone), and the last one, with Describe it again, Archive and Delete. A new photo can be
-taken in place of the old one, and a cutout that failed can be tried again.
+taken in place of the old one, and a cutout that failed can be tried again. Formality can be
+one level or two next to each other, for a piece that could be either: under the levels, "It
+can also be" offers the level below and the level above the one chosen, and the row then reads
+"Smart casual to business". Choosing a level makes it one level again. Claude may give two
+levels when it describes a photo; a formality you chose is never changed by describing it again.
 
 The colour's choices end with the shades of the piece's colour, each with its swatch ("Shades of
 green": Sage, Mint, Forest green, Hunter green, Teal). Choosing a colour keeps the choices open on its
@@ -288,7 +292,8 @@ When what was shared holds no link, it says so and the box is empty.
 `/wardrobe/check` (and `/wardrobe/check/wish/<id>` from a wish), from the Wardrobe;
 "‹ Wardrobe" goes back. A piece you might buy, from a photo or described by hand, checked
 against the closet by rule: what it goes with, what it repeats, what it would fill, what
-would hold it back, when you would wear it, and example outfits.
+would hold it back, when you would wear it, and example outfits. Described by hand, its
+formality can be two levels next to each other, as on the item page.
 
 ## Settings
 

@@ -17,6 +17,12 @@ only here); take a line out when it is done.
 - **Choosing a shade** (22 November; DECISIONS, "Choosing a shade"). The review's question about
   a doubtful colour and Would this work?'s colour still offer the colour words only, and the
   closet's search does not find a piece by its shade's name.
+- **Formality between two levels** (22 November; DECISIONS, "Formality between two levels"). The review
+  queue shows a doubtful formality's main level only: "That's right" keeps a second level Claude gave,
+  but choosing another level there makes it one level, and the second is not shown. A gap's "look for"
+  is always one level, even for "another like your loafers". Not yet tried with Claude's real answers:
+  how often it gives a second level, and for which pieces.
+
 - **Wishlist links and their prices** (22 November; DECISIONS, "Wishlist links and their prices").
   Built and tested with the web and Claude stood in for; not yet tried on real shops' pages, nor
   the iPhone Shortcut (README) on a real iPhone, nor the share sheet on a real Android phone.

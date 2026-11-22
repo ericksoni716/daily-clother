@@ -254,7 +254,7 @@ def test_every_demo_answer_is_a_valid_answer_in_the_current_schema():
 # Recorded with SCHEMA_VERSION. When this fails, the tagging schema changed: raise SCHEMA_VERSION in
 # closet/tagger/schema.py, record the new fingerprint here, and rewrite the demo answers.
 SCHEMA_FINGERPRINTS = {1: "1edcb5f6851e", 2: "655281317a64", 3: "87ca160a8092", 4: "aa280d512c79", 5: "52473b487400", 6: "56ca3a3f423b", 7: "0f66623ee476",
-                       8: "bd80bac9d64a", 10: "5f84394a1f2b"}
+                       8: "bd80bac9d64a", 9: "5f84394a1f2b"}
 
 
 def test_the_schema_version_is_raised_when_the_schema_changes():

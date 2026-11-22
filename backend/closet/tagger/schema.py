@@ -127,9 +127,9 @@ Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", 
 
 # Stored with every answer the app keeps. Raise it whenever `ItemTags` changes shape or vocabulary, so stored
 # answers can be told apart (a test holds a fingerprint of the schema and fails until this is raised).
-SCHEMA_VERSION = 10  # 6: the cloth's `surface` (closet.tagger.surfaceform); 7: its `lettering`, and each sleeve's own colour;
+SCHEMA_VERSION = 9   # 6: the cloth's `surface` (closet.tagger.surfaceform); 7: its `lettering`, and each sleeve's own colour;
 #                      8: swim trunks among the garments (`garment`), and their inseam;
-#                      10: five more shades (`shade`: mint, french_blue, taupe, salmon, mauve)
+#                      9: five more shades (`shade`: mint, french_blue, taupe, salmon, mauve)
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("garment", "fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",

@@ -11,7 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from closet import day, outfits, styling
-from closet.tagger import correcting, stylist
+from closet.tagger import correcting, stylist, taxonomy
 from closet.tagger.tagging import RouteUnavailable, TaggingError, Unreachable
 
 TOOL = Path(__file__).resolve().parents[2] / "tools" / "style_demo_days.py"
@@ -140,7 +140,7 @@ def test_an_accessorys_place_is_accessory():
 # ------------------------------------------------------------------ the guide
 def test_the_guide_has_a_heading_for_every_part_of_the_owners_outfit_notes():
     text = styling.guide()
-    parts = json.loads(styling.GUIDE_FILE.read_text(encoding="utf-8"))["outfit"]
+    parts = taxonomy.load()["outfit"]
     for key in parts:
         assert f"{key.replace('_', ' ').capitalize()}:" in text
     assert "{" not in text and "}" not in text
@@ -879,3 +879,34 @@ def test_the_outfits_chosen_are_told_with_what_check_made_of_claudes_answer():
     assert styling.chosen_words(kept, listing).splitlines() == [
         "- Outfit 1 (outfit-1.png): base 1; outer layer 4; bottom 6; shoes 8; accessories 9. Why you chose it: “Sharp.”",
         "- Outfit 2 (outfit-2.png): base 2; bottom 6; shoes 8."]
+
+
+# ------------------------------------------------------------------ the taxonomy file, where the program keeps it
+def test_the_guide_is_read_where_the_packaged_program_keeps_the_taxonomy(tmp_path, monkeypatch):
+    """The packaged program has no docs/ folder: it keeps the owner's taxonomy next to the tagger
+    (packaging/closet.spec), and `taxonomy.load` looks in both places. The stylist's guide once built its own path
+    to docs/, so every outfit asked of Claude failed on the owner's computer (FileNotFoundError)."""
+    packaged = tmp_path / "closet" / "tagger" / "menswear-taxonomy.json"
+    packaged.parent.mkdir(parents=True)
+    packaged.write_text(json.dumps(taxonomy.load()), encoding="utf-8")
+    monkeypatch.setattr(taxonomy, "TAXONOMY_FILES", (tmp_path / "docs" / "menswear-taxonomy.json", packaged))
+    assert styling.guide() == styling.guide(packaged) and styling.guide()
+
+
+def test_only_the_taxonomy_module_says_where_the_taxonomy_file_is():
+    """Every reader goes through `taxonomy.load`, which knows where a source checkout and the packaged program keep
+    the file; a path of its own to docs/ works from the repository and nowhere else."""
+    import re
+    from pathlib import Path
+
+    import closet
+    root = Path(closet.__file__).resolve().parent
+    found = []
+    for path in root.rglob("*.py"):
+        if path == root / "tagger" / "taxonomy.py":
+            continue
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            code = line.split("#", 1)[0]
+            if re.search(r"""["']menswear-taxonomy\.json["']""", code):
+                found.append(f"{path.relative_to(root)}:{n}")
+    assert found == []

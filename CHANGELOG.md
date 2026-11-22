@@ -98,6 +98,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **Today** said "Couldn't choose today's outfits" whenever Claude chose your outfits in the
+  installed program: the guide Claude is given (your outfit notes from the menswear taxonomy)
+  was looked for where it is only found in the source code, not where the program keeps it.
+  Asking for the day's outfits ahead of your first look failed the same way, every two minutes.
+  Both work again.
+
 - On the outfit figure, a fuzzy top (flannel, fleece, sherpa, mohair) had a thick band in a shade
   of its cloth down the edges of its sleeves instead of its outline. Its sleeves now have the same
   dark outline and soft fuzz as its own drawing.

@@ -26,7 +26,6 @@ The look at the drawn figure: `chosen_words` writes the outfits Claude chose bes
 """
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date
@@ -34,8 +33,8 @@ from pathlib import Path
 
 from . import day as dayparts
 from . import outfits
+from .tagger import taxonomy
 
-GUIDE_FILE = Path(__file__).resolve().parents[2] / "docs" / "menswear-taxonomy.json"
 # How the owner dresses, until they write their own in Settings, "Your style" (`closet/styleprofile.py`). The first
 # line is the owner's, 17 November.
 DEFAULT_KEPT = ("- I carry an umbrella, so a rain jacket is never a must. When it really rains, favour one if it suits "
@@ -137,9 +136,11 @@ def listed(rows: list[dict], ctx: outfits.Context) -> Listed:
 
 
 # ---------------------------------------------------------------------- the guide
-def guide(path: Path = GUIDE_FILE) -> str:
-    """The owner's outfit notes from the menswear taxonomy, as plain lines under each heading."""
-    data = json.loads(path.read_text(encoding="utf-8")).get("outfit") or {}
+def guide(path: Path | None = None) -> str:
+    """The owner's outfit notes from the menswear taxonomy, as plain lines under each heading. Read where the program
+    keeps the file (`taxonomy.load`: docs/ in a source checkout, next to the tagger in the packaged program), or from
+    `path` (tests)."""
+    data = taxonomy.load(path).get("outfit") or {}
 
     def say(v: object, depth: int = 0) -> list[str]:
         pad = "  " * depth

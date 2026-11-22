@@ -810,6 +810,13 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
         claude_cli.strict_schema()
         return f"anthropic {anthropic.__version__}, tagging schema ready"
 
+    def stylist():
+        from . import styling
+        lines = styling.guide().splitlines()   # the owner's taxonomy, where the packaged program keeps it
+        if not lines:
+            raise RuntimeError("the guide for the stylist is empty")
+        return f"the owner's outfit notes read for the stylist, {len(lines)} lines"
+
     def updater():
         import hashlib
 
@@ -852,6 +859,7 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
     check("drawing", drawing)
     check("model_state", model)
     check("tagger", tagger)
+    check("stylist", stylist)
     check("updater", updater)
     check("window", window)
     check("cloudflare", cloudflare)

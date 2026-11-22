@@ -79,16 +79,16 @@ def svg_from_fields(category, color_hex: str | None = None, pattern=None, silhou
 
 
 def drawing_from_answer(answer, color_hex: str | None = None, *, uid: str = "a", fill: Fill | None = None,
-                        graphic: Graphic | None = None) -> Drawing:
+                        graphic: Graphic | None = None, added: tuple = ()) -> Drawing:
     """`svg_from_answer`, with what the drawing could not show. `fill` is the item's pattern measured from its
     photo, `graphic` a print lifted from it (drawn on tops only); with either the pattern is drawn and not listed
-    as left out."""
+    as left out. `added`: the parts Claude drew onto it at the owner's word (`drawing.added.parts`)."""
     notes: list[str] = []
     try:
         tags = _tags(answer, notes)
         if tags is None or not _drawable(tags):
             return Drawing(None)
-        svg, drawn = _draw(tags, _color(color_hex, tags.color), _uid(uid), notes, fill, graphic)
+        svg, drawn = _draw(tags, _color(color_hex, tags.color), _uid(uid), notes, fill, graphic, added)
         return Drawing(svg, _notes(([] if drawn else _pattern(tags.pattern)) + notes))
     except Exception:   # never raise: the item screen must always open
         log.exception("could not draw an item from its tagger answer")
@@ -116,14 +116,14 @@ def back_from_answer(answer, color_hex: str | None = None, *, uid: str = "b", fi
 
 def drawing_from_fields(category, color_hex: str | None = None, pattern=None, silhouette=None, *,
                         color: str | None = None, uid: str = "a", fill: Fill | None = None,
-                        graphic: Graphic | None = None) -> Drawing:
+                        graphic: Graphic | None = None, added: tuple = ()) -> Drawing:
     """`svg_from_fields`, with what the drawing could not show."""
     notes: list[str] = []
     try:
         if category not in DRAWN:
             return Drawing(None)
         svg, drawn = _draw(_plain(category, _known_silhouette(silhouette), {}), _color(color_hex, color), _uid(uid),
-                           notes, fill, graphic)
+                           notes, fill, graphic, added)
         return Drawing(svg, _notes(([] if drawn else _pattern(pattern)) + notes))
     except Exception:
         log.exception("could not draw an item from its fields")
@@ -220,16 +220,18 @@ PATTERN_FAILED = "its pattern could not be drawn, so it is shown in its colour"
 
 
 def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str], fill: Fill | None = None,
-          graphic: Graphic | None = None) -> tuple[str, bool]:
+          graphic: Graphic | None = None, added: tuple = ()) -> tuple[str, bool]:
     """The drawing, and whether the measured pattern (or lifted graphic) is in it. What was drawn only roughly,
-    or why it fell back to the plainest drawing, is added to `notes`."""
+    or why it fell back to the plainest drawing, is added to `notes`. `added` (what Claude drew onto it) is laid
+    over it, but not over the plainest drawing, whose shape it was not drawn on."""
     graphic = graphic if tags.category in TOPS else None
     if fill is not None or graphic is not None:
         try:
             template, params, extras, approximated = drawing_for(tags)
             if template in ("tie", "socks"):   # the pattern measured from the photo, not the one drawn from the words
                 params.pop("pattern", None)
-            svg = render(Spec(template, params, fill or Fill("solid", hex_), graphic=graphic, **extras), STYLE, uid=uid)
+            svg = render(Spec(template, params, fill or Fill("solid", hex_), graphic=graphic, added=added, **extras),
+                         STYLE, uid=uid)
             notes.extend(approximated)
             return svg, True
         except Exception:   # a pattern must never cost the item its drawing
@@ -237,7 +239,7 @@ def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str], fill: Fill | No
             notes.append(PATTERN_FAILED)
     try:
         template, params, extras, approximated = drawing_for(tags)
-        svg = render(Spec(template, params, Fill("solid", hex_), **extras), STYLE, uid=uid)
+        svg = render(Spec(template, params, Fill("solid", hex_), added=added, **extras), STYLE, uid=uid)
         notes.extend(approximated)
         # a tie's or socks' stripes, dots...; a colourwork knit's pattern (Fair Isle, argyle...), in the other
         # colours seen: drawn from its tags

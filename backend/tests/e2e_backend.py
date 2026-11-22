@@ -206,6 +206,17 @@ def fake_drawer(photos, routes, notes=(), style=None, measures=None, side_notes=
                             side_notes=side_notes)
 
 
+def fake_adder(note, notes, photo, now, geometry, outline, render, routes=(), client=None, meter=None):
+    """Claude adding to a garment's drawing: a red patch on the chest, whatever the line says, over what is there."""
+    from closet.drawing import added
+    from closet.tagger import adding
+    patch = added.read_one({"what": "red patch on the chest", "role": "inlay", "color": "#c0392b",
+                            "d": "M 222,118 L 250,118 L 250,146 L 222,146 Z"})
+    render([*now, patch])   # the drawing with it is made, as for the check
+    return adding.Result([*now, patch], "Drew a red patch on the chest.", checks=1, route=(routes or ("plan",))[0],
+                         api_usd=0.18, seconds=31.0)
+
+
 def fake_drawing_corrector(photos, kept, note, routes):
     return shoedrawing.correct(photos, kept, note, routes, asker=fake_asker)
 
@@ -404,6 +415,7 @@ def _build_services(cfg, **kwargs):
     if os.environ.get("CLOSET_E2E_SEED") == "demo":
         seed_from_demo(cfg)
     kwargs.setdefault("shop_asker", FakeShop())
+    kwargs.setdefault("adder", fake_adder)   # adding to a drawing never reaches Claude either
     kwargs.setdefault("tracer", tracejobs.tracer())   # shoes are traced with GrabCut alone, as without the model
     apikey.use_store(MemoryKeychain())
     apikey.check = lambda key: "refused" if key.endswith("refused") else None

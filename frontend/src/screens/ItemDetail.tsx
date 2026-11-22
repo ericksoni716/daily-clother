@@ -17,6 +17,7 @@ import { LookLine, NotesBox, useFieldText } from '../components/ItemAbout';
 import { SaveLine, useWhenLeaving } from '../leave';
 import { navigate, useMediaQuery } from '../router';
 import { dropItem, itemQuery, itemSaved, touch, useItemProgress, useItemSummary, useVocab, writeSummary } from '../queries';
+import { itemPoll } from '../work';
 import { queryKeys, type EditKind } from '../queryKeys';
 import { useApp } from '../store';
 import { notInDrawing, useShowDrawings } from '../drawing';
@@ -47,7 +48,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const vocab = useVocab();
   // The closet's summary of it, shown at once while the full item is read (or when it cannot be, offline).
   const summary = useItemSummary(id);
-  const query = useQuery(itemQuery(id));
+  // read again by itself only while Claude draws onto its drawing (`itemPoll`); the closet's poll does the rest
+  const query = useQuery({ ...itemQuery(id), refetchInterval: (q) => itemPoll(q.state.data, offline) ?? false });
   const item = query.data ?? null;
   const error = query.error ? query.error.message : null;
   const [fixing, setFixing] = useState(false);

@@ -12,6 +12,18 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Add to the drawing**, in Fix the details: for what no detail shows (a patch, a panel, a
+  tab, a line of stitching), write one line, such as "a small red patch on the left sleeve", and
+  Claude draws it onto the piece's drawing, using the drawing as it is as its guide and keeping
+  the rest, then checks it against the photo. It takes a minute or two, and you can leave the
+  page meanwhile. What Claude added shows on the closet picture and on the outfit figure, where
+  it moves with the garment (a patch on a sleeve stays on the sleeve). The sheet lists what was
+  added, with how long it took and what it cost, and **Go back to the drawing before** and
+  **Take Claude's additions off** undo it. When Claude can't turn a sentence in "What's wrong
+  with it?" into a detail, **Have Claude draw it onto the drawing instead** moves it to the new
+  box for you to send. Not for shoes, which have their own note under their drawing, and never
+  in the demo closet.
+
 - **Settings → Everyday → Show drawings instead of photos** shows your clothes' drawings
   wherever they are shown small: the closet, Today, Worn, trips and the Wardrobe, and an item's
   page opens on its drawing. It is kept on the computer, so it holds on every device. A piece

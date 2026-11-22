@@ -51,6 +51,20 @@
 .fix-confirm p { margin: 0 0 6px; }
 .fix-confirm ul { margin: 0 0 8px; padding-left: 1.2rem; }
 .fix-confirm .row { gap: 8px; }
+/* "Add to the drawing" (components/AddToDrawing.tsx): under the box, set apart by a line */
+.fix-add { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; margin-top: 4px; }
+.fix-add p { margin: 0; }
+.fix-add .notice { display: flex; gap: 8px; align-items: flex-start; }
+.fix-add .notice p { margin: 0 0 6px; }
+.fix-add-actions { gap: 8px; flex-wrap: wrap; }
+.fix-add-say { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.fix-add-row { display: flex; gap: 8px; }
+.fix-add-row input {
+  flex: 1; min-width: 0; min-height: var(--tap); padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--inset); color: var(--ink); font: inherit;
+}
+.fix-add-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.fix-add-row input:disabled { color: var(--ink-3); border-style: dashed; }
 .fix-history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .fix-history-list li { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .fix-history-list li.is-undone .fix-history-line { color: var(--ink-3); }
@@ -58,5 +72,6 @@
 
 @media (max-width: 520px) {
   .fix-ask { justify-self: stretch; }
+  .fix-add-row { flex-direction: column; }
   .fix-tiles { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
 }

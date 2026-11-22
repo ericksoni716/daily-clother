@@ -31,7 +31,7 @@ import sqlite3
 from dataclasses import replace
 
 from . import details, drawing, kinds
-from .drawing import drawnside, sideshoe, stored
+from .drawing import added, drawnside, sideshoe, stored
 from .drawing import item as draw
 from .drawing.figure import PLACES, Piece, as_worn, figure
 from .drawing.traced import TracedShoe
@@ -123,13 +123,25 @@ def describe(row, extra: dict | None = None) -> Piece:
     if answer is None:
         piece = Piece(row["category"], None, row["color_hex"], row["color"], row["pattern"], silhouette)
         return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row),
-                       drawn=drawn_of(row))
+                       drawn=drawn_of(row), added=added_of(row))
     # the item's own colour (from the answer, the photo or the owner), unless the owner chose a colour word
     # and left a colour from before beside it
     own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER
     piece = Piece(answer.get("category"), answer, row["color_hex"] if own_hex else None, row["color"], row["pattern"],
                   silhouette)
-    return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row), drawn=drawn_of(row))
+    return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row), drawn=drawn_of(row),
+                   added=added_of(row))
+
+
+def added_of(row) -> tuple:
+    """What Claude drew onto the item's drawing at the owner's word (`additions`), as the template's parts to lay over
+    its own; () for none, for a shoe (whose drawing is corrected under its own drawing by Claude) and for parts that
+    cannot be read."""
+    keys = row.keys() if hasattr(row, "keys") else row
+    if "additions" not in keys or not row["additions"] or row["category"] in draw.SHOES:
+        return ()
+    kept = _json(row["additions"], None)
+    return added.parts(kept.get("parts")) if isinstance(kept, dict) else ()
 
 
 def worn(row) -> list[dict]:
@@ -219,8 +231,10 @@ def make(row, extra: dict | None = None) -> draw.Drawing:
         fill = piece.fill
         if piece.answer is None:
             return draw.drawing_from_fields(piece.category, piece.color_hex, piece.pattern, piece.silhouette,
-                                            color=piece.color, uid=uid, fill=fill, graphic=piece.graphic)
-        return draw.drawing_from_answer(piece.answer, piece.color_hex, uid=uid, fill=fill, graphic=piece.graphic)
+                                            color=piece.color, uid=uid, fill=fill, graphic=piece.graphic,
+                                            added=piece.added)
+        return draw.drawing_from_answer(piece.answer, piece.color_hex, uid=uid, fill=fill, graphic=piece.graphic,
+                                        added=piece.added)
     except Exception:   # never fail an item
         log.exception("could not draw an item")
         return draw.Drawing(None, (draw.NOT_MADE,))

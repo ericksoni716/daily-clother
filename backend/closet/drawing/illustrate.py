@@ -10,7 +10,7 @@ import html
 import math
 import random
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -65,6 +65,9 @@ class Spec:
     colorwork: str | None = None      # a knitted-in colour pattern placed as the garment carries it (fair_isle | nordic |
                                       # argyle | intarsia | jacquard_knit | cowichan | guernsey); tops only
     motif_colors: tuple[str, ...] = ()  # the colourwork's colours (the other colours seen); () = shades of the cloth
+    # parts Claude drew onto the drawing at the owner's word (`drawing.added`), in the template's coordinates: laid
+    # over the template's own parts, on the item's drawing and, moved with the garment, on the figure
+    added: tuple = ()
     notes: list[str] = field(default_factory=list)
 
 
@@ -745,6 +748,15 @@ def layer(under: Spec, over: Spec, style: str, uid: str = "a") -> str:
     return _svg(o_back + f'<g clip-path="url(#w{uid})">{u_body}</g>' + o_fronts, u_defs + o_defs + seen)
 
 
+def built(spec: Spec, params: dict | None = None) -> Shape:
+    """The shape the spec's template builds, with what Claude drew onto it at the owner's word (`Spec.added`) laid
+    over its own parts. The outfit figure fits this same shape to the wearer."""
+    shape = build(spec.template, spec.params if params is None else params)
+    if spec.added:
+        shape = replace(shape, parts=[*shape.parts, *spec.added])
+    return shape
+
+
 def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | None = None, inside: str | None = None,
           shape: Shape | None = None):
     """The markup for one garment: (defs, body, the vertical shift it was placed with, and, when it is worn
@@ -757,7 +769,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         raise ValueError(f"no drawing style {style!r}: only 'line' is drawn")
     params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
     if shape is None:
-        shape = build(spec.template, params)
+        shape = built(spec, params)
     bx0, by0, bx1, by1 = shape.bbox
     gw, gh = bx1 - bx0, by1 - by0
     # centre the garment vertically on the card (unless it is placed with another garment's shift)
@@ -866,6 +878,10 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
                 "deep": shade(base, 0.14 if luminance(base) < 0.1 else -0.15)}.get(key, key)   # deep: the same leather, in shadow
 
     def overlay(d: str, role: str, color: str | None = None) -> str:
+        if role == "line":   # a line Claude drew on at the owner's word: as an edge, or in its own colour
+            if color:
+                return f'<path d="{d}" fill="none" stroke="{color}" stroke-width="{l_w + 0.3:.1f}" stroke-linecap="round" stroke-linejoin="round"/>'
+            return halo(d, 2.4) + thin(d)
         if role == "edge":   # a line with no fill, e.g. the visible edges of a collar
             if color == "sole_line":   # a line on the sole (foxing stripe, heel lift): a darker tone of the sole, not the upper's
                 c = shade(sole_c, -0.3 if luminance(sole_c) > 0.25 else 0.22)

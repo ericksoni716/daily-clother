@@ -14,6 +14,16 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Claude adds to a garment's drawing** (22 November; DECISIONS, "Claude adds to a garment's
+  drawing"). Built and tried with real calls on two of the demo's photos; waiting for the owner
+  to try it on their own pieces. Left undone: only the front is drawn on (a pair of trousers'
+  small back drawing, `back_from_answer`, gets none, and Claude says so of anything on the back);
+  Claude adds parts but cannot reshape or remove the template's own (it points to the details);
+  the parts are in the template's coordinates, so a detail that changes the garment's shape can
+  leave them out of place (the sheet says so, and the owner asks Claude to move them); a line
+  being drawn when Nines closes is not started again by itself, nor is one sent while Claude
+  could not be reached.
+
 - **Ribbing and the trim colour** (22 November; DECISIONS, "A top's ribbing, a collar in the trim
   colour, and plain weave on a knit"). Only tops draw their ribbing in their own colour with ribs:
   joggers' ribbed cuffs (drawn with their ribs since 22 November) and a sock's or beanie's cuff

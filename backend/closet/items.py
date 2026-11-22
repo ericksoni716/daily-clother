@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 
 from . import (
+    additions,
     db,
     details,
     failures,
@@ -142,6 +143,9 @@ def detail(conn, row) -> dict:
     out["drawn"] = shoedraw.shown(conn, row)
     # a shoe's trace from its photo: its state, why it was turned down, and what Fix the details can change (null: not a shoe)
     out["trace"] = tracejobs.shown(row)
+    # what Claude drew onto the drawing at the owner's word: the line on its way, what was added and how to undo it
+    # (null: a shoe)
+    out["additions"] = additions.shown(row)
     out["recent_wears"] = [r[0] for r in conn.execute(
         "SELECT worn_on FROM wears WHERE item_id = ? ORDER BY worn_on DESC LIMIT ?", (row["id"], RECENT_WEARS))]
     # the photo of several pieces this item was cut from, and its box in it (fractions); null for a photo of its own

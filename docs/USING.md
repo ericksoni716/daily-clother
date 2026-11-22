@@ -144,8 +144,17 @@ sheet over the page (on a computer, a box under the button) with the drawing and
 wrong with it?". Claude reads your sentence, says what it understood, and nothing changes until
 you choose Make these changes. "Change the details one by one" shows every detail the drawing is
 made from, by group, marked when you set it, with when Claude described the piece (a pair of
-trousers' cuffs, turned up, rolled or ribbed, are under Hem and cuffs). In the demo
-closet, or when Claude could not be reached, the button says "Something wrong? Change the
+trousers' cuffs, turned up, rolled or ribbed, are under Hem and cuffs). Under the box, "Add to
+the drawing" takes one line for what no detail shows (a patch, a panel, a tab, a line of
+stitching): Claude draws it onto the drawing as it is, keeping the rest, and checks it against
+the photo, in a minute or two, while you can close the sheet; the picture's strip says it is
+being done. What Claude added shows on the closet picture and on the outfit figure, moving with
+the garment. The sheet then lists what was added, how long it took and what it cost, with "Go
+back to the drawing before" (and then "Go to the newer drawing") and "Take Claude's additions
+off"; it says so when a detail changed the shape under them since. When Claude can't turn a
+sentence in the box into a detail, "Have Claude draw it onto the drawing instead" moves it to
+the line for you to send. Shoes don't have it: their drawing by Claude has its own note. In the
+demo closet, or when Claude could not be reached, the button says "Something wrong? Change the
 details" and the sheet opens on the details one by one, saying why.
 
 Folds follow, closed until opened: Details (colour, pattern, where it lives, formality, season,

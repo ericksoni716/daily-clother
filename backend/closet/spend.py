@@ -23,6 +23,8 @@ from datetime import datetime
 from . import db
 from .config import Config
 from .state import State
+from .tagger.adding import MAX_TOKENS as ADD_MAX_TOKENS
+from .tagger.adding import MODEL as ADD_MODEL
 from .tagger.correcting import MAX_TOKENS as CORRECT_MAX_TOKENS
 from .tagger.dayread import MODEL as STYLING_MODEL
 from .tagger.garments import MODEL as GARMENTS_MODEL
@@ -47,6 +49,8 @@ PURPOSE_STYLE = "style_outfits"       # Claude choosing the day's outfits (`tagg
 PURPOSE_STYLE_CHAT = "style_talk"     # the conversation about the owner's style (`tagger/stylist.py`, `closet/stylechat.py`)
 PURPOSE_DRAW = "draw_shoe"            # a shoe drawn from its photos, and its checks (`tagger/shoedrawing.py`)
 PURPOSE_CORRECT_DRAWING = "correct_drawing"   # a shoe's drawing changed from the owner's note, and its checks
+PURPOSE_ADD_TO_DRAWING = "add_to_drawing"     # a garment's drawing added to at the owner's word, and its check
+                                              # (`tagger/adding.py`)
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
 TAGGING_MODEL: str = CONFIG["roles"]["tagging"]
 DESCRIBING_MODEL: str = CONFIG["roles"]["describing"]   # the description call (`tagjobs.MODEL`)
@@ -81,6 +85,11 @@ DRAW_TEXT_TOKENS = 55_000
 # shoe at most `drawn.MAX_CHARS` characters: under 110,000 characters in all, counted as above), the shoe's photos and
 # one or two renders (the drawing before the note and after it), and the longest answer the request allows.
 CORRECT_DRAW_TEXT_TOKENS = 55_000
+# Adding to a garment's drawing at the owner's word, or checking it: the longest prompt with the answer's schema (the
+# rules, the drawing's shape in words, the owner's line and their latest earlier lines, and the parts drawn before or
+# as drawn, at most `added.MAX_PARTS` of `added.MAX_POINTS` points: under 72,000 characters in all), the photo and one
+# or two renders, and the longest answer the request allows.
+ADD_TEXT_TOKENS = 36_000
 # Searching shops: Claude reads the pages its web searches bring back, and reads them again at each step of its
 # search, so a request takes in far more than its prompt. A careful upper bound: 300,000 tokens in, the longest
 # answer the request allows, and every web search it may make, at the price per search in the price table.
@@ -206,6 +215,12 @@ def estimate_correct_drawing(images: int, model: str = DRAW_MODEL) -> float:
     the brief, the note and the drawing as text, every image sent (the shoe's photos and the renders), and the longest
     answer allowed."""
     return _worst(model, CORRECT_DRAW_TEXT_TOKENS + IMAGE_TOKENS * max(1, images), DRAW_MAX_TOKENS)
+
+
+def estimate_add_to_drawing(images: int, model: str = ADD_MODEL) -> float:
+    """The most one request to add to a garment's drawing, or to check what was added, should cost: the rules, the
+    drawing's shape and the parts as text, every image sent (the photo and the renders), and the longest answer."""
+    return cost_usd(model, ADD_TEXT_TOKENS + IMAGE_TOKENS * max(1, images), ADD_MAX_TOKENS)
 
 
 def estimate_correction(photos: int, model: str = TAGGING_MODEL) -> float:

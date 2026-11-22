@@ -11,6 +11,7 @@ import { queryKeys } from '../queryKeys';
 import { useMediaQuery } from '../router';
 import type { Item } from '../types';
 import { buttonClass, PHONE, Sheet } from './ui';
+import { AddToDrawing } from './AddToDrawing';
 import { ShoeDrawingFix } from './ShoeTrace';
 import './FixDetails.css';
 
@@ -105,6 +106,8 @@ function FixBody({ item, focus, demo, disabled, onSaved, onError, onDone }: Prop
     }
   }
   const [busy, setBusy] = useState(false);
+  // a sentence no detail could show, handed from the box to "Add to the drawing"
+  const [handed, setHanded] = useState<{ text: string; at: number } | null>(null);
   const id = item.id;
   const report = useLatest(onError);
 
@@ -162,8 +165,9 @@ function FixBody({ item, focus, demo, disabled, onSaved, onError, onDone }: Prop
           <SayIt item={item} drawing={drawing} autofocus={opening.autofocus} onSaved={(saved, saidAs) => {
             onSaved(saved, saidAs);
             onDone();
-          }} />
+          }} onDrawInstead={item.additions ? (text) => setHanded({ text, at: Date.now() }) : undefined} />
           <button type="button" className={link} onClick={() => show('list')}>Change the details one by one</button>
+          <AddToDrawing item={item} given={handed} disabled={disabled} onSaved={onSaved} onError={onError} />
         </div>
       )}
       {!disabled && (
@@ -265,7 +269,11 @@ function Choices({ item, choices, busy, hasAnswer, onPick, onGiveBack }: Choices
 
 /** The box to say what's wrong in a sentence: Claude reads it, says what it understood, and nothing changes until the
  * owner says so. */
-function SayIt({ item, drawing, autofocus, onSaved }: { item: Item; drawing: ReactNode; autofocus: boolean; onSaved: Props['onSaved'] }) {
+function SayIt({ item, drawing, autofocus, onSaved, onDrawInstead }: {
+  item: Item; drawing: ReactNode; autofocus: boolean; onSaved: Props['onSaved'];
+  /** Hands the sentence to "Add to the drawing" when no detail could show (part of) it; absent for a shoe. */
+  onDrawInstead?: (text: string) => void;
+}) {
   const field = useId();
   const box = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -341,6 +349,10 @@ function SayIt({ item, drawing, autofocus, onSaved }: { item: Item; drawing: Rea
           <p><strong>Claude understood:</strong></p>
           <ul>{answer.changes.map((c) => <li key={c.name}>{changeLine(c)}</li>)}</ul>
           {answer.not_understood && <p className="muted">Left out: {answer.not_understood}</p>}
+          {answer.not_understood && onDrawInstead && (
+            <button type="button" className={buttonClass({ variant: 'link', className: 'fix-switch' })}
+              onClick={() => onDrawInstead(answer.sentence)}>Have Claude draw what was left out onto the drawing</button>
+          )}
           {answer.sent && <p className="muted fix-note">{answer.sent}</p>}
           <div className="row">
             <button type="button" className="btn btn-primary btn-small" disabled={asking} onClick={() => void confirm()}>Make these changes</button>
@@ -355,6 +367,10 @@ function SayIt({ item, drawing, autofocus, onSaved }: { item: Item; drawing: Rea
         <p className="notice" role="status">
           {answer.state === 'not_understood' ? `Nothing was changed. ${answer.not_understood ?? ''}` : answer.message}
         </p>
+      )}
+      {answer?.state === 'not_understood' && onDrawInstead && (
+        <button type="button" className={buttonClass({ variant: 'link', className: 'fix-switch' })}
+          onClick={() => onDrawInstead(answer.sentence)}>Have Claude draw it onto the drawing instead</button>
       )}
     </div>
   );

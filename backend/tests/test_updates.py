@@ -83,7 +83,7 @@ def program(tmp_path):
 
 @pytest.fixture
 def updater(services, program):
-    """The services' updater as if this were Closet 0.2.1, packaged, on Windows; the helper is never really started."""
+    """The services' updater as if this were Nines 0.2.1, packaged, on Windows; the helper is never really started."""
     u = services.updater
     u.version, u.platform, u.frozen, u.executable = "0.2.1", "win32", True, str(program)
     u.launch_args = ["--no-browser", "--port", "8765"]
@@ -316,7 +316,7 @@ def test_mac_bundle_is_unpacked_checked_and_swapped_then_restored(tmp_path):
     assert sorted(p.name for p in apps.iterdir()) == ["Nines.app", "Nines.old.app"]   # the unpacking folder is gone
     names = [c[0] for c in tools.calls]
     assert names == ["ditto", "xattr", "codesign"]
-    # the quarantine mark is only taken off the bundle Closet unpacked, never the installed one
+    # the quarantine mark is only taken off the bundle Nines unpacked, never the installed one
     assert tools.calls[1][:3] == ["xattr", "-dr", "com.apple.quarantine"] and "-update" in tools.calls[1][3]
     assert updates.restore(where)
     assert (installed / "Contents" / "MacOS" / "Nines").read_bytes() == OLD_EXE

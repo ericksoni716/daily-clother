@@ -38,7 +38,7 @@ from closet.tagger.views import PhotoView, ShoeViews
 
 
 class LocalClient(TestClient):
-    """A test client that speaks to Closet as its own page on this computer does: by the computer's own name, and with
+    """A test client that speaks to Nines as its own page on this computer does: by the computer's own name, and with
     the header the page sends on every call (closet/gate.py). Every test's `TestClient` is this one (below), so no
     test has to say so; a test of the gate itself changes the address or takes the header out."""
 

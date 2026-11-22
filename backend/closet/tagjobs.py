@@ -53,7 +53,7 @@ NO_PHOTO = "This item has no photo for Claude to look at."
 SIGN_IN = ("Claude Code on this computer can't use your Claude plan: Anthropic turned down the account it is "
            "signed in to (for example a work account that has been turned off). Open Terminal, type claude, then "
            "/logout, then /login with your own Claude subscription. It will be described by itself once that works.")
-_WAIT_NOTES = (spend.LIMIT_REACHED, SIGN_IN)   # why waiting items wait, when Closet knows
+_WAIT_NOTES = (spend.LIMIT_REACHED, SIGN_IN)   # why waiting items wait, when Nines knows
 
 
 # ------------------------------------------------------------------ the queue

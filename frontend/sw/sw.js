@@ -1,7 +1,7 @@
-/* Closet's service worker (hand-written).
+/* Nines' service worker (hand-written).
  *
  * - The app's own files are saved at install so the closet opens without the server.
- * - Closet data (items, vocabulary, which closet is open) is fetched fresh and saved; when the server
+ * - Nines' data (items, vocabulary, which closet is open) is fetched fresh and saved; when the server
  *   cannot be reached, the saved copy is used and marked with a header so the page can
  *   say "Offline".
  * - Images never change at a given address, so a saved copy is used first.
@@ -48,7 +48,7 @@ self.addEventListener('activate', (event) => {
 const DATA_PATHS = [/^\/api\/items$/, /^\/api\/items\/[^/]+$/, /^\/api\/vocab$/, /^\/api\/session$/];
 const IMMUTABLE_PATHS = [/^\/media\//, /^\/api\/items\/[^/]+\/(?:illustration|back)\.svg$/];
 
-// How long to wait for Closet before answering from the saved copy, when there is one. A computer that is asleep or
+// How long to wait for Nines before answering from the saved copy, when there is one. A computer that is asleep or
 // switched off may never answer, and the system can take a minute or more to give up on it.
 const PAGE_WAIT_MS = 4000;
 const DATA_WAIT_MS = 6000;

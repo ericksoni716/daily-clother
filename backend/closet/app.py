@@ -114,7 +114,7 @@ class Services:
     ahead: styleahead.Ahead | None = None          # asks Claude for the day's outfits before the owner's first look
     chat: stylechat.Chat | None = None             # the conversation about the owner's style (Settings, Your style)
     on_quit: Callable[[], None] = lambda: None
-    on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
+    on_show: Callable[[], bool] = lambda: False   # shows Nines' own window; False when there is none (the browser is used)
     # Windows keeping Nines running (closet/background.py): whether this copy is the background copy, and how an
     # ordinary copy hands its port over to it (the launcher starts this program afresh and quits)
     background_copy: bool = False
@@ -585,7 +585,7 @@ OLD_SESSION_COOKIE = "closet_session"
 
 def create_app(sv: Services, window_key: str | None = None, *, access_keys: access.SigningKeys | None = None,
                tailscale_check: tailnet.Check | None = None) -> FastAPI:
-    """The web app. `window_key` is the key of Closet's own window (`gate.window_key`): the launcher always gives it,
+    """The web app. `window_key` is the key of Nines' own window (`gate.window_key`): the launcher always gives it,
     and then a request by this computer's own name must carry it (closet/gate.py). Tests give none.
 
     `access_keys` stands in for Cloudflare's published keys (tests); without it they are fetched from the team.

@@ -35,7 +35,7 @@ def test_adding_an_item_and_its_cutout_grow_the_right_numbers(client, services):
 
 def test_shared_folders_are_counted(client, cfg):
     for folder, name, size in ((cfg.models_dir, "m.onnx", 3000), (cfg.local_backups_dir / "pre-migration", "x.db", 2000),
-                               (cfg.logs_dir, "closet.log", 500)):
+                               (cfg.logs_dir, "nines.log", 500)):
         folder.mkdir(parents=True, exist_ok=True)
         (folder / name).write_bytes(b"x" * size)
     body = client.get("/api/storage").json()

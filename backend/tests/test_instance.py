@@ -48,7 +48,7 @@ def test_quit_endpoint_needs_this_copys_token(cfg, client, services):
     assert quits == [1]
 
 
-# a stand-in for an older copy: answers /api/health like Closet 0.1.1 and has no way to be asked to quit
+# a stand-in for an older copy: answers /api/health like Nines 0.1.1 and has no way to be asked to quit
 OLD_COPY = textwrap.dedent("""
     import http.server, json, sys
     class H(http.server.BaseHTTPRequestHandler):

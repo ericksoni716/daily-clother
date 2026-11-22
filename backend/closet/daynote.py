@@ -1,7 +1,7 @@
 """The day in the owner's words: a note that today, or the days ahead, are not an ordinary day at home.
 
 The owner types a sentence on Today ("In Lisbon until Friday", "at a match today, outside from noon to six").
-Claude reads it (`tagger/dayread.py`), Closet finds the place on the map (the same search as the place in
+Claude reads it (`tagger/dayread.py`), Nines finds the place on the map (the same search as the place in
 Settings), and the note is kept in the program's settings (`day_note`), not in a closet: like the place, it is about
 where the owner is. One note at a time; a new one replaces it, and it stops counting by itself after its last day.
 
@@ -105,7 +105,7 @@ def _day_words(d: date) -> str:
 
 
 def words(note: dict, today: date) -> list[str]:
-    """What Closet took from the note, in short plain parts: where, when, the hours outside, what for."""
+    """What Nines took from the note, in short plain parts: where, when, the hours outside, what for."""
     first, last = _dates(note) or (today, today)
     parts = []
     if note.get("place"):

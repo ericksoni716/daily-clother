@@ -35,7 +35,8 @@ from .config import Config
 from .state import State
 
 log = logging.getLogger("closet.backup")
-SUBFOLDER = "Closet backup"
+SUBFOLDER = "Nines backup"
+OLD_SUBFOLDER = "Closet backup"   # its name up to 0.13.0; renamed at the next backup (`_settle_root`)
 KEEP_SNAPSHOTS = 14
 DUE_AFTER_SECONDS = 24 * 3600
 CONTENT = "content"              # the images, each named by its SHA-256, in folders by its first two letters
@@ -59,8 +60,32 @@ def _stamp() -> str:
     return time.strftime("%Y%m%d-%H%M%S")
 
 
-def _root(folder: Path) -> Path:
-    return folder / SUBFOLDER
+def _settle_root(folder: Path) -> Path:
+    """Where a backup into `folder` goes, called under the backup lock, so no backup of ours is using it. A folder backed
+    up to by 0.13.0 or before holds "Closet backup": it is renamed to "Nines backup" with one rename, all or nothing, so the
+    snapshots and the images they share stay together. When that fails (another program, a sync app say, has a file in
+    it open; no permission) nothing changes, this backup goes into "Closet backup", and the next one tries again. When
+    both exist, "Nines backup" is used and "Closet backup" is left as it is: nothing is merged or deleted."""
+    new, old = folder / SUBFOLDER, folder / OLD_SUBFOLDER
+    if new.exists() or not old.is_dir():
+        return new
+    try:
+        os.rename(old, new)
+    except OSError as e:
+        log.warning("could not rename the backup folder %s to %s (%s); this backup goes into %s, and the next one "
+                    "tries again", old, new, e, old)
+        return old
+    log.info("renamed the backup folder %s to %s", old, new)
+    return new
+
+
+def _found_root(folder: Path) -> Path:
+    """Where the backups in `folder` are: "Nines backup", or "Closet backup" while it has not been renamed, or `folder`
+    itself when the owner named one of those."""
+    for root in (folder / SUBFOLDER, folder / OLD_SUBFOLDER):
+        if any((root / "db").glob("closet-*.sqlite")):
+            return root
+    return folder
 
 
 def _image_paths(database: Path) -> list[str]:
@@ -231,7 +256,7 @@ def run_backup(cfg: Config, state: State, kind: str = "manual", folder: Path | N
         if not src_db.exists():
             raise BackupError("There is no closet to back up yet.")
         with _one_backup_at_a_time(cfg):
-            root = _root(folder)
+            root = _settle_root(folder)
             snap = root / "db" / f"closet-{_stamp()}.sqlite"
             snap.parent.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(prefix=".backup-", dir=root) as staging:
@@ -281,7 +306,7 @@ def is_due(state: State, now: float | None = None) -> bool:
 def restore(cfg: Config, folder: Path, snapshot: str | None = None) -> dict:
     """Replace the real closet with a backup. The current one is moved aside, not deleted."""
     recover(cfg)   # a restore cut short before this one is finished or undone first
-    root = _root(folder) if (_root(folder)).is_dir() else folder
+    root = _found_root(folder)
     snaps = sorted((root / "db").glob("closet-*.sqlite"))
     if not snaps:
         raise BackupError(f"No backup was found in {folder}.")
@@ -435,7 +460,7 @@ def _install(cfg: Config, staged: Path, new: list[Path], snapshot: str) -> Path 
             _back(cfg, plan)
             journal.unlink(missing_ok=True)
         except Exception:
-            log.exception("the restore could not be undone at once; it will be put right when Closet next starts")
+            log.exception("the restore could not be undone at once; it will be put right when Nines next starts")
         raise
     journal.unlink()
     _fsync_dir(cfg.data_dir)

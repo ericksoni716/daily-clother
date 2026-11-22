@@ -1,8 +1,8 @@
-"""The small icon near the clock (in the menu bar on a Mac): Open Closet, start at login, Quit.
+"""The small icon near the clock (in the menu bar on a Mac): Open Nines, start at login, Quit.
 
 Optional. Where no tray is available (or the library is missing) the program
 simply runs without one and can be stopped from Settings. How it shares the
-main thread with Closet's own window is explained in closet/window.py.
+main thread with Nines' own window is explained in closet/window.py.
 """
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def _backend(icon) -> str:
 
 
 def run_beside(icon) -> None:
-    """Start the icon beside the loop of Closet's window, which has the main thread: pystray's `run_detached()`.
+    """Start the icon beside the loop of Nines' window, which has the main thread: pystray's `run_detached()`.
 
     pystray 0.19.5's plain X11 icon (Linux without GTK) is started by hand instead: its `run_detached()` calls `run()`
     in a thread, which starts the icon's setup thread a second time, and that one waits forever, keeping the program

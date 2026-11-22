@@ -24,7 +24,7 @@ from closet import app as app_module
 from closet.config import Config
 from closet.state import State
 
-from .conftest import LocalClient
+from .conftest import LocalClient, MemoryKeychain
 
 KEY = "sk-ant-api03-" + "k" * 80
 OTHER = "sk-ant-api03-" + "e" * 80
@@ -839,3 +839,12 @@ def test_9_the_task_runs_at_normal_priority():
     script = background.install_script(Path(r"C:\x\Nines.exe"), "--background", "S-1-5-21-1", Path("r.json"))
     settings = script[script.index("New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable"):]
     assert "-Priority 4" in settings.split("Register-ScheduledTask")[0]
+
+
+def test_a_key_still_kept_under_closet_is_sealed_when_it_is_turned_on(windows, program, home_cfg, keychain):
+    """Turned on before a start has moved the key in Credential Manager from the entry named Closet to Nines."""
+    old = MemoryKeychain()
+    old.key = KEY
+    apikey.use_store(keychain, old=old)
+    background.turn_on(home_cfg, program, home_cfg.port)
+    assert apikey.read_sealed(home_cfg.data_dir) == KEY

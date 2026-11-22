@@ -154,7 +154,7 @@ RECHECK_BATCH = 20   # cutouts looked at between two rounds of the queue, so a n
 
 def recheck(conn, images_dir: Path, limit: int = RECHECK_BATCH) -> int:
     """Cutouts made while the second background model was not there (it was still downloading, its download had
-    failed, or Closet had none yet), looked at once it is: each is made again when the second model would change
+    failed, or Nines had none yet), looked at once it is: each is made again when the second model would change
     it, that is when the first model's cutout is see-through in the shape of its own pattern, runs out of the
     photo's frame or keeps two kinds of surface (`masks.doubtful_cutout`). Each is looked at once; at most `limit`
     per call, oldest first. Returns how many were looked at (0: none left)."""

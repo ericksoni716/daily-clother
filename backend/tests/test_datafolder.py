@@ -4,6 +4,7 @@ Every test uses its own stand-in user folder (tmp_path); none touches the real ~
 """
 import json
 import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -156,3 +157,32 @@ def test_the_folder_is_settled_before_anything_opens_it(started):
 def test_an_updates_hand_over_never_moves_the_folder(started):
     assert cli.main(["--no-browser", "--replace"]) == 0
     assert started.settled == [] and started.served == [0]
+
+
+# ---- the log inside the data folder: closet.log becomes nines.log, once
+
+def test_the_log_is_carried_over_to_nines_log_once(tmp_path):
+    (tmp_path / "closet.log").write_text("today")
+    (tmp_path / "closet.log.1").write_text("yesterday")
+    assert cli._carry_over_log(tmp_path) == "the log is now nines.log (it was closet.log)"
+    assert (tmp_path / "nines.log").read_text() == "today" and (tmp_path / "nines.log.1").read_text() == "yesterday"
+    assert not list(tmp_path.glob("closet.log*"))
+    (tmp_path / "closet.log").write_text("from an older copy")
+    assert cli._carry_over_log(tmp_path) is None   # nines.log is there: nothing is merged or replaced
+    assert (tmp_path / "nines.log").read_text() == "today"
+    assert cli._carry_over_log(tmp_path / "nothing") is None
+
+
+def test_a_log_part_that_cannot_be_renamed_is_left_as_it_is(tmp_path, monkeypatch):
+    (tmp_path / "closet.log").write_text("today")
+    (tmp_path / "closet.log.2").write_text("older")
+    rename = os.rename
+
+    def held(src, dst):
+        if Path(src).name == "closet.log":
+            raise PermissionError(13, "open in another copy")
+        rename(src, dst)
+    monkeypatch.setattr(cli.os, "rename", held)
+    note = cli._carry_over_log(tmp_path)
+    assert "closet.log could not be renamed" in note
+    assert (tmp_path / "closet.log").read_text() == "today" and (tmp_path / "nines.log.2").read_text() == "older"

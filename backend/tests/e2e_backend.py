@@ -1,4 +1,4 @@
-"""Starts Closet for the browser tests with stand-ins for the model and for Claude.
+"""Starts Nines for the browser tests with stand-ins for the model and for Claude.
 
     cd backend && python -m tests.e2e_backend --no-browser --no-tray --port N
 
@@ -49,8 +49,8 @@ at a time, as the owner would see it with the real model and Claude: the cutout 
 (and the answer is a plaid polo, so its pattern is measured next), and measuring the pattern 4 seconds, after which
 it is not found (the drawing stays in the item's colour, and the page says so).
 
-With CLOSET_E2E_TAG_FAILS=N the first N descriptions fail with a reason Closet does not recognise, which quotes
-something shaped like a key and a file outside Closet's folder (both made up), so the page can show a failed item.
+With CLOSET_E2E_TAG_FAILS=N the first N descriptions fail with a reason Nines does not recognise, which quotes
+something shaped like a key and a file outside Nines' folder (both made up), so the page can show a failed item.
 
 Claude choosing the day's outfits on Today is never the real Claude. With CLOSET_E2E_STYLIST empty there is no stylist
 at all, so Today is the rules engine's alone, as before. With CLOSET_E2E_STYLIST=1 a stand-in (`fake_stylist`) answers
@@ -71,9 +71,9 @@ real routes say whether one is, and on a computer with neither the conversation 
 The API key box keeps keys in a stand-in keychain (never the computer's), and the check with Anthropic is a
 stand-in too: a key ending in "refused" is turned down, any other well-formed key is accepted.
 
-No key of Closet's own window is in force (closet/gate.py): the launcher makes one and gives it to the app, and here
+No key of Nines' own window is in force (closet/gate.py): the launcher makes one and gives it to the app, and here
 the app is made without it, so the browser opens 127.0.0.1 directly, as the unit tests' client does. The address check
-and the page's header are the real ones. Opening Closet with its key is tested in test_gate.py and test_window.py.
+and the page's header are the real ones. Opening Nines with its key is tested in test_gate.py and test_window.py.
 """
 import json
 import os

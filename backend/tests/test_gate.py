@@ -57,7 +57,7 @@ def test_another_copy_of_the_program_needs_no_header(client, services):
 
 @pytest.fixture
 def keyed(services):
-    """Closet as the launcher runs it: with the key of its own window in force."""
+    """Nines as the launcher runs it: with the key of its own window in force."""
     return TestClient(app_module.create_app(services, window_key=KEY), follow_redirects=False)
 
 

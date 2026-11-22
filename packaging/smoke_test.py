@@ -14,16 +14,16 @@ call Claude with a key.
 Default mode:
   1. `PROGRAM selfcheck --out FILE`: exit code 0, every check ok (the
      drawing check draws a garment, the updater check imports the module
-     that installs new releases, the window check loads Closet's window
+     that installs new releases, the window check loads Nines' window
      library without opening a window), model_state == "missing".
   2. `PROGRAM --no-browser --no-tray --port N` (no tray, no window):
      /api/health answers within
      the startup timeout with app == "closet", model_state == "missing";
-     the key of Closet's own window is in force:
-     GET / -> 401 (the page saying to open Closet from its icon), a request
+     the key of Nines' own window is in force:
+     GET / -> 401 (the page saying to open Nines from its icon), a request
      by another name -> 403, GET /?key=<window_key from settings.json> -> 303
      to / with the key's cookie; with that cookie (and, on every call, the
-     header Closet's own page sends) GET / is the built page (id="root") and
+     header Nines' own page sends) GET / is the built page (id="root") and
      the scripts and styles it links to are served with the right types;
      POST /api/instance/show -> 403 without the token from closet.lock,
      200 with it and shown == false (this copy has no window);
@@ -151,7 +151,7 @@ def read_text(path: Path) -> str:
 
 def dump_diagnostics(output: Path, data_dir: Path) -> None:
     section("program output", read_text(output))
-    section("closet.log", read_text(data_dir / "logs" / "closet.log"))
+    section("nines.log", read_text(data_dir / "logs" / "nines.log"))
     if os.name == "nt":
         log("note: the Windows build is windowed; a crash may show an error dialog that blocks until the timeout")
 
@@ -179,7 +179,7 @@ def run_selfcheck(program: Path, data_dir: Path, work: Path, cutout: bool, timeo
             raise SmokeFailure(f"selfcheck exited {code} and did not write a JSON report to {out_file}: {exc}") from exc
         expected = BASE_CHECKS + (("cutout", "https") if cutout else ())
         checks = report.get("checks") or {}
-        log(f"  Closet version {report.get('version')!r}")
+        log(f"  Nines version {report.get('version')!r}")
         problems = []
         for name in expected + tuple(sorted(set(checks) - set(expected))):
             entry = checks.get(name)
@@ -215,7 +215,7 @@ def request(method: str, url: str, body: dict | None = None, cookie: str | None 
             timeout: float = 30, host: str | None = None) -> tuple[int, dict, bytes]:
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(url, method=method, data=data)
-    req.add_header("X-Closet-Client", "1")   # as Closet's own page sends on every call
+    req.add_header("X-Closet-Client", "1")   # as Nines' own page sends on every call
     if host:
         req.add_header("Host", host)
     if data is not None:
@@ -265,7 +265,7 @@ def check_assets(base: str, page: str, cookie: str) -> None:
 
 
 def open_with_key(base: str, data_dir: Path) -> str:
-    """Opens Closet the way its window does: with the key the program keeps in settings.json, which the server swaps
+    """Opens Nines the way its window does: with the key the program keeps in settings.json, which the server swaps
     for a cookie. Before that, this computer's address is refused, and so is any other name. Returns the cookie."""
     _, body = expect("GET", base + "/", 401)
     if b"Open Nines from its icon" not in body:

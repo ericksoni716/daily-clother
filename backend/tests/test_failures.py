@@ -85,14 +85,14 @@ def test_a_key_shaped_string_and_outside_paths_are_stripped_from_the_page_and_th
         assert "sk-" not in text and FAKE_KEY not in text and "Ab1Ab1" not in text
         assert "someone" not in text and ".claude" not in text and "example.com" not in text
         assert str(cfg.data_dir) not in text
-        assert "[Nines folder]/images/abc/photo.webp" in text.replace("\\", "/")   # inside Closet's folder: kept
+        assert "[Nines folder]/images/abc/photo.webp" in text.replace("\\", "/")   # inside Nines' folder: kept
         assert "refused" in text   # the rest of the reason is still there
     assert FAKE_KEY not in caplog.text
 
 
 def test_the_reason_is_kept_in_the_database_already_cleaned(client, services, claude, cfg):
     """The closet's database is copied into backups: the reason a job keeps holds no key, token, e-mail address or
-    path outside Closet's folder either, for a cutout and for a description."""
+    path outside Nines' folder either, for a cutout and for a description."""
     def raise_it(*_):
         raise TaggingError(f"API Error: 401 x-api-key={FAKE_KEY} for a.person@example.com, read /home/someone/x.json")
 

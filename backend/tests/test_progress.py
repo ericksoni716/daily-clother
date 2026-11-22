@@ -106,7 +106,7 @@ def test_a_cutout_waits_for_background_removal(model, waits_for):
 
 def test_describing_waits_for_claude_only_when_the_queue_found_it_out_of_reach():
     assert brief(progress.of(row(tag_state="waiting"), progress.Waits(claude=True))) == ("describing", 2, "waiting", "claude")
-    # a reason Closet knows is said over the general one
+    # a reason Nines knows is said over the general one
     assert progress.of(row(tag_state="waiting", tag_error=spend.LIMIT_REACHED), progress.Waits(claude=True))["waiting_for"] == "limit"
 
 

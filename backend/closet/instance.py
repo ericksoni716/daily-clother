@@ -1,7 +1,7 @@
 """Making sure only one copy of the program runs, and choosing its port.
 
 A copy is either an ordinary one (the window, or the browser, in the same process as the server) or a background copy
-(`closet --background`: the server alone, nothing shown). Its lock file says which. Opened beside a background copy,
+(`Nines --background`: the server alone, nothing shown). Its lock file says which. Opened beside a background copy,
 the program is only a window onto it, in a process of its own, and keeps a small lock file of its own (the window's
 door, below) so that opening the program again brings that window forward instead of making a second one."""
 from __future__ import annotations
@@ -154,7 +154,7 @@ def stop_running(cfg: Config, info: dict, timeout: float = 20.0) -> bool:
 def show_running(info: dict) -> bool:
     """Ask the copy described by `info` to show its window, as `stop_running` asks it to quit (with the token from its
     lock file). True when it did; False when it has no window to show (it uses the browser, it runs without a window,
-    or it is from before Closet had one), and the browser should be opened instead."""
+    or it is from before Nines had one), and the browser should be opened instead."""
     if not info.get("token"):
         return False
     _allow_foreground(info.get("pid"))

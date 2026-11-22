@@ -119,7 +119,7 @@ def _notes(body: object) -> str:
 
 
 def parse_release(data: object) -> dict | None:
-    """The parts of GitHub's answer Closet uses, or None for anything but a published, final release v<version>."""
+    """The parts of GitHub's answer Nines uses, or None for anything but a published, final release v<version>."""
     if not isinstance(data, dict) or data.get("draft") is not False or data.get("prerelease") is not False:
         return None
     tag = data.get("tag_name")
@@ -258,7 +258,7 @@ def swap(where: Layout, package: Path, sha256: str, run=None) -> None:
         if len(apps) != 1 or not (apps[0] / where.inner).is_file():
             raise UpdateError("The update did not hold the Nines program. Nothing was changed.")
         new_app = apps[0]
-        # only this bundle, which Closet downloaded and checked itself, loses the "downloaded from the internet" mark
+        # only this bundle, which Nines downloaded and checked itself, loses the "downloaded from the internet" mark
         run(["xattr", "-dr", "com.apple.quarantine", str(new_app)])
         signed = run(["codesign", "--verify", "--deep", "--strict", str(new_app)])
         if signed.returncode != 0:
@@ -517,7 +517,7 @@ def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, pol
     start = start or (_start_through_task if task else start_program_now)
     where = Layout(plan["platform"], Path(plan["installed"]), Path(plan["old"]), Path(plan["inner"]))
     timeout = plan.get("timeout", START_WITHIN) if timeout is None else timeout
-    log.info("starting Closet %s in place of %s%s", plan["to"], plan["from"], " through the task" if via_task else "")
+    log.info("starting Nines %s in place of %s%s", plan["to"], plan["from"], " through the task" if via_task else "")
     proc, problem = None, None
     if via_task:
         _make_way(cfg, plan)
@@ -529,7 +529,7 @@ def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, pol
     while problem is None and time.monotonic() < deadline:
         info = _running(cfg, plan)
         if info and info["version"] == plan["to"] and info.get("pid") != plan.get("old_pid"):
-            log.info("Closet %s is running", plan["to"])
+            log.info("Nines %s is running", plan["to"])
             _write_outcome(cfg, {"at": _now(), "from": plan["from"], "to": plan["to"], "ok": True, "note": None})
             return True
         if proc is not None and proc.poll() is not None and proc.returncode not in (0, None):
@@ -537,7 +537,7 @@ def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, pol
             break
         time.sleep(poll)
     problem = problem or f"it did not answer within {timeout:g} seconds"
-    log.warning("Closet %s did not start: %s; going back to %s", plan["to"], problem, plan["from"])
+    log.warning("Nines %s did not start: %s; going back to %s", plan["to"], problem, plan["from"])
     try:
         lock = json.loads(cfg.lock_path.read_text())
         pid = lock.get("pid")
@@ -575,7 +575,7 @@ def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, pol
 
 
 def run_watch(plan_file: str) -> int:
-    """The helper's entry point (`closet update-watch PLAN`)."""
+    """The helper's entry point (`Nines update-watch PLAN`)."""
     plan = json.loads(Path(plan_file).read_text(encoding="utf-8"))
     from .config import load
     base = load()
@@ -703,7 +703,7 @@ class Updater:
             self.state.update(update_check={"at": _now(), "ok": True, "error": None,
                                             "latest": release["version"] if release else None, "available": newer})
             if newer:
-                log.info("Closet %s is out (this is %s)", newer["version"], self.version)
+                log.info("Nines %s is out (this is %s)", newer["version"], self.version)
         except Exception as e:
             error = _read_error(e)
             if isinstance(e, urllib.error.HTTPError) and e.code == 404:   # nothing published yet: an answer, not a failure
@@ -769,7 +769,7 @@ class Updater:
         os.replace(part, dest)
         self.state.update(update_ready={"version": release["version"], "path": str(dest), "sha256": expected,
                                         "at": _now()}, update_problem=None)
-        log.info("downloaded and checked Closet %s (%d bytes)", release["version"], total)
+        log.info("downloaded and checked Nines %s (%d bytes)", release["version"], total)
         return dest
 
     def _fetch(self, release: dict) -> Path | None:
@@ -809,7 +809,7 @@ class Updater:
             restore(where)
             raise UpdateError(f"Nines could not start the new version ({e}), so it put this one back.")
         self.busy = "restarting"
-        log.info("handing over to Closet %s", release["version"])
+        log.info("handing over to Nines %s", release["version"])
 
     def install_now(self) -> dict:
         """Start installing the release found (in the background). Raises UpdateError when it cannot start."""

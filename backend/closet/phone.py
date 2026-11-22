@@ -34,13 +34,13 @@ def find_tailscale() -> str | None:
 
 
 def parse_status(text: str) -> dict:
-    """Whether Tailscale is running. This computer's name alone is not Closet's address."""
+    """Whether Tailscale is running. This computer's name alone is not Nines' address."""
     data = json.loads(text)
     return {"running": data.get("BackendState") == "Running"}
 
 
 def _reaches(target: object, port: int) -> bool:
-    """Whether a serve target (a proxy URL or a TCP forward) is Closet on this computer."""
+    """Whether a serve target (a proxy URL or a TCP forward) is Nines on this computer."""
     if not isinstance(target, str) or not target:
         return False
     url = urlsplit(target if "://" in target else f"http://{target}")
@@ -51,7 +51,7 @@ def _reaches(target: object, port: int) -> bool:
 
 
 def parse_serve(text: str, port: int) -> dict:
-    """Read `tailscale serve status --json`: where Closet is shared, and which HTTPS ports others use.
+    """Read `tailscale serve status --json`: where Nines is shared, and which HTTPS ports others use.
 
     Returns {"closet": (host, https port) or None, "taken": sorted ports used by something else}.
     Only a share of the whole site (path "/") counts: the page uses absolute paths, so a path
@@ -93,7 +93,7 @@ def address(host: str, https_port: int) -> str:
 
 
 def start_command(port: int, taken: list[int]) -> str:
-    """A `tailscale serve` command for Closet that does not take a port another app already uses."""
+    """A `tailscale serve` command for Nines that does not take a port another app already uses."""
     if 443 not in taken:
         return f"tailscale serve --bg {port}"
     free = next(p for p in itertools.chain((8443, 8444), itertools.count(10000)) if p not in taken)
@@ -109,7 +109,7 @@ def _run(exe: str, args: list[str], runner) -> str | None:
 def info(port: int, runner=subprocess.run) -> dict:
     """What Settings shows about phone access. Never raises.
 
-    `address` is set only when a Tailscale share really reaches Closet; `stop_command` stops
+    `address` is set only when a Tailscale share really reaches Nines; `stop_command` stops
     that share and no other. The two `tailscale` commands run at the same time, so a Tailscale
     that does not answer costs one timeout (4 s), not two.
     """

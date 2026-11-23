@@ -254,6 +254,9 @@ CI's Chromium is the build Playwright's version asks for, and can be newer than 
 `clientWidth` differs between them (a newer one leaves out the padding), so a test measures boxes with
 `getBoundingClientRect`.
 
+`axeViolations` (`e2e/a11y.ts`) first waits until no animation or transition that ends is still running, and reads
+again when one started while axe was reading: a toast or sheet caught mid-fade is measured half-transparent.
+
 The tests' own calls (`page.request`, `request`) each go on a connection of their own
 (`asThePage` in `fixtures.ts`): the server closes a connection idle for 5 seconds, and a call
 sent on a kept one in that moment fails with a reset connection that the owner never meets.

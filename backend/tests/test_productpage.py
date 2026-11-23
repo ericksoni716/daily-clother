@@ -473,3 +473,75 @@ def test_the_connection_goes_to_the_address_that_was_checked(monkeypatch):
         REAL_PAGE_GET(target, 3.0)
     assert str(e.value) == pp.UNREACHABLE
     assert made == [((PUBLIC, 443), 3.0)]
+
+
+# ------------------------------------------------------------------ the price before a markdown ("On sale now")
+def offer(price, *specs, availability="https://schema.org/InStock") -> dict:
+    o = {"@type": "Offer", "price": price, "priceCurrency": "USD", "availability": availability}
+    if specs:
+        o["priceSpecification"] = list(specs)
+    return o
+
+
+def test_a_strikethrough_or_list_price_in_the_offer_is_the_price_before():
+    for kind in ("https://schema.org/StrikethroughPrice", "https://schema.org/ListPrice", "ListPrice", "MSRP"):
+        spec = {"@type": "UnitPriceSpecification", "priceType": kind, "price": "120.00", "priceCurrency": "USD"}
+        p = parse(page(ld(product(offers=offer("84.00", spec)))))
+        assert (p.price, p.price_before, p.currency) == (84.0, 120.0, "USD"), kind
+
+
+def test_a_specification_without_a_list_type_is_the_price_to_pay_not_the_one_before():
+    paid = {"@type": "UnitPriceSpecification", "price": 84, "priceCurrency": "USD"}
+    was = {"@type": "UnitPriceSpecification", "priceType": "https://schema.org/StrikethroughPrice", "price": 120}
+    o = {"@type": "Offer", "priceSpecification": [was, paid], "availability": "https://schema.org/InStock"}
+    p = parse(page(ld(product(offers=o))))
+    assert (p.price, p.price_before) == (84.0, 120.0)   # the list price first in the list is still not the price
+    p = parse(page(ld(product(offers=offer(84, paid)))))
+    assert p.price_before is None
+
+
+def test_a_price_before_that_is_not_above_the_price_is_none():
+    for before in ("84.00", "60.00"):
+        spec = {"priceType": "https://schema.org/ListPrice", "price": before}
+        assert parse(page(ld(product(offers=offer("84.00", spec))))).price_before is None
+
+
+def test_the_cheapest_offer_you_can_buy_brings_its_own_price_before():
+    was = lambda v: {"priceType": "https://schema.org/StrikethroughPrice", "price": v}  # noqa: E731
+    offers = [offer(90, was(100)), offer(70, was(140), availability="https://schema.org/OutOfStock"), offer(84, was(120))]
+    p = parse(page(ld(product(offers=offers))))
+    assert (p.price, p.price_before, p.available) == (84.0, 120.0, True)
+
+
+def test_opengraph_gives_the_price_before_as_an_original_or_beside_a_sale_price():
+    head = ('<meta property="product:price:amount" content="84.00"><meta property="product:price:currency" content="USD">'
+            '<meta property="product:original_price:amount" content="120.00">')
+    p = parse(page(head))
+    assert (p.price, p.price_before) == (84.0, 120.0)
+    head = ('<meta property="product:price:amount" content="120.00"><meta property="product:price:currency" content="USD">'
+            '<meta property="product:sale_price:amount" content="84.00">')
+    p = parse(page(head))
+    assert (p.price, p.price_before) == (84.0, 120.0)
+    head = '<meta property="product:price:amount" content="84.00"><meta property="product:price:currency" content="USD">'
+    assert parse(page(head)).price_before is None
+
+
+def test_a_page_with_no_price_before_says_none():
+    assert parse(page(ld(product()))).price_before is None
+
+
+def test_a_product_groups_variants_give_their_sizes_and_whether_each_can_be_bought():
+    def variant(size, stock):
+        return {"@type": "Product", "size": size, "offers": offer(84, availability=f"https://schema.org/{stock}")}
+    group = {"@context": "https://schema.org", "@type": "ProductGroup", "name": "Example Maker overshirt",
+             "hasVariant": [variant("S", "InStock"), variant("M", "OutOfStock"), variant("L", "InStock"),
+                            variant({"@type": "SizeSpecification", "name": "XL"}, "OutOfStock")]}
+    p = parse(page(ld(group)))
+    assert p.sizes == {"S": True, "M": False, "L": True, "XL": False}
+    assert parse(page(ld(product()))).sizes == {}
+
+
+def test_an_opengraph_original_price_counts_beside_a_price_from_the_structured_data():
+    head = ld(product(offers=offer("195.00"))) + '<meta property="product:original_price:amount" content="260.00">'
+    p = parse(page(head))
+    assert (p.price, p.price_before) == (195.0, 260.0)

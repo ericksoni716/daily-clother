@@ -9,6 +9,13 @@ what the page says about the product in words (its description, brand, colour an
 describe a link in the closet's words; the caller checks every value before it keeps one, as it does Claude's
 (`shop.clean_read`).
 
+The price before a markdown, for "On sale now" (`closet/picks.py`), is read only where the page's own data gives it:
+an offer's `priceSpecification` whose `priceType` is a list or "was" price (schema.org's `ListPrice`, Google's
+`StrikethroughPrice`, or `SRP`/`MSRP`), else OpenGraph's `product:original_price:amount`, else a
+`product:sale_price:amount` below `product:price:amount` (then the sale price is the price and the other the price
+before). It counts only when it is above the price. The sizes a `ProductGroup`'s variants offer, each with whether it
+can be bought, come back too (`sizes`), so "Your size is in stock" can be the page's word rather than a guess.
+
 A checkout code is read from the page's visible text only (never its scripts or styles): a discount and a code written
 together in one short stretch, "40% off with code SAVE40", "Use code SAVE40 for 40% off", "$20 off with code TAKE20"
 (`codes`). It is read with care: an offer for only some people (a first order, new customers, signing up, the app,
@@ -60,6 +67,9 @@ REDIRECTS = {301, 302, 303, 307, 308}
 PAGE_TYPES = ("text/html", "application/xhtml+xml")
 SIGNS = {"$": "USD", "€": "EUR", "£": "GBP"}   # a currency read from a price's sign, when the page names none
 GONE = {"outofstock", "soldout", "discontinued", "oos"}
+# a priceSpecification's priceType that names the price before a markdown, not the price to pay
+LIST_PRICES = {"listprice", "strikethroughprice", "srp", "msrp"}
+SIZES_MAX = 40         # sizes read from a product's variants
 NAT64 = ipaddress.ip_network("64:ff9b::/96")
 WRITTEN = re.compile(r"\s*([A-Z]{3})?\s*[$€£]?\s*-?\s*[\d.,]+\s*[$€£]?\s*([A-Z]{3})?\s*")
 
@@ -153,6 +163,8 @@ class Product:
     price: float | None = None
     currency: str | None = None
     available: bool = True
+    price_before: float | None = None   # the price before a markdown, from the page's own data, when above `price`
+    sizes: dict[str, bool] = field(default_factory=dict)   # each size its variants offer, and whether it can be bought
     codes: list[Code] = field(default_factory=list)   # every checkout code its text shows; the caller keeps the best
     # what the page says about the product in words, for Claude to describe it in the closet's (`shop.describe`)
     description: str | None = None
@@ -522,31 +534,55 @@ def _offers(product: dict) -> list[dict]:
     return offers
 
 
-def _offer(o: dict) -> tuple[float | None, str | None, bool | None]:
-    """An offer's price, currency and whether it can be bought. An AggregateOffer's price is its lowest."""
+def _listed(spec: dict) -> bool:
+    """Whether a priceSpecification is the price before a markdown (a list or "was" price), not the one to pay."""
+    kind = spec.get("priceType")
+    return isinstance(kind, str) and kind.strip().rsplit("/", 1)[-1].rsplit(":", 1)[-1].lower() in LIST_PRICES
+
+
+def _offer(o: dict) -> tuple[float | None, str | None, bool | None, float | None]:
+    """An offer's price, currency, whether it can be bought, and its price before a markdown when its data gives one
+    (`_listed`). An AggregateOffer's price is its lowest."""
     raw = o.get("lowPrice") if "aggregateoffer" in _types(o) and o.get("lowPrice") is not None else o.get("price")
     currency = _text(o.get("priceCurrency"))
+    specs = [s for s in (o.get("priceSpecification") if isinstance(o.get("priceSpecification"), list)
+                         else [o.get("priceSpecification")]) if isinstance(s, dict) and s.get("price") is not None]
     if raw is None:
-        specs = o.get("priceSpecification")
-        spec = next((s for s in (specs if isinstance(specs, list) else [specs])
-                     if isinstance(s, dict) and s.get("price") is not None), None)
+        spec = next((s for s in specs if not _listed(s)), None)
         if spec:
             raw, currency = spec.get("price"), currency or _text(spec.get("priceCurrency"))
     price, written = number(raw)
-    return price, (currency or written), _available(o.get("availability"))
+    before = next((number(s.get("price"))[0] for s in specs if _listed(s)), None)
+    return price, (currency or written), _available(o.get("availability")), before
 
 
-def _best(offers: list[tuple[float | None, str | None, bool | None]]) -> tuple[float | None, str | None, bool]:
-    """The lowest price among the offers that can be bought, else the lowest of all (then it cannot be bought)."""
+def _best(offers: list[tuple]) -> tuple[float | None, str | None, bool, float | None]:
+    """The lowest price among the offers that can be bought, else the lowest of all (then it cannot be bought), with
+    that offer's price before a markdown when it gives one above its price."""
     priced = [o for o in offers if o[0] is not None and o[0] > 0]
     buyable = [o for o in priced if o[2] is not False]
-    if buyable:
-        price, currency, _ = min(buyable, key=lambda o: o[0])
-        return price, currency, True
-    if priced:
-        price, currency, _ = min(priced, key=lambda o: o[0])
-        return price, currency, False
-    return None, next((o[1] for o in offers if o[1]), None), next((o[2] for o in offers if o[2] is not None), True)
+    if buyable or priced:
+        price, currency, _, before = min(buyable or priced, key=lambda o: o[0])
+        return price, currency, bool(buyable), before if before is not None and before > price else None
+    return (None, next((o[1] for o in offers if o[1]), None), next((o[2] for o in offers if o[2] is not None), True),
+            None)
+
+
+def _sizes(product: dict) -> dict[str, bool]:
+    """Each size a ProductGroup's variants offer (`size`, as text or a SizeSpecification's `name`), and whether any
+    offer of it can be bought; at most SIZES_MAX. Empty when the page lists no sizes."""
+    out: dict[str, bool] = {}
+    variants = product.get("hasVariant") if isinstance(product.get("hasVariant"), list) else []
+    for v in variants:
+        if not isinstance(v, dict) or len(out) >= SIZES_MAX:
+            continue
+        size = _text(v.get("size"), 20)
+        if not size:
+            continue
+        offers = [_offer(o) for o in _offers(v)]
+        can = any(o[2] is not False for o in offers) if offers else _available(v.get("availability")) is not False
+        out[size] = out.get(size, False) or can
+    return out
 
 
 def _stretches(bits: list[str]) -> Iterator[tuple[int, int, str]]:
@@ -650,18 +686,27 @@ def parse(page: str, url: str) -> Product:
         out.name = _text(product.get("name"))
         out.image_url = _image(product.get("image"))
         offers = _offers(product)
-        out.price, out.currency, out.available = _best([_offer(o) for o in offers])
+        out.price, out.currency, out.available, out.price_before = _best([_offer(o) for o in offers])
+        out.sizes = _sizes(product)
         seller = next((_text(o.get("seller")) for o in offers if _text(o.get("seller"))), None)
         out.description = _text(product.get("description"), DESCRIPTION_MAX)
         out.brand, out.color, out.material = (_text(product.get(k)) for k in ("brand", "color", "material"))
     if out.price is None:
-        for amount, code, stock in (("product:price:amount", "product:price:currency", "product:availability"),
-                                    ("og:price:amount", "og:price:currency", "og:availability")):
-            price, written = number(meta.get(amount))
+        for tag, stock in (("product", "product:availability"), ("og", "og:availability")):
+            price, written = number(meta.get(f"{tag}:price:amount"))
             if price is not None and price > 0:
-                out.price, out.currency = price, _text(meta.get(code)) or written
+                out.price, out.currency = price, _text(meta.get(f"{tag}:price:currency")) or written
                 out.available = _available(meta.get(stock)) is not False
+                sale, _ = number(meta.get(f"{tag}:sale_price:amount"))
+                was, _ = number(meta.get(f"{tag}:original_price:amount"))
+                if sale is not None and 0 < sale < price:   # the regular price and the sale price, both given
+                    out.price, was = sale, price
+                out.price_before = was if was is not None and was > out.price else None
                 break
+    if out.price is not None and out.price_before is None:   # a price from the data, a price before in a tag
+        was = next((number(meta.get(f"{tag}:original_price:amount"))[0] for tag in ("product", "og")
+                    if number(meta.get(f"{tag}:original_price:amount"))[0] is not None), None)
+        out.price_before = was if was is not None and was > out.price else None
     if out.price is None:
         price, written = number(items.get("price"))
         if price is not None and price > 0:

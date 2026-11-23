@@ -43,6 +43,7 @@ PURPOSE_SHOP = "shop_find"            # searching shops for a wish (`tagger/shop
 PURPOSE_PRICES = "shop_prices"        # looking up the prices of a wish's finds again
 PURPOSE_DESCRIBE_LINK = "shop_describe"   # a page sent as a link described from its words (`tagger/shopping.py`)
 PURPOSE_PICKS = "shop_picks"          # "You might like": things the owner might like, found by Claude (`closet/picks.py`)
+PURPOSE_SALE = "shop_sale"            # "On sale now": things marked down the owner might like (`closet/picks.py`)
 PURPOSE_GARMENTS = "find_garments"    # where each piece is in a photo of several (`tagger/garments.py`)
 PURPOSE_VIEWS = "sort_views"          # which view each photo of a shoe shows (`tagger/views.py`)
 PURPOSE_SORT_ADD = "sort_add"         # what each photo chosen on Add shows: a piece, several, a shoe (`tagger/addsort.py`)

@@ -86,15 +86,15 @@ page and "Would this work? by hand". Each rule's test is in its module's own tes
 | A2. Add: a late notice moves the buttons; instructions before buttons | The buttons first, the explanation folded, the notice after them | #322 |
 | A3. Today's Change puts a tall panel above the outfits | A sheet, "Where you are" | #318 |
 | A4. "I'll look for this" folds the card and the page jumps | The card stays, with Undo | #319 |
-| A5. On a computer, opening an item rearranges the grid; no Close | In the next batch (closet) | |
+| A5. On a computer, opening an item rearranges the grid; no Close | The grid keeps its rows and the piece its place; Close, Escape and Back close the panel, and focus goes into it | this batch |
 | A6. A failed call shows raw words and no Try again | Every screen named says what failed, with Try again | #322 |
-| A7. "All clean" has no Undo and leaves a wrong empty screen | In the next batch (closet) | |
+| A7. "All clean" has no Undo and leaves a wrong empty screen | Undo in the line under the search puts each piece back as it was; an empty laundry says so; showing the laundry moves nothing | this batch |
 | A8. "Stop watching" removes a find at once | In the next batch | |
 | A9. Record an outfit is a very long panel of every piece | A sheet with search and groups | #318 |
 | A10. A piece opened from Worn goes back to Today | Goes back to Worn | #318 |
 | A11. A trip leads with warnings; a failed forecast said eleven times | Leads with what to pack; said once | #318 |
 | A12. The outfit card has a blank band | As tall as the outfit in front | #318 |
-| A13. Filter has three lists for what a piece is | In the next batch (closet) | |
+| A13. Filter has three lists for what a piece is | One list, What it is: the groups, opening to their categories and kinds; one chip | this batch |
 | P1. Dates and colour codes in History and Advanced | One way to write dates; History names the shade | #322 |
 | P2. "Kind not said yet" on a piece called a polo | In the next batch (item page) | |
 | P3. Words: grammar, things said twice, one thing named two ways | Partly: the Wardrobe's words (#317, #319), "Build around", "Where you are" (#318), the banner, Add and Advanced (#322). Left: "wears looked at", "the kinds of day the closet is tried on", names capitalised mid-sentence, Would this work? saying a thing twice | #317, #318, #319, #322 |
@@ -103,7 +103,7 @@ page and "Would this work? by hand". Each rule's test is in its module's own tes
 | P6. A trip's "Why this works" rows are 36px | A whole tap high | #318 |
 | P7. Keyboard: Escape and focus in a few places | Escape closes Change (#318), editors and Today's sheets; focus moves on; Your style keeps the sheet (#322) | #318, #322 |
 | P8. "How you live" is a third kind of overlay | The same sheet as the rest | #322 |
-| P9. The search box shrinks to "S" | In the next batch (closet) | |
+| P9. The search box shrinks to "S" | Never narrower than its word; it also finds a shade, brand, material or note | this batch |
 | P10. The page behind a phone sheet scrolls | Held still | #322 |
 | P11. Reasons after a rating do not follow it | They follow it | #318 |
 | P12. Reload forgets | Partly: Today's changes kept (#318); the closet's search, filters and place in the list kept in its address (this batch); Would this work? open | #318, this batch |

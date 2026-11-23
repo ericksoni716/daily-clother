@@ -12,10 +12,12 @@ export const PHONE = '(max-width: 699px)';
  * opened it (`popover`) or simply in place in the page. Escape closes it, and so do a tap outside a sheet or a popover.
  * While a sheet or a popover is open, Tab stays inside it; once it closes, focus goes back to what opened it.
  */
-export function Sheet({ title, onClose, popover, keep, className, testId, children }: {
+export function Sheet({ title, onClose, popover, keep, closeLabel = 'Done', className, testId, children }: {
   title: string;
   onClose(): void;
   popover?: boolean;
+  /** The button beside the title that closes it: "Done", or "Cancel" over a form that saves only with its own button. */
+  closeLabel?: string;
   /** Pressing inside this (the button that opened the popover) does not count as outside. */
   keep?: RefObject<HTMLElement | null>;
   className?: string;
@@ -63,7 +65,7 @@ export function Sheet({ title, onClose, popover, keep, className, testId, childr
         {floating && (
           <div className="sheet-head">
             <h2 className="sheet-title">{title}</h2>
-            <Button variant="ghost" small onClick={onClose}>Done</Button>
+            <Button variant="ghost" small onClick={onClose}>{closeLabel}</Button>
           </div>
         )}
         {children}

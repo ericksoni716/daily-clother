@@ -87,17 +87,23 @@ which is kept only when you tap it, with Undo beside it once kept.
 
 **Another day**, beside the heading, opens a sheet with tomorrow and the next days by name (a day
 you planned says Planned, a day of a saved trip names the trip) and a date of your choice, up to
-60 days ahead. A day opens at `/today/day/<date>` in Today's own layout: its name as the heading,
-"‹ Today" back, its weather (the forecast where it reaches, else "usually, on these dates", or a
-mild day with a line saying why it is not known), one line saying whether an outfit is planned, and
-outfits by Nines' own rules with **Wear this on Saturday**. That keeps the outfit for the day: a
-plan, not a wear (nothing worn, nothing in the laundry). The planned outfit says "Planned for
-Saturday" with **Remove the plan**; taking a plan away, or replacing it, leaves Undo in the line.
+60 days ahead. A day opens at `/today/day/<date>` in Today's own layout: its name as the heading
+(on a phone one row, "‹ Wed 25 Nov" with Another day, the arrow going back to Today), its weather
+(the forecast where it reaches, else "usually, on these dates", or a mild day with one short line,
+"No forecast for that day.", and Try again when the weather service could not be reached), one line
+of fixed height about the plan ("Nothing planned for Saturday yet.", or **See other outfits** when the
+outfit shown is the plan), and outfits by Nines' own rules with **Wear this on Saturday**. On the
+smallest phone an outfit of five pieces and its button are on the first screen. That keeps the
+outfit for the day: a plan, not a wear (nothing worn, nothing in the laundry). The planned outfit
+says "Planned" with **Remove the plan** beside it; taking a plan away, or replacing it, leaves Undo
+in the line. A piece away is offered for a day ahead only when you expect it back before that day.
 Change on that day opens a word about the day ("Dinner at eight"), read by Claude like today's note,
 with the same sentence saying what is sent. A day inside a saved trip says the trip has its outfit,
 with **See the trip**. Offline, a plan made earlier shows from what the device kept. On the
 morning of a planned day Today opens on the plan with one line saying so (and the word about the
-day), names a piece swapped because it cannot be worn by then, and offers **See other outfits**. On
+day), names a piece swapped because it cannot be worn by then (a piece away with where it is: "Your
+navy blazer is at the cleaner's until Friday 27 November, so another piece takes its place."), and
+offers **See other outfits**. On
 the days before, a planned piece that wearing would leave in the wash on its day is not offered; its
 choices say why if it is in an outfit anyway, with **Build around it anyway**. The plans of the
 coming week are one line on Today ("Saturday and Monday are planned."), each day a link. **Keep this
@@ -129,7 +135,8 @@ a sheet, "Wear this again" (Today keeps the pieces you can wear today, and fills
 in the wash or waiting to be mended), "Keep this outfit", a way to put its pieces in the laundry,
 and Remove. The outfits you keep are newest first, each with a name you can type in place (saved as
 you leave the box), when it was kept, its pieces, a line when a piece has left the closet, and
-**Wear this** (Today starts from it as from "Wear this again"); behind ⋯, **Wear this on another
+**Wear this** (Today starts from it as from "Wear this again", and names a piece away with where it
+is); behind ⋯, **Wear this on another
 day** (the days sheet, then that day starting from it) and Remove, which leaves a line with Undo.
 With none kept, one sentence says how. Keeping the same pieces again says so instead. A piece
 opens at `/today/worn/item/<id>`, and "‹ Worn" goes back to where you were. "Record an outfit"

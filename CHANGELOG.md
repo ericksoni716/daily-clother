@@ -57,7 +57,13 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   morning Today opens on it, and a piece that cannot be worn by then is swapped and named. On the
   days before, a planned piece that would still be in the wash on its day is not offered. A plan can
   be changed or taken away with Undo, and the plans of the coming week are one line on Today. A day
-  inside a saved trip points to the trip, which has that day's outfit.
+  inside a saved trip points to the trip, which has that day's outfit. A day leads with its outfit:
+  on the smallest phone five pieces and **Wear this on Saturday** are on the first screen, with one
+  short line when its weather is not known ("No forecast for that day. Try again"). A piece away is
+  offered for a day ahead only when you expect it back before that day; a planned piece still away
+  on the morning is swapped and named with where it is ("Your navy blazer is at the cleaner's until
+  Friday 27 November"), and so is one in a kept outfit you wear. The demo's plan is now an outfit the
+  rules have nothing to warn about.
 
 - **Outfits you keep.** **Keep this outfit** under any outfit on Today, and in a worn outfit's
   choices, saves it without wearing it. Worn has a second half, **Outfits you keep**: name one in

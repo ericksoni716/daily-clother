@@ -35,6 +35,9 @@ const OFFLINE_WISHES = "You're offline, and your wishlist was not saved on this 
 
 /** Wish edits that cannot change any wish's finds (a new wish's finds are read when its card shows). */
 const NOT_FINDS = ['finds'] as const;
+/** A wish made from a link fills no gap (only a wish made from a gap marks one), so the analysis of what is worth
+ * buying is not asked for again: the new wish's page opens without waiting for it. */
+const FROM_A_LINK = ['finds', 'gaps'] as const;
 
 export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wishlist = false, wide }: {
   itemId: string | null; check: boolean; wishId: string | null; wish: string | null;
@@ -138,7 +141,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
       setBusy('new-link');
       try {
         const made = await api.addLink(url);
-        await touch(qc, 'wish', NOT_FINDS);
+        await touch(qc, 'wish', FROM_A_LINK);
         // its own page says how the reading goes; from a shared link, Back then leaves rather than offering it again
         navigate(wishPath(made.id), { replace: link });
         return null;

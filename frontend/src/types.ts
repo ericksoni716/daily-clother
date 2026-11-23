@@ -7,6 +7,9 @@ export type CutoutState = 'none' | 'pending' | 'processing' | 'ready' | 'failed'
 export type TagState = 'none' | 'waiting' | 'working' | 'done' | 'failed';
 export type Profile = 'main' | 'demo';
 export type Laundry = 'clean' | 'laundry';
+/** What marking a piece in the laundry clean changed, as the server answered it: sent back, it puts the piece back in
+ * the laundry as it was (`POST /api/items/{id}/laundry`). Read by nothing on the page but that. */
+export interface LaundryUndo { washed_at: string; before: Record<string, unknown> }
 /** Where a piece is when it is not in the closet. */
 export type AwayPlace = 'cleaner' | 'tailor' | 'lent';
 /** A piece away: where, since when, and the day it is expected back (local "YYYY-MM-DD"); the note only on its own page. */
@@ -69,6 +72,12 @@ export interface ItemSummary {
   drawn_version?: string | null;
   /** how far the work on it has got (see Progress); null when nothing is being done to it and nothing failed */
   progress?: Progress | null;
+  /** what the closet's search looks in besides the above: the brand, the material, the owner's name for its shade (one of
+   * the vocabulary's `shades`), and every note the item page's one notes box shows, each once ('' for none) */
+  brand?: string | null;
+  material?: string | null;
+  shade?: string | null;
+  own_notes?: string;
 }
 
 /** How far the work on an item has got, worked out by the server (`backend/closet/progress.py`), in its words. */

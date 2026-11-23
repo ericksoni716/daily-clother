@@ -1,4 +1,4 @@
-import { expect, goToCloset, openFold, test, useProfile } from './fixtures';
+import { CLIENT, expect, goToCloset, openFold, test, useProfile } from './fixtures';
 
 /** Design 3: the Closet grid and the item page, on a phone and a computer, saved as pictures. */
 
@@ -22,13 +22,11 @@ test.describe('phone', () => {
       const tile = (await page.getByTestId('tile').nth(i).boundingBox())!;
       expect(tile.y + tile.height).toBeLessThanOrEqual(bar.y);
     }
-    // one toolbar: search, Filter and the Photos / Drawings switch on one row
+    // one toolbar: the search and Filter on one row
     const toolbar = page.locator('.closet-toolbar');
     const search = (await toolbar.getByRole('searchbox').boundingBox())!;
     const filter = (await toolbar.getByRole('button', { name: /^Filter/ }).boundingBox())!;
-    const show = (await toolbar.getByRole('group', { name: 'Show' }).boundingBox())!;
     expect(Math.abs(search.y + search.height / 2 - (filter.y + filter.height / 2))).toBeLessThan(4);
-    expect(Math.abs(show.y + show.height / 2 - (filter.y + filter.height / 2))).toBeLessThan(4);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await page.screenshot({ path: test.info().outputPath(`closet-phone.png`) });
 
@@ -42,10 +40,23 @@ test.describe('phone', () => {
     // it rises from the bottom edge of the screen
     await expect.poll(async () => { const b = (await sheet.boundingBox())!; return Math.round(b.y + b.height); }).toBe(844);
     await page.screenshot({ path: test.info().outputPath(`closet-filter-phone.png`) });
-    await sheet.getByRole('group', { name: 'Filter by category' }).getByRole('button', { name: 'Sweaters', exact: true }).click();
+    // what a piece is is asked once: the groups, opening to what is in the one chosen
+    await expect(sheet.getByRole('group', { name: 'Filter by category' })).toHaveCount(0);
+    await expect(sheet.getByRole('group', { name: 'Filter by kind' })).toHaveCount(0);
+    const what = sheet.getByRole('group', { name: 'What it is' });
+    await what.getByRole('button', { name: 'Trousers & shorts' }).click();
+    await sheet.getByRole('group', { name: 'Which Trousers & shorts' }).getByRole('button', { name: 'Jeans', exact: true }).click();
+    await expect(toolbar.getByRole('button', { name: /^Filter\W+1 on$/ })).toBeVisible();
+    // another group starts again rather than stacking on the first, so the two never leave nothing to show
+    await what.getByRole('button', { name: 'Knitwear & mid layers' }).click();
+    await expect(sheet.getByRole('group', { name: 'Which Trousers & shorts' })).toHaveCount(0);
+    await sheet.getByRole('group', { name: 'Which Knitwear & mid layers' }).getByRole('button', { name: 'Sweaters', exact: true }).click();
+    await expect(toolbar.getByRole('button', { name: /^Filter\W+1 on$/ })).toBeVisible();
     await sheet.getByRole('button', { name: 'Done' }).click();
     await expect(sheet).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Remove filter/ })).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Remove filter: Sweaters' })).toBeVisible();
+    expect(await page.getByTestId('tile').count()).toBeGreaterThan(0);
 
     // earlier tests may have changed the demo closet, so open whichever sweater comes first
     const first = page.getByTestId('tile').first();
@@ -65,6 +76,146 @@ test.describe('phone', () => {
     await page.keyboard.press('Escape');
     await expect(season).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+
+  for (const size of ['smaller', 'larger'] as const) {
+    test(`the first screen of the smallest phone shows ${size === 'smaller' ? 'two whole rows' : 'a whole row and the top of the next'} with ${size} pictures`, async ({ page }) => {
+      // the phone check's smallest phone (an iPhone 13 mini with Safari's bars: 375x629), the demo closet with a piece
+      // away past its day, so the closet's line has all three parts
+      await page.setViewportSize({ width: 375, height: 629 });
+      await goToCloset(page);
+      await useProfile(page, 'demo');
+      const items = (await (await page.request.get('/api/items')).json()).items as { id: string; laundry: string }[];
+      const away = items.find((i) => i.laundry === 'clean')!.id;
+      await page.request.put(`/api/items/${away}/away`, { data: { place: 'cleaner', since: '2020-01-01', until: '2020-01-06' }, headers: CLIENT });
+      await page.goto('/');
+      await page.evaluate((s) => localStorage.setItem('closet.tileSize', s), size);
+      await page.reload();
+      await expect(page.getByTestId('away')).toHaveText('1 away');
+      const tiles = page.getByTestId('tile');
+      await expect(tiles.first()).toBeVisible();
+      await page.waitForLoadState('networkidle');
+      const bar = (await page.locator('nav.tabbar').boundingBox())!;
+      const across = size === 'smaller' ? 3 : 2;
+      for (let i = 0; i < across * (size === 'smaller' ? 2 : 1); i++) {
+        const b = (await tiles.nth(i).boundingBox())!;
+        expect(b.y + b.height, `tile ${i + 1}`).toBeLessThanOrEqual(bar.y);
+      }
+      if (size === 'larger') expect((await tiles.nth(2).locator('.tile-card').boundingBox())!.y).toBeLessThan(bar.y - 40);
+      await page.screenshot({ path: test.info().outputPath(`375-first-screen-${size}.png`) });
+      await page.request.post(`/api/items/${away}/back`, { headers: CLIENT });
+      await page.evaluate(() => localStorage.removeItem('closet.tileSize'));
+    });
+  }
+
+  test('the search box takes the row Filter leaves and keeps its whole word, at 320px wide with filters on', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    await page.goto('/');
+    await expect(page.getByTestId('tile').first()).toBeVisible();
+    await page.getByTestId('in-laundry').click();
+    const toolbar = page.locator('.closet-toolbar');
+    await expect(toolbar.getByRole('button', { name: /^Filter\W+1 on$/ })).toBeVisible();
+    const box = page.getByRole('searchbox');
+    const search = (await box.boundingBox())!;
+    const row = (await toolbar.evaluate((el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+      return { left: r.left + parseFloat(s.paddingLeft), width: r.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) }; }));
+    // the row is the search's and Filter's, Filter with its word and its count; the filters that are on go under them
+    const filter = toolbar.getByRole('button', { name: /^Filter/ });
+    const f = (await filter.boundingBox())!;
+    expect(Math.abs(f.y - search.y)).toBeLessThan(4);
+    expect(search.width + f.width).toBeGreaterThanOrEqual(row.width - 12);
+    await expect(filter.locator('.filter-text')).toHaveText('Filter');
+    await expect(filter.locator('.filter-count')).toBeVisible();
+    expect(await filter.evaluate((b) => b.scrollWidth <= b.clientWidth + 1)).toBe(true);
+    const chip = (await toolbar.getByRole('button', { name: 'Remove filter: In the laundry' }).boundingBox())!;
+    expect(chip.y).toBeGreaterThanOrEqual(search.y + search.height);
+    // the row as laid out, printed with a failure below (CI's newer browser measures an input differently)
+    const layout = JSON.stringify(await toolbar.locator('.closet-toolbar-row').evaluate((row) => {
+      const rect = (el: Element) => { const r = el.getBoundingClientRect(); return { left: r.left, width: r.width, top: r.top }; };
+      return { ua: navigator.userAgent, innerWidth, row: rect(row), children: [...row.children].map((c) => ({ cls: c.className, ...rect(c) })) };
+    }));
+    // nothing on the row goes past it, with room to spare in a wide font
+    const fitted = await toolbar.locator('.closet-toolbar-row').evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const search = el.querySelector('.search')!.getBoundingClientRect();
+      const filter = el.querySelector('.filter-wrap')!.getBoundingClientRect();
+      const least = parseFloat(getComputedStyle(el.querySelector('.search')!).minWidth);
+      // how much narrower the search could still go before Filter would have to wrap under it
+      return { row: r.width, search: search.width, least, filter: filter.width, spare: search.width - least,
+        past: r.right - filter.right < -0.5, overflows: el.scrollWidth > el.clientWidth };
+    });
+    expect(fitted, `${JSON.stringify(fitted)} ${layout}`).toMatchObject({ overflows: false, past: false });
+    expect(fitted.spare, `${JSON.stringify(fitted)} ${layout}`).toBeGreaterThanOrEqual(8);
+    // its word is shown whole; what was measured is printed if it is not
+    const word = await box.evaluate((input: HTMLInputElement) => {
+      const s = getComputedStyle(input);
+      const ctx = document.createElement('canvas').getContext('2d')!;
+      ctx.font = `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+      // from layout, not clientWidth: a newer Chromium gives an input's clientWidth without its padding
+      const box = input.getBoundingClientRect().width;
+      const room = box - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth) - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+      const width = ctx.measureText(input.placeholder).width;
+      return { connected: input.isConnected, width, box, clientWidth: input.clientWidth, offsetWidth: input.offsetWidth,
+        paddingLeft: s.paddingLeft, paddingRight: s.paddingRight, room, font: ctx.font, fits: width <= room };
+    });
+    expect(word, `${JSON.stringify(word)} ${layout}`).toMatchObject({ connected: true, fits: true });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+    await page.screenshot({ path: test.info().outputPath('closet-320-search.png') });
+    await page.getByRole('button', { name: 'Remove filter: In the laundry' }).click();
+  });
+
+  test('a reload, coming back from a piece or from another place keeps the search, the filters and the place in the list', async ({ page }) => {
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    await page.goto('/');
+    await expect(page.getByTestId('tile').first()).toBeVisible();
+    await page.getByRole('searchbox').fill('o');
+    await page.getByRole('button', { name: /^Filter/ }).click();
+    await page.getByRole('group', { name: 'Filter by laundry' }).getByRole('button', { name: 'Clean', exact: true }).click();
+    await page.getByRole('button', { name: 'Done' }).click();
+    const found = await page.getByTestId('tile').count();
+    expect(found).toBeGreaterThan(10);
+    await page.mouse.wheel(0, 700);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(600);
+    const at = await page.evaluate(() => window.scrollY);
+    const kept = async () => {
+      await expect(page.getByRole('searchbox')).toHaveValue('o');
+      await expect(page.getByRole('button', { name: 'Remove filter: Clean' })).toBeVisible();
+      await expect(page.getByTestId('tile')).toHaveCount(found);
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(at - 5);
+      expect(await page.evaluate(() => window.scrollY)).toBeLessThan(at + 5);
+    };
+
+    // a reload
+    await page.reload();
+    await kept();
+    // a piece opened and its "‹ Closet"
+    const tile = page.getByTestId('tile').nth(4);
+    await tile.click();
+    await expect(page).toHaveURL(/\/item\//);
+    await page.getByRole('link', { name: 'Closet', exact: true }).first().click();
+    await kept();
+    // a piece's page reloaded, then back to the closet
+    await page.getByTestId('tile').nth(4).click();
+    await expect(page).toHaveURL(/\/item\//);
+    await page.reload();
+    await page.goBack();
+    await kept();
+    // another place, then the closet from the tab bar
+    await page.getByRole('link', { name: /^Wardrobe/ }).click();
+    await expect(page).toHaveURL(/\/wardrobe/);
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Closet/ }).click();
+    await expect(page.getByRole('searchbox')).toHaveValue('o');
+    await expect(page.getByTestId('tile')).toHaveCount(found);
+
+    // cleared, they stay cleared
+    await page.getByRole('searchbox').fill('');
+    await page.getByRole('button', { name: 'Remove filter: Clean' }).click();
+    await page.reload();
+    await expect(page.getByRole('searchbox')).toHaveValue('');
+    await expect(page.getByRole('button', { name: /^Remove filter/ })).toHaveCount(0);
   });
 
   test('an item opens at its top, and the closet keeps its search when you come back', async ({ page }) => {
@@ -125,5 +276,61 @@ test.describe('computer', () => {
     await expect(panel.getByRole('group', { name: 'Formality' })).toBeVisible();
     await page.waitForLoadState('networkidle');
     await page.screenshot({ path: test.info().outputPath(`item-computer.png`) });
+  });
+
+  test('opening a piece far down the grid keeps the grid still; the panel closes with Close, Escape and Back', async ({ page }) => {
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    await page.goto('/');
+    const tiles = page.getByTestId('tile');
+    await expect(tiles.first()).toBeVisible();
+    const columns = () => page.locator('ul.grid').evaluate((g) => getComputedStyle(g).gridTemplateColumns.split(' ').length);
+    const before = await columns();
+    expect(before).toBeGreaterThanOrEqual(4);
+    // a few rows down, the last tile of its row
+    const tile = tiles.nth(before * 3 - 1);
+    await tile.scrollIntoViewIfNeeded();
+    await page.mouse.wheel(0, 120);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
+    const at = (await tile.boundingBox())!;
+    const href = (await tile.getAttribute('href'))!;
+
+    await tile.click();
+    const panel = page.getByRole('complementary', { name: 'Item details' });
+    await expect(panel.getByRole('textbox', { name: 'Name' })).toBeVisible();
+    // the grid keeps its columns, and the piece chosen stays where it was on the screen
+    expect(await columns()).toBe(before);
+    const now = (await tile.boundingBox())!;
+    expect(Math.abs(now.y - at.y)).toBeLessThan(3);
+    // the panel opens level with the top of the screen, and focus goes into it
+    const box = (await panel.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeLessThan(40);
+    await expect.poll(() => panel.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    await page.screenshot({ path: test.info().outputPath('computer-panel-holds-still.png') });
+
+    // Close closes it, the address is the closet's again, and focus is back on the piece
+    await panel.getByRole('button', { name: 'Close' }).click();
+    await expect(panel).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(tile).toBeFocused();
+    expect(await columns()).toBe(before);
+
+    // Escape closes it too
+    await tile.click();
+    await expect(panel).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`${href}$`));
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+
+    // and so does the browser's Back
+    await tile.click();
+    await expect(panel).toBeVisible();
+    await page.goBack();
+    await expect(panel).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+    // Close and Escape went Back rather than adding a page, so the closet is still the first page of this visit
+    expect(await page.evaluate(() => (history.state as { idx: number }).idx)).toBe(0);
   });
 });

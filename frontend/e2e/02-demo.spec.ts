@@ -17,13 +17,18 @@ test('open the demo closet: 49 items, the demo strip, filter by category', async
   await expect(page.getByTestId('tile')).toHaveCount(49);
   await expect(page.getByTestId('item-count')).toHaveText('49 items');
 
+  // what a piece is: a group, then what is in it (the sweaters of Knitwear, not its hoodies)
+  const sweaters = ((await (await page.request.get('/api/items')).json()).items as { category: string; group: string }[])
+    .filter((i) => i.category === 'sweater' && i.group === 'knitwear').length;
+  expect(sweaters).toBeGreaterThan(1);
   await page.getByRole('button', { name: 'Filter' }).click();
-  await page.getByRole('group', { name: 'Filter by category' }).getByRole('button', { name: 'Sweaters' }).click();
-  await expect(page.getByTestId('tile')).toHaveCount(5);
-  await expect(page.getByTestId('item-count')).toHaveText('5 of 49');
+  await page.getByRole('group', { name: 'What it is' }).getByRole('button', { name: 'Knitwear & mid layers' }).click();
+  await page.getByRole('group', { name: 'Which Knitwear & mid layers' }).getByRole('button', { name: 'Sweaters' }).click();
+  await expect(page.getByTestId('tile')).toHaveCount(sweaters);
+  await expect(page.getByTestId('item-count')).toHaveText(`${sweaters} of 49`);
   for (const caption of await page.locator('.tile-caption').allTextContents()) expect(caption).toMatch(/^Sweater/);
 
-  await page.getByRole('button', { name: 'All', exact: true }).click();
+  await page.getByRole('group', { name: 'What it is' }).getByRole('button', { name: 'All', exact: true }).click();
   await expect(page.getByTestId('tile')).toHaveCount(49);
   await page.getByRole('searchbox').fill('jeans');
   await expect(page.getByTestId('tile')).toHaveCount(3);

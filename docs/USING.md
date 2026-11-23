@@ -146,17 +146,26 @@ trip says the forecast changed only when it changed for the days still to come.
 
 ## Closet
 
-`/` (and `/archived`). A grid of your clothes with search, one Filter button (kind,
-category, group, laundry and away, and In use or Archived) whose choices stay visible as chips, and a
-switch between Photos and Drawings. The switch starts from Settings' **Show drawings instead of
-photos** each time Nines is opened, and changing it shows the other kind in the grid only, until
-then. One line over the grid says what wants seeing to: "5 to
-check · 4 in the laundry" (to check: the pieces added and not checked yet, and those with a
+`/` (and `/archived`). A grid of your clothes with search (it finds a piece by its name, what it is,
+its colour or shade, brand, material or a word of your notes; every word typed has to match) and,
+beside it, one Filter button (what it is, laundry and away, and In use or Archived); the filters
+that are on show under them as chips that remove themselves. The Filter sheet is titled "Show and
+filter". **What it is**
+lists the groups your pieces are in, and the one you choose opens to what is in it (Jeans, Trousers,
+Shorts, then the kinds). At the top of the Filter sheet, **Show** chooses **Photos** or **Drawings**
+for the grid: it starts from Settings' **Show drawings instead of photos** each time Nines is opened,
+and changing it shows the other kind in the grid only, until then. Beside it, **Larger** or
+**Smaller** pictures: two or three across on a phone (more to a row on a computer), remembered on
+this device; a small tile shows the picture and the name on two short lines, cut after a whole word.
+The search and the filters are kept in the closet's address: a reload, coming back from a piece or
+from another place finds them, and your place in the list, as you left them. One line over the grid says what wants seeing to: "5 to
+check · 4 in the laundry · 2 away" (to check: the pieces added and not checked yet, and those with a
 detail Claude was unsure of). Each part shows only those pieces, as a chip that removes
 itself: "Needs a check" then offers "Check them one at a time" (the review), and "In the
-laundry" offers "All clean". When pieces are away (at the cleaner's, at the tailor's, lent out), the
-line says how many, and how many are past the day you expected them back ("2 away, 1 expected
-back"); on a phone that part has a line of its own under the others. It shows those pieces as a
+laundry" offers "All clean", each in a line under the search. After "All clean" that line says how
+many you marked clean, with **Undo**, which puts each piece back in the laundry as it was; the
+grid then says "Your laundry is empty." When pieces are away (at the cleaner's, at the tailor's, lent out), the
+line says how many ("2 away"; the line wraps as text does). It shows those pieces as a
 list, soonest back first, each saying where it is and when it is expected ("Expected back on Friday
 20 Nov" once the day has gone by), with **It's back** beside it; a piece brought back stays in the
 list with Undo until you leave it. A piece in the laundry while it is away is counted as away, not
@@ -167,8 +176,9 @@ it waits, a warning sign when a step failed. A piece away has a small round mark
 corner. While anything is being worked on, one line,
 "Working on 3 items", floats above the grid and the tab bar; tapping it lists those pieces,
 each with what is happening to it, and says once why they wait when it is something you can
-see to in Settings. On a computer, choosing a piece opens it in a panel beside the grid; on a
-phone it opens as its own page.
+see to in Settings. On a computer, choosing a piece opens it in a panel beside the grid; the grid keeps
+as many pieces to a row and the piece stays where it was, and **Close**, Escape or Back closes the
+panel. On a phone it opens as its own page.
 
 ## An item
 

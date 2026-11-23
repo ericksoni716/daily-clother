@@ -12,6 +12,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Smaller pictures in the closet.** Under **Show** in the Filter sheet, **Smaller** puts three
+  pieces across on a phone (and more to a row on a computer); **Larger** goes back to two. This
+  device remembers your choice. A small tile shows the picture and the name on two short lines,
+  cut after a whole word when it is long.
 - **Where a piece is.** On a piece's page, under Wearing and washing, one row says where it is: in
   your closet, at the cleaner's, at the tailor's or lent out, with the day you expect it back and a
   note of your own if you like (the note stays on your computer; Claude never reads it). **Change**
@@ -20,7 +24,7 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   mending has **Take it to the tailor's** in one tap. While a piece is away, Today does not offer it,
   a trip packs it only if you expect it back before you leave (and says it counts on that), and
   "not worn" leaves it alone; What's missing and Would this work? still count it as yours. The
-  closet's line says how many are away ("2 away, 1 expected back"); tapping it lists them, soonest
+  closet's line says how many are away ("2 away"); tapping it lists them, soonest
   back first, with **It's back** beside each. Wearing a piece that is away today brings it back.
 - **Your nines, in the Wardrobe.** The nine pieces you wore most, as a square of three by three
   of their pictures (photos or drawings, as Settings says), each with how many times you wore it
@@ -130,6 +134,21 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **Photos or drawings, in words.** The closet's switch between photos and drawings was two small
+  pictures. It is now a choice of **Photos** or **Drawings**, in words, at the top of the Filter
+  sheet under **Show**.
+- **The top of the closet is shorter, and its search finds more.** The line over the grid is one
+  line of text that wraps ("5 to check · 4 in the laundry · 2 away"; the away list says which are
+  past their day), the search shares its row with Filter without ever shrinking below its word, and
+  the filters you have on get a row of their own only when there are any, so a small phone shows two
+  rows of smaller pictures at once. The Filter sheet is called "Show and filter". The search finds a piece by its shade
+  ("navy"), brand, material ("linen") or a word of your own notes, as well as by its name, what it
+  is and its colour; every word you type has to match, in any of those, and accents and capitals
+  make no difference.
+- **The closet's Filter asks once what a piece is.** Category, Group and Kind were three lists for
+  the same question that could be combined into "Nothing matches". Now there is one list, **What it
+  is**: choose a group (Trousers & shorts, say) and it opens to what is in it (Jeans, Trousers,
+  Shorts, and the kinds your pieces are said to be). One chip says what you chose.
 - **A striped or plaid find is drawn striped or plaid.** In **See it with your clothes** and in
   **Would this work?**'s outfits drawn **As worn**, a piece described as striped or plaid is now
   drawn with a plain, typical stripe or plaid in its colour and a quieter shade of it, instead of
@@ -199,6 +218,18 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **The closet remembers where you were.** Reloading the page, coming back from a piece (also after
+  reloading the piece's page) or coming back from another place keeps the closet's search, its
+  filters and your place in the list. The search and filters are in the closet's address.
+- **All clean can be undone.** After **All clean** the closet says how many pieces you marked clean,
+  with **Undo**, which puts each one back in the laundry as it was (with the wears it had since its
+  wash, so the laundry day still washes it when it would have). With the laundry shown and nothing
+  in it, the closet now says "Your laundry is empty." instead of "Nothing matches". Showing the
+  laundry no longer puts a line in above the search: what to do with those pieces is said under it.
+- **Opening a piece on a computer keeps the closet still.** The grid keeps as many pieces to a row
+  as before and the piece you chose stays where it was on the screen, instead of the grid folding to
+  three across and showing other clothes. The panel has **Close**, Escape closes it, and Back closes
+  it too; focus goes into the panel as it opens and back to the piece when it closes.
 - **A wish made from a link is named at once.** It shows the product's name as soon as Nines has read
   its page, not only when Claude has finished describing it.
 - **A trip under way stays as it is.** Opening a trip on its third day no longer says the forecast

@@ -77,8 +77,8 @@ test('on a phone: Worn, Trips, the review and the wishlist are one level down in
   await expect(page).toHaveURL(/\/review$/);
   await expect(lit).toHaveText(/^Closet/);
   await page.locator('.page-back').click();
-  await expect(page).toHaveURL(/\/$/);
-  // the filter is kept while the app is open, so the closet comes back as it was left
+  // the filter is kept in the closet's address, so the closet comes back as it was left
+  await expect(page).toHaveURL(/\/\?check=1$/);
   await expect(page.getByRole('button', { name: 'Remove filter: Needs a check' })).toBeVisible();
   await page.getByRole('button', { name: 'Remove filter: Needs a check' }).click();
 

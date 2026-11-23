@@ -452,30 +452,35 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* ---------------------------------------------------------------- closet toolbar & filters */
 .closet-toolbar {
-  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 25; display: flex; align-items: center; gap: var(--space-2);
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 25; display: flex; flex-direction: column; gap: var(--space-2);
   margin: 0 calc(-1 * var(--gutter)) var(--space-3); padding: var(--space-2) var(--gutter);
   background: var(--bg); border-bottom: 1px solid var(--line-soft);
 }
-.closet-toolbar .search { flex: 1 1 auto; min-width: 0; }
+/* the search and Filter on one row: the search takes what Filter leaves, never narrower than its whole word (8rem
+   holds "Search" with its icon and some to spare in any font, and leaves Filter room at 320px in a wide font); the
+   filters that are on take a row of their own under them, only when there are any */
+.closet-toolbar .search { flex: 1 1 8rem; min-width: 8rem; }
+@media (min-width: 700px) { .closet-toolbar .search { flex-grow: 0; flex-basis: 28rem; } }
+.closet-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
 .filter-wrap { position: relative; flex: none; }
-.filter-button { padding: 0 14px; }
+.filter-button { padding: 0 12px; gap: 6px; }
 .filter-button.has-filters { border-color: var(--accent); color: var(--accent); }
 .filter-count {
   display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-pill);
   background: var(--accent-bg); color: var(--accent-ink); font-size: var(--text-xs);
 }
-.grid-view { flex: none; margin-left: auto; }
-.grid-view > * { gap: 6px; padding: 0 14px; }
-.grid-view svg { width: 18px; height: 18px; flex: none; }
-@media (max-width: 699px) {
-  .grid-view .seg-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .grid-view > * { padding: 0 10px; }
-}
-.active-filters { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* what the grid shows, in the Filter sheet: photos or drawings, in words, a whole tap high */
+.view-choices { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.view-choice > * { min-height: var(--tap); }
+/* the filters that are on: a row of their own under the search, wrapping onto a second line when they need it */
+.active-filters { list-style: none; flex: 1 1 100%; min-width: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.active-filters .chip { white-space: nowrap; }
 .chip-remove { text-decoration: none; padding-right: 10px; }
 .chip-remove svg { width: 16px; height: 16px; color: var(--ink-3); }
 .filter-choices { display: flex; flex-direction: column; gap: var(--space-4); }
 .filter-group .chips { gap: var(--space-2); }
+/* what is in the group chosen, under it: its categories, then its kinds */
+.filter-what-more { margin-top: var(--space-3); padding-left: var(--space-3); border-left: 2px solid var(--line); }
 .search { position: relative; display: block; max-width: 28rem; }
 .search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: var(--ink-3); pointer-events: none; }
 .search input { padding-left: 40px; border-radius: var(--radius-pill); }
@@ -498,7 +503,22 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* ---------------------------------------------------------------- grid & tiles */
 .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
 @media (min-width: 560px) { .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 22px 16px; } }
-@media (min-width: 1000px) { .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } }
+/* Smaller pictures: three across on a phone, and the matching step wider (closet.TILE_MIN_WIDE) */
+.grid.grid-smaller { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 8px; }
+@media (min-width: 560px) { .grid.grid-smaller { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 18px 12px; } }
+@media (min-width: 1000px) {
+  .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .grid.grid-smaller { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 22px 16px; }
+  /* as many to a row as fit the closet's whole width, worked out on the page (its style sets --columns over the 5
+     here): the same with a piece's panel open */
+  .grid.has-columns { --columns: 5; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); }
+}
+/* a small tile's name: two short lines broken between words (closet.shortName cuts it after a whole word) */
+.grid-smaller .tile-name {
+  font-size: var(--text-xs); white-space: normal; overflow-wrap: break-word;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+}
+.grid-smaller .tile-mark { top: 4px; right: 4px; padding: 2px 6px; }
 
 .tile { display: flex; flex-direction: column; text-decoration: none; color: var(--ink); border-radius: var(--radius-md); }
 .tile-card {
@@ -579,11 +599,17 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .notice-text { flex: 1 1 14rem; min-width: 0; }
 .notice-action { flex: none; display: flex; gap: 8px; }
 /* the closet's one status line: "5 to check · 4 in the laundry", each part a filter, then what to do with those */
-.closet-status { margin: calc(-1 * var(--space-2)) 0 var(--space-3); }
-.closet-status-line { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
-.closet-status-part { padding: 0; font-size: var(--text-sm); font-weight: var(--weight-label); }
+.closet-status { margin: calc(-1 * var(--space-2)) 0 var(--space-2); }
+.closet-status-line { margin: 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.6; }
+.closet-status-item { white-space: nowrap; }
+/* each part is a 44px target by its padding, which the line does not make room for: wrapped lines sit a line apart */
+.closet-status-part {
+  display: inline-block; min-height: 0; padding: 12px 0; margin: -12px 0; vertical-align: baseline; line-height: inherit;
+  font-size: var(--text-sm); font-weight: var(--weight-label);
+}
 .closet-status-part.is-on { text-decoration-thickness: 2px; color: var(--ink); }
-.closet-status-next { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-2) 0 0; font-size: var(--text-sm); }
+/* what to do with the pieces a part of that line shows: under the toolbar, so showing them puts nothing in above it */
+.closet-next { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); font-size: var(--text-sm); }
 
 /* ---------------------------------------------------------------- shared components (components/ui) */
 /* :where() keeps these at no weight, so a screen's own class can still set size and padding. */
@@ -638,6 +664,8 @@ html.sheet-open, html.sheet-open body { overflow: hidden; overscroll-behavior: n
   /* The closet's panel opens only for a chosen item and scrolls with the page: no scrollbar of its own. */
   .closet-layout.has-panel { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: var(--space-7); align-items: start; }
   .closet-panel { position: static; max-height: none; overflow: visible; padding: var(--space-5); }
+  .closet-panel:focus { outline: none; }
+  .closet-panel-head { display: flex; justify-content: flex-end; margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-3)) 0 0; }
 }
 
 .detail { max-width: 40rem; margin: 0 auto; }

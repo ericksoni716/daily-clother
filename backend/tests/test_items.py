@@ -140,6 +140,21 @@ def test_filtering_search_archive_and_delete(client, cfg):
     assert client.get(f"/api/items/{a['id']}").status_code == 404
 
 
+def test_the_list_carries_what_the_closet_search_looks_in(client):
+    """The closet searches the list it holds (it works offline): the brand, the material, the owner's shade and every
+    note the one notes box shows, each once."""
+    item = upload(client, name="Summer shirt").json()
+    client.patch(f"/api/items/{item['id']}", json={"brand": "Example Mill", "material": "Linen", "shade": "navy",
+                                                   "wear_notes": "For the wedding", "fit_notes": "Runs large",
+                                                   "notes": "For the wedding"})
+    listed = client.get("/api/items").json()["items"][0]
+    assert (listed["brand"], listed["material"], listed["shade"]) == ("Example Mill", "Linen", "navy")
+    assert listed["own_notes"] == "For the wedding\nRuns large"
+    bare = upload(client, photo_bytes(color=(20, 40, 90)), key="bare").json()
+    listed = {i["id"]: i for i in client.get("/api/items").json()["items"]}[bare["id"]]
+    assert (listed["brand"], listed["material"], listed["own_notes"]) == (None, None, "")
+
+
 def test_media_cannot_escape_the_images_folder(client, cfg):
     item = upload(client).json()
     for sneaky in ("/media/../settings.json", "/media/%2e%2e/settings.json", "/media/..%2fsettings.json",

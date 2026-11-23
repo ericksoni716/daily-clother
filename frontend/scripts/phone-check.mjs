@@ -30,9 +30,11 @@ const ALL_PHONES = [
   ['430', devices['iPhone 15 Pro Max']],
   ['440', at('iPhone 17 Pro Max', 'iPhone 15 Pro Max', 440, 956)],
 ];
-// PHONE_CHECK_SIZES=393 (a comma list) pictures only those widths, for a quicker look while working.
+// PHONE_CHECK_SIZES=393 (a comma list) pictures only those widths, for a quicker look while working. 320 (the first
+// iPhone SE) is pictured only when named: narrower than the 375 the app is made for, it shows what gives way first.
 const ONLY = (process.env.PHONE_CHECK_SIZES || '').split(',').map((s) => s.trim()).filter(Boolean);
-const PHONES = ONLY.length ? ALL_PHONES.filter(([size]) => ONLY.includes(size)) : ALL_PHONES;
+const NARROW = [['320', devices['iPhone SE']]];
+const PHONES = ONLY.length ? [...NARROW, ...ALL_PHONES].filter(([size]) => ONLY.includes(size)) : ALL_PHONES;
 // PHONE_CHECK_TEXT=125 sets the page's text size to 125% (as a larger text size in the browser does), to check that
 // the type scale, which is in rem, still fits every screen; its pictures are named t125-….
 const TEXT = Number(process.env.PHONE_CHECK_TEXT || 100);
@@ -68,6 +70,7 @@ const SHEETS = [
     sheet: 'worn-sheet', name: 'wish-worn', wait: '[data-testid="outfit-figure"] img' },
   { route: ({ itemId }) => `/item/${encodeURIComponent(itemId)}`, button: 'Change where it is', sheet: 'where-sheet', name: 'item-where' },
   { route: '/', button: /^\d+ away/, sheet: 'away-view', name: 'closet-away' },
+  { route: '/', button: /^Filter/, sheet: 'filter-sheet', name: 'closet-filter' },
   { route: '/today', button: /^Choices for/, sheet: 'piece-sheet', name: 'today-piece' },
   { route: '/today', button: /^Change$/, sheet: 'day-sheet', name: 'today-day' },
   { route: '/today/worn', button: 'More for this outfit', sheet: 'worn-menu', name: 'worn-menu' },
@@ -352,6 +355,19 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           const { extra, culprits } = await page.evaluate(overflow);
           if (extra > 1) failures.push(`${route} at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
           if (errors.length) failures.push(`${route} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
+          await page.close();
+        }
+        {
+          // the closet with Smaller pictures (three across on a phone), chosen in its Filter sheet and kept on the device
+          const page = await context.newPage();
+          await page.goto(base + '/');
+          await page.evaluate(() => localStorage.setItem('closet.tileSize', 'smaller'));
+          await page.reload();
+          await settle(page);
+          await page.screenshot({ path: join(OUT, `${PREFIX}${size}-${scheme}-closet-smaller.png`) });
+          const { extra, culprits } = await page.evaluate(overflow);
+          if (extra > 1) failures.push(`closet-smaller at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
+          await page.evaluate(() => localStorage.removeItem('closet.tileSize'));
           await page.close();
         }
         for (const { route, fold, button, sheet, name, wait } of SHEETS) {

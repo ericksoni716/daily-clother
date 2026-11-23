@@ -51,10 +51,10 @@ export function awayOrder<T extends ItemSummary>(pieces: T[]): T[] {
   return [...pieces].filter((it) => it.away).sort((a, b) => key(a).localeCompare(key(b)) || (a.name ?? '').localeCompare(b.name ?? ''));
 }
 
-/** The closet line's part: "2 away", and how many are past their day: "2 away, 1 expected back". */
-export function awayPart(pieces: ItemSummary[], today: string = localDay()): string {
-  const late = pieces.filter((it) => it.away && overdue(it.away, today)).length;
-  return `${pieces.length} away${late ? `, ${late} expected back` : ''}`;
+/** The closet line's part: how many are away, "2 away". Which are past their day the list it opens says, on each one
+ * ("Expected back on Friday 20 Nov"), so the line stays short enough to sit with the others. */
+export function awayPart(pieces: ItemSummary[]): string {
+  return `${pieces.length} away`;
 }
 
 /** The mark on a tile in the full grid, for those who cannot see it: "At the cleaner's". */

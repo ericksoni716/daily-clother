@@ -250,6 +250,10 @@ measures a layout, such as a button above the tab bar, should leave room, and so
 layout. To run a spec with the wide font, hide Inter from the browser with `e2e/wide-font.conf`:
 `FONTCONFIG_FILE=$PWD/e2e/wide-font.conf npm run e2e -- e2e/10-today.spec.ts` (in `frontend/`).
 
+CI's Chromium is the build Playwright's version asks for, and can be newer than the one on this machine. An input's
+`clientWidth` differs between them (a newer one leaves out the padding), so a test measures boxes with
+`getBoundingClientRect`.
+
 The tests' own calls (`page.request`, `request`) each go on a connection of their own
 (`asThePage` in `fixtures.ts`): the server closes a connection idle for 5 seconds, and a call
 sent on a kept one in that moment fails with a reset connection that the owner never meets.
@@ -275,7 +279,7 @@ tests, with a copy of the demo closet as the owner's closet), gives a few things
 opens every screen at 375, 393, 402, 430 and 440px wide, light and once dark, and takes a
 full-page picture of each into `frontend/phone-shots/`, then opens the sheets of Settings → Your
 style (the conversation, every line), an item's Colour row (its colours and the shades of its
-colour), a wish's most you'd pay and its find's checkout code, Today's sheets (a piece's choices, and where you are behind
+colour), a wish's most you'd pay and its find's checkout code, the closet's Filter sheet and its grid with Smaller pictures, Today's sheets (a piece's choices, and where you are behind
 Change), Worn's (an outfit's choices and Record an outfit) and a packed piece's choices on a trip, and How you live, and pictures
 those. It also pictures two screens whose read fails (the closet, a trip) and fails if one shows a status text or
 code. `PHONE_CHECK_TEXT=125` checks every screen with the text at 125% (pictures named `t125-…`). It fails when a screen is wider than
@@ -286,7 +290,8 @@ It also prints how much each screen asks you to read, at 393px in light: the wor
 page, the words in the first phone screen (above the tab bar) and the page's height, and
 lists as warnings the screens over the budget in [DESIGN.md](DESIGN.md) (about 150 words in
 the first screen, 350 on the page). It does not fail on them yet. `PHONE_CHECK_SIZES=393`
-pictures only that width, for a quick look while working.
+pictures only that width, for a quick look while working; `320` there (the first iPhone SE, narrower than the 375
+the app is made for) is pictured only when named.
 
 It is run by hand, before a pull request that changes anything visible. CI does not run it.
 

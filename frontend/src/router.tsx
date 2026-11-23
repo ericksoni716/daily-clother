@@ -184,6 +184,21 @@ export function navigate(to: string, opts: { replace?: boolean } = {}) {
 }
 
 /**
+ * Puts `search` in the address in place of the query there, on the same page and the same place in history, without
+ * drawing anything again: what a screen keeps in its address as it changes (the closet's search and filters).
+ */
+export function replaceSearch(search: string) {
+  const to = window.location.pathname + search;
+  if (to === window.location.pathname + window.location.search) return;
+  try {
+    window.history.replaceState(current ?? window.history.state, '', to);
+  } catch {
+    /* Safari refuses a burst of changes to the address; the next one puts it right */
+  }
+  here = to;
+}
+
+/**
  * A back link: the browser's Back when the page before is the one the link names, so that page comes back where you
  * left it and history does not pile up. Otherwise (the page was opened straight from its address, or reached another
  * way) the named page takes this one's place.

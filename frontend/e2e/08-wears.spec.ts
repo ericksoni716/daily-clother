@@ -56,6 +56,47 @@ test('wear log and laundry in the demo closet: wear, undo, laundry and back', as
   await expect(page.getByTestId('tile')).toHaveCount(49);
 });
 
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 375, height: 740 }, hasTouch: true, isMobile: true });
+
+  test('All clean says what it did, can be undone, and the laundry left empty says so', async ({ page }) => {
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    await page.goto('/');
+    const basket = async () => Object.fromEntries(((await (await page.request.get('/api/items')).json()).items as
+      { id: string; laundry: string; wears_since_wash: number }[]).filter((i) => i.laundry === 'laundry').map((i) => [i.id, i.wears_since_wash]));
+    const before = await basket();
+    const n = Object.keys(before).length;
+    expect(n).toBeGreaterThan(1);
+
+    // showing the laundry puts nothing in above the search
+    const search = page.getByRole('searchbox');
+    const top = (await search.boundingBox())!.y;
+    await page.getByTestId('in-laundry').click();
+    await expect(page.getByTestId('laundry-mark')).toHaveCount(n);
+    expect((await search.boundingBox())!.y).toBe(top);
+
+    const notice = page.getByTestId('laundry-notice');
+    await expect(notice).toContainText(`These ${n} pieces are in the laundry.`);
+    await notice.getByRole('button', { name: 'All clean' }).click();
+    await expect(notice).toContainText(`You marked ${n} pieces clean.`);
+    const undo = notice.getByRole('button', { name: 'Undo' });
+    await expect(undo).toBeFocused();
+    await expect(page.getByTestId('tile')).toHaveCount(0);
+    await expect(page.getByText('Your laundry is empty.')).toBeVisible();
+    await expect(page.getByText('Nothing matches')).toHaveCount(0);
+    expect(await basket()).toEqual({});
+
+    // Undo puts back what was in the laundry, each piece with the wears it had since its wash
+    await undo.click();
+    await expect(page.getByTestId('laundry-mark')).toHaveCount(n);
+    await expect(notice).toContainText(`These ${n} pieces are in the laundry.`);
+    await expect(notice.getByRole('button', { name: 'All clean' })).toBeFocused();
+    expect(await basket()).toEqual(before);
+    await page.getByRole('button', { name: 'Remove filter: In the laundry' }).click();
+  });
+});
+
 test('offline: the wear and laundry buttons are disabled and say why', async ({ page, context }) => {
   await goToCloset(page);
   await useProfile(page, 'demo');

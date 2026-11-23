@@ -98,6 +98,8 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
   await page.keyboard.press('Tab');
   await expect(menu.getByRole('button', { name: 'Wear this again' })).toBeFocused();
   await page.keyboard.press('Tab');
+  await expect(menu.getByRole('button', { name: 'Keep this outfit' })).toBeFocused();
+  await page.keyboard.press('Tab');
   await expect(menu.getByRole('button', { name: 'Put these in the laundry' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(menu.getByRole('button', { name: 'Remove' })).toBeFocused();

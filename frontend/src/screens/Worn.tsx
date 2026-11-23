@@ -1,18 +1,21 @@
 import { backByWearing, recordedSentence } from '../away';
-import { queryOptions, useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { queryOptions, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { api, ApiError } from '../api';
 import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
 import { Pic } from '../components/ItemPic';
-import { BackLink, Button, buttonClass, Card, EmptyState, Failed, ItemThumb, PageHeader, SaveStatus, Sheet, ShowMore, useSaveStatus } from '../components/ui';
+import { DaySheet } from '../components/DaySheet';
+import { BackLink, Button, buttonClass, Card, EmptyState, Failed, ItemThumb, PageHeader, SaveStatus, SegmentedControl, Sheet, ShowMore, useSaveStatus } from '../components/ui';
+import { goneLine, KEPT_EMPTY, KEPT_NAME_MAX, keptToast, keptWhen, type KeptOutfit } from '../kept';
 import { label } from '../labels';
 import { setLaundryMany } from '../laundry';
-import { touch, useEdit, useItems, writeItem } from '../queries';
+import { keptQuery, plansQuery, touch, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
 import { ItemDetail } from './ItemDetail';
 import { useApp } from '../store';
 import { occasionLabel } from '../today';
+import { tripsQuery } from './Trips';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
 import {
@@ -95,7 +98,7 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
 /** The pieces of a worn outfit, each opening its item unless `linked` is false (a small preview, as on Today's question).
  * `from` is the page it is on, whose own address the item opens at, so the item's back link goes back there. */
 export function OutfitPics({ outfit, byId, linked = true, from = '/today' }: {
-  outfit: WornOutfit; byId: Map<string, ItemSummary>; linked?: boolean; from?: '/today' | '/today/worn';
+  outfit: Pick<WornOutfit, 'pieces' | 'gone'>; byId: Map<string, ItemSummary>; linked?: boolean; from?: '/today' | '/today/worn';
 }) {
   const ids = wornIds(outfit.pieces);
   return (
@@ -211,7 +214,15 @@ export function changePages(qc: QueryClient, change: (page: WornPage) => WornPag
   });
 }
 
-export function WornScreen({ itemId }: { itemId: string | null }) {
+/** The switch at the top of Worn: what you wore, or the outfits you keep (each half its own address). */
+function WornSwitch({ kept }: { kept: boolean }) {
+  return (
+    <SegmentedControl label="Show" small className="worn-switch" value={kept ? 'kept' : 'worn'}
+      options={[{ value: 'worn', label: 'What you wore', to: '/today/worn' }, { value: 'kept', label: 'Outfits you keep', to: '/today/worn/kept' }]} />
+  );
+}
+
+export function WornScreen({ itemId, kept = false }: { itemId: string | null; kept?: boolean }) {
   if (itemId) {
     return (
       <div className="today-item">
@@ -222,7 +233,7 @@ export function WornScreen({ itemId }: { itemId: string | null }) {
       </div>
     );
   }
-  return <WornList />;
+  return kept ? <KeptList /> : <WornList />;
 }
 
 function WornList() {
@@ -274,6 +285,7 @@ function WornList() {
             <PlusIcon /> Record an outfit
           </button>
         )} />
+      <WornSwitch kept={false} />
       <p className="hint worn-intro">Outfits you wore, newest first. Say how each one went and the outfits Today offers learn from it.</p>
       {offline && list && list.length > 0 && <p className="hint rate-offline">{RATE_OFFLINE}</p>}
 
@@ -334,6 +346,16 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
   const title = offline ? OFFLINE_TITLE : undefined;
   const day = contextWords(outfit.context, occasionLabel);
 
+  async function keep() {
+    try {
+      const answer = await api.keepOutfit({ ...outfit.pieces, accessories: outfit.pieces.accessories ?? [] });
+      void touch(qc, 'kept');
+      toast(keptToast(answer));
+    } catch (e) {
+      toast((e as ApiError).message, 'error');
+    }
+  }
+
   async function remove() {
     setBusy(true);
     try {
@@ -357,6 +379,7 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
         <OutfitMenu offline={offline}
           onAgain={() => navigate(`/today?again=${encodeURIComponent(outfit.id)}`)}
           onLaundry={washable.length ? () => void toLaundry() : undefined}
+          onKeep={() => void keep()}
           onRemove={() => setConfirm(true)} />
       </div>
       <OutfitPics outfit={outfit} byId={byId} from="/today/worn" />
@@ -387,7 +410,7 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
 }
 
 /** The less used actions on a worn outfit, behind a ⋯ button, in a sheet. Escape closes it and puts focus back on the button. */
-function OutfitMenu({ offline, onAgain, onLaundry, onRemove }: { offline: boolean; onAgain(): void; onLaundry?(): void; onRemove(): void }) {
+function OutfitMenu({ offline, onAgain, onLaundry, onKeep, onRemove }: { offline: boolean; onAgain(): void; onLaundry?(): void; onKeep(): void; onRemove(): void }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const title = offline ? OFFLINE_TITLE : undefined;
@@ -406,6 +429,7 @@ function OutfitMenu({ offline, onAgain, onLaundry, onRemove }: { offline: boolea
         <Sheet title="This outfit" anchor={button} onClose={() => setOpen(false)} className="worn-menu-sheet" testId="worn-menu">
           <div className="worn-menu-list">
             <Button block disabled={offline} title={title} onClick={choose(onAgain)}>Wear this again</Button>
+            <Button block disabled={offline} title={title} onClick={choose(onKeep)}>Keep this outfit</Button>
             {onLaundry && <Button block disabled={offline} title={title} onClick={choose(onLaundry)}>Put these in the laundry</Button>}
             <Button block variant="danger-quiet" disabled={offline} title={title} onClick={choose(onRemove)}>Remove</Button>
           </div>
@@ -487,6 +511,129 @@ function RecordByHand({ items, anchor, onCancel, onDone }: {
         </div>
       </form>
     </Sheet>
+  );
+}
+
+// ------------------------------------------------------------------ the outfits you keep
+
+/** Worn's other half: the outfits kept without wearing them, newest first, each to wear in a tap. */
+function KeptList() {
+  const { profile, offline } = useApp();
+  const read = useQuery(keptQuery());
+  const list = read.data ?? null;
+  const byId = useAllItems();
+  const plans = useQuery(plansQuery(profile)).data;
+  const trips = useQuery(tripsQuery(profile)).data;
+  const error = read.error && !list
+    ? ((read.error as ApiError).status === 0 ? "You're offline. The outfits you keep show here once Nines on your computer can be reached." : read.error.message)
+    : null;
+  return (
+    <div className="worn">
+      <PageHeader title="Worn" back={{ to: '/today', label: 'Today' }}
+        count={list && <>{list.length} kept</>} />
+      <WornSwitch kept />
+      {error && <p className={offline ? 'notice' : 'form-error'} role="alert">{error}</p>}
+      {list === null && !error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading…</p>}
+      {list && list.length === 0 && (
+        <EmptyState icon={<HangerIcon />} title="No outfits kept yet" body={KEPT_EMPTY} testId="kept-empty" />
+      )}
+      {list && list.length > 0 && (
+        <ol className="worn-list" aria-label="Outfits you keep">
+          {list.map((o) => <li key={o.id}><KeptCard outfit={o} byId={byId} offline={offline} plans={plans} trips={trips} /></li>)}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+/** One kept outfit: its name (given in place), when it was kept, its pieces, and Wear this; behind ⋯, Wear this on
+ * another day and Remove. Removed, it leaves a line with Undo in its place. */
+function KeptCard({ outfit, byId, offline, plans, trips }: {
+  outfit: KeptOutfit; byId: Map<string, ItemSummary>; offline: boolean;
+  plans: Parameters<typeof DaySheet>[0]['plans']; trips: Parameters<typeof DaySheet>[0]['trips'];
+}) {
+  const { toast } = useApp();
+  const qc = useQueryClient();
+  const status = useSaveStatus();
+  const [name, setName] = useState(outfit.name ?? '');
+  const [removed, setRemoved] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const title = offline ? OFFLINE_TITLE : undefined;
+  const gone = goneLine(outfit);
+
+  function saveName() {
+    const next = name.trim();
+    if (next === (outfit.name ?? '')) return;
+    void status.run(async () => {
+      const o = await api.nameKept(outfit.id, next || null);
+      qc.setQueryData<KeptOutfit[]>(queryKeys.kept(), (l) => l?.map((x) => (x.id === o.id ? o : x)));
+    });
+  }
+
+  async function change(act: () => Promise<unknown>, gone: boolean) {
+    setBusy(true);
+    try {
+      await act();
+      setRemoved(gone);
+      if (!gone) void touch(qc, 'kept');
+    } catch (e) {
+      toast((e as ApiError).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (removed) {
+    return (
+      <p className="worn-confirm kept-removed" role="status" data-testid="kept-removed">
+        <span>You removed {outfit.name ? `“${outfit.name}”` : 'an outfit you kept'}.</span>
+        <button className="btn btn-small" disabled={busy || offline} title={title}
+          onClick={() => void change(() => api.restoreKept(outfit.id), false)}>Undo</button>
+      </p>
+    );
+  }
+  return (
+    <Card as="article" className="worn-card kept-card" aria-label={outfit.name || 'An outfit you keep'} data-testid="kept-outfit">
+      <div className="worn-card-head">
+        <div className="worn-card-when kept-name">
+          <label className="visually-hidden" htmlFor={`kept-name-${outfit.id}`}>Name of this outfit</label>
+          <input id={`kept-name-${outfit.id}`} className="kept-name-input" value={name} maxLength={KEPT_NAME_MAX} placeholder="Give it a name"
+            disabled={offline} onChange={(e) => setName(e.target.value)} onBlur={saveName}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+          <p className="muted worn-day">{keptWhen(outfit)}</p>
+        </div>
+        <div className="worn-menu">
+          <button ref={menuButton} type="button" className="btn btn-icon btn-ghost worn-menu-button" aria-label="More for this outfit"
+            aria-haspopup="dialog" aria-expanded={menu} onClick={() => setMenu(!menu)}>
+            <MoreIcon />
+          </button>
+          {menu && (
+            <Sheet title="This outfit" anchor={menuButton} onClose={() => setMenu(false)} className="worn-menu-sheet" testId="kept-menu">
+              <div className="worn-menu-list">
+                <Button block disabled={offline} title={title} onClick={() => { setMenu(false); setChoosing(true); }}>Wear this on another day</Button>
+                <Button block variant="danger-quiet" disabled={offline || busy} title={title}
+                  onClick={() => { setMenu(false); void change(() => api.removeKept(outfit.id), true); }}>Remove</Button>
+              </div>
+            </Sheet>
+          )}
+        </div>
+      </div>
+      <OutfitPics outfit={outfit} byId={byId} from="/today/worn" />
+      {gone && <p className="hint kept-gone">{gone}</p>}
+      <div className="kept-actions">
+        <Button variant="primary" small disabled={offline} title={title}
+          onClick={() => navigate(`/today?again=${encodeURIComponent(outfit.id)}`)}>Wear this</Button>
+        {!offline && <SaveStatus state={status.state} onRetry={status.retry} className="kept-status" />}
+      </div>
+      {choosing && (
+        <DaySheet today={localDay()} plans={plans} trips={trips} anchor={menuButton} title="Wear it on another day"
+          onClose={() => setChoosing(false)}
+          onChoose={(d) => { setChoosing(false); navigate(`/today/day/${d}?again=${encodeURIComponent(outfit.id)}`); }} />
+      )}
+    </Card>
   );
 }
 

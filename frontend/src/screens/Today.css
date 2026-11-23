@@ -284,3 +284,22 @@
 
 /* The conversation under Claude's line is the shared one (components/Talk.css); on Today it is set off by a rule. */
 .today-stylist .talk { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+
+/* ---------------------------------------------------------------- Dress for another day, and Keep this outfit */
+/* "Another day", quiet beside the heading */
+.today-header .btn-link.today-another {
+  position: relative; flex: none; align-self: center; margin-inline-start: auto; min-height: 0; padding: 0; font-size: var(--text-sm);
+}
+/* the header keeps its height: 44px to tap, drawn as a line of text */
+.today-header .btn-link.today-another::after { content: ''; position: absolute; inset: calc((var(--tap) - 100%) / -2) -8px; }
+.today-ahead-header .page-heading { min-width: 0; }
+/* the one line about the day's plan, over the outfits: one paragraph, so the outfits do not move when it changes */
+.today-plan { margin: -2px 0 var(--space-3); font-size: var(--text-sm); color: var(--ink-2); line-height: 1.45; overflow-wrap: anywhere; }
+/* the plans of the coming week, one line on Today */
+.today-soon { margin: var(--space-4) 0 0; font-size: var(--text-sm); color: var(--ink-2); }
+.today-trip-day { margin-top: var(--space-2); }
+.today-held { margin: 0; }
+/* under the main button: Keep this outfit, and the next idea */
+.today-wear-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--space-3); width: 100%; }
+.today-wear-more .today-next { margin-inline: 0 0; margin-inline-start: auto; }
+.today-keep { padding-inline: 0; }

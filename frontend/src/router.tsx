@@ -232,8 +232,8 @@ export function usePath(): string {
 
 export type Route =
   | { name: 'closet'; status: 'active' | 'archived'; itemId: string | null }
-  | { name: 'today'; itemId: string | null }
-  | { name: 'worn'; itemId: string | null }
+  | { name: 'today'; itemId: string | null; day?: string }
+  | { name: 'worn'; itemId: string | null; kept?: boolean }
   | { name: 'wardrobe'; itemId: string | null; check: boolean; wishId: string | null; wish: string | null; link?: boolean; wishlist?: boolean }
   | { name: 'add' }
   | { name: 'several'; id: string }
@@ -256,6 +256,11 @@ export function parseRoute(path: string): Route {
   // Worn, and a piece opened from it, whose back link goes back to Worn
   const worn = path.match(/^\/today\/worn(?:\/item\/([^/]+))?\/?$/);
   if (worn) return { name: 'worn', itemId: id(worn[1]) };
+  // the outfits you keep, the other half of Worn
+  if (/^\/today\/worn\/kept\/?$/.test(path)) return { name: 'worn', itemId: null, kept: true };
+  // Today for another day, dressed ahead
+  const ahead = path.match(/^\/today\/day\/(\d{4}-\d{2}-\d{2})\/?$/);
+  if (ahead) return { name: 'today', itemId: null, day: ahead[1] };
   const today = path.match(/^\/today(?:\/item\/([^/]+))?\/?$/);
   if (today) return { name: 'today', itemId: id(today[1]) };
   if (path === '/review') return { name: 'review' };

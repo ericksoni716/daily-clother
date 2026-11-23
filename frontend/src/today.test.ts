@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addDays, dayMonth, dayName, daysAhead, onDay, weekdayOf,
   canDress, closetKey, dayParts, newestOn, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
   parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, whatToAddFirst, wornOrder,
   type DayContext, type Outfit, type SavedOutfits, wornNow, type WornToday, shortDate,
@@ -250,5 +251,27 @@ describe('what today\'s question depends on', () => {
     expect(newestOn([['2026-11-20', 1, 'casual'], ['2026-11-20', 3, 'smart'], ['2026-11-20', 2, 'work']], '2026-11-20')).toBe('smart');
     expect(newestOn([['2026-11-19', 9, 'yesterday'], ['2026-11-20', 1, 'today']], '2026-11-20')).toBe('today');
     expect(newestOn([['2026-11-19', 9, 'yesterday'], ['2026-11-20', 5, undefined]], '2026-11-20')).toBeUndefined();
+  });
+});
+
+describe('days ahead', () => {
+  it('names a day ahead the way the page says it', () => {
+    expect(addDays('2026-11-30', 2)).toBe('2026-12-02');
+    expect(daysAhead('2026-11-25', '2026-12-01')).toBe(6);
+    expect(weekdayOf('2026-11-28')).toBe('Saturday');
+    expect(dayMonth('2026-11-28')).toBe('28 November');
+    expect(dayMonth('2026-11-28', true)).toBe('28 Nov');
+    expect(dayName('2026-11-26', '2026-11-25')).toBe('Tomorrow');
+    expect(dayName('2026-12-01', '2026-11-25')).toBe('Tuesday');
+    expect(dayName('2026-12-02', '2026-11-25')).toBe('Wed 2 Dec');
+    expect(onDay('2026-11-26', '2026-11-25')).toBe('tomorrow');
+    expect(onDay('2026-11-28', '2026-11-25')).toBe('on Saturday');
+  });
+
+  it('says a day beyond the forecast is what the date is usually like', () => {
+    const c = { date: '2026-12-20', low_c: 1, high_c: 6, rain: false, source: 'usual', old: false, place: 'New York, United States',
+      rain_chance: 30, summary: null } as const;
+    expect(dayParts(c)).toEqual(['1–6°C', 'usually dry', 'New York', 'usually, on these dates']);
+    expect(dayParts({ ...c, rain: true })[1]).toBe('often rainy');
   });
 });

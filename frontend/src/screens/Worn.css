@@ -94,3 +94,16 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .recent-card .worn-pics { margin-bottom: var(--space-2); }
 .recent-card .rate { margin-top: 0; }
 .rate-status { margin-top: var(--space-1); }
+
+/* What you wore, or the outfits you keep */
+.worn-switch { margin: 0 0 var(--space-3); }
+.kept-name-input {
+  width: 100%; min-height: var(--tap); margin: -6px 0 0; padding: 0 var(--space-2); border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: var(--weight-heading);
+}
+.kept-name-input::placeholder { color: var(--ink-3); font-weight: var(--weight-body); }
+.kept-name-input:hover, .kept-name-input:focus { border-color: var(--line); background: var(--surface-raised); }
+.kept-name .worn-day { padding-inline: var(--space-2); }
+.kept-gone { margin: var(--space-2) 0 0; }
+.kept-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-3); }
+.kept-removed { margin: 0; padding: var(--space-2) var(--space-1); }

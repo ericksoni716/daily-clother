@@ -52,7 +52,8 @@ const LONG = {
 };
 // Sheets opened by a button on a screen, pictured as well: the style conversation, every line of Your style, an
 // item's colours with the shades of its colour, a wish's most you'd pay, its find's checkout code, a find seen with
-// your clothes, and on Today, Worn and a trip: a piece's choices, where you are and today's temperatures, a worn
+// your clothes, and on Today, Worn and a trip: a piece's choices, where you are and today's temperatures, the days to
+// dress for (Another day), a worn or kept
 // outfit's choices, Record an outfit, and a packed piece's choices. `route` can be worked out from the ids `setUp` gives; `fold` is opened first when the button is inside
 // one; `wait` is what to wait for inside the sheet before its picture is taken.
 const SHEETS = [
@@ -73,7 +74,9 @@ const SHEETS = [
   { route: '/', button: /^Filter/, sheet: 'filter-sheet', name: 'closet-filter' },
   { route: '/today', button: /^Choices for/, sheet: 'piece-sheet', name: 'today-piece' },
   { route: '/today', button: /^Change$/, sheet: 'day-sheet', name: 'today-day' },
+  { route: '/today', button: 'Another day', sheet: 'another-day-sheet', name: 'today-another-day' },
   { route: '/today/worn', button: 'More for this outfit', sheet: 'worn-menu', name: 'worn-menu' },
+  { route: '/today/worn/kept', button: 'More for this outfit', sheet: 'kept-menu', name: 'kept-menu' },
   { route: '/today/worn', button: 'Record an outfit', sheet: 'record-sheet', name: 'worn-record' },
   { route: ({ tripId }) => `/trips/${encodeURIComponent(tripId)}`, button: /^Choices for/, sheet: 'trip-menu', name: 'trip-piece' },
   { route: '/settings', button: /^(Tell it how you live|Edit my answers|See example answers)$/, sheet: 'life-sheet', name: 'settings-life' },
@@ -314,7 +317,8 @@ async function scrollThrough(page) {
 
 async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) {
   // the four places and Add, then what each holds one level down
-  const pages = ['/today', '/today/worn', '/trips', `/trips/${encodeURIComponent(tripId)}`,
+  // another day: the demo's day planned three days ahead, and a day with nothing planned yet
+  const pages = ['/today', `/today/day/${localDay(3)}`, `/today/day/${localDay(1)}`, '/today/worn', '/today/worn/kept', '/trips', `/trips/${encodeURIComponent(tripId)}`,
     '/', `/item/${encodeURIComponent(itemId)}`, `/item/${encodeURIComponent(shoeId)}`, '/archived', '/review',
     '/add',
     '/wardrobe', '/wardrobe/wishlist', '/wardrobe/check', `/wardrobe/wish/${encodeURIComponent(wishId)}`,

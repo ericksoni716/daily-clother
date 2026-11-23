@@ -5,13 +5,34 @@
  */
 import { queryOptions, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
-import { api } from './api';
+import { api, ApiError, connection } from './api';
+import { loadSavedPlans, savePlans } from './plans';
 import { queryKeys, touched, type EditKind, type ItemStatus, type KeyName } from './queryKeys';
 import type { Item, ItemSummary, Progress, ProgressList } from './types';
 
 const STATUSES: ItemStatus[] = ['active', 'archived'];
 
 // ------------------------------------------------------------ queries
+
+/** Today's plan and the plans of the days ahead (Today and the day sheet read them). Kept on this device per closet, so
+ * a plan made earlier still shows offline. */
+export const plansQuery = (profile: string) => queryOptions({
+  queryKey: queryKeys.plans(),
+  queryFn: async () => {
+    try {
+      const plans = await api.plans();
+      if (!connection.offline) savePlans(profile, plans);
+      return plans;
+    } catch (e) {
+      const saved = (e as ApiError).status === 0 ? loadSavedPlans(profile) : null;
+      if (saved) return saved;
+      throw e;
+    }
+  },
+});
+
+/** The outfits you keep (Worn lists them; Today says when an outfit on it is one). */
+export const keptQuery = () => queryOptions({ queryKey: queryKeys.kept(), queryFn: api.keptOutfits });
 
 /** The closet's list, In use or Archived. */
 export const itemsQuery = (status: ItemStatus) => queryOptions({

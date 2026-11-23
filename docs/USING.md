@@ -305,7 +305,9 @@ sentence, "Nines checks the price once a day while it's running and tells you wh
 (with a price, "…when it goes down to $150.00 or less."), with "Set the most you'd pay" or
 "Change", then when it was last checked and "Check now" (the pages you sent read by Nines, the rest
 by Claude, and a page you sent that is not described yet described by Claude). Then looking for
-more: "Find some" or "Find more" (Claude searches shops) and "Add a link" (a product's page added as
+more: "Find some" or "Find more" (Claude searches shops; under them, "A search sends Claude the
+wish, your style, what you tend to wear, the brands you own and your size, never a photo or a
+note.", except in the demo closet) and "Add a link" (a product's page added as
 a find: Nines reads its name and price from the page, asks Claude only when the page gives no price,
 then asks Claude once to describe it from what the page says), and "Search Google Shopping" (as on
 Worth buying, from what to look for, or the wish's name when it has none); with nothing watched yet, the price is offered here
@@ -359,7 +361,15 @@ formality can be two levels next to each other, as on the item page.
   you live with **Edit my answers**; the switch **Show drawings instead of photos**, kept on the
   computer so it holds on every device: the closet, Today, Worn, trips, the Wardrobe and an
   item's page then show a piece's drawing (a piece with no drawing yet shows its photo); the
-  laundry switch and laundry day, and **Wears between washes** folded under them.
+  laundry switch and laundry day, and **Wears between washes** folded under them. Before the
+  drawings switch, **Your sizes**: one line with the sizes saved ("Your sizes: M tops · 32x32
+  trousers · 10.5 shoes", or "Your sizes are not saved yet.") and **Change**, which opens a sheet
+  with a short box for Tops, Knitwear, Trousers and jeans, Jackets and coats, and Shoes, each saved
+  as you leave it ("Saving…", "Saved" or "Didn't save" with Try again). Under an empty box, "The
+  size on most of your tops is M." with **Use it**, when your own pieces of that kind say a size.
+  **A brand that fits differently** opens a small form (the kind, the brand, your size in it, Save
+  and Cancel); each brand kept shows under its kind ("In Example Brand, L") with **Remove**.
+  "Find some" tells Claude the size for the wish's kind.
 - **Claude**: one line saying how Nines reaches Claude ("Using your Claude plan"), or one red
   sentence and Check again when it can't; **Manage** opens Advanced.
 - **Updates**: one line ("Nines 0.9.0 · up to date", or "Nines 0.9.1 is ready to install."

@@ -12,6 +12,18 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Find some knows who it is shopping for.** Besides the wish, a search now tells Claude the
+  lines of Your style, the colours, patterns and fits you wear most in that kind of piece and a
+  few of the pieces you love or wear most (said in plain words, never their photos, names or
+  notes), the brands on your clothes, and your size. Claude ranks what matches the wish by them;
+  the wish and the most you'd pay still come first. One sentence under **Find some** says what
+  is sent. The demo closet still sends nothing.
+- **Your sizes**, in Settings under Everyday: one line with the sizes you saved ("Your sizes: M
+  tops · 32x32 trousers · 10.5 shoes") and **Change**, which opens a short box for tops,
+  knitwear, trousers and jeans, jackets and coats, and shoes, each saved as you leave it. When
+  you have saved none for a kind, the size most of your own pieces of that kind carry is offered
+  with **Use it**. **A brand that fits differently** keeps a brand's own size ("In Example
+  Brand, L"). A search prefers products in stock in your size, when the shop lists sizes.
 - **A link you send to your wishlist is checked against your closet.** Once Nines has read the
   product's name from its page, Claude describes it from what the page says (nothing about your
   closet is sent), and the wish shows it as it shows what Claude finds: whether it would work, what

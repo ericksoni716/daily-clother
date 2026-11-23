@@ -468,6 +468,25 @@ The asking is `backend/closet/tagger/shopping.py` (the prompts, the answer's sha
 | The app's own price checks replace the planned Google Drive hand-off. **Recommendation awaiting the owner**: drop the hand-off | The plan route checks prices at no extra cost while the computer is on, and nothing has to leave the computer. If the owner wants checks while it is off, the hand-off can come back. |
 | *(Changed by "The wish page and price news": the page sets only the most you'd pay.)* The wish gets an optional price range (`price_min`, `price_max`, `price_currency`), told to Claude as the range to stay in | The note already holds "budget" in words; a range is something the search can be held to. |
 
+### What the search is told about you (23 November; BACKLOG "Finding clothes you might like", step 3)
+
+Builds on "Shopping for a wish", which still holds. Until now a search was told only the wish (its name, what to look for, the note, the price range) and nothing from the closet. The block is built by `backend/closet/aboutyou.py` (`about` is pure); the sizes are `backend/closet/sizes.py` (migration 0047) and the row in Settings is `frontend/src/components/YourSizes.tsx`.
+
+| Decision | Why |
+|---|---|
+| Beside the wish, a search is sent one block headed "About the person this is for": the lines of Your style (none while the starting profile is in force), the colours, patterns and fits taste favours in the wish's category, up to 5 pieces of that category loved or worn on 3 days or more, the brands on the owner's active items, and the saved size for the wish's kind. A wish added by hand (no category) is looked at across the clothes, accessories left out, with every saved size | What Nines has that a shop search lacks is the closet; a search that knows the owner can put what suits them first. |
+| The block says these are leanings to rank by, not requirements, and the wish and its price range come first; the prompt's rules repeat it. Brands are "a hint, not a filter" | A narrow search would miss a good match for the wish because it is not the owner's usual brand or colour. |
+| Taste claims follow `taste.py` exactly (10 wears across 3 pieces, or 5 ratings; a value favoured needs a score of 4 across 2 pieces). For a wish with a category only that category's taste is said, never the closet's as a whole in its place (`taste.overall` is used only for a wish with none) | No claim on too little evidence, as everywhere else; a colour you wear in tees says little about coats. |
+| A piece is said in the closet's own words: its kind, colour (and pattern when not solid), fit and material, loved and the days worn. Never its photo, its name, its notes, its fit notes or How I wear it | The owner types names and notes freely; they can hold anything. The kind and colour are what a shop search needs. |
+| Bounded whatever the closet's size: at most 1,500 characters of style (each line at most 300), 5 pieces, 8 brands, and 8 brands that fit differently across the sizes said. Stable order: loved pieces first, then most worn, then by id; brands by wears plus ratings (love 4, like 2), then by how many items, then alphabetical, a dislike leaving the item out | A search's cost grows with what it reads; the same closet gives the same words, so the tests can quote them. |
+| Sizes are kept in the closet's database (`sizes`, one row per kind and brand), not in the program's settings | They are about the person whose closet it is, like Your style: the demo has its own and a backup takes them along. |
+| Five kinds: tops, knitwear, trousers and jeans, jackets and coats, shoes, mapped from the categories through the same kinds trips count (`trips.KIND_OF`) and the shoe categories. Accessories have none | The kinds a size differs across in menswear, short enough for one sheet; a belt or a hat is rarely bought by size online. |
+| A size is free short text (at most 20 characters), a brand's name at most 40, at most 10 brands per kind | Sizing differs by kind, country and shop ("M", "32x32", "10.5 US", "40R"); the only reader is Claude, which reads words. A fixed list would be wrong somewhere. |
+| With no size saved for a kind, the size most common on the owner's own items of that kind is offered with "Use it", and is never sent until saved | Nines suggests and the owner decides; an item's size can be old or a gift's. |
+| Sizes live in a row of Settings → Everyday with a sheet, not in the style conversation | A size is a fact you type once, not a preference that comes up in talk. |
+| One sentence under "Find some" says what a search sends; the demo closet, which never searches, does not show it | The owner should know what leaves the computer, where they tap. |
+
+
 ### Insights
 
 The findings live in `backend/closet/insights.py`; every number is a named constant at its top. The screen is `frontend/src/screens/Insights.tsx` (styles in `Insights.css`), with the wording and what the device keeps in `frontend/src/insights.ts`.

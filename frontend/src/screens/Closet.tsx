@@ -6,10 +6,10 @@ import { WorkingLine } from '../components/WorkingLine';
 import { Button, buttonClass, EmptyState, Failed, PageHeader, SegmentedControl, Sheet } from '../components/ui';
 import { gridViewOf, smallPicture, useShowDrawings, type GridView, type MomentView } from '../drawing';
 import { cleanAll, putBack, type Cleaned } from '../laundry';
-import { groupsIn, groupTitle, kindsOf, type KindGroup } from '../kinds';
+import { groupTitle, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { goBack, itemPath, Link, navigate } from '../router';
-import { columnsFor, emptySentence, laundryNotice, laundryPart } from '../closet';
+import { ANY, chooseWhat, columnsFor, emptySentence, isWhat, laundryNotice, laundryPart, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
 import { progressOf } from '../progress';
 import { itemSaved, itemsQuery, progressQuery, reviewQuery, useVocab } from '../queries';
 import { useApp } from '../store';
@@ -28,8 +28,8 @@ interface Props {
 
 /** The search and filters, kept while the app is open: on a phone the item page replaces the closet, and coming
  * back from it should find the list as it was left. Kept per closet (demo or real) and per In use / Archived. */
-interface Filters { category: string | null; group: string | null; kind: string | null; query: string; laundry: Laundry | null; check: boolean; away: boolean }
-const NO_FILTERS: Filters = { category: null, group: null, kind: null, query: '', laundry: null, check: false, away: false };
+interface Filters { what: What; query: string; laundry: Laundry | null; check: boolean; away: boolean }
+const NO_FILTERS: Filters = { what: ANY, query: '', laundry: null, check: false, away: false };
 const filterMemory = new Map<string, Filters>();
 /** The Photos / Drawings switch, used for the moment: kept while the app is open (not on the device), and set aside
  * once the setting changes (`gridViewOf`). */
@@ -48,9 +48,8 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const loadError = !!items.error;
   const memoryKey = `${profile}:${status}`;
   const kept = filterMemory.get(memoryKey) ?? NO_FILTERS;
-  const [category, setCategory] = useState<string | null>(kept.category);
-  const [group, setGroup] = useState<string | null>(kept.group);
-  const [kind, setKind] = useState<string | null>(kept.kind);
+  // what a piece is: a group, then a category in it, then a kind (`closet.ts`, "What")
+  const [what, setWhat] = useState<What>(kept.what);
   const [query, setQuery] = useState(kept.query);
   const [laundry, setLaundry] = useState<Laundry | null>(kept.laundry);
   // "Needs a check": the pieces added and not checked yet, and those with a detail Claude was unsure of (the review
@@ -61,8 +60,8 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const [returned, setReturned] = useState<Set<string>>(() => new Set());
   const setAway = (on: boolean) => { setAwayOn(on); setReturned(new Set()); };
   useEffect(() => {
-    filterMemory.set(memoryKey, { category, group, kind, query, laundry, check, away });
-  }, [memoryKey, category, group, kind, query, laundry, check, away]);
+    filterMemory.set(memoryKey, { what, query, laundry, check, away });
+  }, [memoryKey, what, query, laundry, check, away]);
   const review = useQuery({ ...reviewQuery(), enabled: !offline && status === 'active' }).data;
   const toCheck = useMemo(() => new Set((review?.items ?? []).map((i) => i.id)), [review]);
   const showDrawings = useShowDrawings();
@@ -75,17 +74,9 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const aside = useRef<HTMLElement>(null);
   const [layoutWidth, setLayoutWidth] = useState(0);
 
-  const categories = useMemo(() => {
-    const seen = new Map<string, number>();
-    for (const it of list ?? []) if (it.category) seen.set(it.category, (seen.get(it.category) ?? 0) + 1);
-    return [...seen.keys()].sort((a, b) => categoryPlural(a).localeCompare(categoryPlural(b)));
-  }, [list]);
-
-  const activeCategory = category && categories.includes(category) ? category : null;
-  const groups = useMemo(() => groupsIn(list ?? [], vocab?.kind_groups), [list, vocab]);
-  const activeGroup = group && groups.some((g) => g.id === group) ? group : null;
-  const kinds = useMemo(() => kindsOf(list ?? [], activeGroup), [list, activeGroup]);
-  const activeKind = kinds.find((k) => k.id === kind) ?? null;
+  const activeWhat = useMemo(() => whatIn(list ?? [], vocab?.kind_groups, what), [list, vocab, what]);
+  const whatOn = activeWhat.group !== null;
+  const choices = useMemo(() => whatChoices(list ?? [], vocab?.kind_groups, activeWhat), [list, vocab, activeWhat]);
   const activeLaundry = status === 'active' ? laundry : null;
   const activeCheck = status === 'active' && check && !offline;
   const activeAway = status === 'active' && away;
@@ -93,9 +84,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (list ?? []).filter((it) => {
-      if (activeCategory && it.category !== activeCategory) return false;
-      if (activeGroup && it.group !== activeGroup) return false;
-      if (activeKind && it.kind !== activeKind.id) return false;
+      if (!isWhat(it, activeWhat)) return false;
       if (activeLaundry && (it.laundry ?? 'clean') !== activeLaundry) return false;
       if (activeCheck && !toCheck.has(it.id)) return false;
       if (activeAway && !it.away && !returned.has(it.id)) return false;
@@ -105,11 +94,11 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [list, activeCategory, activeGroup, activeKind, activeLaundry, activeCheck, activeAway, returned, toCheck, query, vocab]);
+  }, [list, activeWhat, activeLaundry, activeCheck, activeAway, returned, toCheck, query, vocab]);
 
   const empty = list !== null && list.length === 0;
   const title = status === 'archived' ? 'Archived' : profile === 'demo' ? 'Demo closet' : 'Your closet';
-  const filters = (activeCategory ? 1 : 0) + (activeGroup ? 1 : 0) + (activeKind ? 1 : 0) + (activeLaundry ? 1 : 0) +
+  const filters = (whatOn ? 1 : 0) + (activeLaundry ? 1 : 0) +
     (activeCheck ? 1 : 0) + (activeAway ? 1 : 0) + (status === 'archived' ? 1 : 0);
   // a piece away is said under away, not under the laundry (it is not in the basket at home)
   const inLaundry = useMemo(() => (list ?? []).filter((it) => it.laundry === 'laundry' && !it.away), [list]);
@@ -247,10 +236,8 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
               </button>
               {filtering && (
                 <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" onClose={() => setFiltering(false)}>
-                  <FilterChoices status={status} categories={categories} category={activeCategory} laundry={activeLaundry}
-                    away={activeAway} onAway={setAway}
-                    groups={groups} group={activeGroup} kinds={kinds} kind={activeKind?.id ?? null}
-                    onCategory={setCategory} onLaundry={setLaundry} onGroup={(g) => { setGroup(g); setKind(null); }} onKind={setKind} />
+                  <FilterChoices status={status} laundry={activeLaundry} away={activeAway} onAway={setAway} onLaundry={setLaundry}
+                    choices={choices} what={activeWhat} onWhat={(level, id) => setWhat(chooseWhat(activeWhat, level, id))} />
                 </Sheet>
               )}
             </div>
@@ -268,17 +255,9 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
               {status === 'archived' && (
                 <li><Link to="/" className="chip chip-remove" aria-label="Remove filter: Archived">Archived<CloseIcon /></Link></li>
               )}
-              {activeCategory && (
-                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${categoryPlural(activeCategory)}`}
-                  onClick={() => setCategory(null)}>{categoryPlural(activeCategory)}<CloseIcon /></button></li>
-              )}
-              {activeGroup && (
-                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${groupTitle(groups, activeGroup)}`}
-                  onClick={() => { setGroup(null); setKind(null); }}>{groupTitle(groups, activeGroup)}<CloseIcon /></button></li>
-              )}
-              {activeKind && (
-                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${activeKind.name}`}
-                  onClick={() => setKind(null)}>{activeKind.name}<CloseIcon /></button></li>
+              {whatOn && (
+                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${whatName(list ?? [], vocab?.kind_groups, activeWhat)}`}
+                  onClick={() => setWhat(ANY)}>{whatName(list ?? [], vocab?.kind_groups, activeWhat)}<CloseIcon /></button></li>
               )}
               {activeLaundry && (
                 <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${LAUNDRY[activeLaundry]}`}
@@ -324,7 +303,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
         shown.length === 0 ? (
           <div className="empty"><p className="muted">{emptySentence({ check: activeCheck, toCheck: toCheck.size, away: activeAway,
             awayNow: awayNow.length, laundry: laundryOn, inLaundry: inLaundry.length, searching: !!query.trim(),
-            what: !!(activeCategory || activeGroup || activeKind) })}</p></div>
+            what: whatOn })}</p></div>
         ) : activeAway ? (
           <AwayView pieces={shown} returned={returned} offline={offline} saved={(item) => itemSaved(qc, item, 'away')}
             failed={(m) => toast(m, 'error')}
@@ -405,23 +384,30 @@ function StatusLine({ toCheck, inLaundry: n, checking, washing, onCheck, onLaund
   );
 }
 
-function FilterChoices({ status, categories, category, laundry, away, groups, group, kinds, kind, onCategory, onLaundry, onAway, onGroup, onKind }: {
+function FilterChoices({ status, laundry, away, onLaundry, onAway, choices, what, onWhat }: {
   status: 'active' | 'archived';
-  away: boolean;
-  onAway(on: boolean): void;
-  categories: string[];
-  category: string | null;
   laundry: Laundry | null;
-  /** the groups and the kinds (in the chosen group) the closet's items are */
-  groups: KindGroup[];
-  group: string | null;
-  kinds: { id: string; name: string }[];
-  kind: string | null;
-  onCategory(c: string | null): void;
+  away: boolean;
   onLaundry(l: Laundry | null): void;
-  onGroup(g: string | null): void;
-  onKind(k: string | null): void;
+  onAway(on: boolean): void;
+  /** what a piece is, one level at a time: the groups the closet's pieces are in, then what is in the one chosen */
+  choices: { groups: KindGroup[]; categories: Choice[]; kinds: Choice[] };
+  what: What;
+  onWhat(level: keyof What, id: string | null): void;
 }) {
+  const groupName = groupTitle(choices.groups, what.group);
+  const level = (key: 'category' | 'kind', list: Choice[]) => list.length > 0 && (
+    <div className="chips filter-what-more" role="group"
+      aria-label={key === 'category' ? `Which ${groupName}` : `Kinds of ${what.category ? categoryPlural(what.category) : groupName}`}>
+      <button type="button" className={`chip${!what[key] ? ' is-on' : ''}`} aria-pressed={!what[key]} onClick={() => onWhat(key, null)}>
+        {key === 'category' ? `All ${groupName.toLowerCase()}` : 'Any kind'}
+      </button>
+      {list.map((c) => (
+        <button key={c.id} type="button" className={`chip${what[key] === c.id ? ' is-on' : ''}`} aria-pressed={what[key] === c.id}
+          onClick={() => onWhat(key, c.id)}>{c.name}</button>
+      ))}
+    </div>
+  );
   return (
     <div className="filter-choices">
       <div className="filter-group">
@@ -429,38 +415,18 @@ function FilterChoices({ status, categories, category, laundry, away, groups, gr
         <SegmentedControl label="Which clothes" small value={status}
           options={[{ value: 'active', label: 'In use', to: '/' }, { value: 'archived', label: 'Archived', to: '/archived' }]} />
       </div>
-      {categories.length > 1 && (
+      {choices.groups.length > 1 && (
         <div className="filter-group">
-          <h3 className="chip-group-title" id="filter-category">Category</h3>
-          <div className="chips" role="group" aria-label="Filter by category">
-            <button type="button" className={`chip${!category ? ' is-on' : ''}`} aria-pressed={!category} onClick={() => onCategory(null)}>All</button>
-            {categories.map((c) => (
-              <button key={c} type="button" className={`chip${category === c ? ' is-on' : ''}`} aria-pressed={category === c}
-                onClick={() => onCategory(category === c ? null : c)}>{categoryPlural(c)}</button>
+          <h3 className="chip-group-title">What it is</h3>
+          <div className="chips" role="group" aria-label="What it is">
+            <button type="button" className={`chip${!what.group ? ' is-on' : ''}`} aria-pressed={!what.group} onClick={() => onWhat('group', null)}>All</button>
+            {choices.groups.map((g) => (
+              <button key={g.id} type="button" className={`chip${what.group === g.id ? ' is-on' : ''}`} aria-pressed={what.group === g.id}
+                onClick={() => onWhat('group', g.id)}>{g.title}</button>
             ))}
           </div>
-        </div>
-      )}
-      {groups.length > 1 && (
-        <div className="filter-group">
-          <h3 className="chip-group-title">Group</h3>
-          <div className="chips" role="group" aria-label="Filter by group">
-            {groups.map((g) => (
-              <button key={g.id} type="button" className={`chip${group === g.id ? ' is-on' : ''}`} aria-pressed={group === g.id}
-                onClick={() => onGroup(group === g.id ? null : g.id)}>{g.title}</button>
-            ))}
-          </div>
-        </div>
-      )}
-      {kinds.length > 0 && (
-        <div className="filter-group">
-          <h3 className="chip-group-title">Kind</h3>
-          <div className="chips" role="group" aria-label="Filter by kind">
-            {kinds.map((k) => (
-              <button key={k.id} type="button" className={`chip${kind === k.id ? ' is-on' : ''}`} aria-pressed={kind === k.id}
-                onClick={() => onKind(kind === k.id ? null : k.id)}>{k.name}</button>
-            ))}
-          </div>
+          {level('category', choices.categories)}
+          {level('kind', choices.kinds)}
         </div>
       )}
       {status === 'active' && (

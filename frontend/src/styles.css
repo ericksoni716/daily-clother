@@ -476,6 +476,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .chip-remove svg { width: 16px; height: 16px; color: var(--ink-3); }
 .filter-choices { display: flex; flex-direction: column; gap: var(--space-4); }
 .filter-group .chips { gap: var(--space-2); }
+/* what is in the group chosen, under it: its categories, then its kinds */
+.filter-what-more { margin-top: var(--space-3); padding-left: var(--space-3); border-left: 2px solid var(--line); }
 .search { position: relative; display: block; max-width: 28rem; }
 .search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: var(--ink-3); pointer-events: none; }
 .search input { padding-left: 40px; border-radius: var(--radius-pill); }

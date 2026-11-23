@@ -92,18 +92,19 @@ test('in the demo closet: say what it is with the kind picker, see the drawing c
   await expect(picker.getByRole('button', { name: 'Fleece pullover', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await picker.getByRole('button', { name: 'Done' }).click();
 
-  // the Closet can be filtered by group and by kind
+  // the Closet can be filtered by what a piece is: the hoodie said to be a fleece pullover is in Activewear now
   await page.locator('.closet-toolbar').getByRole('button', { name: /^Filter/ }).click();
   const filters = page.getByRole('dialog', { name: 'Filter' });
-  await filters.getByRole('group', { name: 'Filter by group' }).getByRole('button', { name: 'Activewear' }).click();
-  await filters.getByRole('group', { name: 'Filter by kind' }).getByRole('button', { name: 'Fleece pullover' }).click();
+  await filters.getByRole('group', { name: 'What it is' }).getByRole('button', { name: 'Activewear' }).click();
+  await filters.getByRole('group', { name: 'Kinds of Activewear' }).getByRole('button', { name: 'Fleece pullover' }).click();
   await filters.getByRole('button', { name: 'Done' }).click();
   // the demo's own fleece pullover, and the hoodie now said to be one
   await expect(page.getByTestId('tile')).toHaveCount(2);
   await expect(page.getByTestId('tile').filter({ hasText: 'Grey hoodie' })).toHaveCount(1);
   await expect(page.getByTestId('tile').filter({ hasText: 'Forest fleece pullover' })).toHaveCount(1);
+  // one chip says what is chosen; removing it shows every piece again
   await page.getByRole('button', { name: 'Remove filter: Fleece pullover' }).click();
-  await page.getByRole('button', { name: 'Remove filter: Activewear' }).click();
+  await expect(page.getByRole('button', { name: /^Remove filter/ })).toHaveCount(0);
 
   await detail.locator('summary', { hasText: 'History' }).click();
   const line = 'You changed the kind from not said to fleece pullover';

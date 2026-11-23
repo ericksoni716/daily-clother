@@ -42,10 +42,23 @@ test.describe('phone', () => {
     // it rises from the bottom edge of the screen
     await expect.poll(async () => { const b = (await sheet.boundingBox())!; return Math.round(b.y + b.height); }).toBe(844);
     await page.screenshot({ path: test.info().outputPath(`closet-filter-phone.png`) });
-    await sheet.getByRole('group', { name: 'Filter by category' }).getByRole('button', { name: 'Sweaters', exact: true }).click();
+    // what a piece is is asked once: the groups, opening to what is in the one chosen
+    await expect(sheet.getByRole('group', { name: 'Filter by category' })).toHaveCount(0);
+    await expect(sheet.getByRole('group', { name: 'Filter by kind' })).toHaveCount(0);
+    const what = sheet.getByRole('group', { name: 'What it is' });
+    await what.getByRole('button', { name: 'Trousers & shorts' }).click();
+    await sheet.getByRole('group', { name: 'Which Trousers & shorts' }).getByRole('button', { name: 'Jeans', exact: true }).click();
+    await expect(toolbar.getByRole('button', { name: /^Filter\W+1 on$/ })).toBeVisible();
+    // another group starts again rather than stacking on the first, so the two never leave nothing to show
+    await what.getByRole('button', { name: 'Knitwear & mid layers' }).click();
+    await expect(sheet.getByRole('group', { name: 'Which Trousers & shorts' })).toHaveCount(0);
+    await sheet.getByRole('group', { name: 'Which Knitwear & mid layers' }).getByRole('button', { name: 'Sweaters', exact: true }).click();
+    await expect(toolbar.getByRole('button', { name: /^Filter\W+1 on$/ })).toBeVisible();
     await sheet.getByRole('button', { name: 'Done' }).click();
     await expect(sheet).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Remove filter/ })).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Remove filter: Sweaters' })).toBeVisible();
+    expect(await page.getByTestId('tile').count()).toBeGreaterThan(0);
 
     // earlier tests may have changed the demo closet, so open whichever sweater comes first
     const first = page.getByTestId('tile').first();

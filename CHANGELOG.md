@@ -130,6 +130,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **The closet's Filter asks once what a piece is.** Category, Group and Kind were three lists for
+  the same question that could be combined into "Nothing matches". Now there is one list, **What it
+  is**: choose a group (Trousers & shorts, say) and it opens to what is in it (Jeans, Trousers,
+  Shorts, and the kinds your pieces are said to be). One chip says what you chose.
 - **A striped or plaid find is drawn striped or plaid.** In **See it with your clothes** and in
   **Would this work?**'s outfits drawn **As worn**, a piece described as striped or plaid is now
   drawn with a plain, typical stripe or plaid in its colour and a quieter shade of it, instead of

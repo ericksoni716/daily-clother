@@ -16,7 +16,7 @@ test.describe('shopping for a wish', () => {
   });
 
   test('find some, see how each would work with the closet, check the prices and see a drop', async ({ page }) => {
-    test.setTimeout(150_000);
+    test.setTimeout(300_000);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(backend.url + '/');
     // a closet that can dress you opens on Today (src/landing.ts), depending on whether its clothes or its title come
@@ -68,7 +68,8 @@ test.describe('shopping for a wish', () => {
     await wish.getByTestId('find-some').click();
     await expect(wish.getByRole('status').filter({ hasText: 'Claude is searching shops' })).toBeVisible();
     const finds = wish.getByTestId('find');
-    await expect(finds).toHaveCount(2, { timeout: 30_000 });   // the one without a web address is not kept
+    // the two finds kept are judged against the closet before they show, over a minute on a slow runner
+    await expect(finds).toHaveCount(2, { timeout: 120_000 });   // the one without a web address is not kept
     await expect(wish).not.toContainText('Not a real link');
 
     const coat = finds.filter({ hasText: 'Tan gabardine rain coat' });

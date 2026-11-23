@@ -424,7 +424,7 @@ Storage in `backend/closet/worn.py` (migration 0010), the learning in `backend/c
 ### Dress for another day, and outfits you keep (23 November; BACKLOG "The closet app to have")
 
 `backend/closet/plans.py`, `backend/closet/kept.py` and what `backend/closet/today.py` does with a plan (migration
-0051); `frontend/src/plans.ts`, `frontend/src/kept.ts`, `components/DaySheet.tsx`, Today and Worn.
+0052); `frontend/src/plans.ts`, `frontend/src/kept.ts`, `components/DaySheet.tsx`, Today and Worn.
 
 | Decision | Why | Could have been |
 |---|---|---|

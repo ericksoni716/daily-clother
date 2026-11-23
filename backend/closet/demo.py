@@ -33,7 +33,7 @@ from .config import Config, bundle_dir
 FIELDS = ("name", "category", "color", "color_hex", "pattern", "formality", "season", "brand", "size", "material",
           "location", "rating", "rating_reason", "price_cents", "acquired_on", "notes", "illustration_svg")
 WORN_OUTFITS_MIGRATION = 10  # the migration that added worn outfits
-KEPT_MIGRATION = 51          # the migration that added outfits kept and days planned ahead
+KEPT_MIGRATION = 52          # the migration that added outfits kept and days planned ahead
 
 
 def ensure(cfg: Config) -> int:

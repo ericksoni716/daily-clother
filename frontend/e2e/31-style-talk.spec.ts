@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { axeViolations, sideways } from './a11y';
-import { expect, test } from './fixtures';
+import { expect, stayOnCloset, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 const section = (page: Page) => page.locator('section[aria-labelledby="s-style"]');
@@ -25,8 +25,7 @@ test.describe('talking to Claude about your style', () => {
   test('a question, then talk, a line offered and saved, shown in Settings with where it came from, and removed', async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(backend.url + '/');
-    await expect(page.locator('#closet-title')).toBeVisible();
+    await stayOnCloset(page, backend.url);
     await expect(page.locator('#closet-title, #today-title').first()).toBeVisible();
 
     // Settings, Your style: the starting lines, each marked as one

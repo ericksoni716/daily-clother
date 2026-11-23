@@ -1,5 +1,5 @@
 import { axeViolations, sideways, smallTargets } from './a11y';
-import { expect, test } from './fixtures';
+import { expect, stayOnCloset, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 const MINE = 'I run warm, so one layer fewer than most people.\nNo ties unless it is a wedding.';
@@ -19,8 +19,7 @@ test.describe('your style and how I wear it', () => {
   test('the style profile is written, kept, and taken back to the starting text; a piece keeps how I wear it', async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(backend.url + '/');
-    await expect(page.locator('#closet-title')).toBeVisible();
+    await stayOnCloset(page, backend.url);
     const starting = (await (await page.request.get(backend.url + '/api/style/profile')).json()).default_text as string;
 
     // Settings → Your style, the first group: the starting lines, each marked as one, with the whole text to edit in

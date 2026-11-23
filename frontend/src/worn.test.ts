@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { forgetSaved, keptFor, type WornToday } from './today';
 import {
-  dismiss, joinPages, loadDismissed, loadSavedWorn, pendingQuestion, pieceName, questionFor, ratingLabel, ratingSummary, reasonLabel, REASONS,
-  saveWorn, withOutfit, withoutOutfit, withRecorded, wornIds, type WornOutfit,
+  contextWords, dismiss, joinPages, loadDismissed, loadSavedWorn, pendingQuestion, pieceName, questionFor, ratingLabel, ratingSummary, reasonLabel,
+  reasonsFor, REASONS, recordGroups, saveWorn, withOutfit, withoutOutfit, withRecorded, wornIds, type WornOutfit,
 } from './worn';
 
 const worn = (id: string, worn_on: string, over: Partial<WornOutfit> = {}): WornOutfit => ({
@@ -119,5 +119,45 @@ describe('pages of worn outfits changed by a save', () => {
     expect(withRecorded(p, worn('n', '2026-11-19')).outfits.map((o) => o.id)).toEqual(['a', 'n', 'b']);
     expect(withRecorded(p, worn('n', '2026-11-20')).outfits.map((o) => o.id)).toEqual(['n', 'a', 'b']);
     expect(withRecorded(p, worn('n', '2026-11-01')).outfits.map((o) => o.id)).toEqual(['a', 'b', 'n']);
+  });
+});
+
+describe('the reasons offered after a rating', () => {
+  it('follows the rating: no "too cold" after "loved it", no compliments after "not again"', () => {
+    expect(reasonsFor('loved')).toEqual(['compliments', 'other']);
+    expect(reasonsFor('not_again')).not.toContain('compliments');
+    expect(reasonsFor('not_again')).toContain('too_cold');
+    expect(reasonsFor('fine')).toEqual([...REASONS]);
+  });
+});
+
+describe('the day an outfit was worn for', () => {
+  it('writes the temperatures as Today does', () => {
+    expect(contextWords({ low_c: 9.2, high_c: 15.7, rain: true, occasion: 'casual', mood: null }, (v) => v)).toBe('9–16°C · rain · casual');
+  });
+});
+
+describe('the pieces to record an outfit from', () => {
+  const item = (id: string, category: string | null, last_worn: string | null, over = {}) =>
+    ({ id, name: id, category, color: null, status: 'active', last_worn, ...over });
+  const items = [
+    item('old tee', 'tee', '2026-10-01'), item('new tee', 'tee', '2026-11-20'), item('never worn shirt', 'shirt', null),
+    item('jeans', 'jeans', '2026-11-01'), item('boots', 'boots', null), item('belt', 'belt', '2026-11-02'),
+    item('coat', 'coat', null), item('gone', 'tee', '2026-11-22', { status: 'archived' }), item('unsorted', null, null),
+  ];
+  const words = (i: { name: string | null }) => i.name ?? '';
+
+  it('groups them as tops, bottoms, shoes and extras, most recently worn first, leaving out archived and unsorted ones', () => {
+    expect(recordGroups(items, '', words).map((g) => [g.label, g.pieces.map((p) => p.id)])).toEqual([
+      ['Tops', ['new tee', 'old tee', 'coat', 'never worn shirt']],
+      ['Bottoms', ['jeans']],
+      ['Shoes', ['boots']],
+      ['Extras', ['belt']],
+    ]);
+  });
+
+  it('keeps those with every word looked for, and drops the groups left empty', () => {
+    expect(recordGroups(items, 'TEE new', words)).toEqual([{ group: 'tops', label: 'Tops', pieces: [items[1]] }]);
+    expect(recordGroups(items, 'nothing like it', words)).toEqual([]);
   });
 });

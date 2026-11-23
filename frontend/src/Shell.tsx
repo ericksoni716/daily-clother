@@ -39,7 +39,7 @@ export function Shell({ version }: { version: string }) {
 
   let content;
   if (route.name === 'today') content = <TodayScreen itemId={route.itemId} wide={wide} />;
-  else if (route.name === 'worn') content = <WornScreen />;
+  else if (route.name === 'worn') content = <WornScreen itemId={route.itemId} />;
   else if (route.name === 'wardrobe') {
     content = <WardrobeScreen itemId={route.itemId} check={route.check} wishId={route.wishId} wish={route.wish} link={!!route.link}
       wishlist={!!route.wishlist} wide={wide} />;

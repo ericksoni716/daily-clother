@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test';
+import { axeViolations } from './a11y';
 import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page, context }) => {
@@ -84,19 +85,24 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
   await chip.click();
   await expect(loved.getByRole('button', { name: 'Fine' })).toHaveCount(0);
 
-  // the other actions wait behind ⋯: Escape closes the menu and puts focus back on its button
+  // the other actions wait behind ⋯, in a sheet over the page: Escape closes it and puts focus back on its button
   const more = loved.getByRole('button', { name: 'More for this outfit' });
-  await expect(more).toHaveAttribute('aria-haspopup', 'menu');
-  await expect(loved.getByRole('button', { name: 'Wear this again' })).toHaveCount(0);
+  const menu = page.getByRole('dialog', { name: 'This outfit' });
+  await expect(more).toHaveAttribute('aria-haspopup', 'dialog');
+  await expect(page.getByRole('button', { name: 'Wear this again' })).toHaveCount(0);
   await more.click();
   await expect(more).toHaveAttribute('aria-expanded', 'true');
-  await expect(loved.getByRole('menuitem', { name: 'Wear this again' })).toBeFocused();
-  await page.keyboard.press('ArrowDown');
-  await expect(loved.getByRole('menuitem', { name: 'Put these in the laundry' })).toBeFocused();
-  await page.keyboard.press('ArrowDown');
-  await expect(loved.getByRole('menuitem', { name: 'Remove' })).toBeFocused();
+  await expect(menu).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(menu.getByRole('button', { name: 'Done' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(menu.getByRole('button', { name: 'Wear this again' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(menu.getByRole('button', { name: 'Put these in the laundry' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(menu.getByRole('button', { name: 'Remove' })).toBeFocused();
   await page.keyboard.press('Escape');
-  await expect(loved.getByRole('menu')).toHaveCount(0);
+  await expect(menu).toHaveCount(0);
   await expect(more).toBeFocused();
   await expect(more).toHaveAttribute('aria-expanded', 'false');
 
@@ -104,7 +110,7 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
   const before = ((await (await page.request.get('/api/items')).json()).items as { id: string; laundry: string | null }[])
     .filter((i) => i.laundry === 'laundry').map((i) => i.id);
   await more.click();
-  await loved.getByRole('menuitem', { name: 'Put these in the laundry' }).click();
+  await menu.getByRole('button', { name: 'Put these in the laundry' }).click();
   await expect(page.getByText(/in the laundry$/).first()).toBeVisible();
   const washing = async () => ((await (await page.request.get('/api/items')).json()).items as { laundry: string | null; category: string }[])
     .filter((i) => i.laundry === 'laundry');
@@ -128,7 +134,7 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
   const older = cards(page).filter({ has: page.getByTestId('worn-rating').getByText('Loved it · got compliments') }).last();
   await expect(older.getByRole('heading')).not.toHaveText('Yesterday');
   await older.getByRole('button', { name: 'More for this outfit' }).click();
-  await older.getByRole('menuitem', { name: 'Wear this again' }).click();
+  await page.getByRole('dialog', { name: 'This outfit' }).getByRole('button', { name: 'Wear this again' }).click();
   await expect(page).toHaveURL(/\/today$/);
   await expect(page.getByText(/Not clean or not available today: White tee/)).toBeVisible();
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
@@ -138,7 +144,7 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
   const first = cards(page).first();
   await expect(first.getByRole('heading', { name: 'Today' })).toBeVisible();
   await first.getByRole('button', { name: 'More for this outfit' }).click();
-  await first.getByRole('menuitem', { name: 'Remove' }).click();
+  await page.getByRole('dialog', { name: 'This outfit' }).getByRole('button', { name: 'Remove' }).click();
   await first.getByRole('group', { name: 'Remove this outfit?' }).getByRole('button', { name: 'Remove' }).click();
   await expect(cards(page).first().getByRole('heading', { name: 'Today' })).toHaveCount(0);
   const day = await page.evaluate(() => new Date().toLocaleDateString('en-CA'));
@@ -168,9 +174,11 @@ test('worn: offline the saved list is shown as last changed, and rating says why
   await expect(cards(page).first().getByTestId('worn-rating')).toHaveText(/^Not again/);
   await cards(page).first().getByRole('button', { name: 'Change rating' }).click();
   await expect(cards(page).first().getByRole('button', { name: 'Loved it' })).toBeDisabled();
-  await expect(cards(page).first().getByText("You're offline, so rating has to wait")).toBeVisible();
+  // why rating waits is said once for the list, not on every card
+  await expect(page.getByText("You're offline, so rating has to wait")).toHaveCount(1);
+  await expect(cards(page).getByText("You're offline, so rating has to wait")).toHaveCount(0);
   await cards(page).first().getByRole('button', { name: 'More for this outfit' }).click();
-  await expect(cards(page).first().getByRole('menuitem', { name: 'Wear this again' })).toBeDisabled();
+  await expect(page.getByRole('dialog', { name: 'This outfit' }).getByRole('button', { name: 'Wear this again' })).toBeDisabled();
 });
 
 test('worn: the list saved offline belongs to its closet', async ({ page, context }) => {
@@ -206,7 +214,12 @@ test('worn: the list fits a phone', async ({ page }, testInfo) => {
   await openToday(page);
   await seeAll(page).click();
   await expect(cards(page).first()).toBeVisible();
-  await expect(cards(page).first().getByRole('button', { name: 'More for this outfit' })).toBeVisible();
+  const more = cards(page).first().getByRole('button', { name: 'More for this outfit' });
+  await expect(more).toBeVisible();
+  // its three dots are drawn at their size (they were squeezed to 6px wide), in a button the size of a tap
+  const dots = (await more.locator('svg').boundingBox())!;
+  expect(dots.width).toBeGreaterThanOrEqual(24);
+  expect((await more.boundingBox())!.width).toBeGreaterThanOrEqual(44);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 
@@ -214,4 +227,59 @@ test('worn: the list fits a phone', async ({ page }, testInfo) => {
   const path = testInfo.outputPath('worn-phone.png');
   await page.screenshot({ path });
   await testInfo.attach('Worn on a phone', { path, contentType: 'image/png' });
+});
+
+test('worn on a phone: the choices and Record an outfit open in sheets, and a piece opened from Worn goes back to Worn', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 629 });
+  await goToCloset(page);
+  await page.request.put('/api/settings', { data: { laundry: { auto: false } } });
+  await useProfile(page, 'demo');
+  await page.goto('/today/worn');
+  await expect(cards(page).first()).toBeVisible();
+  const tabbar = (await page.locator('nav.tabbar').boundingBox())!;
+
+  // a card low on the screen: its choices are in a sheet above the tab bar, not under it
+  const low = cards(page).nth(1);
+  await low.scrollIntoViewIfNeeded();
+  await low.getByRole('button', { name: 'More for this outfit' }).click();
+  const menu = page.getByRole('dialog', { name: 'This outfit' });
+  for (const name of ['Wear this again', 'Remove']) {
+    const b = (await menu.getByRole('button', { name }).boundingBox())!;
+    expect(b.y + b.height).toBeLessThanOrEqual(629);
+  }
+  await menu.getByRole('button', { name: 'Done' }).click();
+  await expect(menu).toHaveCount(0);
+
+  // Record an outfit: a sheet with the pieces in groups, most recently worn first, and a search
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const listTop = (await cards(page).first().boundingBox())!.y;
+  await page.getByRole('button', { name: 'Record an outfit' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Record an outfit' });
+  await expect(sheet).toBeVisible();
+  expect((await cards(page).first().boundingBox())!.y).toBe(listTop);   // nothing put in above the list
+  await expect(sheet.getByRole('heading', { name: 'Tops' })).toBeVisible();
+  for (const group of ['Bottoms', 'Shoes']) await expect(sheet.getByRole('heading', { name: group })).toHaveCount(1);
+  await sheet.getByLabel('Find a piece').fill('jeans');
+  await expect(sheet.getByRole('heading', { name: 'Tops' })).toHaveCount(0);
+  await expect(sheet.getByRole('heading', { name: 'Bottoms' })).toBeVisible();
+  const record = sheet.getByRole('button', { name: /^(Record|Choose at least)/ });
+  await expect(record).toBeDisabled();
+  const r = (await record.boundingBox())!;
+  expect(r.y + r.height).toBeLessThanOrEqual(629);
+  expect(await axeViolations(page)).toEqual([]);
+  await sheet.getByRole('button', { name: 'Cancel' }).click();
+  await expect(sheet).toHaveCount(0);
+
+  // a piece opened from Worn says "‹ Worn" and goes back there, where you were
+  await cards(page).nth(2).scrollIntoViewIfNeeded();
+  const y = await page.evaluate(() => window.scrollY);
+  await cards(page).nth(2).getByRole('list', { name: 'Pieces' }).getByRole('link').first().click();
+  await expect(page).toHaveURL(/\/today\/worn\/item\//);
+  const back = page.getByRole('link', { name: 'Worn' });
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(page).toHaveURL(/\/today\/worn$/);
+  await expect(cards(page).first()).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(Math.max(0, y - 80));
+  expect(tabbar.y).toBeGreaterThan(0);
 });

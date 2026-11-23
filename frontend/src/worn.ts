@@ -1,5 +1,5 @@
 /** Outfits worn: the shapes the server sends, plain words for ratings, and when Today asks how one went. */
-import { SAVED_PREFIX, type OutfitPieces } from './today';
+import { SAVED_PREFIX, temps, type OutfitPieces } from './today';
 import { localDay, wearDay } from './wears';
 
 export const RATINGS = ['loved', 'fine', 'not_again'] as const;
@@ -70,10 +70,40 @@ export function reasonLabel(r: string): string {
   return REASON_WORDS[r as Reason] ?? r;
 }
 
-/** The reasons that fit an answer first: "got compliments" leads after "loved it", the problems after "not again". */
+/** The reasons that fit an answer: after "loved it" what went well, after "not again" what went wrong, after "fine"
+ * either (what went wrong first). "Other" is always offered. */
 export function reasonsFor(rating: Rating): Reason[] {
-  if (rating === 'loved') return ['compliments', ...REASONS.filter((r) => r !== 'compliments')];
+  if (rating === 'loved') return ['compliments', 'other'];
+  if (rating === 'not_again') return REASONS.filter((r) => r !== 'compliments');
   return [...REASONS];
+}
+
+/** The pieces the owner can record an outfit from, in the four groups of the sheet, most recently worn first. */
+export const RECORD_GROUPS = [
+  { group: 'tops', label: 'Tops', categories: ['tee', 'shirt', 'polo', 'sweater', 'hoodie', 'jacket', 'coat'] },
+  { group: 'bottoms', label: 'Bottoms', categories: ['jeans', 'trousers', 'shorts'] },
+  { group: 'shoes', label: 'Shoes', categories: ['sneakers', 'boots', 'dress_shoes', 'sandals'] },
+  { group: 'extras', label: 'Extras', categories: [] as string[] },
+] as const;
+
+interface RecordPiece { id: string; name: string | null; category: string | null; color: string | null; status: string; last_worn: string | null }
+
+/**
+ * The pieces for "Record an outfit": those still in the closet with a category, in their group (tops, bottoms, shoes,
+ * then everything else as extras), most recently worn first, then by name. `query` keeps those whose name, category or
+ * colour (as `words` gives them) has every word of it; groups left empty are dropped.
+ */
+export function recordGroups<T extends RecordPiece>(items: T[], query: string, words: (item: T) => string):
+  { group: string; label: string; pieces: T[] }[] {
+  const asked = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const usable = items.filter((i) => i.status !== 'archived' && i.category)
+    .filter((i) => asked.every((w) => words(i).toLowerCase().includes(w)))
+    .sort((a, b) => (b.last_worn ?? '').localeCompare(a.last_worn ?? '') || words(a).localeCompare(words(b)));
+  const known = new Set<string>(RECORD_GROUPS.flatMap((g) => g.categories));
+  return RECORD_GROUPS.map((g) => ({
+    group: g.group, label: g.label,
+    pieces: usable.filter((i) => (g.group === 'extras' ? !known.has(i.category!) : (g.categories as readonly string[]).includes(i.category!))),
+  })).filter((g) => g.pieces.length > 0);
 }
 
 /** "Loved it · too warm, got compliments" — what a rating says, in one line. */
@@ -119,12 +149,12 @@ export function wornDay(o: Pick<WornOutfit, 'worn_on'>, today: string = localDay
   return wearDay(o.worn_on, today);
 }
 
-/** "9°C to 16°C · casual" — the day an outfit was worn for, if it was remembered. */
+/** "9–16°C · casual" — the day an outfit was worn for, if it was remembered. */
 export function contextWords(c: WornContext | null, occasionLabel: (v: string) => string): string {
   if (!c) return '';
   const parts: string[] = [];
   if (c.low_c !== null && c.high_c !== null) {
-    parts.push(Math.round(c.low_c) === Math.round(c.high_c) ? `About ${Math.round(c.high_c)}°C` : `${Math.round(c.low_c)}°C to ${Math.round(c.high_c)}°C`);
+    parts.push(temps(c.low_c, c.high_c));
   }
   if (c.rain) parts.push('rain');
   if (c.occasion) parts.push(occasionLabel(c.occasion).toLowerCase());

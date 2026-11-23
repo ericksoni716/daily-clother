@@ -28,7 +28,8 @@ found is checked against a closet with something in it (the demo closet itself n
 A product's page sent as a link is never fetched from the web, with or without the other stand-ins (`ShopPages`):
 shop.example is the only name that can be found, and its made-up pages are a linen shirt whose structured data gives
 its price ($68.00 the first time it is read, then 20% lower each time it is read again), a shirt with a very long
-name (the same prices) and a page with no price, which goes to Claude's stand-in (a price check, $80.00).
+name and a shirt whose banner shows a checkout code, 40% off (the same prices), and a page with no price, which goes
+to Claude's stand-in (a price check, $80.00).
 
 Finding the pieces in a photo of several is a stand-in too: after a second it gives the boxes of
 `conftest.GARMENT_BOXES` (a red piece left, a blue one in the middle, a green one right), whatever the photo.
@@ -264,6 +265,12 @@ SHOP_PAGE_NAMES = {
     "https://shop.example/linen-shirt": "Linen camp-collar shirt",
     "https://shop.example/long-name": ("Heavyweight garment-dyed linen camp-collar short-sleeve shirt in washed sand with "
                                        "horn-effect buttons and a boxy cropped fit"),
+    "https://shop.example/code-shirt": "Linen shirt with a code",
+}
+# what a page's text shows besides its structured data: a banner with a checkout code (made-up codes)
+SHOP_PAGE_TEXT = {
+    "https://shop.example/long-name": '<div class="banner"><p>Take 40% off everything with code TESTWEEKEND40</p></div>',
+    "https://shop.example/code-shirt": '<div class="promo"><span>40% off</span> with code <b>TEST40</b></div>',
 }
 
 
@@ -291,7 +298,8 @@ class ShopPages:
                     "offers": {"@type": "Offer", "price": f"{68 * 0.8 ** n:.2f}", "priceCurrency": "USD",
                                "availability": "https://schema.org/InStock"}}
             text = (f'<html><head><script type="application/ld+json">{json.dumps(data)}</script>'
-                    '<meta property="og:site_name" content="Example Shop"></head><body></body></html>')
+                    '<meta property="og:site_name" content="Example Shop"></head>'
+                    f'<body>{SHOP_PAGE_TEXT.get(url, "")}</body></html>')
         else:
             return productpage.Answer(404, {"content-type": "text/html"}, b"")
         return productpage.Answer(200, {"content-type": "text/html; charset=utf-8"}, text.encode("utf-8"))

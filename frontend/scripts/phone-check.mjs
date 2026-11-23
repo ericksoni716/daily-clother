@@ -44,9 +44,9 @@ const LONG = {
   wish: 'A lightweight packable waterproof shell jacket with a hood that folds into the collar',
   line: 'Never anything double-breasted, never anything with a crest or a logo-embroidered-chest-pocket-of-any-kind',
 };
-// Sheets opened by a button on a screen, pictured as well: the style conversation, every line of Your style, and an
-// item's colours with the shades of its colour. `route` can be worked out from the ids `setUp` gives; `fold` is opened
-// first when the button is inside one.
+// Sheets opened by a button on a screen, pictured as well: the style conversation, every line of Your style, an
+// item's colours with the shades of its colour, and a wish's most you'd pay and its find's checkout code. `route` can
+// be worked out from the ids `setUp` gives; `fold` is opened first when the button is inside one.
 const SHEETS = [
   { route: '/settings', button: 'Talk to Claude about your style', sheet: 'style-talk-sheet', name: 'settings-style-talk' },
   { route: '/settings', button: /^(See all lines|Change the lines)$/, sheet: 'style-lines-sheet', name: 'settings-style-lines' },
@@ -54,6 +54,8 @@ const SHEETS = [
     sheet: 'detail-editor-color', name: 'item-colour' },
   { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: "Set the most you'd pay",
     sheet: 'price-sheet', name: 'wish-price' },
+  { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: 'Change the code',
+    sheet: 'code-sheet', name: 'wish-code' },
 ];
 // A made-up shop's page with a long product name, which the backend's stand-in serves (never the web).
 const SHOP_PAGE = 'https://shop.example/long-name';
@@ -148,8 +150,9 @@ async function setUp(base) {
     const trip = await call('/api/trips', 'POST', { place: PLACE, first_day: first, last_day: last, weather });
     // A wish by name needs neither the weather nor Claude.
     const wish = await call('/api/wishlist', 'POST', { name: LONG.wish });
-    // A wish from a link: the backend's made-up shop page with a long name (tests/e2e_backend.py, ShopPages, never the
-    // web), read once and then again a little cheaper, so the wishlist's row says the price went down.
+    // A wish from a link: the backend's made-up shop page with a long name and a checkout code in its banner
+    // (tests/e2e_backend.py, ShopPages, never the web), read once and then again a little cheaper, so the wishlist's row
+    // says the price went down, with the code.
     const linked = await call('/api/wishlist/link', 'POST', { url: SHOP_PAGE });
     const settled = async () => {
       for (let i = 0; i < 80; i++) {

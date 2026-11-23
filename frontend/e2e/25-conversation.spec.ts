@@ -348,6 +348,10 @@ test.describe('talking to Claude about the outfits, while Claude is busy', () =>
     for (let i = 1; i < polls.length; i++) expect(polls[i].at - polls[i - 1].at, 'one poll at a time').toBeGreaterThan(1000);
     await occasion.getByRole('button', { name: 'Casual', exact: true }).click();
     await expect(read(page)).toBeVisible({ timeout: 30_000 });
+    // Smart casual's answer stays on the page while Casual's is asked, so the conversation is visible before Today
+    // has answered. Casual's answer must be in before the other device's message below: it says whether Claude is
+    // answering, and when it reached Nines after that message the page rightly waited for it and never sent its own
+    await expect(page.locator('.today-outfits.is-asking')).toHaveCount(0);
     await expect(turns(page).last()).toContainText('Slowly now, something lighter');
     await expect(turns(page).last()).toContainText(REPLY);
 

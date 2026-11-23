@@ -255,6 +255,10 @@ The tests' own calls (`page.request`, `request`) each go on a connection of thei
 sent on a kept one in that moment fails with a reset connection that the owner never meets.
 A screen must not wait for a run to end to show what the server already knows: a wish is
 named as soon as its link's page is read, while Claude is still describing it.
+A test that measures where something sits first puts the page where it needs it (`scrollIntoView` on what it will
+tap): a click scrolls its own target into view, and from wherever earlier steps left the page that moves it.
+A step waits for the answer it asked for, not for what is on the page: Today keeps the last answer up while it asks
+(`.today-outfits.is-asking`), and a tab's first page moves from the closet to Today by itself (`src/landing.ts`).
 
 There is nothing to log in to. A spec that opens the page by a Tailscale name gives the headers
 Tailscale Serve would (`extraHTTPHeaders`, as `18-phone-qr.spec.ts` does); without them the

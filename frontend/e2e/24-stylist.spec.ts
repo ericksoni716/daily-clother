@@ -10,6 +10,11 @@ const read = (page: Page) => page.getByTestId('stylist-read');
 
 async function setUp(page: Page, url: string) {
   await page.setViewportSize({ width: 390, height: 844 });
+  // This closet can dress the owner, so a tab's first page would move from the closet to Today once the closet's list
+  // is in (src/landing.ts). The tests open Today themselves: that move could hide the closet's title before the test
+  // saw it, and its own request for Today started Claude choosing before the test held Claude's answer, so the
+  // waiting card never showed. The tab is marked as having landed already, and stays on the closet.
+  await page.addInitScript(() => sessionStorage.setItem('closet-landed', '1'));
   await page.goto(url + '/');
   await expect(page.locator('#closet-title')).toBeVisible();
 }
@@ -146,13 +151,22 @@ test.describe('outfits chosen by Claude', () => {
 
     // "Not this piece" while far down the page: the outfits stay on the page while Claude chooses again, so the page
     // keeps its length and you stay where you were (it lost about 1,050px and left you elsewhere)
+    // The page is put where this needs it, with the piece's button at the top of the screen. Where the steps above
+    // leave it depends on how tall the page was at each of them (the reload puts it back where it was, the clicks
+    // scroll their own buttons into view); from low enough, the button was off the screen and the click's own scroll
+    // to reach it moved the page by about 500px after it had been measured.
     const trip = page.getByTestId('recent-outfits');
     const pieceName = (await current(page).locator('.today-piece-name').first().textContent())!.trim();
-    await current(page).getByRole('button', { name: "I'm wearing this" }).scrollIntoViewIfNeeded();
+    const choices = current(page).getByRole('button', { name: `Choices for ${pieceName}` });
+    await choices.evaluate((el) => el.scrollIntoView({ block: 'start' }));
     const tall = await page.evaluate(() => document.documentElement.scrollHeight);
     const at = await page.evaluate(() => window.scrollY);
+    expect(at).toBeGreaterThan(0);
     const recentAt = (await trip.boundingBox())!.y;
-    await current(page).getByRole('button', { name: `Choices for ${pieceName}` }).click();
+    await choices.click();
+    // opening the choices does not move the page
+    await expect(page.getByRole('dialog', { name: pieceName })).toBeVisible();
+    expect(await page.evaluate(() => window.scrollY)).toBe(at);
     await page.getByRole('dialog', { name: pieceName }).getByRole('button', { name: 'Not this piece' }).click();
     await expect(waiting(page)).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(tall - 200);

@@ -2227,7 +2227,7 @@ page is `FindCode` and `CodeSheet` in `frontend/src/screens/Shop.tsx` (styles in
 
 The owner: "at the cleaner's, at the tailor's, lent out, needs mending. Left out of outfits and trips like the laundry,
 with one line on the closet and a tap to bring it back." The code: `backend/closet/away.py` (sending, coming back,
-undo, the history), migration `0052_away.sql` (`items.away`, `away_since`, `away_until`, `away_note`, and `away_log`),
+undo, the history), migration `0051_away.sql` (`items.away`, `away_since`, `away_until`, `away_note`, and `away_log`),
 `outfits._unavailable` and `outfits.AWAY`, `trips._Planner`, `gaps._closet`, `insights._closet`, `wears._record`; on
 the page `src/away.ts`, `components/WhereItIs.tsx`, `WhereSheet.tsx` and `AwayView.tsx`.
 

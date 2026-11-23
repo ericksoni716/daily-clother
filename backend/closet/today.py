@@ -322,7 +322,7 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         planned["note"] = word.get("text") if word else None
         ctx = dataclasses.replace(ctx, keep=tuple(planned["kept"]))
         if not planned["unavailable"]:   # every piece can be worn: the outfit as planned, with no place filled in
-            others = sorted({r["id"] for r in rows} - set(planned["kept"]) - set(ctx.leave_out))
+            others = sorted({r["id"] for r in rows} - set(plans.ids_of(plan["pieces"])) - set(ctx.leave_out))
             ctx = dataclasses.replace(ctx, leave_out=(*ctx.leave_out, *others))
     # planned pieces kept out of the laundry's way: not offered when wearing them now leaves them in the laundry then
     held = plans.held(rows, upcoming, on_day, wears.policy())
@@ -356,6 +356,10 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         context["ahead"] = True
         stylist = None   # another day is dressed by the rules: Claude chooses for today only
     answer = outfits.suggest(rows, ctx, count, feedback)
+    if planned is not None and not planned["unavailable"] and answer["outfits"]:
+        # the accessories planned with it go with it, as the owner chose them (those still in the closet and wearable)
+        usable = {r["id"] for r in rows if outfits._unavailable(r, ctx) in (None, *outfits.ASKED_FOR_ONLY)}
+        answer["outfits"][0]["pieces"]["accessories"] = [a for a in plan["pieces"].get("accessories") or [] if a in usable]
     if say is not None and (stylist is None or not answer["outfits"]):
         raise outfits.ContextError("Claude isn't choosing your outfits here, so the message wasn't sent.")
     if ahead and (source != "forecast" or old):

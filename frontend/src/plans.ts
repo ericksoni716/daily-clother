@@ -98,8 +98,10 @@ export function planLine(day: string, today: string, note: string | null): strin
 }
 
 /** "The white tee can't be worn by then, so another piece takes its place." (or "pieces take their places"). */
-export function swapLine(names: string[], day: string, today: string): string | null {
-  if (!names.length) return null;
+export function swapLine(given: string[], day: string, today: string): string | null {
+  if (!given.length) return null;
+  // in the middle of a sentence, as the rules' own sentences name a piece: "the oatmeal henley", but "the GANT polo"
+  const names = given.map((n) => (n.length > 1 && n[1] === n[1].toLowerCase() ? n[0].toLowerCase() + n.slice(1) : n));
   const when = day === today ? 'today' : 'by then';
   return names.length === 1
     ? `The ${names[0]} can't be worn ${when}, so another piece takes its place.`

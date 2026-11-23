@@ -156,6 +156,15 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const plansRead = useQuery(plansQuery(profile));
   const plans = plansRead.data ?? null;
   const keptOutfits = useQuery({ ...keptQuery(), enabled: !offline }).data ?? null;
+  // a planned day opens on the occasion the outfit was planned for (this visit only; the choice kept is not changed)
+  const dayPlan = planFor(plans, ahead ?? today);
+  const tookPlanOccasion = useRef(false);
+  useEffect(() => {
+    if (tookPlanOccasion.current || !dayPlan?.occasion) return;
+    tookPlanOccasion.current = true;
+    const occasion = dayPlan.occasion;
+    if ((OCCASIONS as readonly string[]).includes(occasion)) setChoice((c) => (c.occasion === occasion ? c : { ...c, occasion }));
+  }, [dayPlan]);
 
   // the same first page of worn outfits as the Worn screen, read once for both (and kept for offline)
   const recentRead = useQuery(wornQuery(profile)).data;

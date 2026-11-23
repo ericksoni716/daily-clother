@@ -10,7 +10,7 @@ import pytest
 from closet import db, plans, today, tripweather, wears, weather
 
 from .test_day import reader, reading
-from .test_weather import NOON, TODAY, FakeOpenMeteo, small_closet
+from .test_weather import NOON, TODAY, FakeOpenMeteo, make_item, small_closet
 
 THURSDAY = TODAY                       # 12 November 2026; the laundry day is Sunday by default
 SATURDAY = TODAY + timedelta(days=2)
@@ -156,6 +156,14 @@ def test_the_morning_of_the_day_today_opens_on_the_plan(client, clock):
     worn = client.post("/api/wears", json={"item_ids": [ids["tee2"], ids["jeans"], ids["sneakers"]]})
     assert worn.status_code == 201 and wear_count(client, ids["tee2"]) == 1
     assert [p["day"] for p in client.get("/api/plans").json()["plans"]] == [SATURDAY.isoformat()]
+
+
+def test_the_accessories_planned_go_with_the_plan(client, clock):
+    ids = small_closet(client)
+    belt = make_item(client, "z", name="Brown belt", category="belt", color="brown")
+    planned = {**outfit_of(ids), "accessories": [belt]}
+    plan(client, SATURDAY, planned)
+    assert suggest(client, day=SATURDAY.isoformat())["outfits"][0]["pieces"] == planned
 
 
 def test_a_planned_piece_that_cannot_be_worn_by_then_is_swapped(client, clock):

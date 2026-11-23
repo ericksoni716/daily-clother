@@ -60,20 +60,22 @@ test('another day: the sheet, the day in Today\'s layout, "Wear this tomorrow", 
   await expect(page.getByTestId('recent-outfits')).toHaveCount(0);
   const wear = current(page).getByRole('button', { name: 'Wear this tomorrow' });
   await expect(wear).toBeVisible();
-  const before = (await current(page).boundingBox())!.y;
+  // where the outfit sits under the heading: it must not move when the plan changes (a tap may scroll the page itself)
+  const offset = async () => (await current(page).boundingBox())!.y - (await page.locator('#today-title').boundingBox())!.y;
+  const before = await offset();
 
   await wear.click();
   await expect(page.locator('.toast', { hasText: 'Planned for tomorrow. That morning, Today opens on it.' })).toBeVisible();
   await expect(current(page).getByTestId('planned-day')).toHaveText('Planned for tomorrow');
   await expect(planLine(page)).toContainText('Planned for tomorrow. Remove the plan');
-  expect((await current(page).boundingBox())!.y).toBe(before);   // the page holds still
+  expect(await offset()).toBe(before);   // the page holds still
   // a plan, not a wear: nothing worn today
   const worn = (await (await page.request.get('/api/outfits/worn?limit=1')).json()).outfits as { worn_on: string }[];
   expect(worn[0]?.worn_on).not.toBe(localDay(1));
 
   await planLine(page).getByRole('button', { name: 'Remove the plan' }).click();
   await expect(planLine(page)).toContainText('The plan for tomorrow is gone.');
-  expect((await current(page).boundingBox())!.y).toBe(before);
+  expect(await offset()).toBe(before);
   await planLine(page).getByRole('button', { name: 'Undo' }).click();
   await expect(planLine(page)).toContainText('Planned for tomorrow. Remove the plan');
 

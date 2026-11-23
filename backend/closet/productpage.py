@@ -7,6 +7,12 @@ from this computer and reads what shops publish for search engines and link prev
 picture, the price, its currency and whether it can be bought come back as the page wrote them (`parse`, pure); the
 caller checks every value before it keeps one, as it does Claude's (`shop.clean_read`).
 
+A checkout code is read from the page's visible text only (never its scripts or styles): a discount and a code written
+together in one short stretch, "40% off with code SAVE40", "Use code SAVE40 for 40% off", "$20 off with code TAKE20"
+(`codes`). It is read with care: an offer for only some people (a first order, new customers, signing up, the app,
+members) is passed over, and so is "up to 40% off" and a word that is plainly not a code. Many shops put their banners
+in with a script, so most pages have none in their text: that is expected.
+
 The address was chosen somewhere else, so it is fetched with care (`Reader`):
 - only `https://`, on the usual port, with no name or password in it and at most URL_MAX characters;
 - the host is a name, never a number, and every address the name stands for must be on the internet: not this
@@ -31,7 +37,7 @@ import time
 import zlib
 from collections import deque
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from urllib.parse import quote, urljoin, urlsplit
 
@@ -53,6 +59,40 @@ SIGNS = {"$": "USD", "€": "EUR", "£": "GBP"}   # a currency read from a price
 GONE = {"outofstock", "soldout", "discontinued", "oos"}
 NAT64 = ipaddress.ip_network("64:ff9b::/96")
 WRITTEN = re.compile(r"\s*([A-Z]{3})?\s*[$€£]?\s*-?\s*[\d.,]+\s*[$€£]?\s*([A-Z]{3})?\s*")
+
+# A checkout code in the page's text (`codes`)
+TEXT_KEPT = 200_000    # characters of the page's visible text looked through (a banner is near the top)
+STRETCH = 80           # two neighbouring bits of text this short or shorter are read together ("40% off" / "Use code X")
+NEAR = 50              # the most characters between a discount and its code
+BREAK = 20             # ...each comma, full stop or box between them counting this many more (`_gap`)
+HIDDEN = {"script", "style", "template", "noscript", "svg", "head", "title", "textarea", "select"}
+BLOCKS = {"address", "article", "aside", "blockquote", "br", "button", "dd", "details", "dialog", "div", "dl", "dt",
+          "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "li",
+          "main", "nav", "ol", "p", "pre", "section", "summary", "table", "tbody", "td", "tfoot", "th", "thead", "tr",
+          "ul", "body", "html"}
+_AMOUNT = r"\d{1,5}(?:[.,]\d{1,2})?"
+# "40% off", "$20 off", "20 € off", "save 40%"; a match with neither "save" nor "off" is not a discount
+DISCOUNT = re.compile(rf"(?P<save>\bsave\s+)?(?<![\w.,$€£])(?:(?P<pct>\d{{1,2}}(?:\.\d{{1,2}})?)\s?%"
+                      rf"|(?P<sign>[$€£])\s?(?P<amt>{_AMOUNT})|(?P<amt2>{_AMOUNT})\s?(?P<sign2>[$€£]))(?P<off>\s*off\b)?",
+                      re.I)
+UP_TO = re.compile(r"\b(?:up\s+to|as\s+much\s+as)\s*$", re.I)
+CODE = re.compile(r"(?<!\w)(?:promo\s*|discount\s*|coupon\s*|offer\s*)?code\b"
+                  r"[\s:\-–—\"“'‘]*(?P<code>[A-Za-z0-9][A-Za-z0-9_-]{2,29})(?![A-Za-z0-9_-])", re.I)
+# "zip code 10001", "style code AB-123": a code, but not one for checkout
+NOT_THIS = re.compile(r"\b(?:zip|postal|post|area|country|security|verification|product|style|item|model|colou?r"
+                      r"|reference|referral|gift\s+card)\s*$", re.I)
+# an offer for only some people, said in the same stretch of text or the one beside it: passed over
+LIMITED = re.compile(r"\b(?:first[\s-]+(?:order|purchase|time)|new\s+(?:customer|subscriber|member|account)s?|sign[\s-]?up"
+                     r"|subscri(?:be|bed|ber|bers|bing|ption)|newsletter|e-?mail\s+list|app[\s-]+only|in[\s-]+(?:the\s+)?app"
+                     r"|app\s+(?:exclusive|users?)|members?|membership|loyalty|students?|referr?al|refer\s+a\s+friend)\b",
+                     re.I)
+# words written after "code" that are plainly not one ("USE CODE AT CHECKOUT", "NO CODE NEEDED"); also checked of
+# Claude's codes (`shop.clean_code`)
+NOT_CODES = frozenset({
+    "CODE", "CODES", "OFF", "SALE", "SAVE", "PROMO", "COUPON", "DISCOUNT", "USE", "USING", "ENTER", "APPLY", "APPLIED",
+    "WITH", "AT", "CHECKOUT", "CART", "BAG", "FOR", "THE", "AND", "YOUR", "NOW", "TODAY", "HERE", "BELOW", "ABOVE", "ONLY",
+    "EXTRA", "FREE", "SHIPPING", "ORDER", "ORDERS", "NEW", "NONE", "NEEDED", "REQUIRED", "NOT", "ALL", "SITEWIDE",
+    "STOREWIDE", "DETAILS", "TERMS", "EXCLUSIONS", "VALID", "EXPIRES", "ENDS", "SHOP"})
 
 # What the owner is told, in plain words
 NOT_A_LINK = "That is not a link to a page. Paste the whole address, starting with https://."
@@ -93,6 +133,15 @@ class Target:
 
 
 @dataclass
+class Code:
+    """A checkout code the page's text shows with its discount, as written (unchecked): a percent or an amount off."""
+    code: str
+    percent: float | None = None
+    amount: float | None = None
+    currency: str | None = None   # an amount's, from its sign
+
+
+@dataclass
 class Product:
     """What a page says about its product, as written (unchecked)."""
     name: str | None = None
@@ -101,6 +150,7 @@ class Product:
     price: float | None = None
     currency: str | None = None
     available: bool = True
+    codes: list[Code] = field(default_factory=list)   # every checkout code its text shows; the caller keeps the best
 
 
 Resolve = Callable[[str], list[str]]
@@ -288,7 +338,8 @@ class Reader:
 # ------------------------------------------------------------------ reading the page (pure)
 class _Collect(HTMLParser):
     """The JSON-LD blocks, the meta tags (by property or name, the first of each), the microdata given as `content`,
-    and the title."""
+    the title, and the visible text in bits, one per block of the page (a paragraph, a list's line, a banner's div);
+    never what is inside a script, a style, the head or a drawing."""
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -296,9 +347,20 @@ class _Collect(HTMLParser):
         self.meta: dict[str, str] = {}
         self.items: dict[str, str] = {}
         self.title: str | None = None
+        self.text: list[str] = []
         self._block: list[str] | None = None
         self._title: list[str] | None = None
         self._svg = 0
+        self._hidden = 0
+        self._bit: list[str] = []
+        self._kept = 0
+
+    def _break(self):
+        bit = " ".join("".join(self._bit).split())
+        self._bit = []
+        if bit and self._kept < TEXT_KEPT:
+            self.text.append(bit)
+            self._kept += len(bit)
 
     def handle_starttag(self, tag, attrs):
         a = {k.lower(): (v or "") for k, v in attrs}
@@ -308,6 +370,12 @@ class _Collect(HTMLParser):
             self._svg += 1
         elif tag == "title" and self.title is None and not self._svg:
             self._title = []
+        if tag == "body":
+            self._hidden = 0   # a head whose end tag was left out (HTML allows it) ends where the body starts
+        if tag in HIDDEN:
+            self._hidden += 1
+        elif tag in BLOCKS:
+            self._break()
         if tag == "meta":
             key = (a.get("property") or a.get("name") or "").strip().lower()
             if key and "content" in a:
@@ -324,12 +392,22 @@ class _Collect(HTMLParser):
         elif tag == "title" and self._title is not None:
             self.title = "".join(self._title)
             self._title = None
+        if tag in HIDDEN:
+            self._hidden = max(0, self._hidden - 1)
+        elif tag in BLOCKS:
+            self._break()
 
     def handle_data(self, data):
         if self._block is not None:
             self._block.append(data)
         elif self._title is not None:
             self._title.append(data)
+        elif not self._hidden:
+            self._bit.append(data)
+
+    def close(self):
+        super().close()
+        self._break()
 
 
 def _text(value: object) -> str | None:
@@ -463,9 +541,88 @@ def _best(offers: list[tuple[float | None, str | None, bool | None]]) -> tuple[f
     return None, next((o[1] for o in offers if o[1]), None), next((o[2] for o in offers if o[2] is not None), True)
 
 
+def _stretches(bits: list[str]) -> Iterator[tuple[int, int, str]]:
+    """Each bit of visible text, then each two neighbouring short bits read together (a banner often puts the discount
+    and the code in two boxes), with the first and last bit's places."""
+    for i, bit in enumerate(bits):
+        yield i, i, bit
+    for i in range(len(bits) - 1):
+        if len(bits[i]) <= STRETCH and len(bits[i + 1]) <= STRETCH:
+            yield i, i + 1, f"{bits[i]} | {bits[i + 1]}"
+
+
+def _discounts(text: str) -> list[tuple[int, int, float | None, float | None, str | None]]:
+    """Every discount in the text: (start, end, percent, amount, the amount's currency). Not "up to 40% off", which
+    is not every product."""
+    out = []
+    for m in DISCOUNT.finditer(text):
+        if not (m.group("save") or m.group("off")) or UP_TO.search(text[max(0, m.start() - 20):m.start()]):
+            continue
+        if m.group("pct"):
+            out.append((m.start(), m.end(), float(m.group("pct")), None, None))
+        else:
+            amount, _ = number(m.group("amt") or m.group("amt2"))
+            out.append((m.start(), m.end(), None, amount, SIGNS[m.group("sign") or m.group("sign2")]))
+    return out
+
+
+def _codes_in(text: str) -> list[tuple[int, int, str]]:
+    """Every code in the text after "code" or "promo code": (start, end, the code). A word written in small letters
+    with no digit ("use code at checkout") is a word, not a code; so is one plainly not a code ("CODE", "OFF")."""
+    out = []
+    for m in CODE.finditer(text):
+        token = m.group("code")
+        if NOT_THIS.search(text[max(0, m.start() - 25):m.start()]) or token.upper() in NOT_CODES:
+            continue
+        if token.isupper() or any(c.isdigit() for c in token):
+            out.append((m.start(), m.end(), token))
+    return out
+
+
+def _gap(text: str, a: tuple, b: tuple) -> int:
+    """How far apart two things found in the text are, by (start, end): the characters between them, and BREAK more
+    for each comma, full stop or box between (so "SAVE20 for 20% off, or code SAVE40" keeps 20% with SAVE20); -1 when
+    they overlap."""
+    start, end = (a[1], b[0]) if b[0] >= a[1] else (b[1], a[0]) if a[0] >= b[1] else (0, -1)
+    if end < start:
+        return -1
+    between = text[start:end]
+    return len(between) + BREAK * sum(between.count(c) for c in ",.;!?|")
+
+
+def _far(text: str, a: tuple, b: tuple) -> int:
+    """`_gap`, with things that overlap as far apart as can be."""
+    g = _gap(text, a, b)
+    return g if g >= 0 else 10**6
+
+
+def codes(bits: list[str]) -> list[Code]:
+    """The checkout codes the page's visible text shows with their discount: a code and a discount in one short stretch
+    of text, at most NEAR characters apart, each the other's nearest. An offer said there, or in the text just before
+    or after it, to be for only some people (`LIMITED`) is passed over. Unchecked: the caller checks each value and keeps
+    the biggest discount."""
+    out: list[Code] = []
+    for first, last, text in _stretches(bits):
+        found, offers = _codes_in(text), _discounts(text)
+        if not found or not offers:
+            continue
+        around = " ".join(bits[max(0, first - 1):last + 2])
+        if LIMITED.search(around):
+            continue
+        for c in found:
+            d = min(offers, key=lambda d: _far(text, c, d))
+            if _far(text, c, d) > NEAR or min(found, key=lambda other: _far(text, other, d)) is not c:
+                continue   # none near enough, or the discount belongs to another code, nearer to it
+            code = Code(c[2], percent=d[2], amount=d[3], currency=d[4])
+            if code not in out:
+                out.append(code)
+    return out
+
+
 def parse(page: str, url: str) -> Product:
     """What the page says about its product: from JSON-LD first, then the OpenGraph tags, then microdata, then its
-    title. Nothing is checked here beyond being read; a price of 0 is taken as none (shops write it for "ask us")."""
+    title; and the checkout codes its visible text shows (`codes`). Nothing is checked here beyond being read; a price
+    of 0 is taken as none (shops write it for "ask us")."""
     collect = _Collect()
     try:
         collect.feed(page)
@@ -504,4 +661,5 @@ def parse(page: str, url: str) -> Product:
     image = out.image_url or _image(meta.get("og:image:secure_url")) or _image(meta.get("og:image")) \
         or _image(meta.get("twitter:image"))
     out.image_url = urljoin(url, image) if image else None
+    out.codes = codes(collect.text)
     return out

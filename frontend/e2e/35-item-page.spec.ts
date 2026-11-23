@@ -174,6 +174,35 @@ test.describe('the item page in the demo closet', () => {
     await page.unroute(`**/api/items/${id}`);
   });
 
+  test("Fix the details says a failed read of its details in the app's words, with Try again", async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    const id = demoId('Grey hoodie');
+    let fail = true;
+    await page.route(`**/api/items/${id}/details**`, (route) => (fail && route.request().method() === 'GET'
+      ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"detail":"Internal Server Error"}' })
+      : route.fallback()));
+    await page.goto(`/item/${id}`);
+    await page.getByRole('button', { name: 'Something wrong? Change the details' }).click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByTestId('details-failed')).toContainText("Couldn't load the details.", { timeout: 30_000 });
+    await expect(sheet).not.toContainText('Internal Server Error');
+    fail = false;
+    await sheet.getByRole('button', { name: 'Try again' }).click();
+    await expect(sheet.getByTestId('details-failed')).toHaveCount(0);
+    // a detail's own choices: the same, under the detail, not a toast
+    fail = true;
+    await sheet.locator('.fix-detail').first().click();
+    await expect(sheet.getByTestId('choices-failed')).toContainText("Couldn't load the choices", { timeout: 30_000 });
+    await expect(page.locator('.toast')).toHaveCount(0);
+    fail = false;
+    await sheet.getByTestId('choices-failed').getByRole('button', { name: 'Try again' }).click();
+    await expect(sheet.getByTestId('choices-failed')).toHaveCount(0);
+    await expect(sheet.locator('.fix-choices')).toBeVisible();
+    await page.unroute(`**/api/items/${id}/details**`);
+  });
+
   test("a colour's shades are offered under it, and the shade chosen is kept with its colour", async ({ page }) => {
     await page.setViewportSize(PHONE);
     await goToCloset(page);

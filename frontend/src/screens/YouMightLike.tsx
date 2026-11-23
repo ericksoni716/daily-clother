@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { CloseIcon, HangerIcon } from '../components/Icons';
 import { Toggle } from '../components/Toggle';
-import { Button, Fold, Notice, Section, SegmentedControl, ShowMore, buttonClass } from '../components/ui';
+import { Button, Failed, Fold, Notice, Section, SegmentedControl, ShowMore, buttonClass } from '../components/ui';
 import {
   cardState, DEMO, LOOK_SENDS, LOOKING, lookCostWords, NEVER_LOOKED, NOTHING, offerWords, pickName, picksOf, picksPoll,
   PICKS_SHOWN, REFUSED, runKind, SALE_NEVER, SALE_NOTHING, saleNote, salePriceLine, savedPicks, savedView, savePicks,
@@ -49,7 +49,15 @@ export function YouMightLike({ locked }: { locked: boolean }) {
       </Section>
     );
   }
-  if (shown.kind === 'error') return null;   // nothing read and nothing kept on this device: nothing to back it
+  if (shown.kind === 'error') {
+    // nothing read and nothing kept on this device: offline, the banner says it once; otherwise why, with Try again
+    if (shown.offline) return null;
+    return (
+      <Section id="picks-title" title="You might like" className="picks">
+        <Failed query={q} what="what you might like" testId="picks-failed" />
+      </Section>
+    );
+  }
   const data = shown.data;
   const off = locked || shown.savedAt !== null;
   const title = off ? OFFLINE_TITLE : undefined;

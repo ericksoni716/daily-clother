@@ -73,10 +73,10 @@ test('send a piece to the cleaner\'s, see it on the closet and not on Today, the
   await expect(page.getByTestId('current-outfit').getByTestId('piece').first()).toBeVisible();
   expect(await todaysIds(page)).not.toContain(pieceId);
 
-  // back, one tap, and Undo puts it away again
+  // back, one tap, and Undo puts it away again (the closet comes back still showing what is away: its filters are kept)
   await page.goto('/');
   await expect(page.getByTestId('away')).toHaveText('1 away');
-  await page.getByTestId('away').click();
+  await expect(page.getByRole('button', { name: 'Remove filter: Away' })).toBeVisible();
   await away.getByRole('button', { name: /^It's back/ }).click();
   await expect(away).toContainText('Back in your closet');
   await away.getByRole('button', { name: /^Undo/ }).click();

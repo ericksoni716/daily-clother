@@ -469,7 +469,7 @@ def test_what_was_spent_is_counted_by_the_year_each_piece_was_bought():
     assert (spent["pieces"], spent["priced"], spent["dated"], spent["unpriced"]) == (6, 4, 3, 2)
     assert spent["enough"] is True
     # the piece to price first is the one worn most
-    assert spent["first_unpriced"] == "cap"
+    assert spent["first_missing"] == "cap"
 
 
 def test_what_was_spent_waits_for_a_few_pieces_with_a_price_and_a_date():
@@ -478,7 +478,7 @@ def test_what_was_spent_waits_for_a_few_pieces_with_a_price_and_a_date():
     spent = find(rows, [])["spending"]
     assert spent["enough"] is False and spent["dated"] == 1 and spent["unpriced"] == 1
     none = find([item("a"), item("b")], [])["spending"]
-    assert none["enough"] is False and none["priced"] == 0 and none["by_year"] == [] and none["first_unpriced"] == "a"
+    assert none["enough"] is False and none["priced"] == 0 and none["by_year"] == [] and none["first_missing"] == "a"
     assert none["earned"] == [] and none["not_earned"] == []
 
 
@@ -486,6 +486,8 @@ def test_a_date_that_is_not_a_date_counts_as_none():
     rows = [item(f"p{n}", price=1000, acquired_on=d) for n, d in enumerate(["2026-01-01", "soon", "", None])]
     spent = find(rows, [])["spending"]
     assert spent["dated"] == 1 and spent["by_year"] == [{"year": 2026, "spent_cents": 1000, "pieces": 1}]
+    # every piece has a price, so the one to fill in first is one with no date, the most worn of them
+    assert find(rows, worn("p3", 1))["spending"]["first_missing"] == "p3"
 
 
 def test_pieces_that_earned_their_price_and_those_that_have_not():

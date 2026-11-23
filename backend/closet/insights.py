@@ -528,11 +528,13 @@ def _spending(pieces: list[_Piece], today: date, wishlist: Iterable[dict] | None
                     key=lambda p: (_per_wear(p), -len(p.wears), p.name.lower(), p.id))[:EARNED_LIST]
     not_earned = sorted((p for p in priced if len(p.wears) < EARNED_MIN_WEARS),
                         key=lambda p: (-p.price, len(p.wears), p.name.lower(), p.id))[:EARNED_LIST]
-    # the piece to give a price first: the one worn most, so its cost per wear means the most
-    first = min(unpriced, key=lambda p: (-len(p.wears), p.name.lower(), p.id)) if unpriced else None
+    # the piece to fill in first: the one worn most (its cost per wear means the most) among those with no price, or,
+    # when every piece has one, among those with no date bought
+    missing = unpriced or [p for p in priced if p.acquired is None]
+    first = min(missing, key=lambda p: (-len(p.wears), p.name.lower(), p.id)) if missing else None
     return {
         "currency": CURRENCY, "year": today.year, "pieces": len(pieces), "priced": len(priced), "dated": len(dated),
-        "unpriced": len(unpriced), "first_unpriced": first.id if first else None,
+        "unpriced": len(unpriced), "first_missing": first.id if first else None,
         "enough": len(dated) >= SPENT_MIN_PIECES,
         "by_year": sorted(years.values(), key=lambda y: -y["year"]),
         "earned": [{"id": p.id, "price_cents": p.price, "wears": len(p.wears), "per_wear_cents": _per_wear(p)} for p in earned],

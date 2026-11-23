@@ -223,7 +223,7 @@ def test_what_is_sent_with_an_outfit_is_checked_and_nothing_is_kept_on_a_mistake
         r = client.post("/api/wears", json={"item_ids": all_ids(ids), "outfit": outfit})
         assert r.status_code == 422 and words in r.json()["detail"], (outfit, r.text)
     assert client.post("/api/wears", json={"item_ids": all_ids(ids), "outfit": "outfit"}).status_code == 422
-    r = client.post("/api/wears", json={"item_ids": all_ids(ids), "worn_on": days_ago(-1), "outfit": good})
+    r = client.post("/api/wears", json={"item_ids": all_ids(ids), "worn_on": days_ago(-2), "outfit": good})   # the computer's tomorrow is a phone's today
     assert r.status_code == 422 and "future" in r.json()["detail"]
     assert client.get("/api/outfits/worn").json()["outfits"] == []
     assert all(client.get(f"/api/items/{i}").json()["wear_count"] == 0 for i in all_ids(ids))

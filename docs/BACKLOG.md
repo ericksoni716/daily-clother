@@ -493,7 +493,7 @@ Patterns from the photo (owner's request; it had fallen out of the app):
 The owner asked this session to work by itself: bring the discovery steps in, review the app for bugs and UI errors, and build what would make Nines the closet app to have, "without sacrificing the core functionality". Each line is its own pull request. The order is by how often the owner would feel it (DESIGN, "The jobs"). Nothing here adds a place to the tab bar, a door, or a phone notification (the owner said no to those). What a line left undone goes under "Left over from finished work" as always.
 
 **First, what is already there made right**
-- [ ] **The review's findings** (`docs/assessment/` gets a short report of the two reviews of 23 November, the screens and the rules; the fixes go in small batches, each fault shown with a failing test first).
+- [x] **The review's findings** (`docs/assessment/review-23-november.md` is the short report of the two reviews of 23 November, the screens and the rules, with what was done about each finding; the fixes went in as #316 to #319, #322, #324 and #326. Left: a few words under P3 in that report).
 - [x] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
 - [x] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
 - [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.

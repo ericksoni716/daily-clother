@@ -47,7 +47,9 @@ test.describe('the drawing, with a stand-in for Claude', () => {
     await stored;
     await expect(drawing).not.toHaveAttribute('src', before!);
     const svg = await page.request.get(backend.url + (await drawing.getAttribute('src'))!);
-    expect((await svg.text()).toLowerCase()).toContain('#b8322e');
+    // the colour alone is drawn in the colour word's own red (the drawing's), not a shade nobody chose (23 November,
+    // P15: the page's swatch, #b8322e, was sent as if it were the piece's own colour)
+    expect((await svg.text()).toLowerCase()).toContain('#b8332e');
 
     // the grid can show drawings instead of photos for the moment (the choice is in the Filter sheet); opened again,
     // it starts from the setting (off)

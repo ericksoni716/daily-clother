@@ -492,8 +492,9 @@ def test_check_now_gets_a_found_release_ready_without_waiting_for_the_next_look(
     assert len(looks) == 1 and github.asked == []   # its first look found nothing to do; the next is in 30 minutes
     status = client.post("/api/updates/check").json()
     assert status["available"]["version"] == "0.3.0" and not status["ready"]
+    # the release is ready inside the look, a moment before the wrapper above counts the look: wait for both
     deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and not updater.status()["ready"]:
+    while time.monotonic() < deadline and not (len(looks) == 2 and updater.status()["ready"]):
         time.sleep(0.05)
     assert len(looks) == 2 and updater.status()["ready"]   # looked again at once: fetched, checked, offered
     assert not updater.spawned and Path(updater.executable).read_bytes() == OLD_EXE   # "Ask me first": not installed

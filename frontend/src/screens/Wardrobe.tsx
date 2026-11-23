@@ -12,7 +12,7 @@ import { LifeQuestions } from '../components/LifeQuestions';
 import { BackLink, EmptyState, Notice, PageHeader } from '../components/ui';
 import { saveGaps, type Wish } from '../gaps';
 import { saveInsights } from '../insights';
-import { goBack, navigate } from '../router';
+import { goBack, navigate, wishPath } from '../router';
 import { touch, useItems } from '../queries';
 import { queryKeys, type EditKind, type KeyName } from '../queryKeys';
 import { shownWithCopy, useTellFailure } from '../savedCopy';
@@ -21,7 +21,7 @@ import type { SituationId } from '../life';
 import { wishById } from '../wouldwork';
 import { ItemDetail } from './ItemDetail';
 import { INSIGHTS_OFFLINE, savedInsights, Usage } from './Insights';
-import { LifeAbout, LifeBasis, OFFLINE_TITLE, savedLists, savedWhen, Thinking, WishCard, wishPath, WorthBuying, type Actions, type Lists } from './Missing';
+import { LifeAbout, LifeBasis, OFFLINE_TITLE, savedLists, savedWhen, Thinking, WishCard, WorthBuying, type Actions, type Lists } from './Missing';
 import { sharedLink } from '../shop';
 import { LinkForm } from './Shop';
 import { WouldWork } from './WouldWork';
@@ -142,7 +142,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wide
       }
     },
     saveNote: (w, note) => wishChange(w.id, () => api.changeWish(w.id, { note }), 'Note saved'),
-    savePrice: (w, changes) => wishChange(w.id, () => api.changeWish(w.id, changes), 'Price range saved'),
+    savePrice: (w, changes) => wishChange(w.id, () => api.changeWish(w.id, changes), 'Saved'),
     bought: async (w) => {
       if (await wishChange(w.id, () => api.wishBought(w.id), `Taken off the list. Add a photo of your new ${w.name.replace(/^(A|An) /, '').toLowerCase()}.`)) navigate('/add');
     },

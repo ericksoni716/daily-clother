@@ -257,8 +257,8 @@ but is not interpreted yet. Lounging is only a guess from relaxed tops and
 soft trousers, not a way to recognise sleepwear; exercise cannot yet tell
 running gear from gym clothes or judge sports performance.
 
-**Would this work?**, under **Thinking of buying something?** on the Wardrobe (or **I found one: would it
-work?** on a wish) checks a piece before you buy it. Take or choose a photo of
+**Would this work?**, under **Thinking of buying something?** on the Wardrobe (or **Would it go with my
+clothes?** on a wish) checks a piece before you buy it. Take or choose a photo of
 it (in a shop, or a picture saved from a shop's page) and Claude describes it,
 or describe it by hand: the kind, the colour, how dressy, the season, how heavy
 the cloth is and whether it keeps the rain off. Nines then tries it with your
@@ -279,14 +279,17 @@ Claude. Checks are kept only while Nines is running.
 
 **Find some** on a wish asks Claude to search the web for up to 8 things on
 sale now that match it: what the suggestion says to look for, your note, and
-the **Price range** if you set one on the wish. It takes a minute or two. Each
+the most you'd pay if you set it (**Set the most you'd pay** on the wish: one amount, which
+also decides when Nines tells you a price went down). It takes a minute or two. Each
 one found shows its picture, shop and price, and how it would work with your
 clothes, with the same answers and reasons as **Would this work?**. **Open in
 shop** opens the shop's page in a new tab (from Nines' own window, in your
 usual browser); nothing is ever bought or opened for
-you, and **Remove** takes one off. **Check prices** looks at their prices again,
+you, and **Stop watching** takes one off. **Check now** looks at their prices again,
 and while Nines is running it does so by itself once a day; when a price has
-gone down the wish shows it ("Was $180.00, now $144.00"). Searching goes the
+gone down the wish shows it ("Was $180.00, now $144.00") and a banner at the top
+of the page tells you once, with **See it** and **Got it** (with the most you'd
+pay set, only when the price goes down to it or less). Searching goes the
 same way as describing an item: your Claude plan first, the API key only when
 you have switched it on, and never past its monthly limit (when only the key
 can be used, the wish says what a search could cost at most). The demo closet
@@ -296,9 +299,10 @@ never searches.
 yourself: paste it and tap **Add to the list**. Nines opens the page from your
 computer and makes a wish named after the product, with its price. Only when the
 page doesn't give its price is Claude asked to read it, the same way as **Check
-prices**. On a wish's page, **Add a link** adds another product to that wish.
+now**. On a wish's page, **Add a link** adds another product to that wish.
 The pages you send are checked once a day with the rest, and when a price goes
-down, the wish's row in the wishlist says so ("Down from $68.00 to $54.40").
+down the banner tells you, and the wish's row in the wishlist says so ("Down from
+$68.00 to $54.40").
 Nines only opens `https://` addresses of shops on the internet, never one on
 your own network. To send a page from your phone's share sheet, see **Send a
 product's page to your wishlist** below.

@@ -62,6 +62,8 @@ export const queryKeys = {
   wishlist: () => ['wishlist'] as const,
   /** `GET /api/wishlist/{id}/finds`: finds for a wish. */
   finds: (wishId: string) => ['finds', wishId] as const,
+  /** `GET /api/wishlist/news`: prices that came down since their wish was last looked at, for the banner. */
+  news: () => ['news'] as const,
   /** `GET /api/would-this-work/{id}`: a check, while it is answered. */
   wouldWork: (checkId: string) => ['wouldWork', checkId] as const,
   insights: () => ['insights'] as const,
@@ -118,7 +120,7 @@ export const TOUCHES = {
   /** What's missing: a gap hidden or shown again. */
   gap: ['gaps'],
   /** The wishlist: a wish added, changed, bought or removed, and its finds. */
-  wish: ['wishlist', 'gaps', 'finds'],
+  wish: ['wishlist', 'gaps', 'finds', 'news'],
   /** The note about the day. */
   day: ['day'],
   /** Any of the settings (the place, the laundry and rewear rules, how Claude is reached, its monthly limit…). */

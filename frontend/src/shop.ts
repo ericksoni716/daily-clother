@@ -1,5 +1,8 @@
-/** Shopping for a wish: the products Claude found and the pages the owner sent, their prices, and plain words for them. */
+/** Shopping for a wish: the products Claude found and the pages the owner sent, their prices, the news when one went
+ * down, and plain words for them. */
 import type { Wish } from './gaps';
+import { timeOf } from './today';
+import { localDay, whenWorn } from './wears';
 import type { Verdict, WouldPiece } from './wouldwork';
 
 export interface PricePoint {
@@ -96,6 +99,8 @@ export function downWords(d: Pick<PriceDrop, 'from' | 'to' | 'currency'>): strin
 
 /** A wish's newest page sent as a link, as its row in the wishlist shows it. */
 export interface WishLink {
+  /** The product's whole name, as its page gives it. */
+  name?: string;
   shop: string;
   price: number | null;
   currency: string;
@@ -166,6 +171,102 @@ export function rangeWords(w: Pick<Wish, 'price_min' | 'price_max' | 'price_curr
   if (high !== null) return `Up to ${priceWords(high, cur)}`;
   if (low !== null) return `From ${priceWords(low, cur)}`;
   return '';
+}
+
+type PriceOf = Pick<Wish, 'price_min' | 'price_max' | 'price_currency'>;
+
+/** What Claude's searches keep to, said where the price is offered when nothing is watched yet: "Claude looks at any
+ * price.", "Claude looks for ones up to $150.00." (a lower limit, which older wishes may still have, as it is). */
+export function searchWords(w: PriceOf): string {
+  const range = rangeWords(w);
+  if (!range) return 'Claude looks at any price.';
+  const both = w.price_min != null && w.price_max != null;
+  return `Claude looks for ones ${both ? 'from ' : ''}${range.charAt(0).toLowerCase()}${range.slice(1)}.`;
+}
+
+/** The one sentence about watching, under what is watched: the price checked once a day, and what Nines tells you. */
+export function watchWords(w: PriceOf): string {
+  const most = w.price_max != null ? ` to ${priceWords(w.price_max, w.price_currency ?? 'USD')} or less` : '';
+  const told = `Nines checks the price once a day while it's running and tells you when it goes down${most}.`;
+  return w.price_min != null ? `${told} ${searchWords(w)}` : told;
+}
+
+/** When the prices were last looked at: the last price check, the last search (its prices were read then) or the last
+ * time Nines read a page sent as a link, whichever is latest. */
+export function lastChecked(answer: Pick<FindsAnswer, 'prices_checked_at' | 'found_at'> & { finds: Pick<Find, 'read_at'>[] }): string | null {
+  const times = [answer.prices_checked_at, answer.found_at, ...answer.finds.map((f) => f.read_at)]
+    .filter((t): t is string => !!t && !Number.isNaN(new Date(t).getTime()));
+  return times.length ? times.reduce((a, b) => (new Date(a) > new Date(b) ? a : b)) : null;
+}
+
+/** "Last checked today at 9:05 AM.", "Last checked yesterday.", "Last checked on 3 Nov."; "Not checked yet." */
+export function checkedWords(at: string | null, today: string = localDay()): string {
+  if (!at) return 'Not checked yet.';
+  const when = whenWorn(localDay(new Date(at)), today);
+  const time = when === 'today' ? timeOf(at) : '';
+  return `Last checked ${when}${time ? ` at ${time}` : ''}.`;
+}
+
+/** The finds in the order the wish's page shows them: the pages you sent first, then Claude's, each as kept. */
+export function findsInOrder<T extends Pick<Find, 'link'>>(finds: T[]): T[] {
+  return [...finds.filter((f) => f.link), ...finds.filter((f) => !f.link)];
+}
+
+/** How a find's price went, when it changed from one day to another: "The price was $177.00 on 3 Nov, $160.00 on
+ * Tuesday and $150.00 yesterday.", the last three prices it changed to, each from the day it was first seen at it (a
+ * day's last price stands for the day). Null when it never did. */
+export function historyWords(history: PricePoint[], today: string = localDay()): string | null {
+  const days: { day: string; point: PricePoint }[] = [];
+  for (const point of history) {
+    if (point.price === null) continue;
+    const day = localDay(new Date(point.at));
+    const last = days[days.length - 1];
+    if (last?.day === day) last.point = point;
+    else days.push({ day, point });
+  }
+  const same = (a: PricePoint, b: PricePoint) => a.currency === b.currency && Math.abs((a.price ?? 0) - (b.price ?? 0)) < 0.005;
+  const changes = days.filter((d, i) => i === 0 || !same(days[i - 1].point, d.point));
+  if (changes.length < 2) return null;
+  const said = changes.slice(-3).map((d) => `${priceWords(d.point.price, d.point.currency)} ${whenWorn(d.day, today)}`);
+  return `The price was ${said.slice(0, -1).join(', ')} and ${said[said.length - 1]}.`;
+}
+
+/** Whether a price is no more than the most you'd pay for the wish; never when none is set, or set in another currency
+ * (prices are never converted). */
+export function atYourPrice(w: PriceOf, price: { to: number; currency: string }): boolean {
+  return w.price_max != null && (w.price_currency ?? 'USD') === price.currency && price.to <= w.price_max + 0.005;
+}
+
+/** Said beside the drop on a wish's row in the wishlist ("Down from $68.00 to $54.40") when the price is no more than
+ * the most you'd pay; null otherwise. */
+export function withinWords(w: PriceOf & Pick<Wish, 'drop'>): string | null {
+  return w.drop && atYourPrice(w, w.drop) ? "That's within your price." : null;
+}
+
+/** A price that came down since you last looked at the wish (`GET /api/wishlist/news`): the banner's news. */
+export interface PriceNews {
+  wish_id: string;
+  name: string;
+  shop: string;
+  from: number;
+  to: number;
+  currency: string;
+  percent: number;
+  at: string;
+  /** No more than the most you'd pay, when you set it in this currency. */
+  at_price: boolean;
+}
+
+/** How often the news is asked for again while the page is open and shown (and when it comes back into view). */
+export const NEWS_POLL_MS = 30 * 60 * 1000;
+
+/** The banner's sentence: "A tan rain coat is down to $150.00 at Example Shop, from $177.00." for one wish; for several,
+ * how many. */
+export function newsWords(news: Pick<PriceNews, 'name' | 'shop' | 'from' | 'to' | 'currency' | 'at_price'>[]): string {
+  if (news.length !== 1) return `Prices went down for ${news.length} things on your wishlist.`;
+  const [n] = news;
+  const price = n.at_price ? " That's within your price." : '';
+  return `${n.name} is down to ${priceWords(n.to, n.currency)} at ${n.shop}, from ${priceWords(n.from, n.currency)}.${price}`;
 }
 
 /** Only a web address may be opened or shown: anything else gives null (the server checks too). */

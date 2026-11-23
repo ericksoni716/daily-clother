@@ -1,5 +1,5 @@
-"""Shopping for a wish: finds kept and checked against the closet, price checks, and products sent as links
-(closet/shop.py, tagger/shopping.py, migrations 0018 and 0042).
+"""Shopping for a wish: finds kept and checked against the closet, price checks, products sent as links, and the
+price news the banner tells (closet/shop.py, tagger/shopping.py, migrations 0018, 0042 and 0045).
 
 Claude is never called: `FakeShop` stands in for it (searching and looking up prices), or, for the API route,
 `FakeSearchApi` stands in for Anthropic's API with its web search tool, and the plan route's `claude -p` is never run.
@@ -17,7 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from closet import app as app_module
-from closet import db, demo, gaps, productpage, shop, spend
+from closet import db, demo, gaps, life, productpage, shop, spend
 from closet.tagger import correcting, shopping
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
@@ -595,7 +595,8 @@ def test_a_link_becomes_a_wish_with_its_one_find_read_from_the_page(client, fake
     assert fake_shop.calls == []   # the page gave its price: Claude was never asked
     listed, = client.get("/api/wishlist").json()["wishes"]
     assert listed["name"] == "Linen camp-collar shirt"   # named after the product once read
-    assert listed["link"] == {"shop": "Example Shop", "price": 68.0, "currency": "USD", "available": True}
+    assert listed["link"] == {"name": "Linen camp-collar shirt", "shop": "Example Shop", "price": 68.0, "currency": "USD",
+                              "available": True}
     assert listed["drop"] is None
 
     # the same page sent again (the share sheet tapped twice) gives the same wish, and is not read again
@@ -796,6 +797,182 @@ def test_nothing_about_a_link_is_logged_when_its_page_breaks_the_reader(client, 
     assert "shop.example" not in caplog.text and "linen" not in caplog.text.lower()
 
 
+# ------------------------------------------------------------------ price news
+def at(day: int) -> str:
+    """A moment on a day of November, as the database keeps it."""
+    return f"2026-11-{day:02d}T09:00:00.000000Z"
+
+
+def test_came_down_is_where_the_newest_price_came_down_to_a_drop():
+    h = lambda *ps: [{"at": at(n + 1), "price": p, "currency": c, "available": a}  # noqa: E731
+                     for n, (p, c, a) in enumerate(ps)]
+    usd = lambda *prices: h(*((p, "USD", True) for p in prices))  # noqa: E731
+    assert shop.came_down([]) is None
+    assert shop.came_down(usd(80)) is None                       # first seen: no change
+    assert shop.came_down(usd(80, 90)) is None                   # up
+    assert shop.came_down(usd(100, 80)) == {"from": 100, "to": 80, "currency": "USD", "percent": 20, "at": at(2)}
+    # checked again each day at the same price: still one drop, from the day it came down
+    assert shop.came_down(usd(100, 80, 80, 80))["at"] == at(2)
+    # down again: a new moment, from the highest before
+    assert shop.came_down(usd(100, 80, 70)) == {"from": 100, "to": 70, "currency": "USD", "percent": 30, "at": at(3)}
+    # back up from a lower price, though still under the highest: it did not come down
+    assert shop.came_down(usd(100, 70, 80)) is None
+    # a price not shown in between is passed over
+    assert shop.came_down(usd(100, None, 80))["at"] == at(3)
+    # sold out at the lower price: no news; another currency is not compared
+    assert shop.came_down(h((100, "USD", True), (80, "USD", False))) is None
+    assert shop.came_down(h((100, "EUR", True), (80, "USD", True))) is None
+
+
+@pytest.fixture
+def closet(tmp_path):
+    path = tmp_path / "closet.db"
+    db.migrate(path, tmp_path / "backups")
+    conn = db.connect(path)
+    yield conn
+    conn.close()
+
+
+def wish_row(conn, name: str = "A tan rain coat", price_max: float | None = None, currency: str | None = None,
+             seen: str | None = None, bought: str | None = None) -> str:
+    wid = name.lower().replace(" ", "-")
+    conn.execute("INSERT INTO wishes (id, name, note, price_max, price_currency, news_seen_at, bought_at, created_at, "
+                 "updated_at) VALUES (?, ?, '', ?, ?, ?, ?, ?, ?)",
+                 (wid, name, price_max, currency or ("USD" if price_max is not None else None), seen, bought, at(1), at(1)))
+    return wid
+
+
+def find_row(conn, wid: str, prices: list, link: bool = False, shop_name: str = "Example Shop",
+             currency: str = "USD") -> str:
+    """A find of the wish seen at these prices, a day apart from 1 November."""
+    fid = f"{wid}-{shop_name}-{len(prices)}".lower().replace(" ", "-")
+    conn.execute("INSERT INTO finds (id, wish_id, name, shop, url, price, currency, piece, found_at, updated_at, link) "
+                 "VALUES (?, ?, 'A coat', ?, ?, ?, ?, ?, ?, ?, ?)",
+                 (fid, wid, shop_name, f"https://shop.example/{fid}", prices[-1], currency, "null" if link else "{}",
+                  at(1), at(1), int(link)))
+    for n, price in enumerate(prices):
+        conn.execute("INSERT INTO find_prices (find_id, at, price, currency) VALUES (?, ?, ?, ?)",
+                     (fid, at(n + 1), price, currency))
+    return fid
+
+
+def test_a_price_that_came_down_is_news_with_or_without_the_most_the_owner_would_pay(closet):
+    plain = wish_row(closet, "A belt")
+    find_row(closet, plain, [60.0, 50.0])
+    under = wish_row(closet, "A tan rain coat", price_max=150)
+    find_row(closet, under, [177.0, 177.0, 150.0], link=True)
+    over = wish_row(closet, "Brown loafers", price_max=100)
+    find_row(closet, over, [180.0, 140.0])                       # down, but not to the price: no news
+    news = {n["wish_id"]: n for n in shop.news(closet)}
+    assert set(news) == {plain, under}
+    assert news[under] == {"wish_id": under, "name": "A tan rain coat", "shop": "Example Shop", "from": 177.0,
+                           "to": 150.0, "currency": "USD", "percent": 15, "at": at(3), "at_price": True}
+    assert news[plain]["at_price"] is False and (news[plain]["from"], news[plain]["to"]) == (60.0, 50.0)
+    assert [n["wish_id"] for n in shop.news(closet)] == [under, plain]   # the newest first
+
+
+def test_a_price_in_another_currency_than_the_owners_is_news_without_being_at_their_price(closet):
+    wid = wish_row(closet, price_max=100, currency="EUR")
+    find_row(closet, wid, [180.0, 140.0])
+    assert [(n["to"], n["at_price"]) for n in shop.news(closet)] == [(140.0, False)]
+
+
+def test_a_find_first_seen_under_the_price_is_no_news_until_it_comes_down(closet):
+    wid = wish_row(closet, price_max=150)
+    fid = find_row(closet, wid, [120.0])
+    assert shop.news(closet) == []
+    closet.execute("INSERT INTO find_prices (find_id, at, price, currency) VALUES (?, ?, 110, 'USD')", (fid, at(5)))
+    assert [n["to"] for n in shop.news(closet)] == [110.0]
+
+
+def test_seen_hides_the_news_and_a_new_drop_after_it_shows_again(closet):
+    wid = wish_row(closet)
+    fid = find_row(closet, wid, [100.0, 80.0])                 # came down on the 2nd
+    other = wish_row(closet, "A belt")
+    find_row(closet, other, [60.0, 50.0])
+    shop.mark_seen(closet, [wid, "no-such-wish"])
+    assert [n["wish_id"] for n in shop.news(closet)] == [other]
+    assert closet.execute("SELECT news_seen_at FROM wishes WHERE id = ?", (other,)).fetchone()[0] is None
+    # checked again the next day at the same price: still seen
+    closet.execute("INSERT INTO find_prices (find_id, at, price, currency) VALUES (?, '2099-01-01T09:00:00.000000Z', 80, "
+                   "'USD')", (fid,))
+    assert [n["wish_id"] for n in shop.news(closet)] == [other]
+    # down again after it was seen: news again
+    closet.execute("INSERT INTO find_prices (find_id, at, price, currency) VALUES (?, '2099-01-02T09:00:00.000000Z', 70, "
+                   "'USD')", (fid,))
+    assert [(n["wish_id"], n["to"]) for n in shop.news(closet)][0] == (wid, 70.0)
+
+
+def test_a_bought_wish_never_has_news_and_the_biggest_drop_of_a_wish_is_told(closet):
+    bought = wish_row(closet, "A belt", bought=at(9))
+    find_row(closet, bought, [60.0, 50.0])
+    wid = wish_row(closet)
+    find_row(closet, wid, [100.0, 90.0], shop_name="Example Shop")
+    find_row(closet, wid, [100.0, 60.0], shop_name="Other Shop", link=True)   # sent as a link: the same rule
+    news, = shop.news(closet)
+    assert (news["wish_id"], news["shop"], news["to"]) == (wid, "Other Shop", 60.0)
+
+
+def test_migration_0045_tells_a_price_already_down_once(tmp_path):
+    path = tmp_path / "closet.db"
+    conn = db.connect(path)
+    for version, migration in db.migration_files():
+        if version < 45:
+            conn.executescript(migration.read_text(encoding="utf-8"))
+            conn.execute(f"PRAGMA user_version = {version}")
+    conn.execute("INSERT INTO wishes (id, name, note, created_at, updated_at) VALUES ('w1', 'A tan rain coat', '', ?, ?)",
+                 (at(1), at(1)))
+    wid = "w1"
+    find_row(conn, wid, [100.0, 80.0])
+    conn.close()
+    assert db.migrate(path, tmp_path / "backups")["applied"] == [45]
+    conn = db.connect(path)
+    try:
+        assert conn.execute("SELECT news_seen_at FROM wishes").fetchone()[0] is None
+        assert [n["wish_id"] for n in shop.news(conn)] == [wid]
+    finally:
+        conn.close()
+
+
+def test_the_news_is_read_without_changing_anything_and_marked_seen_by_the_page(client, pages):
+    wid = add_link(client, SHIRT)
+    assert client.get("/api/wishlist/news").json() == {"news": []}   # first seen: nothing came down
+    pages.pages[SHIRT] = shirt_page("51.00")
+    client.post(f"/api/wishlist/{wid}/prices")
+    settle(client, wid)
+    for _ in range(2):   # reading it changes nothing
+        news, = client.get("/api/wishlist/news").json()["news"]
+    assert (news["wish_id"], news["name"], news["shop"], news["from"], news["to"], news["at_price"]) == (
+        wid, "Linen camp-collar shirt", "Example Shop", 68.0, 51.0, False)
+    r = client.post("/api/wishlist/news/seen", json={"wish_ids": [wid]})
+    assert r.status_code == 200 and r.json() == {"news": []}
+    assert client.get("/api/wishlist/news").json() == {"news": []}
+    # the page still shows the drop; only the news is over
+    assert client.get("/api/wishlist").json()["wishes"][0]["drop"]["to"] == 51.0
+
+
+def test_marking_news_seen_takes_only_a_list_of_wishes(client):
+    assert client.post("/api/wishlist/news/seen", json={}).status_code == 422
+    assert client.post("/api/wishlist/news/seen", json={"wish_ids": "all"}).status_code == 422
+    assert client.post("/api/wishlist/news/seen", json={"wish_ids": [], "all": True}).status_code == 422
+    assert client.post("/api/wishlist/news/seen", json={"wish_ids": ["w"] * (shop.SEEN_MAX + 1)}).status_code == 422
+
+
+def test_the_demo_closet_never_has_news(client, pages, cfg):
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    wid = add_link(client, SHIRT)
+    pages.pages[SHIRT] = shirt_page("51.00")
+    client.post(f"/api/wishlist/{wid}/prices")
+    assert settle(client, wid)["finds"][0]["drop"]["to"] == 51.0
+    assert client.get("/api/wishlist/news").json() == {"news": []}
+    assert client.post("/api/wishlist/news/seen", json={"wish_ids": [wid]}).json() == {"news": []}
+    conn = db.connect(cfg.db_path("demo"))
+    try:   # nothing written to the demo closet
+        assert conn.execute("SELECT news_seen_at FROM wishes WHERE id = ?", (wid,)).fetchone()[0] is None
+    finally:
+        conn.close()
+
+
 # ------------------------------------------------------------------ the API route and the monthly limit
 class FakeSearchApi:
     """Stands in for the Anthropic API with the web search tool (`messages.create`). Each answer is the next of
@@ -907,7 +1084,7 @@ def test_the_plan_route_may_only_search_the_web(monkeypatch):
 def test_finds_are_judged_on_the_same_weighed_list_as_would_this_work():
     # a find for a wish and the same piece described on "Would this work?" must get the same answer once the owner
     # has said how they live (a find used to be judged on the plain list, naming gaps for days they never have)
-    from closet import life, wouldwork
+    from closet import wouldwork
 
     from .test_wouldwork import demo as demo_closet
     rows, worn = demo_closet()
@@ -924,7 +1101,55 @@ def test_finds_are_judged_on_the_same_weighed_list_as_would_this_work():
         wouldwork.check(rows, worn, p, gaps.find_gaps(rows, worn, {"max_gaps": wouldwork.ALL_GAPS}))["verdict"] for p in pieces]
 
 
-def test_the_app_gives_the_shopper_the_weighed_list(client, services, cfg):
-    assert services.shopper.weighed("main", app_module.closet_inputs(cfg, "main")) is None   # not said how they live yet
+def test_the_app_gives_the_shopper_the_list_it_keeps(client, services, cfg):
+    # the plain list until the owner has said how they live, the weighed one in the demo; either way the one the
+    # Wardrobe's list is made from, kept, so a search or a price check does not work it out again
+    plain = services.shopper.listed("main", app_module.closet_inputs(cfg, "main"))
+    assert plain["context"]["life"] is None   # not said how they live yet
+    assert services.shopper.listed("main", app_module.closet_inputs(cfg, "main")) is plain
     client.post("/api/profile", json={"profile": "demo"})
-    assert "context" in services.shopper.weighed("demo", app_module.closet_inputs(cfg, "demo"))
+    assert services.shopper.listed("demo", app_module.closet_inputs(cfg, "demo"))["context"]["life"] == life.DEMO_LIFE
+
+
+def owner_closet_like_the_demo(cfg) -> None:
+    """The owner's own closet starts as a copy of the demo closet, as the browser tests' `seed: 'demo'` makes it."""
+    demo.ensure(cfg)
+    src, dst = sqlite3.connect(cfg.db_path("demo")), sqlite3.connect(cfg.db_path("main"))
+    try:
+        src.backup(dst)
+    finally:
+        src.close()
+        dst.close()
+
+
+def test_a_search_and_a_price_check_judge_on_the_list_the_wardrobe_keeps(cfg, fake_shop, usable, pages, monkeypatch):
+    # Until the owner has said how they live, each search and each price check worked the plain list out again: a
+    # third of what judging two finds costs on the demo's closet, and with the browser tests' four files at once on a
+    # slow computer, what took the finds past their wait. The list kept for the Wardrobe is the same list.
+    owner_closet_like_the_demo(cfg)
+    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, tagger=lambda images, routes: None,
+                                   routes=lambda: usable["routes"], shop_asker=fake_shop, page_reader=pages.reader)
+    try:
+        client = TestClient(app_module.create_app(sv))
+        worked_out = []
+        plain = gaps.find_gaps
+        monkeypatch.setattr(gaps, "find_gaps", lambda *a, **kw: worked_out.append(1) or plain(*a, **kw))
+        assert client.get("/api/gaps").json()["gaps"]   # the Wardrobe's list, worked out once
+        assert len(worked_out) == 1
+        polo = product(name="Navy polo", url="https://other.example/polo", category="polo", color="navy", season="warm",
+                       rain_proof=False, material="")
+        fake_shop.finds = [product(weight_class="heavyweight"), polo]
+        wid = wish(client)
+        found = find_some(client, wid)["finds"]
+        assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+        checked = settle(client, wid)
+        assert checked["run"]["state"] == "done" and checked["finds"][0]["drop"]
+        assert len(worked_out) == 1   # neither the search nor the price check worked it out again
+        # and the finds are judged exactly as on the list worked out afresh
+        rows, worn = app_module.closet_inputs(cfg, "main")
+        afresh = shop.judge(rows, worn, [f["piece"] for f in found])
+        assert [(f["verdict"], f["reasons"]) for f in found] == [(v["verdict"], v["reasons"]) for v in afresh]
+        assert [(f["verdict"], f["reasons"]) for f in checked["finds"]] == [(v["verdict"], v["reasons"]) for v in afresh]
+        assert found[0]["verdict"] == "fills_gap"
+    finally:
+        sv.stop()

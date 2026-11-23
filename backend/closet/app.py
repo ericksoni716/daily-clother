@@ -1191,12 +1191,19 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
 
     # ----------------------------------------------------------------- gaps
     gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
+    # one analysis at a time per closet: whoever asks while it is being worked out waits for that answer
+    gaps_locks = {profile: threading.Lock() for profile in PROFILES}
 
     def gap_inputs(profile: str) -> tuple[list[dict], list[dict]]:
         return closet_inputs(cfg, profile)
 
     def gap_analysis(profile: str | None = None, inputs: tuple[list[dict], list[dict]] | None = None) -> dict:
-        """The open closet's gaps, all of them (cut to the list's length when marked); slow the first time."""
+        """The open closet's gaps, all of them (cut to the list's length when marked); slow the first time.
+
+        Worked out once and kept until the closet, the wear log or how the owner lives changes. Asked again while it
+        is being worked out (the Wardrobe opened, reloaded and opened again, a search's finds judged meanwhile), the
+        asker waits for that answer instead of working out the same seconds again beside it: side by side, each
+        would take as long as all of them together."""
         profile = profile or state.get("profile")
         rows, worn = inputs or gap_inputs(profile)
         if profile == "demo":
@@ -1218,15 +1225,16 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn,
                                          answers, home, dismissed],
                                          sort_keys=True, default=str).encode()).hexdigest()
-        cached = gaps_cache.get(profile)
-        if cached and cached[0] == seen:
-            return cached[1]
-        # every gap, not only the first few: one the owner hid or wished for must not push a new one off the list
-        answer = life.analyse(rows, worn, answers, home, GAPS_ALL)
-        answer["context"] = {"life": answers, "prompt_dismissed": dismissed, "demo": profile == "demo",
-                             "climate": home, "taste": answer.pop("taste"), "suppressed": []}
-        gaps_cache[profile] = (seen, answer)
-        return answer
+        with gaps_locks[profile]:
+            cached = gaps_cache.get(profile)
+            if cached and cached[0] == seen:
+                return cached[1]
+            # every gap, not only the first few: one the owner hid or wished for must not push a new one off the list
+            answer = life.analyse(rows, worn, answers, home, GAPS_ALL)
+            answer["context"] = {"life": answers, "prompt_dismissed": dismissed, "demo": profile == "demo",
+                                 "climate": home, "taste": answer.pop("taste"), "suppressed": []}
+            gaps_cache[profile] = (seen, answer)
+            return answer
 
     @app.get("/api/gaps")
     async def get_gaps():
@@ -1252,13 +1260,11 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     app.include_router(wishlist.router(conn_dep, gap_analysis, state, rows=shop.on_the_list))
 
     def closet_for_check(profile: str) -> tuple[list[dict], list[dict], dict | None]:
-        # Until the owner has said how they live, the check works out the plain analysis itself, with and without
-        # the piece, exactly as before. Once they have (and always in the demo, as its list), it is given the
-        # weighed list the screen shows; its "context" carries the answers and climate the check weighs the
-        # "after" with, so both sides are weighed alike.
+        # The check is given the list the screen shows, as it is kept (`gap_analysis`): the plain analysis until the
+        # owner has said how they live, the weighed list once they have (and always in the demo). Its "context"
+        # carries the answers and climate the check weighs the "after" with (none for the plain list, which the
+        # check then compares with the plain analysis with the piece, as before), so both sides are weighed alike.
         rows, worn = gap_inputs(profile)
-        if profile != "demo" and state.get("life") is None:
-            return rows, worn, None
         return rows, worn, gap_analysis(profile, (rows, worn))
 
     assert sv.tag_worker and sv.check_tagger, "build_services wires both"
@@ -1267,8 +1273,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     app.include_router(wouldjobs.router(checks))
     assert sv.shopper, "build_services wires it"
     # shop finds are judged on the same list as "Would this work?" (closet_for_check)
-    sv.shopper.weighed = lambda profile, inputs: (
-        None if profile != "demo" and state.get("life") is None else gap_analysis(profile, inputs))
+    sv.shopper.listed = gap_analysis
     app.include_router(shop.router(sv.shopper, state, conn_dep))
     # ---------------------------------------------------------------- the day in the owner's words
     def day_answer(message: str | None = None, saved: bool | None = None) -> dict:

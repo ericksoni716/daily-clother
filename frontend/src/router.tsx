@@ -263,6 +263,9 @@ export function itemPath(id: string, status: 'active' | 'archived'): string {
   return `${status === 'archived' ? '/archived' : ''}/item/${encodeURIComponent(id)}`;
 }
 
+/** A wish's own page in the Wardrobe: its finds and prices, its note, and what to do with it. */
+export const wishPath = (id: string) => `/wardrobe/wish/${encodeURIComponent(id)}`;
+
 export function Link({ to, onClick, ...rest }: AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) {
   return (
     <a

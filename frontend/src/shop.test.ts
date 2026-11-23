@@ -4,9 +4,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseRoute } from './router';
 import {
-  downWords, dropWords, linkIn, linkLine, linkWords, priceWords, rangeWords, runDoneWords, runWords, sharedLink, SHOP_POLL_MS,
-  shopPoll, type ShopRun, typedPrice, webLink,
+  atYourPrice, checkedWords, downWords, dropWords, findsInOrder, historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords,
+  priceWords, rangeWords, runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shopPoll, type ShopRun, typedPrice,
+  watchWords, webLink, withinWords,
 } from './shop';
+import { timeOf } from './today';
 
 describe('shopping words', () => {
   it('shows prices in their currency', () => {
@@ -118,5 +120,75 @@ describe('a product sent as a link', () => {
     const manifest = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'public', 'manifest.webmanifest'), 'utf8'));
     expect(manifest.share_target).toEqual({ action: '/wardrobe/link', method: 'GET', params: { title: 'title', text: 'text', url: 'url' } });
     expect(parseRoute(manifest.share_target.action)).toMatchObject({ name: 'wardrobe', link: true });
+  });
+});
+
+describe('the wish page and price news', () => {
+  const none = { price_min: null, price_max: null, price_currency: null };
+  const most = { price_min: null, price_max: 150, price_currency: 'USD' };
+  /** A moment, local time, on a day of November 2026. */
+  const at = (day: number, hour = 9, minute = 5) => new Date(2026, 10, day, hour, minute).toISOString();
+
+  it('says in one sentence what watching does, with the most you would pay when you set it', () => {
+    expect(watchWords(none)).toBe("Nines checks the price once a day while it's running and tells you when it goes down.");
+    expect(watchWords(most)).toBe("Nines checks the price once a day while it's running and tells you when it goes down to $150.00 or less.");
+    // a lower limit an older wish still has is said until it is changed
+    expect(watchWords({ price_min: 50, price_max: 150, price_currency: 'EUR' })).toBe(
+      "Nines checks the price once a day while it's running and tells you when it goes down to €150.00 or less. Claude looks for ones from €50.00 to €150.00.");
+  });
+
+  it('says what Claude looks for when nothing is watched yet', () => {
+    expect(searchWords(none)).toBe('Claude looks at any price.');
+    expect(searchWords(most)).toBe('Claude looks for ones up to $150.00.');
+    expect(searchWords({ price_min: 50, price_max: 150, price_currency: 'USD' })).toBe('Claude looks for ones from $50.00 to $150.00.');
+    expect(searchWords({ price_min: 50, price_max: null, price_currency: 'USD' })).toBe('Claude looks for ones from $50.00.');
+  });
+
+  it('says when the prices were last looked at, whoever looked', () => {
+    expect(lastChecked({ prices_checked_at: null, found_at: null, finds: [] })).toBeNull();
+    expect(lastChecked({ prices_checked_at: at(20), found_at: at(18), finds: [{ read_at: at(22) }, { read_at: null }] })).toBe(at(22));
+    expect(lastChecked({ prices_checked_at: at(21), found_at: null, finds: [{ read_at: at(19) }] })).toBe(at(21));
+    expect(checkedWords(null)).toBe('Not checked yet.');
+    expect(checkedWords(at(23), '2026-11-23')).toBe(`Last checked today at ${timeOf(at(23))}.`);
+    expect(checkedWords(at(22), '2026-11-23')).toBe('Last checked yesterday.');
+    expect(checkedWords(at(3), '2026-11-23')).toBe('Last checked on 3 Nov.');
+  });
+
+  it('puts the pages you sent before Claude’s finds', () => {
+    const f = (id: string, link: boolean) => ({ id, link });
+    expect(findsInOrder([f('a', false), f('b', true), f('c', false), f('d', true)]).map((x) => x.id)).toEqual(['b', 'd', 'a', 'c']);
+  });
+
+  it('says how a price went only when it changed, a price for each change', () => {
+    const p = (day: number, price: number | null, currency = 'USD') => ({ at: at(day), price, currency, available: true });
+    expect(historyWords([], '2026-11-23')).toBeNull();
+    expect(historyWords([p(20, 68), p(21, 68), p(22, null)], '2026-11-23')).toBeNull();
+    expect(historyWords([p(3, 177), p(4, 177), p(17, 160), p(18, 160), p(22, 150)], '2026-11-23'))
+      .toBe('The price was $177.00 on 3 Nov, $160.00 on Tuesday and $150.00 yesterday.');
+    // the last three changes only
+    expect(historyWords([p(1, 200), p(3, 177), p(17, 160), p(22, 150)], '2026-11-23'))
+      .toBe('The price was $177.00 on 3 Nov, $160.00 on Tuesday and $150.00 yesterday.');
+    expect(historyWords([p(22, 68), p(23, 54.4)], '2026-11-23')).toBe('The price was $68.00 yesterday and $54.40 today.');
+    // checked again the same day: the day's last price stands for it, and a day that ends where it began is no change
+    expect(historyWords([p(23, 180), { ...p(23, 144), at: at(23, 10) }], '2026-11-23')).toBeNull();
+    expect(historyWords([p(22, 100), p(23, 90), { ...p(23, 100), at: at(23, 18) }], '2026-11-23')).toBeNull();
+  });
+
+  it('says on the wishlist row when a drop is within your price, never across currencies', () => {
+    const drop = { from: 68, to: 54.4, currency: 'USD', percent: 20, shop: 'Example Shop' };
+    expect(withinWords({ ...none, drop })).toBeNull();
+    expect(withinWords({ ...most, drop })).toBe("That's within your price.");
+    expect(withinWords({ ...most, price_max: 50, drop })).toBeNull();
+    expect(withinWords({ ...most, price_currency: 'EUR', drop })).toBeNull();
+    expect(withinWords({ ...most, drop: null })).toBeNull();
+    expect(atYourPrice(most, { to: 150, currency: 'USD' })).toBe(true);
+    expect(atYourPrice({ ...most, price_currency: null }, { to: 150, currency: 'USD' })).toBe(true);
+  });
+
+  it('tells the news in one sentence, counting several', () => {
+    const n = { name: 'A tan rain coat', shop: 'Example Shop', from: 177, to: 150, currency: 'USD', at_price: false };
+    expect(newsWords([n])).toBe('A tan rain coat is down to $150.00 at Example Shop, from $177.00.');
+    expect(newsWords([{ ...n, at_price: true }])).toBe("A tan rain coat is down to $150.00 at Example Shop, from $177.00. That's within your price.");
+    expect(newsWords([n, { ...n, name: 'A belt' }, n])).toBe('Prices went down for 3 things on your wishlist.');
   });
 });

@@ -14,6 +14,15 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The gap list worked out once at a time** (23 November; DECISIONS, of that name). What is left of a
+  search's wait is "Would this work?" itself: each find runs the outfit engine over the 40 kinds of day
+  with the piece (about 3 s of one core on the demo's closet, nearly all in `outfits._search`), so the
+  browser tests' search for two finds is still about 7 s of work, each price check the same. On a runner
+  much slower than the slowest seen so far it could reach its 30 s wait again; making the engine's search
+  quicker is the way, not a longer wait.
+- **The wish page and price news** (23 November; DECISIONS, "The wish page and price news"). "See
+  them" on the banner opens the Wardrobe at its top; on a phone the wishlist is below Worth buying.
+  (Telling the owner on their phone when Nines is not open is not wanted: the owner said no.)
 - **Choosing a shade** (22 November; DECISIONS, "Choosing a shade"). The review's question about
   a doubtful colour and Would this work?'s colour still offer the colour words only, and the
   closet's search does not find a piece by its shade's name.
@@ -35,7 +44,7 @@ only here); take a line out when it is done.
 - **Wishlist links and their prices** (22 November; DECISIONS, "Wishlist links and their prices").
   Built and tested with the web and Claude stood in for; not yet tried on real shops' pages, nor
   the iPhone Shortcut (README) on a real iPhone, nor the share sheet on a real Android phone.
-  Left undone: a link is not judged against the closet ("I found one: would it work?" does it by
+  Left undone: a link is not judged against the closet ("Would it go with my clothes?" does it by
   hand); a page that turns programs away (bot protection) goes to Claude every day it is checked;
   only microdata given as `content` is read, not a price written as the element's text; a wish's
   name cannot be changed on its page (the API takes it); a link shared while the computer cannot

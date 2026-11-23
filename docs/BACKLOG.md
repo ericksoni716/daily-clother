@@ -381,6 +381,42 @@ Patterns from the photo (owner's request; it had fallen out of the app):
 - [x] #105 Graphic prints on tops: a top Claude calls graphic (or a novelty print) has its print lifted from the cutout in the background and drawn at its place, on its own drawing and in the outfit figure; a print that cannot be lifted leaves it plain with a note. Known: the tagging schema does not yet ask for the taxonomy's `graphic_technique` and `graphic_placement`, so a back print or a sleeve print is not told apart, and only the front photo is read.
 - [ ] Graphic prints on the back or sleeves (needs `graphic_placement` in the tagging schema and a photo of the back).
 
+## The closet app to have (the owner, 23 November: "be unreasonably ambitious")
+
+The owner asked this session to work by itself: bring the discovery steps in, review the app for bugs and UI errors, and build what would make Nines the closet app to have, "without sacrificing the core functionality". Each line is its own pull request. The order is by how often the owner would feel it (DESIGN, "The jobs"). Nothing here adds a place to the tab bar, a door, or a phone notification (the owner said no to those). What a line left undone goes under "Left over from finished work" as always.
+
+**First, what is already there made right**
+- [ ] **The review's findings** (`docs/assessment/` gets a short report of the two reviews of 23 November, the screens and the rules; the fixes go in small batches, each fault shown with a failing test first).
+- [ ] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
+- [ ] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
+- [ ] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
+- [ ] **The closet at a glance**: three across as a choice, a search box that takes the row, the Photos or Drawings switch in words, and search that finds a shade, a brand, a material or a note.
+- [ ] **Would this work? by hand**: kind and colour first, the rest behind "More about it".
+- [ ] **The figure: an open layer under an open jacket** shows its fronts, not a thin strip (changes "The outfit as worn" in DECISIONS; say so).
+
+**Every day**
+- [ ] **Dress for another day**: on Today, tomorrow or a date you choose, with that day's forecast and a word about the day ("dinner at eight"). "Wear this on Saturday" keeps the outfit; that morning Today opens on it, and its pieces are kept out of the laundry's way.
+- [ ] **Outfits you keep**: save an outfit you like without wearing it; find them under Worn; wear one again in a tap.
+- [ ] **From a piece to an outfit**: on a piece's page, "Build an outfit around it" and the outfits you have worn it in.
+- [ ] **Give it an outing**: Today may offer one outfit built around a piece you like and have not worn in a while, and says so.
+
+**The closet**
+- [ ] **Where a piece is**: at the cleaner's, at the tailor's, lent out, needs mending. Left out of outfits and trips like the laundry, with one line on the closet and a tap to bring it back.
+- [ ] **Wearing while the computer is off**: "I'm wearing this", a rating and a tick on a packing list are kept on the phone and sent when Nines answers again (the backlog's offline edit queue).
+
+**The wardrobe**
+- [ ] **On sale now** (step 5 of "Finding clothes you might like").
+- [ ] **Your nines** (the owner's idea): the nine pieces worn most, three by three.
+- [ ] **What your clothes cost you**: what you spent by year from prices and dates, what the wishlist would cost, and the pieces that have earned their price.
+- [ ] **Worth buying, folded**: each card a title, how much it helps and one line, opening on a tap.
+- [ ] **A find's pattern is drawn**, so a striped shirt in "See it with your clothes" is striped.
+
+**Trips**
+- [ ] **A trip for tennis or golf**, and a way back to "follow the weather" for swimming.
+- [ ] **A trip covers today**: Today dresses for where you are without a note.
+
+**Later, and only if the owner wants it** (each needs a decision that is theirs): reading a calendar for the day's events (what would be sent to Claude); the colours reworked; a year in clothes.
+
 ## Finding clothes you might like (asked for by the owner, 23 November)
 
 The owner: "is there some way to ideate/find clothes I might like", "rather than using things like google shopping which seems to target me well"; then "I also would love to discover sale items across the internet to find gems that I otherwise might never see". Today Nines shops only for a need it already has a name for (a gap or a wish, then "Find some", up to 8 products), and the search is told only the wish's kind, colours, price range and note (`find_prompt` in `backend/closet/tagger/shopping.py`): not Your style, the pieces loved or worn most, the brands owned or a size. Nines will not beat a shop search at browsing, since Claude's web search is slow and is no catalogue; what it has that a shop search lacks is the closet, the wears and the ratings. So the order below starts with judging what the owner finds elsewhere and ends with Nines looking by itself. Each step is its own pull request, in this order; all go in the Wardrobe (no new place in the tab bar).

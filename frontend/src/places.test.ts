@@ -24,6 +24,7 @@ describe('the place each address belongs to', () => {
     ['/wardrobe/check/wish/w1', 'wardrobe'],
     ['/wardrobe/wish/w1', 'wardrobe'],
     ['/wardrobe/link', 'wardrobe'],
+    ['/wardrobe/wishlist', 'wardrobe'],
     ['/add', 'add'],
     ['/add/several/s1', 'add'],
     ['/settings', 'settings'],
@@ -32,6 +33,7 @@ describe('the place each address belongs to', () => {
     ['/missing', 'wardrobe'],
     ['/missing/check', 'wardrobe'],
     ['/insights', 'wardrobe'],
+    ['/wishlist', 'wardrobe'],
     ['/worn', 'today'],
   ])('%s lights %s', (path, place) => {
     expect(placeOf(parseRoute(path))).toBe(place);
@@ -47,7 +49,8 @@ describe('the addresses that moved', () => {
     ['/missing/check/wish/w%201', '/wardrobe/check/wish/w%201'],
     ['/missing/item/abc', '/wardrobe/item/abc'],
     ['/would-work', '/wardrobe/check'],
-    ['/wishlist', '/wardrobe'],
+    ['/wishlist', '/wardrobe/wishlist'],
+    ['/wishlist/', '/wardrobe/wishlist'],
     ['/worn', '/today/worn'],
     // what follows the path comes along
     ['/missing?from=bookmark', '/wardrobe?from=bookmark'],
@@ -57,7 +60,7 @@ describe('the addresses that moved', () => {
 
   it('leaves every address that has not moved as it is', () => {
     for (const path of ['/', '/today', '/today/worn', '/review', '/trips', '/trips/t1', '/wardrobe', '/wardrobe/check', '/wardrobe/link',
-      '/item/abc', '/archived', '/add', '/settings', '/settings/advanced']) {
+      '/wardrobe/wishlist', '/item/abc', '/archived', '/add', '/settings', '/settings/advanced']) {
       expect(movedTo(path)).toBeNull();
     }
   });
@@ -66,6 +69,14 @@ describe('the addresses that moved', () => {
     expect(parseRoute('/missing/item/abc')).toEqual({ name: 'wardrobe', itemId: 'abc', check: false, wishId: null, wish: null });
     expect(parseRoute('/missing/check/wish/w1')).toEqual({ name: 'wardrobe', itemId: null, check: true, wishId: 'w1', wish: null });
     expect(parseRoute('/insights')).toEqual({ name: 'wardrobe', itemId: null, check: false, wishId: null, wish: null });
+  });
+
+  it('opens the wishlist on its own page, from its old address too', () => {
+    const wishlist = { name: 'wardrobe', itemId: null, check: false, wishId: null, wish: null, wishlist: true };
+    expect(parseRoute('/wardrobe/wishlist')).toEqual(wishlist);
+    expect(parseRoute('/wardrobe/wishlist/')).toEqual(wishlist);
+    expect(parseRoute('/wishlist')).toEqual(wishlist);
+    expect(parseRoute('/wardrobe')).not.toHaveProperty('wishlist');
   });
 
   it('opens a wish on its own page', () => {

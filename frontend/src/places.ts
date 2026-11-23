@@ -8,8 +8,8 @@ export type AppPlace = 'today' | 'closet' | 'add' | 'wardrobe' | 'settings';
 
 /**
  * The place a route belongs to. Worn and Trips are part of Today; an item, Archived and the review are part of the
- * closet; Would this work?, a wish and an item opened from there are part of the wardrobe; checking the pieces in a
- * photo of several is part of Add; Advanced is part of Settings.
+ * closet; Would this work?, the wishlist, a wish and an item opened from there are part of the wardrobe; checking the
+ * pieces in a photo of several is part of Add; Advanced is part of Settings.
  */
 export function placeOf(route: Route): AppPlace {
   switch (route.name) {
@@ -37,7 +37,7 @@ const MOVED: Record<string, string> = {
   '/insights': '/wardrobe',
   '/missing/check': '/wardrobe/check',
   '/would-work': '/wardrobe/check',
-  '/wishlist': '/wardrobe',
+  '/wishlist': '/wardrobe/wishlist',
   '/worn': '/today/worn',
 };
 

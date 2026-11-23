@@ -59,3 +59,6 @@
 .wouldwork-sheet .chip-group + .chip-group, .wouldwork-sheet .formality-also + .chip-group { margin-top: var(--space-4); }
 /* the last answer, dimmed while the newer one is worked out: it stays where it is, so nothing moves */
 .wouldwork-shown.is-stale { opacity: 0.55; transition: opacity var(--dur-quick) var(--ease-out); }
+/* under the verdict: what was taken as usual, and Change what it is and More about it */
+.wouldwork-said { display: grid; gap: var(--space-2); }
+.wouldwork-said p { margin: 0; }

@@ -224,18 +224,19 @@ const SEASON_SAID: Record<string, string> = { all: 'for any time of year', warm:
 
 /**
  * What the answer took as usual because it was not told (the server fills in the formality usual for the kind, any
- * time of year and plain): "Until you say more, it is checked as smart casual, for any time of year and plain.", or
- * null when everything it uses was said. `levels` are the formality levels in order.
+ * time of year and plain), in one sentence: "Until you say more, it is checked as a plain smart casual piece for any
+ * time of year.", or null when everything it uses was said. `levels` are the formality levels in order.
  */
 export function untoldWords(sent: Partial<WouldPiece>, piece: Partial<WouldPiece> | null, levels: string[]): string | null {
   if (!piece) return null;
   const words: string[] = [];
-  if (!sent.formality && piece.formality) words.push(formalityLabel(piece.formality, piece.formality_also, levels).toLowerCase());
-  if (!sent.season && piece.season) words.push(SEASON_SAID[piece.season] ?? label('season', piece.season).toLowerCase());
   if (!sent.pattern && piece.pattern) words.push(piece.pattern === 'solid' ? 'plain' : label('pattern', piece.pattern).toLowerCase());
-  if (!words.length) return null;
-  const list = words.length === 1 ? words[0] : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
-  return `Until you say more, it is checked as ${list}.`;
+  if (!sent.formality && piece.formality) words.push(formalityLabel(piece.formality, piece.formality_also, levels).toLowerCase());
+  const season = !sent.season && piece.season ? SEASON_SAID[piece.season] ?? `for ${label('season', piece.season).toLowerCase()}` : '';
+  if (!words.length && !season) return null;
+  const what = [...words, 'piece'].join(' ');
+  const article = /^[aeiou]/.test(what) ? 'an' : 'a';
+  return `Until you say more, it is checked as ${article} ${what}${season ? ` ${season}` : ''}.`;
 }
 
 /** What is still to choose before a description can be checked, in words; null when it can be. */

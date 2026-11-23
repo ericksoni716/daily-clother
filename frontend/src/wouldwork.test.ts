@@ -86,10 +86,15 @@ describe('by hand: the kind and the colour first, the answer at once (23 Novembe
     expect(pieceLine({ category: 'dress_shoes', color: 'brown', name: ' Brogues ' })).toBe('Brogues, brown dress shoes');
     const levels = ['casual', 'smart_casual', 'business', 'formal'];
     const piece = { category: 'coat', color: 'tan', formality: 'smart_casual', season: 'all', pattern: 'solid' };
+    // one natural sentence (23 November: "checked as business, for any time of year and plain" read oddly)
     expect(untoldWords({ category: 'coat', color: 'tan' }, piece, levels))
-      .toBe('Until you say more, it is checked as smart casual, for any time of year and plain.');
+      .toBe('Until you say more, it is checked as a plain smart casual piece for any time of year.');
     expect(untoldWords({ category: 'coat', color: 'tan', season: 'all' }, piece, levels))
-      .toBe('Until you say more, it is checked as smart casual and plain.');
+      .toBe('Until you say more, it is checked as a plain smart casual piece.');
+    expect(untoldWords({ category: 'coat', color: 'tan', formality: 'smart_casual', pattern: 'solid' }, { ...piece, season: 'warm' }, levels))
+      .toBe('Until you say more, it is checked as a piece for warm weather.');
+    expect(untoldWords({ category: 'coat', color: 'tan', season: 'all', pattern: 'solid' }, { ...piece, formality: 'athletic' }, [...levels, 'athletic']))
+      .toBe('Until you say more, it is checked as an athletic piece.');
     expect(untoldWords({ category: 'coat', color: 'tan', formality: 'smart_casual', season: 'cool', pattern: 'plaid' },
       { ...piece, season: 'cool', pattern: 'plaid' }, levels)).toBeNull();
     expect(untoldWords({ category: 'coat', color: 'tan' }, null, levels)).toBeNull();

@@ -178,8 +178,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   and the answer comes straight away, with no long form first and no button to press. Everything else
   (formality, season, how heavy, pattern, rain, a name) is under **More about it**, which opens over
   the page; the answer is worked out again when you close it, and the last one stays on screen,
-  dimmed, meanwhile. Until you say more, a line says what the answer took as usual ("checked as smart
-  casual, for any time of year and plain").
+  dimmed, meanwhile. The answer comes straight under the piece's name, which is said once; under the
+  verdict, a line says what it took as usual until you say more ("checked as a plain smart casual
+  piece for any time of year").
 - **A piece's page says "Saved" beside what you changed.** Changing a piece's name, what it is, its
   brand, price, rating, notes, a detail or its size used to raise a "Saved" message for every change,
   over what you tapped next. Now "Saved" shows for a moment beside the box or row you changed, and

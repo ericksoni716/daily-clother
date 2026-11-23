@@ -41,14 +41,14 @@ async function checkCoat(page: Page) {
   const answer = panel.getByTestId('would-work-answer');
   await expect(answer).toBeVisible({ timeout: 30_000 });
   // the rest is in "More about it", and the answer is worked out again once it is closed
-  await form.getByRole('button', { name: 'More about it' }).click();
+  await panel.getByRole('button', { name: 'More about it' }).click();
   const more = page.getByRole('dialog', { name: 'More about it' });
   await more.getByRole('group', { name: 'Formality' }).getByRole('button', { name: 'Smart casual', exact: true }).click();
   await more.getByRole('group', { name: 'How heavy the cloth is' }).getByRole('button', { name: 'Heavy', exact: true }).click();
   await more.getByRole('switch', { name: /keeps the rain off/ }).check({ force: true });
   await more.getByRole('button', { name: 'Done' }).click();
   await expect(more).toHaveCount(0);
-  await expect(answer).toContainText('keeps the rain off', { timeout: 30_000 });
+  await expect(answer).toHaveAttribute('data-piece', /keeps the rain off/, { timeout: 30_000 });
   await expect(panel.locator('.wouldwork-shown.is-stale')).toHaveCount(0, { timeout: 30_000 });
   return answer;
 }
@@ -84,7 +84,9 @@ test('would this work?, described by hand in the demo closet on a computer, on a
   const answer = await checkCoat(page);
   // the piece is one line, saying what it is; what it was not told is no longer said as taken for granted
   await expect(panel.getByTestId('would-work-piece')).toContainText('Tan coat');
-  await expect(panel.getByTestId('would-work-untold')).toHaveText('Until you say more, it is checked as for any time of year and plain.');
+  await expect(panel.getByTestId('would-work-untold')).toHaveText('Until you say more, it is checked as a plain piece for any time of year.');
+  // the piece is said once: its line names it, and the verdict does not repeat it
+  await expect(answer.locator('.wouldwork-piece')).toHaveCount(0);
   // the description stays on the left beside the answer
   await expect(panel.getByRole('form', { name: 'Describe it by hand' })).toBeVisible();
   await expect(panel.getByRole('region', { name: 'The answer' }).getByTestId('would-work-answer')).toBeVisible();
@@ -192,7 +194,7 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   }
   await expect(fromWish.getByTestId('would-work-answer')).toBeVisible({ timeout: 30_000 });
   await expect(fromWish.getByTestId('would-work-piece')).toContainText('coat');
-  await kind.getByRole('button', { name: 'More about it' }).click();
+  await fromWish.getByRole('button', { name: 'More about it' }).click();
   await expect(page.getByRole('dialog', { name: 'More about it' }).getByRole('switch', { name: /keeps the rain off/ })).toBeChecked();
   await page.getByRole('dialog', { name: 'More about it' }).getByRole('button', { name: 'Done' }).click();
 
@@ -222,15 +224,25 @@ test('would this work? by hand on a small phone: the answer as soon as the kind 
   await expect(verdict).toBeVisible({ timeout: 30_000 });
   await expect(verdict).toBeInViewport();
   await expect(panel.getByTestId('would-work-piece')).toBeInViewport();
+  // led by the answer: the piece's name, then the verdict, then what was assumed and the two buttons, and the first
+  // reason still on the first screen (23 November)
+  const top = async (l: import('@playwright/test').Locator) => (await l.boundingBox())!.y;
+  const untold = panel.getByTestId('would-work-untold');
+  const firstReason = panel.getByRole('list', { name: 'Why' }).getByRole('listitem').first();
+  expect(await top(panel.getByTestId('would-work-piece'))).toBeLessThan(await top(verdict));
+  expect(await top(verdict)).toBeLessThan(await top(untold));
+  expect(await top(untold)).toBeLessThan(await top(panel.getByRole('button', { name: 'More about it' })));
+  await expect(firstReason).toBeInViewport();
+  await expect(panel.getByTestId('would-work-answer').locator('.wouldwork-piece')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('by-hand-answer.png') });
   // "More about it" opens over the page; the answer stays where it was
   const before = (await verdict.boundingBox())!.y;
-  await form.getByRole('button', { name: 'More about it' }).click();
+  await panel.getByRole('button', { name: 'More about it' }).click();
   const more = page.getByRole('dialog', { name: 'More about it' });
   await more.getByRole('group', { name: 'Pattern' }).getByRole('button', { name: 'Stripe', exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath('by-hand-more.png') });
   await more.getByRole('button', { name: 'Done' }).click();
-  await expect(panel.getByTestId('would-work-answer')).toContainText('stripe', { timeout: 30_000 });
+  await expect(panel.getByTestId('would-work-answer')).toHaveAttribute('data-piece', /stripe/, { timeout: 30_000 });
   await expect(panel.locator('.wouldwork-shown.is-stale')).toHaveCount(0, { timeout: 30_000 });
   expect(Math.abs((await verdict.boundingBox())!.y - before)).toBeLessThan(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
@@ -247,10 +259,10 @@ test('would this work?: a reload keeps what was typed and the answer; checking a
   await form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Jeans', exact: true }).click();
   await form.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Navy', exact: true }).click();
   await expect(panel.getByTestId('would-work-answer')).toBeVisible({ timeout: 30_000 });
-  await form.getByRole('button', { name: 'More about it' }).click();
+  await panel.getByRole('button', { name: 'More about it' }).click();
   await page.getByRole('dialog', { name: 'More about it' }).getByLabel('Name (optional)').fill('Made-up selvedge jeans');
   await page.getByRole('dialog', { name: 'More about it' }).getByRole('button', { name: 'Done' }).click();
-  await expect(panel.getByTestId('would-work-answer')).toContainText('Made-up selvedge jeans', { timeout: 30_000 });
+  await expect(panel.getByTestId('would-work-answer')).toHaveAttribute('data-piece', /Made-up selvedge jeans/, { timeout: 30_000 });
   await expect(panel.locator('.wouldwork-shown.is-stale')).toHaveCount(0, { timeout: 30_000 });
   const verdict = await panel.getByTestId('verdict').textContent();
 

@@ -38,8 +38,7 @@ only here); take a line out when it is done.
 - **A piece's page, Would this work? and a wish's page** (23 November; DECISIONS, rows of 23 November under "Would
   this work?" and "Shopping for a wish", and beside "Toasts"). Left: on a piece's page, wearing, the laundry, where it
   is, Fix the details and History still say what they did in a toast (only the changes that save as they are made say
-  "Saved" beside them); Would this work?'s verdict still repeats the piece's words just under the line that names the
-  piece; "Remove from the list" on a wish was not checked for Undo (A8 asked); a find stopped watching can be put back
+  "Saved" beside them); "Remove from the list" on a wish was not checked for Undo (A8 asked); a find stopped watching can be put back
   only while Nines keeps running (an hour, at most 20), not after a restart.
 - **The review of the shared parts** (23 November; DECISIONS, "The failed state", "Banners wait for the next screen",
   "One way to write a date"). Left: Today's own failed state ("Couldn't choose today's outfits: …") still words

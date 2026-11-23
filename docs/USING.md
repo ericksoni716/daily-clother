@@ -481,11 +481,12 @@ When what was shared holds no link, it says so and the box is empty.
 `/wardrobe/check` (and `/wardrobe/check/wish/<id>` from a wish), from the Wardrobe;
 "‹ Wardrobe" goes back. A piece you might buy, from a photo or described by hand, checked
 against the closet by rule. By hand it asks two things first, what kind of piece it is and its main
-colour, and answers as soon as both are chosen, with no button to press; the piece is then one line
-("Light blue shirt") with **Change what it is** and **More about it** (formality, season, how heavy,
-pattern, keeps the rain off, a name), each a sheet over the page. Closing one works the answer out
-again, the last answer staying in place, dimmed, until the new one is ready; until you say more, a
-line under the piece says what it was checked as ("smart casual, for any time of year and plain"). What you
+colour, and answers as soon as both are chosen, with no button to press. The piece is then one line
+("Light blue shirt") and the verdict comes straight under it; under the verdict one line says what
+was taken as usual until you say more ("checked as a plain smart casual piece for any time of
+year"), with **Change what it is** and **More about it** (formality, season, how heavy, pattern,
+keeps the rain off, a name), each a sheet over the page. Closing one works the answer out again,
+the last answer staying in place, dimmed, until the new one is ready. What you
 described and the answer stay on this device for the rest of the day, after a reload too, until
 **Check another piece**.
 The answer says what it goes with, what it repeats, what it would fill, what

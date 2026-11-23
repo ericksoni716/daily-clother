@@ -197,6 +197,8 @@
 .wish-shop-line { margin: 4px 0; font-size: var(--text-sm); line-height: 1.45; }
 .find-list { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: 10px; }
 .find-card { display: flex; gap: var(--space-3); padding: var(--space-3); }
+/* "See it with your clothes": its popover opens under it on a computer */
+.find-worn { position: relative; margin: var(--space-1) 0 var(--space-2); }
 .wish-shop-notice { margin: var(--space-1) 0; }
 .find-image { flex: none; width: 76px; height: 96px; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface); }
 .find-body { min-width: 0; flex: 1; }

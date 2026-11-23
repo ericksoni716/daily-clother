@@ -45,8 +45,9 @@ const LONG = {
   line: 'Never anything double-breasted, never anything with a crest or a logo-embroidered-chest-pocket-of-any-kind',
 };
 // Sheets opened by a button on a screen, pictured as well: the style conversation, every line of Your style, an
-// item's colours with the shades of its colour, and a wish's most you'd pay and its find's checkout code. `route` can
-// be worked out from the ids `setUp` gives; `fold` is opened first when the button is inside one.
+// item's colours with the shades of its colour, a wish's most you'd pay, its find's checkout code, and a find seen with
+// your clothes. `route` can be worked out from the ids `setUp` gives; `fold` is opened first when the button is inside
+// one; `wait` is what to wait for inside the sheet before its picture is taken.
 const SHEETS = [
   { route: '/settings', button: 'Talk to Claude about your style', sheet: 'style-talk-sheet', name: 'settings-style-talk' },
   { route: '/settings', button: /^(See all lines|Change the lines)$/, sheet: 'style-lines-sheet', name: 'settings-style-lines' },
@@ -57,6 +58,8 @@ const SHEETS = [
     sheet: 'price-sheet', name: 'wish-price' },
   { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: 'Change the code',
     sheet: 'code-sheet', name: 'wish-code' },
+  { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: 'See it with your clothes',
+    sheet: 'worn-sheet', name: 'wish-worn', wait: '[data-testid="outfit-figure"] img' },
 ];
 // A made-up shop's page with a long product name, which the backend's stand-in serves (never the web).
 const SHOP_PAGE = 'https://shop.example/long-name';
@@ -293,7 +296,7 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           if (errors.length) failures.push(`${route} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
           await page.close();
         }
-        for (const { route, fold, button, sheet, name } of SHEETS) {
+        for (const { route, fold, button, sheet, name, wait } of SHEETS) {
           const page = await context.newPage();
           const errors = [];
           page.on('pageerror', (e) => errors.push(e.message));
@@ -302,6 +305,7 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           if (fold) await page.locator('details.more > summary', { hasText: fold }).first().click();
           await page.getByRole('button', { name: button }).first().click();
           await page.getByTestId(sheet).waitFor({ state: 'visible', timeout: 10_000 }).catch(() => failures.push(`${name} at ${size}px did not open`));
+          if (wait) await page.getByTestId(sheet).locator(wait).first().waitFor({ timeout: 20_000 }).catch(() => failures.push(`${name} at ${size}px showed no ${wait}`));
           await page.waitForTimeout(600);
           await page.screenshot({ path: join(OUT, `${size}-${scheme}-${name}.png`) });
           const { extra, culprits } = await page.evaluate(overflow);

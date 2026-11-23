@@ -25,6 +25,7 @@ const SAMPLE: { [K in KeyName]: () => readonly unknown[] } = {
   gaps: () => queryKeys.gaps(),
   wishlist: () => queryKeys.wishlist(),
   finds: () => queryKeys.finds('w1'),
+  findOutfits: () => queryKeys.findOutfits('w1', 'f1'),
   news: () => queryKeys.news(),
   wouldWork: () => queryKeys.wouldWork('c1'),
   insights: () => queryKeys.insights(),

@@ -212,4 +212,36 @@ test.describe('shopping for a wish', () => {
     await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
     await expect(page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'A plain shirt' })).toBeVisible();
   });
+
+  // A judged find worn with your own clothes: the outfits Would this work? makes with it, drawn as worn on this computer
+  // (nothing asks Claude), in a sheet over the wish's page, with the shop's picture beside the drawing.
+  test('see a judged find with your clothes, step through its outfits and close the sheet', async ({ page }) => {
+    test.setTimeout(120_000);
+    expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
+    const made = await page.request.post(backend.url + '/api/wishlist/link', { data: { url: 'https://shop.example/long-name' } });
+    expect(made.ok()).toBe(true);
+    const { id } = await made.json();
+    await page.setViewportSize({ width: 393, height: 760 });
+    await page.goto(backend.url + `/wardrobe/wish/${encodeURIComponent(id)}`);
+    const find = page.getByTestId('wish').getByTestId('find');
+    // Claude's stand-in describes the page, then it is judged against the closet: only then is the action offered
+    await expect(find.getByTestId('find-verdict')).not.toBeEmpty({ timeout: 60_000 });
+    await find.getByRole('button', { name: 'See it with your clothes' }).click();
+
+    const sheet = page.getByTestId('worn-sheet');
+    await expect(sheet.getByRole('heading', { name: 'With your clothes' })).toBeVisible();
+    await expect(sheet).toContainText("This piece is drawn from the shop's description, so it shows roughly its shape and colour");
+    const outfit = sheet.getByTestId('worn-outfit');
+    await expect(outfit.getByTestId('outfit-figure').locator('img')).toBeVisible({ timeout: 30_000 });
+    await expect(outfit.getByRole('list')).toContainText('This piece');
+    // the owner's own pieces in it open as elsewhere
+    await expect(outfit.getByRole('list').getByRole('link').first()).toHaveAttribute('href', /^\/wardrobe\/item\//);
+    await expect(sheet.getByText(/^Outfit 1 of [23], for an? /)).toBeVisible();
+    await sheet.getByRole('button', { name: 'The next outfit' }).click();
+    await expect(sheet.getByText(/^Outfit 2 of [23], for an? /)).toBeVisible();
+    await expect(outfit.getByTestId('outfit-figure').locator('img')).toBeVisible({ timeout: 30_000 });
+    expect(await axeViolations(page)).toEqual([]);
+    await sheet.getByRole('button', { name: 'Done' }).click();
+    await expect(sheet).toHaveCount(0);
+  });
 });

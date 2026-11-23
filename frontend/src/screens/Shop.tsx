@@ -1,21 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type RefObject } from 'react';
 import { api } from '../api';
 import { LinkIcon, SearchIcon } from '../components/Icons';
 import { useNewsSeen } from '../components/PriceNews';
+import { SeeItWorn } from '../components/WornWith';
 import { Button, buttonClass, Card, Notice, SegmentedControl, Sheet } from '../components/ui';
 import type { Wish } from '../gaps';
-import { touch } from '../queries';
+import { touch, useItems } from '../queries';
 import {
-  checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, googleShoppingLink, historyWords,
-  lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll, type ShopRun,
-  typedCode, typedPrice, watchWords, webLink,
+  canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, googleShoppingLink,
+  historyWords, lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll,
+  type ShopRun, typedCode, typedPrice, watchWords, webLink,
 } from '../shop';
 import { SEARCH_SENDS } from '../shop';
 import { aboutUsd } from '../spend';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
-import { verdictTone } from '../wouldwork';
+import type { ItemSummary } from '../types';
+import { drawnFromWords, verdictTone, wornError } from '../wouldwork';
 import './Shop.css';
 
 const DEMO_TITLE = 'The demo closet never sends anything to Claude, so it cannot search shops';
@@ -70,6 +72,8 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   const key = queryKeys.finds(wish.id);
   const [linking, setLinking] = useState(false);
   const seen = useNewsSeen();
+  const items = useItems().data;
+  const byId = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);
   // Asked again every few seconds while a search, a price check or a link's reading runs, and not at all otherwise;
   // never while the page is hidden. Reading never starts one: only the owner does, below.
   const answer = useQuery({
@@ -141,7 +145,7 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
       {finds.length > 0 && (
         <section className="wish-watch" aria-label={`Watching for ${wish.name}`}>
           <ul className="find-list" aria-label="Found in shops">
-            {finds.map((f) => <li key={f.id}><FindCard find={f} demo={demo} locked={locked} onStop={() => void stop(f)} /></li>)}
+            {finds.map((f) => <li key={f.id}><FindCard find={f} demo={demo} locked={locked} byId={byId} onStop={() => void stop(f)} /></li>)}
           </ul>
           <PriceLine wish={wish} currency={currency} locked={locked} onPrice={onPrice}>{watchWords(wish)}</PriceLine>
           <p className="muted wish-shop-line" data-testid="prices-checked">
@@ -212,7 +216,9 @@ function RunSaid({ run, error }: { run: ShopRun | null; error: string | null }) 
   );
 }
 
-function FindCard({ find, demo, locked, onStop }: { find: Find; demo: boolean; locked: boolean; onStop(): void }) {
+function FindCard({ find, demo, locked, byId, onStop }: {
+  find: Find; demo: boolean; locked: boolean; byId: Map<string, ItemSummary>; onStop(): void;
+}) {
   const link = webLink(find.url);
   const image = webLink(find.image_url);
   const tone = find.verdict ? verdictTone(find.verdict) : 'plain';
@@ -240,6 +246,7 @@ function FindCard({ find, demo, locked, onStop }: { find: Find; demo: boolean; l
         {find.piece_words && <p className="muted find-piece">Claude saw: {find.piece_words}</p>}
         {sent && <p className="muted find-piece" data-testid="find-link">{sent}</p>}
         {unjudged && <p className="muted find-piece" data-testid="find-not-judged">{unjudged}</p>}
+        {canSeeWorn(find) && <SeeWorn find={find} image={image} locked={locked} byId={byId} />}
         <div className="row">
           {link && <a className={buttonClass({ small: true })} href={link} target="_blank" rel="noopener noreferrer">Open in shop</a>}
           {/* the find goes, and with it its daily check */}
@@ -269,6 +276,31 @@ function FindCode({ find, locked }: { find: Find; locked: boolean }) {
         </button>
       </p>
       {open && <CodeSheet find={find} keep={button} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+/**
+ * "See it with your clothes": one quiet button on a judged find's card, opening the outfits made with it, drawn as
+ * worn on this computer (nothing is asked of Claude). They are worked out when the sheet opens.
+ */
+function SeeWorn({ find, image, locked, byId }: { find: Find; image: string | null; locked: boolean; byId: Map<string, ItemSummary> }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const outfits = useQuery({
+    queryKey: queryKeys.findOutfits(find.wish_id, find.id), queryFn: () => api.findOutfits(find.wish_id, find.id), enabled: open,
+  });
+  return (
+    <div className="find-worn">
+      <button ref={button} type="button" className="btn btn-link btn-small wish-inline-button" data-testid="see-worn"
+        aria-haspopup="dialog" aria-expanded={open} disabled={locked && !outfits.data} onClick={() => setOpen(!open)}>
+        See it with your clothes
+      </button>
+      {open && (
+        <SeeItWorn title="With your clothes" piece={outfits.data?.piece ?? find.piece} outfits={outfits.data?.outfits ?? null}
+          image={image} note={drawnFromWords('shop')} error={outfits.error ? wornError(outfits.error) : null} byId={byId} keep={button}
+          onClose={() => setOpen(false)} />
+      )}
     </div>
   );
 }

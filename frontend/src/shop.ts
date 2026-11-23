@@ -5,7 +5,7 @@ import { plural } from './insights';
 import { label } from './labels';
 import { timeOf } from './today';
 import { localDay, whenWorn } from './wears';
-import type { Verdict, WouldPiece } from './wouldwork';
+import type { Verdict, WouldExample, WouldPiece } from './wouldwork';
 
 export interface PricePoint {
   at: string;
@@ -59,6 +59,8 @@ export interface Find {
   verdict_words: string | null;
   reasons: string[];
   checked_at: string | null;
+  /** How many example outfits the check made with it when it was judged; null when judged before they were counted. */
+  outfits?: number | null;
   /** Why a link is not judged against the closet yet: its page not read, the page gave no name, Claude could not tell
    * what it is, or Claude has not been asked yet. Null when it is judged. */
   not_judged?: 'unread' | 'no_name' | 'unclear' | 'waiting' | null;
@@ -202,6 +204,24 @@ export function notJudgedWords(f: Pick<Find, 'not_judged'>, demo: boolean): stri
       : 'Nines checks it against your closet once Claude can describe it.';
     default: return null;
   }
+}
+
+/** A find worn with your own clothes (`GET /api/wishlist/{id}/finds/{findId}/outfits`): its piece, and the example
+ * outfits Would this work? makes with it, its place holding `CANDIDATE_ID`. */
+export interface FindOutfits {
+  piece: WouldPiece;
+  outfits: WouldExample[];
+}
+
+/**
+ * Whether a find's card offers "See it with your clothes": it is judged, and the check made at least one outfit with
+ * it. A find judged before outfits were counted offers it unless the closet was too small to say; the sheet then says
+ * when none can be made now.
+ */
+export function canSeeWorn(f: Pick<Find, 'piece' | 'verdict' | 'outfits'>): boolean {
+  if (!f.piece || !f.verdict) return false;
+  if (typeof f.outfits === 'number') return f.outfits > 0;
+  return f.verdict !== 'too_small';
 }
 
 /** What is said while a search, a price check or the reading of a link runs. */

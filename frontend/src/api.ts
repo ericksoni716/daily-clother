@@ -5,7 +5,7 @@ import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherChe
 import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
-import type { FindsAnswer, PriceNews } from './shop';
+import type { FindOutfits, FindsAnswer, PriceNews } from './shop';
 import type { Life } from './life';
 import type { Check, WouldPiece } from './wouldwork';
 import type { FigurePieces } from './figure';
@@ -400,6 +400,9 @@ export const api = {
   /** A product's page added to a wish as a find; its page is read in the background. */
   addLinkTo: (id: string, url: string) =>
     request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/link`, { method: 'POST', body: { url } }),
+  /** A find worn with your own clothes: the example outfits made with its piece, worked out now (nothing asks Claude). */
+  findOutfits: (id: string, findId: string) =>
+    request<FindOutfits>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}/outfits`),
   removeFind: (id: string, findId: string) =>
     request<void>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}`, { method: 'DELETE' }),
   /** A checkout code you typed for a find, with its percent or its amount off (it marks the wish's news seen). */

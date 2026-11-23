@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LookFor, Wish } from './gaps';
 import {
-  type Check, checkKinds, checkPoll, POLL_MS, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceFromWish, PIECE_NAME_MAX, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
+  type Check, checkKinds, checkPoll, drawnFromWords, outfitStep, wornError, POLL_MS, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceFromWish, PIECE_NAME_MAX, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
   wishFrom, wornWords,
 } from './wouldwork';
 
@@ -130,5 +130,20 @@ describe('asking how a check is getting on', () => {
   it('asks more slowly while Nines cannot be reached, and stops once the check is forgotten', () => {
     expect(checkPoll({ state: 'checking' }, { status: 0 })).toBe(POLL_MS * 2);
     expect(checkPoll({ state: 'checking' }, { status: 404 })).toBe(false);
+  });
+});
+
+describe('a piece drawn with your clothes', () => {
+  it('says once, in one sentence, where the drawing comes from and that it is rough', () => {
+    expect(drawnFromWords('shop')).toBe("This piece is drawn from the shop's description, so it shows roughly its shape and colour, not how it really looks.");
+    expect(drawnFromWords('photo')).toContain("Claude's description of your photo");
+    expect(drawnFromWords('by_hand')).toContain('your description');
+  });
+  it('counts the outfits from one', () => {
+    expect(outfitStep(0, 3)).toBe('Outfit 1 of 3');
+  });
+  it('says Nines is out of reach when it is, and the server\'s own sentence otherwise', () => {
+    expect(wornError({ status: 0, message: 'x' })).toBe('Showing it with your clothes needs Nines running on the computer.');
+    expect(wornError({ status: 409, message: 'Not yet.' })).toBe('Not yet.');
   });
 });

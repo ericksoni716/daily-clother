@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseRoute } from './router';
 import {
-  atYourPrice, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, googleShoppingLink,
+  atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, googleShoppingLink,
   historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
   runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, typedPrice, watchWords,
   webLink, wishlistWords, withinWords,
@@ -297,5 +297,21 @@ describe('a link checked against the closet, and a search on Google Shopping', (
     expect(link.searchParams.get('tbm')).toBe('shop');
     expect(link.searchParams.get('q')).toBe("men's navy smart casual coat");
     expect(googleShoppingLink({ name: 'Shirt & tie', look_for: null })).toBe("https://www.google.com/search?tbm=shop&q=men's%20Shirt%20%26%20tie");
+  });
+});
+
+describe('seeing a find with your clothes', () => {
+  const piece = { category: 'coat', color: 'tan' };
+  it('is offered for a judged find the check made an outfit with', () => {
+    expect(canSeeWorn({ piece, verdict: 'adds', outfits: 2 })).toBe(true);
+    expect(canSeeWorn({ piece, verdict: 'hard_to_wear', outfits: 0 })).toBe(false);
+  });
+  it('is not offered before the find is judged, or when the closet was too small to say', () => {
+    expect(canSeeWorn({ piece: null, verdict: null, outfits: null })).toBe(false);
+    expect(canSeeWorn({ piece, verdict: null, outfits: null })).toBe(false);
+    expect(canSeeWorn({ piece, verdict: 'too_small', outfits: undefined })).toBe(false);
+  });
+  it('is offered for a find judged before outfits were counted', () => {
+    expect(canSeeWorn({ piece, verdict: 'have_it', outfits: undefined })).toBe(true);
   });
 });

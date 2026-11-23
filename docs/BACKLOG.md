@@ -35,16 +35,20 @@ only here); take a line out when it is done.
   "…" (the small tile's whole-word cut is not used there). A category whose pieces sit in two groups is found by the
   search, not by the list: "Sweaters" under Knitwear leaves out a fleece pullover, which is Activewear by its kind.
   The Filter button keeps its word "Filter" while its sheet is titled "Show and filter".
+- **A piece's page, Would this work? and a wish's page** (23 November; DECISIONS, rows of 23 November under "Would
+  this work?" and "Shopping for a wish", and beside "Toasts"). Left: on a piece's page, wearing, the laundry, where it
+  is, Fix the details and History still say what they did in a toast (only the changes that save as they are made say
+  "Saved" beside them); Would this work?'s verdict still repeats the piece's words just under the line that names the
+  piece; "Remove from the list" on a wish was not checked for Undo (A8 asked); a find stopped watching can be put back
+  only while Nines keeps running (an hour, at most 20), not after a restart.
 - **The review of the shared parts** (23 November; DECISIONS, "The failed state", "Banners wait for the next screen",
   "One way to write a date"). Left: Today's own failed state ("Couldn't choose today's outfits: …") still words
-  itself and was left to the Today batch; the item page still says "Saved" in a toast for each change rather than a
-  `SaveStatus` beside the row (its layout is a later batch); a trip's date range is still written in `trips.ts` from
+  itself and was left to the Today batch; a trip's date range is still written in `trips.ts` from
   the family's month names; on iPhone the system Text Size does not reach Safari's rem (only the browser's own text
   size does); price news never asked for on a screen you never leave shows only on the next screen or the next open.
-  Brought onto the newer base, the newer screens had no failed read of their own to move onto `Failed`; You might like
-  still shows nothing at all when its read fails with no copy kept on this device, and a few older lines still word a
-  failed read themselves (Advanced's space used, Today's weather lookup, the style conversation, Several, the
-  details' choices in Fix the details).
+  Brought onto the newer base, the newer screens had no failed read of their own to move onto `Failed`; a few older
+  lines still word a failed read themselves (Advanced's space used, Today's weather lookup, the style conversation,
+  Several, the History fold on a piece's page, which says it in a toast).
 - **Where a piece is** (23 November; DECISIONS, "Where a piece is"). Left undone: recording an
   outfit by hand that brings an away piece back says so in the toast, but its Undo is on the piece's
   page, not beside the toast (the toast has no button); the away view keeps the pieces brought back

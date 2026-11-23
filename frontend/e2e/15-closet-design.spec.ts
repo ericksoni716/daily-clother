@@ -131,14 +131,29 @@ test.describe('phone', () => {
     expect(await filter.evaluate((b) => b.scrollWidth <= b.clientWidth + 1)).toBe(true);
     const chip = (await toolbar.getByRole('button', { name: 'Remove filter: In the laundry' }).boundingBox())!;
     expect(chip.y).toBeGreaterThanOrEqual(search.y + search.height);
-    // its word is shown whole
-    const fits = await box.evaluate((input: HTMLInputElement) => {
+    // nothing on the row goes past it, with room to spare in a wide font
+    const fitted = await toolbar.locator('.closet-toolbar-row').evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const search = el.querySelector('.search')!.getBoundingClientRect();
+      const filter = el.querySelector('.filter-wrap')!.getBoundingClientRect();
+      const least = parseFloat(getComputedStyle(el.querySelector('.search')!).minWidth);
+      // how much narrower the search could still go before Filter would have to wrap under it
+      return { row: r.width, search: search.width, least, filter: filter.width, spare: search.width - least,
+        past: r.right - filter.right < -0.5, overflows: el.scrollWidth > el.clientWidth };
+    });
+    expect(fitted, JSON.stringify(fitted)).toMatchObject({ overflows: false, past: false });
+    expect(fitted.spare, JSON.stringify(fitted)).toBeGreaterThanOrEqual(8);
+    // its word is shown whole; what was measured is printed if it is not
+    const word = await box.evaluate((input: HTMLInputElement) => {
       const s = getComputedStyle(input);
       const ctx = document.createElement('canvas').getContext('2d')!;
       ctx.font = `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
-      return ctx.measureText(input.placeholder).width <= input.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+      const room = input.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+      const width = ctx.measureText(input.placeholder).width;
+      return { connected: input.isConnected, width, clientWidth: input.clientWidth, paddingLeft: s.paddingLeft,
+        paddingRight: s.paddingRight, room, font: ctx.font, fits: width <= room };
     });
-    expect(fits).toBe(true);
+    expect(word, JSON.stringify(word)).toMatchObject({ connected: true, fits: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
     await page.screenshot({ path: test.info().outputPath('closet-320-search.png') });
     await page.getByRole('button', { name: 'Remove filter: In the laundry' }).click();

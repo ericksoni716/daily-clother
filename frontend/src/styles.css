@@ -456,14 +456,14 @@ button, input, textarea, select { font: inherit; color: inherit; }
   margin: 0 calc(-1 * var(--gutter)) var(--space-3); padding: var(--space-2) var(--gutter);
   background: var(--bg); border-bottom: 1px solid var(--line-soft);
 }
-/* the search and Filter on one row: the search takes what Filter leaves, never narrower than its whole word (9rem
-   holds "Search" with its icon in any font); the filters that are on take a row of their own under them, only when
-   there are any */
-.closet-toolbar .search { flex: 1 1 9rem; min-width: 9rem; }
+/* the search and Filter on one row: the search takes what Filter leaves, never narrower than its whole word (8rem
+   holds "Search" with its icon and some to spare in any font, and leaves Filter room at 320px in a wide font); the
+   filters that are on take a row of their own under them, only when there are any */
+.closet-toolbar .search { flex: 1 1 8rem; min-width: 8rem; }
 @media (min-width: 700px) { .closet-toolbar .search { flex-grow: 0; flex-basis: 28rem; } }
 .closet-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
 .filter-wrap { position: relative; flex: none; }
-.filter-button { padding: 0 14px; }
+.filter-button { padding: 0 12px; gap: 6px; }
 .filter-button.has-filters { border-color: var(--accent); color: var(--accent); }
 .filter-count {
   display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-pill);

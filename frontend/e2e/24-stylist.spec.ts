@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { axeViolations } from './a11y';
-import { expect, test } from './fixtures';
+import { expect, stayOnCloset, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 
@@ -14,9 +14,7 @@ async function setUp(page: Page, url: string) {
   // is in (src/landing.ts). The tests open Today themselves: that move could hide the closet's title before the test
   // saw it, and its own request for Today started Claude choosing before the test held Claude's answer, so the
   // waiting card never showed. The tab is marked as having landed already, and stays on the closet.
-  await page.addInitScript(() => sessionStorage.setItem('closet-landed', '1'));
-  await page.goto(url + '/');
-  await expect(page.locator('#closet-title')).toBeVisible();
+  await stayOnCloset(page, url);
 }
 
 /** A forecast, as 10-today.spec.ts gives one (home's weather is out of reach in a test), so Today looks as it does on

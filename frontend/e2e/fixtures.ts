@@ -92,11 +92,26 @@ export async function goToCloset(page: Page) {
   await expect(title).toBeVisible();
 }
 
-/** Switches the server to the real or demo closet and reloads. */
+/**
+ * Switches the server to the real or demo closet and opens the closet again. The demo closet can dress the owner, so
+ * in a tab that has not landed yet the page would move to Today underneath the test: goToCloset waits for that.
+ */
 export async function useProfile(page: Page, profile: 'main' | 'demo') {
   const r = await page.request.post('/api/profile', { data: { profile } });
   expect(r.ok()).toBeTruthy();
-  await page.goto('/');
+  await goToCloset(page);
+}
+
+/**
+ * Opens the closet of a backend of the test's own (`url`) and keeps the tab there. Such a closet that can dress the
+ * owner would move to Today once its list is in (src/landing.ts, once per tab): the move can hide the closet's title
+ * before the test sees it, or leave for Today underneath the test, and Today's own first request starts its work
+ * (Claude choosing) before the test has set up what it meant to. The tab is marked as having landed already, before
+ * the first page opens, so it stays on the closet and Today is asked for only when the test opens it.
+ */
+export async function stayOnCloset(page: Page, url: string) {
+  await page.addInitScript(() => sessionStorage.setItem('closet-landed', '1'));
+  await page.goto(url + '/');
   await expect(page.locator('#closet-title')).toBeVisible();
 }
 

@@ -1,5 +1,5 @@
 import { axeViolations } from './a11y';
-import { expect, test } from './fixtures';
+import { expect, stayOnCloset, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 
@@ -19,8 +19,7 @@ test.describe('the day in your words', () => {
   test('a day somewhere else: the note is read, Today dresses for that place and its hours, and Clear goes home', async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(backend.url + '/');
-    await expect(page.locator('#closet-title')).toBeVisible();
+    await stayOnCloset(page, backend.url);
 
     await page.goto(backend.url + '/today');
     const day = page.getByTestId('day-line');

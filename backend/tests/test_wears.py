@@ -33,7 +33,8 @@ def test_a_wear_defaults_to_today_and_there_is_one_per_day(client):
 
 def test_a_wear_in_the_future_or_a_bad_date_is_refused(client):
     item = upload(client).json()
-    future = client.post(f"/api/items/{item['id']}/wears", json={"worn_on": (TODAY + timedelta(days=1)).isoformat()})
+    # the computer's tomorrow is a phone's today a time zone ahead; the day after is the future
+    future = client.post(f"/api/items/{item['id']}/wears", json={"worn_on": (TODAY + timedelta(days=2)).isoformat()})
     assert future.status_code == 422 and "future" in future.json()["detail"]
     for bad in ("12/11/2026", "2026-13-01", "yesterday", "20261111"):
         r = client.post(f"/api/items/{item['id']}/wears", json={"worn_on": bad})
@@ -129,7 +130,7 @@ def test_an_outfit_wear_is_all_or_nothing_and_checks_what_it_is_given(client):
     assert r.status_code == 404
     assert client.get(f"/api/items/{a}").json()["wear_count"] == 0
     for body, words in (({"item_ids": []}, "list of item ids"), ({"item_ids": [""]}, "list of item ids"),
-                        ({"item_ids": [a], "worn_on": (TODAY + timedelta(days=1)).isoformat()}, "future"),
+                        ({"item_ids": [a], "worn_on": (TODAY + timedelta(days=2)).isoformat()}, "future"),
                         ({"item_ids": [a], "worn_on": "yesterday"}, "YYYY-MM-DD"),
                         ({"item_ids": [f"x{n}" for n in range(21)]}, "at most 20")):
         r = client.post("/api/wears", json=body)
@@ -318,3 +319,62 @@ def test_undoing_the_wear_takes_it_out_even_when_its_count_was_already_reached(c
     assert laundry(client, tee) == "laundry"
     client.delete(f"/api/items/{tee}/wears/{days_ago(0)}")
     assert laundry(client, tee) == "clean"
+
+
+def test_an_outfit_can_be_recorded_for_today_from_a_phone_that_is_a_time_zone_ahead(client):
+    # the computer is at home in New York, still Thursday evening; the phone is in Lisbon, already Friday morning, and
+    # "Record an outfit" sends the phone's today. It is the day itself, not the future.
+    tee, jeans, shoes = kind(client, "tee", "t"), kind(client, "jeans", "j"), kind(client, "sneakers", "s")
+    phone_today = (TODAY + timedelta(days=1)).isoformat()
+    r = client.post("/api/outfits/worn", json={"item_ids": [tee, jeans, shoes], "worn_on": phone_today})
+    assert r.status_code == 201, r.json()
+    assert client.get(f"/api/items/{tee}").json()["last_worn"] == phone_today
+    too_far = client.post("/api/outfits/worn", json={"item_ids": [tee, jeans], "worn_on": (TODAY + timedelta(days=2)).isoformat()})
+    assert too_far.status_code == 422 and "future" in too_far.json()["detail"]
+
+
+def test_recording_an_outfit_from_before_the_last_wash_does_not_empty_the_closet_into_the_laundry(client):
+    # Laundry keeps itself, Sunday is laundry day, today is Thursday 12 November. The owner fills in what they wore on
+    # Monday 2 November: it has been through the wash on Sunday 8 November, so it stays clean, its count unchanged
+    tee, jeans, shoes = kind(client, "tee", "t"), kind(client, "jeans", "j"), kind(client, "sneakers", "s")
+    r = client.post("/api/outfits/worn", json={"item_ids": [tee, jeans, shoes], "worn_on": "2026-11-02"})
+    assert r.status_code in (200, 201), r.text
+    after = client.get(f"/api/items/{tee}").json()
+    assert (after["laundry"], after["wears_since_wash"], after["last_worn"]) == ("clean", 0, "2026-11-02")
+    # Saturday's outfit recorded today, after Sunday's wash, the same
+    wear(client, tee, 6)
+    assert laundry(client, tee) == "clean" and client.get(f"/api/items/{tee}").json()["wears_since_wash"] == 0
+    # taking such a wear away again leaves the count alone
+    client.delete(f"/api/items/{tee}/wears/{days_ago(6)}")
+    assert client.get(f"/api/items/{tee}").json()["wears_since_wash"] == 0
+    # worn since the laundry day: it counts and goes in, as before
+    wear(client, tee, 3)
+    assert laundry(client, tee) == "laundry"
+
+
+def test_trousers_worn_once_before_the_laundry_day_were_not_in_the_basket_and_still_count(client):
+    # trousers go in after three wears: one wear in the week before Sunday did not put them in the basket, so it is
+    # still a wear since their last wash; three that week did, and Sunday washed them
+    once, thrice = kind(client, "trousers", "a"), kind(client, "jeans", "b")
+    wear(client, once, 5)   # Saturday 7 November
+    assert client.get(f"/api/items/{once}").json()["wears_since_wash"] == 1
+    wear(client, thrice, 7)
+    wear(client, thrice, 6)
+    assert client.get(f"/api/items/{thrice}").json()["wears_since_wash"] == 2
+    wear(client, thrice, 5)   # the third wear that week: it was washed on Sunday with the others
+    item = client.get(f"/api/items/{thrice}").json()
+    assert item["laundry"] == "clean" and item["wears_since_wash"] == 2
+
+
+def test_a_wear_from_before_the_day_it_was_marked_clean_does_not_count(client, cfg):
+    tee = kind(client, "tee", "t")
+    conn = db.connect(cfg.db_path("main"))
+    try:   # marked clean on Tuesday 10 November
+        conn.execute("UPDATE items SET washed_at = '2026-11-10T18:00:00.000000Z' WHERE id = ?", (tee,))
+    finally:
+        conn.close()
+    assert client.put("/api/settings", json={"laundry": {"auto": True, "day": None}}).status_code == 200
+    wear(client, tee, 3)   # Monday
+    assert laundry(client, tee) == "clean"
+    wear(client, tee, 1)   # Wednesday
+    assert laundry(client, tee) == "laundry"

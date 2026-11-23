@@ -1,8 +1,10 @@
 """What was worn when, and whether an item is clean or in the laundry.
 
-A wear is one item on one day (the computer's local date). Each item also keeps
-how many wears were recorded since it was last marked clean; a wear removed
-again only lowers that count if it was recorded after the wash.
+A wear is one item on one day (the computer's local date; a phone a time zone
+ahead may give the next day). Each item also keeps how many wears were recorded
+since it was last washed; a wear for a day the piece has been washed since (an
+outfit filled in from memory, say) is kept in the log but not counted, and a
+wear removed again only lowers that count if it was counted.
 
 Laundry that keeps itself (when the owner leaves it on in Settings): a piece goes
 in the laundry by itself once worn as often as "Before it needs washing" allows
@@ -19,6 +21,7 @@ from datetime import UTC, date, datetime, timedelta
 from . import db, items
 
 LAUNDRY = ("clean", "laundry")
+AHEAD_DAYS = 1   # a wear may be for the computer's tomorrow: a phone a time zone ahead is already there
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -82,6 +85,77 @@ def policy_from(setting: object, rewear: dict) -> Policy | None:
 def _cap(row) -> int | None:
     policy = _policy()
     return policy.caps.get(row["category"]) if policy else None
+
+
+def _local_date(stamp: str) -> date:
+    """The computer's local date of a time as `db.now` writes it (UTC)."""
+    return datetime.strptime(stamp[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=UTC).astimezone().date()
+
+
+def washed_since(conn, row, day: date) -> bool:
+    """Whether the piece has been washed since `day`, so a wear on that day is behind its last wash and does not count.
+
+    Washed by hand: marked clean on a later date (a wear on the day it was marked clean still counts). Washed by the
+    laundry day: the piece goes in by itself, the first laundry day after `day` has come (a wash on the day itself is
+    at its first minute, before the wear), and its wears in the week before that laundry day, this one included,
+    reached its count, so it was in the basket. Wears carried over from earlier weeks are not followed."""
+    washed = None
+    if row["washed_at"]:
+        washed = min(_local_date(row["washed_at"]), today())   # a wash is never later than today
+        if day < washed:
+            return True
+    cap = _cap(row)
+    policy = _policy()
+    if not cap or policy is None or policy.day is None:
+        return False
+    wash = next_laundry_day(policy.day, day)
+    if wash > today():
+        return False
+    start = max(wash - timedelta(days=7), washed) if washed else wash - timedelta(days=7)
+    others = conn.execute("SELECT COUNT(*) FROM wears WHERE item_id = ? AND worn_on >= ? AND worn_on < ? AND worn_on != ?",
+                          (row["id"], start.isoformat(), wash.isoformat(), day.isoformat())).fetchone()[0]
+    return others + 1 >= cap
+
+
+def _check_day(worn_on: str | None) -> date:
+    """The day a wear is for: today when none is given. A phone a time zone ahead of the computer may give the
+    computer's tomorrow (its own today); a day after that is refused."""
+    day = _parse(worn_on) if worn_on else today()
+    if day > today() + timedelta(days=AHEAD_DAYS):
+        raise items.ItemError("That date is in the future. Record a wear on the day, or afterwards.")
+    return day
+
+
+def _record(conn, item_id: str, day: date, t: str) -> bool:
+    """Record one wear inside the caller's transaction; True when it is new. A wear for a day the piece has been
+    washed since is kept in the log but neither counted nor puts the piece in the laundry."""
+    row = items.get(conn, item_id)
+    counted = not washed_since(conn, row, day)
+    if conn.execute("INSERT OR IGNORE INTO wears (item_id, worn_on, created_at) VALUES (?, ?, ?)",
+                    (item_id, day.isoformat(), t)).rowcount != 1:
+        return False
+    if counted:
+        conn.execute("UPDATE items SET wears_since_wash = wears_since_wash + 1, updated_at = ? WHERE id = ?", (t, item_id))
+        _after_wear(conn, item_id, t)
+    else:
+        conn.execute("UPDATE items SET updated_at = ? WHERE id = ?", (t, item_id))
+    return True
+
+
+def _unrecord(conn, item_id: str, day: str, t: str) -> bool:
+    """Remove one wear inside the caller's transaction; False when there is none that day. The count goes down only
+    when the wear was counted: recorded after the last wash, for a day the piece has not been washed since."""
+    row = items.get(conn, item_id)  # read under the write lock: a wash may have just been recorded
+    wear = conn.execute("SELECT created_at FROM wears WHERE item_id = ? AND worn_on = ?", (item_id, day)).fetchone()
+    if wear is None:
+        return False
+    counted = ((row["washed_at"] is None or wear["created_at"] > row["washed_at"])
+               and not washed_since(conn, row, date.fromisoformat(day)))
+    conn.execute("DELETE FROM wears WHERE item_id = ? AND worn_on = ?", (item_id, day))
+    conn.execute("UPDATE items SET wears_since_wash = max(0, wears_since_wash - ?), updated_at = ? WHERE id = ?",
+                 (1 if counted else 0, t, item_id))
+    _after_unwear(conn, item_id, t, wear["created_at"])
+    return True
 
 
 def _after_wear(conn, item_id: str, t: str) -> None:
@@ -166,17 +240,11 @@ def list_wears(conn, item_id: str) -> list[dict]:
 def add(conn, item_id: str, worn_on: str | None = None) -> tuple[dict, bool]:
     """Record a wear. Returns (item, created); a second wear on the same day changes nothing."""
     items.get(conn, item_id)
-    day = _parse(worn_on) if worn_on else today()
-    if day > today():
-        raise items.ItemError("That date is in the future. Record a wear on the day, or afterwards.")
+    day = _check_day(worn_on)
     try:
         conn.execute("BEGIN IMMEDIATE")
         t = db.now()  # taken under the write lock, so it orders correctly against a wash
-        created = conn.execute("INSERT OR IGNORE INTO wears (item_id, worn_on, created_at) VALUES (?, ?, ?)",
-                               (item_id, day.isoformat(), t)).rowcount == 1
-        if created:
-            conn.execute("UPDATE items SET wears_since_wash = wears_since_wash + 1, updated_at = ? WHERE id = ?", (t, item_id))
-            _after_wear(conn, item_id, t)
+        created = _record(conn, item_id, day, t)
         conn.execute("COMMIT")
     except Exception:
         if conn.in_transaction:
@@ -190,16 +258,8 @@ def remove(conn, item_id: str, worn_on: str) -> dict:
     day = _parse(worn_on).isoformat()
     try:
         conn.execute("BEGIN IMMEDIATE")
-        row = items.get(conn, item_id)  # read again under the write lock: a wash may have just been recorded
-        wear = conn.execute("SELECT created_at FROM wears WHERE item_id = ? AND worn_on = ?", (item_id, day)).fetchone()
-        if wear is None:
+        if not _unrecord(conn, item_id, day, db.now()):
             raise items.ItemError("There is no wear on that day to remove.", 404)
-        conn.execute("DELETE FROM wears WHERE item_id = ? AND worn_on = ?", (item_id, day))
-        counted = row["washed_at"] is None or wear["created_at"] > row["washed_at"]
-        t = db.now()
-        conn.execute("UPDATE items SET wears_since_wash = max(0, wears_since_wash - ?), updated_at = ? WHERE id = ?",
-                     (1 if counted else 0, t, item_id))
-        _after_unwear(conn, item_id, t, wear["created_at"])
         conn.execute("COMMIT")
     except Exception:
         if conn.in_transaction:
@@ -235,18 +295,13 @@ def add_many(conn, item_ids: object, worn_on: str | None = None, also: Also | No
     ids = _ids(item_ids)
     for item_id in ids:
         items.get(conn, item_id)
-    day = _parse(worn_on) if worn_on else today()
-    if day > today():
-        raise items.ItemError("That date is in the future. Record a wear on the day, or afterwards.")
+    day = _check_day(worn_on)
     recorded = []
     try:
         conn.execute("BEGIN IMMEDIATE")
         t = db.now()
         for item_id in ids:
-            if conn.execute("INSERT OR IGNORE INTO wears (item_id, worn_on, created_at) VALUES (?, ?, ?)",
-                            (item_id, day.isoformat(), t)).rowcount == 1:
-                conn.execute("UPDATE items SET wears_since_wash = wears_since_wash + 1, updated_at = ? WHERE id = ?", (t, item_id))
-                _after_wear(conn, item_id, t)
+            if _record(conn, item_id, day, t):
                 recorded.append(item_id)
         if also:
             also(day.isoformat(), recorded, t)
@@ -278,16 +333,8 @@ def remove_many(conn, item_ids: object, worn_on: object, also: Also | None = Non
             conn.execute("BEGIN IMMEDIATE")
         t = db.now()
         for item_id in ids:
-            row = items.get(conn, item_id)  # read under the write lock: a wash may have just been recorded
-            wear = conn.execute("SELECT created_at FROM wears WHERE item_id = ? AND worn_on = ?", (item_id, day)).fetchone()
-            if wear is None:
-                continue
-            conn.execute("DELETE FROM wears WHERE item_id = ? AND worn_on = ?", (item_id, day))
-            counted = row["washed_at"] is None or wear["created_at"] > row["washed_at"]
-            conn.execute("UPDATE items SET wears_since_wash = max(0, wears_since_wash - ?), updated_at = ? WHERE id = ?",
-                         (1 if counted else 0, t, item_id))
-            _after_unwear(conn, item_id, t, wear["created_at"])
-            removed.append(item_id)
+            if _unrecord(conn, item_id, day, t):
+                removed.append(item_id)
         if also:
             also(day, removed, t)
         if own_transaction:

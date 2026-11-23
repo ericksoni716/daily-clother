@@ -194,11 +194,11 @@ async function setUp(base) {
     // You might like: one look (the backend's stand-in answers in a second, with long names), so the Wardrobe's card
     // shows its three picks
     await call('/api/picks/look', 'POST');
-    for (let i = 0; i < 40 && (await call('/api/picks')).run?.state === 'running'; i++) await new Promise((r) => setTimeout(r, 250));
+    for (let i = 0; i < 400 && (await call('/api/picks')).run?.state === 'running'; i++) await new Promise((r) => setTimeout(r, 250));
     // ...and one look for things on sale (its made-up pages read by the real reader), so its view shows three, and
     // shops you like with long names
     await call('/api/picks/look?kind=sale', 'POST');
-    for (let i = 0; i < 40 && (await call('/api/picks')).run?.state === 'running'; i++) await new Promise((r) => setTimeout(r, 250));
+    for (let i = 0; i < 400 && (await call('/api/picks')).run?.state === 'running'; i++) await new Promise((r) => setTimeout(r, 250));
     for (const name of ['Example Outfitters of Unreasonably Long Names', 'small-maker-with-a-long-site.example', 'Example Shop']) {
       await call('/api/shops', 'POST', { name });
     }

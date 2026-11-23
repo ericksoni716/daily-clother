@@ -81,16 +81,22 @@ test.describe('outfits chosen by Claude', () => {
     await expect(waiting(page)).toHaveAttribute('role', 'status');
     await expect(waiting(page).getByRole('heading', { name: "Claude is choosing today's outfits…" })).toBeVisible();
     await expect(waiting(page)).toContainText('This usually takes under a minute. They are kept for the rest of the day.');
-    await expect(page.getByTestId('current-outfit')).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: /Best for today/ })).toHaveCount(0);
+    // the outfits stay in their place under the card, dimmed and out of reach, so what is below them does not move
+    await expect(current(page)).toBeAttached();
+    await expect(page.locator('.today-track')).toHaveAttribute('inert', '');
+    const covered = (await current(page).boundingBox())!;
+    const card = (await waiting(page).boundingBox())!;
+    expect(card.y).toBeGreaterThanOrEqual(covered.y - 1);
+    expect(card.y + card.height).toBeLessThanOrEqual(covered.y + covered.height);
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: test.info().outputPath('today-stylist-waiting.png') });
 
-    // the rules' outfits meanwhile, below the card, as they always look (and nothing yet says who chose them)
+    // the rules' outfits meanwhile, as they always look (and nothing yet says who chose them), with the card under them
     await waiting(page).getByRole('button', { name: "Show Nines' own picks meanwhile" }).click();
     await expect(current(page).getByTestId('piece').first()).toBeVisible();
+    await expect(page.locator('.today-track')).not.toHaveAttribute('inert', '');
     await expect(waiting(page)).toBeVisible();
-    expect((await waiting(page).boundingBox())!.y).toBeLessThan((await current(page).boundingBox())!.y);
+    expect((await waiting(page).boundingBox())!.y).toBeGreaterThan((await current(page).boundingBox())!.y);
     await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeEnabled();
     await expect(current(page).getByTestId('outfit-by')).toHaveCount(0);
     await expect(waiting(page).getByRole('button', { name: "Show Nines' own picks meanwhile" })).toHaveCount(0);
@@ -137,6 +143,24 @@ test.describe('outfits chosen by Claude', () => {
     await claudes(page);
     expect(posted[0]).toMatchObject({ ask_again: true });
     expect(posted.slice(1).every((b) => !(b as { ask_again?: boolean }).ask_again)).toBe(true);
+
+    // "Not this piece" while far down the page: the outfits stay on the page while Claude chooses again, so the page
+    // keeps its length and you stay where you were (it lost about 1,050px and left you elsewhere)
+    const trip = page.getByTestId('recent-outfits');
+    const pieceName = (await current(page).locator('.today-piece-name').first().textContent())!.trim();
+    await current(page).getByRole('button', { name: "I'm wearing this" }).scrollIntoViewIfNeeded();
+    const tall = await page.evaluate(() => document.documentElement.scrollHeight);
+    const at = await page.evaluate(() => window.scrollY);
+    const recentAt = (await trip.boundingBox())!.y;
+    await current(page).getByRole('button', { name: `Choices for ${pieceName}` }).click();
+    await page.getByRole('dialog', { name: pieceName }).getByRole('button', { name: 'Not this piece' }).click();
+    await expect(waiting(page)).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeGreaterThan(tall - 200);
+    expect(Math.abs((await trip.boundingBox())!.y - recentAt)).toBeLessThan(200);
+    await claudes(page);
+    expect(Math.abs(await page.evaluate(() => window.scrollY) - at)).toBeLessThan(200);
+    await page.getByRole('button', { name: `Put back ${pieceName}` }).click();
+    await claudes(page);
 
     // another occasion is asked once: Claude chooses for it, and going back is at once
     const occasion = page.getByRole('group', { name: 'Occasion' });

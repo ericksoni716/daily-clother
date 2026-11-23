@@ -90,9 +90,10 @@ describe('the day at a glance', () => {
     expect(dayParts(day({ detail: null }))).toEqual(['3–10°C', 'rain 70%', 'Brooklyn']);
   });
 
-  it('says "about" when low and high round to the same degree', () => {
+  it('writes temperatures one way, and says "about" when low and high round to the same degree', () => {
     expect(temps(21.6, 22.4)).toBe('About 22°C');
-    expect(temps(-3.4, 1)).toBe('-3°C to 1°C');
+    expect(temps(-3.4, 1)).toBe('-3 to 1°C');
+    expect(temps(3.2, 9.8)).toBe('3–10°C');
   });
 
   it('words the rain with or without a chance', () => {
@@ -180,6 +181,17 @@ describe('kept on this device', () => {
     expect(keptFor('demo', kv).outfits('2026-11-12')).toBeNull();
     main.setWorn(null);
     expect(main.worn('2026-11-12')).toBeNull();
+  });
+
+  it('keeps the outfits changed today ("Not this piece", built around) until the day is over', () => {
+    const kv = new MemoryStorage();
+    const main = keptFor('main', kv);
+    main.setChanges({ day: '2026-11-12', build_around: 'tee', leave_out: ['boots'] });
+    expect(main.changes('2026-11-12')).toEqual({ day: '2026-11-12', build_around: 'tee', leave_out: ['boots'] });
+    expect(main.changes('2026-11-13')).toBeNull();
+    expect(keptFor('demo', kv).changes('2026-11-12')).toBeNull();
+    main.setChanges(null);
+    expect(main.changes('2026-11-12')).toBeNull();
   });
 
   it('forgets everything it kept about the closet, and nothing else', () => {

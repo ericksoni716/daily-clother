@@ -21,7 +21,7 @@ so a screen's own class can still set size and spacing.
 | `ItemThumb` | An item's small picture on its light card, optionally a link to the item. Every list of pieces uses it, at the size the screen's class gives it. |
 | `ChipGroup` | A row of chips for one detail, with colour swatches where they help (the colour words' own, or a colour given for each option, as for a colour's shades). |
 | `SegmentedControl` | Two to four choices of which one is on (Pieces / As worn, Photos / Drawings). |
-| `Sheet` (and `PHONE`) | Choices that do not fit in place: a sheet from the bottom on a phone, a popover or in place on a computer. Never a panel put in above the content. Its button beside the title says Done, or `closeLabel="Cancel"` over a form that saves only with its own button. |
+| `Sheet` (and `PHONE`) | Choices that do not fit in place: a sheet from the bottom on a phone, a popover or in place on a computer. Never a panel put in above the content. Its button beside the title says Done, or `closeLabel="Cancel"` over a form that saves only with its own button. Opened from inside something that clips what it holds (a carousel's slide, a card), give it `anchor` (the button that opened it): it is put at the end of the page and floats beside that button on a computer. |
 | `Notice` | A message set apart: information, a warning or an error, with an optional action. |
 | `EmptyState` | What a screen shows with nothing yet: an icon, a title, one sentence, one button. |
 | `Fold` | Something closed until it is wanted ("More numbers", "Hidden (2)"). `lazy` draws its insides only once opened. Use it instead of a bare `<details>`. |

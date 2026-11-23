@@ -1,11 +1,11 @@
 import { hashKey, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { api, ApiError } from '../api';
 import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { itemName, Pic } from '../components/ItemPic';
 import { OutfitFigure } from '../components/OutfitFigure';
 import { Talk, type TalkProps, type TalkWords } from '../components/Talk';
-import { BackLink, Button, Card, EmptyState, Fold, HowItWorks, ItemThumb, Notice, PageHeader, SegmentedControl } from '../components/ui';
+import { BackLink, Button, Card, EmptyState, Fold, HowItWorks, ItemThumb, Notice, PageHeader, SegmentedControl, Sheet } from '../components/ui';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
@@ -91,8 +91,10 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const remembered = memory && memory.profile === profile && memory.day === today ? memory : null;
 
   const [choice, setChoice] = useState<Choice>(() => loadChoice());
-  const [buildAround, setBuildAround] = useState<string | null>(remembered?.buildAround ?? null);
-  const [leaveOut, setLeaveOut] = useState<string[]>(remembered?.leaveOut ?? []);
+  // the outfits changed today: kept while the app is open, and on this device for the rest of the day
+  const keptChanges = remembered ? null : kept.changes(today);
+  const [buildAround, setBuildAround] = useState<string | null>(remembered?.buildAround ?? keptChanges?.build_around ?? null);
+  const [leaveOut, setLeaveOut] = useState<string[]>(remembered?.leaveOut ?? keptChanges?.leave_out ?? []);
   const [typedOnDay, setTyped] = useState<TypedDay | null>(() => kept.typed(today));
   const typed = typedOnDay?.day === today ? typedOnDay : null;
   // The outfits saved on this device earlier today, shown while Nines cannot be reached; nothing is asked meanwhile.
@@ -101,6 +103,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const [wornOnDay, setWorn] = useState<WornToday | null>(() => kept.worn(today));
   const [busy, setBusy] = useState(false);
   const [editDay, setEditDay] = useState(false);
+  // "Change" beside the weather: where the sheet of where you are and today's temperatures floats from on a computer
+  const changeButton = useRef<HTMLButtonElement>(null);
   const [again, setAgain] = useState<string | null>(() => new URLSearchParams(window.location.search).get('again'));
   const [dismissed, setDismissed] = useState<string[]>(() => loadDismissed(profile));
   const [rated, setRated] = useState<WornOutfit | null>(null);
@@ -206,7 +210,6 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     const keepPlace = followUp.current && !!shownBefore.current && sameOutfits(shownBefore.current, outfits);
     followUp.current = false;
     if (!keepPlace) setIndex(0);
-    setEditDay(false);
     forgetOtherAnswers(qc, hash);
   }, [fresh, answeredAt, hash, qc]);
   const shownNow = phase.kind === 'ready' ? phase.answer.outfits : null;
@@ -228,6 +231,9 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   useEffect(() => {
     memory = { profile, day: today, index, buildAround, leaveOut };
   }, [profile, today, index, buildAround, leaveOut]);
+  useEffect(() => {
+    kept.setChanges(buildAround || leaveOut.length ? { day: today, build_around: buildAround, leave_out: leaveOut } : null);
+  }, [kept, today, buildAround, leaveOut]);
 
   // While Claude is choosing, or answering a message of the owner's, ask every 2 seconds how it stands (cheap); once
   // it is done, ask Today again with the same choices so Claude's outfits (or the rules', with why) and its answer
@@ -239,6 +245,12 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     : claudeView === 'waiting' ? (!choseOwn && stylist?.id ? stylist.id : null)
       : claudeView === 'read' && phase.kind === 'ready' && phase.savedAt === null ? answering : null;
   const talking = claudeView === 'read';
+  // While Claude chooses again, the outfits that were on the page stay there, dimmed under the waiting card, until
+  // Claude's are in (or the rules' are asked for meanwhile): so the page keeps its length and you stay where you were.
+  const covering = claudeView === 'waiting' && !choseOwn && !(stylist?.id && meanwhileFor === stylist.id);
+  const [settled, setSettled] = useState<Outfit[] | null>(null);
+  const shownOutfits = phase.kind === 'ready' ? phase.answer.outfits : null;
+  if (!covering && shownOutfits && shownOutfits !== settled) setSettled(shownOutfits);
   const styleAnswer = useQuery({
     queryKey: queryKeys.styleAnswer(waitingFor ?? ''),
     // each question 2 seconds after the last one (or after Today's answer), as the server needs the time; a wait
@@ -354,6 +366,9 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       const record: WornToday = { day, worn_on: r.worn_on, ids, recorded: r.recorded ?? [], outfit: o, outfit_id: r.outfit?.id, at: Date.now() };
       kept.setWorn(record);
       setWorn(record);
+      // wearing the outfit ends building around a piece: that piece may be in the laundry now, and nothing could be
+      // built around it, so the next answer is asked without it and the page keeps showing what you are wearing
+      if (buildAround) setBuildAround(null);
       toast("Noted: you're wearing this today");
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -437,35 +452,39 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     setTyped(value);
     setEditDay(false);
   };
+  const dayPanel: DayPanelProps = {
+    phase, typed, locked, offline, toast,
+    onNote: (answer) => {
+      // a place in the note wins over temperatures typed earlier today, as a place chosen here does
+      if (answer.note?.active && answer.note.place) {
+        kept.setTyped(null);
+        setTyped(null);
+      }
+      const occasion = answer.note?.active ? answer.note.occasion : null;
+      if (occasion && (OCCASIONS as readonly string[]).includes(occasion)) choose({ ...choice, occasion });
+      if (answer.message) toast(answer.message);
+      setEditDay(false);
+      ask();
+    },
+    onTyped: setDay,
+    onPlace: () => {
+      // a place chosen now wins over temperatures typed earlier today
+      kept.setTyped(null);
+      setTyped(null);
+      setEditDay(false);
+      ask();
+    },
+  };
 
   const main = (
     <div className="today" aria-busy={asking || phase.kind === 'loading'}>
       {header}
 
-      <DayLine phase={phase} editing={editDay} locked={locked} onEdit={() => setEditDay(!editDay)} />
-      {(editDay || phase.kind === 'needs-day') && (
-        <DayPanel phase={phase} typed={typed} locked={locked} offline={offline} toast={toast}
-          onNote={(answer) => {
-            // a place in the note wins over temperatures typed earlier today, as a place chosen here does
-            if (answer.note?.active && answer.note.place) {
-              kept.setTyped(null);
-              setTyped(null);
-            }
-            const occasion = answer.note?.active ? answer.note.occasion : null;
-            if (occasion && (OCCASIONS as readonly string[]).includes(occasion)) choose({ ...choice, occasion });
-            if (answer.message) toast(answer.message);
-            setEditDay(false);
-            ask();
-          }}
-          onTyped={setDay}
-          onClose={phase.kind === 'needs-day' ? undefined : () => setEditDay(false)}
-          onPlace={() => {
-            // a place chosen now wins over temperatures typed earlier today
-            kept.setTyped(null);
-            setTyped(null);
-            setEditDay(false);
-            ask();
-          }} />
+      <DayLine phase={phase} editing={editDay} locked={locked} changeRef={changeButton} onEdit={() => setEditDay(!editDay)} />
+      {phase.kind === 'needs-day' ? <DayPanel {...dayPanel} /> : editDay && (
+        <Sheet title="Where you are" anchor={changeButton} onClose={() => setEditDay(false)} className="today-day-sheet" testId="day-sheet">
+          <DayPanel {...dayPanel} inSheet />
+        </Sheet>
       )}
 
       <div className="today-choices chips-scroll">
@@ -476,17 +495,13 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
           onChange={(mood) => choose({ ...choice, mood })} />
       </div>
 
-      {ctx?.source === 'mild' && !editDay && (
-        <Notice tone="warning" icon={<WarnIcon />} className="today-no-weather" role="status" testId="no-weather"
-          action={(
-            <>
-              <Button small disabled={locked || asking} onClick={ask}>Try again</Button>
-              <Button small disabled={locked} onClick={() => setEditDay(true)}>Type temperatures</Button>
-            </>
-          )}>
-          <p><strong>The weather could not be fetched</strong>, so these outfits are for a mild day.</p>
-          {ctx.message && <p className="today-no-weather-why">{ctx.message}</p>}
-        </Notice>
+      {ctx?.source === 'mild' && (
+        <p className="today-no-weather" role="status" data-testid="no-weather">
+          <WarnIcon className="inline-icon" /> The weather could not be fetched.{' '}
+          <button className="btn btn-link today-inline-action" disabled={locked || asking} title={locked ? OFFLINE_TITLE : undefined} onClick={ask}>Try again</button>
+          <span aria-hidden="true"> · </span>
+          <button className="btn btn-link today-inline-action" disabled={locked} title={locked ? OFFLINE_TITLE : undefined} onClick={() => setEditDay(true)}>Type temperatures</button>
+        </p>
       )}
 
       {again && (
@@ -532,6 +547,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
 
       <Body phase={phase} asking={asking} stylist={claudeView === 'none' ? null : stylist}
         waiting={claudeView === 'waiting' && !choseOwn} meanwhile={!!stylist?.id && meanwhileFor === stylist.id}
+        before={covering ? settled : null}
         onMeanwhile={() => setMeanwhileFor(stylist?.id ?? null)}
         onAskAgain={() => {
           askAgain.current = true;
@@ -596,7 +612,9 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
 
 // ------------------------------------------------------------------ the day
 
-function DayLine({ phase, editing, locked, onEdit }: { phase: Phase; editing: boolean; locked: boolean; onEdit(): void }) {
+function DayLine({ phase, editing, locked, changeRef, onEdit }: {
+  phase: Phase; editing: boolean; locked: boolean; changeRef: RefObject<HTMLButtonElement | null>; onEdit(): void;
+}) {
   const c = phase.kind === 'ready' ? phase.answer.context : null;
   return (
     <section className="today-day" aria-label="The day">
@@ -605,7 +623,7 @@ function DayLine({ phase, editing, locked, onEdit }: { phase: Phase; editing: bo
           : <span className="muted">{phase.kind === 'loading' ? 'Looking up the weather…' : 'The weather'}</span>}
         {phase.kind !== 'needs-day' && (
           <span className="today-day-change">
-            <button className="btn btn-link" aria-expanded={editing} aria-controls="today-day-panel" disabled={locked}
+            <button ref={changeRef} className="btn btn-link" aria-haspopup="dialog" aria-expanded={editing} disabled={locked}
               title={locked ? OFFLINE_TITLE : undefined} onClick={onEdit}>
               Change
             </button>
@@ -675,22 +693,25 @@ function DayNoteForm({ note, locked, onNote }: { note: DayNote | null; locked: b
   );
 }
 
-/** Behind "Change": where you are (search or the browser's location), or today's temperatures typed by hand. */
-function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPlace, onNote }: {
+interface DayPanelProps {
   phase: Phase; typed: TypedDay | null; locked: boolean; offline: boolean; toast: (m: string, k?: 'ok' | 'error') => void;
-  onTyped(t: Omit<TypedDay, 'day'> | null): void; onClose?: () => void; onPlace(): void; onNote(answer: DayAnswer): void;
-}) {
+  onTyped(t: Omit<TypedDay, 'day'> | null): void; onPlace(): void; onNote(answer: DayAnswer): void;
+}
+
+/**
+ * Behind "Change": where you are (search or the browser's location), or today's temperatures typed by hand, in a sheet
+ * (`inSheet`, whose title names it). In the page itself only when there is no day to dress for until one is chosen.
+ */
+function DayPanel({ phase, typed, locked, offline, toast, onTyped, onPlace, onNote, inSheet }: DayPanelProps & { inSheet?: boolean }) {
   // the same settings as the Settings screen, read once for both; a place chosen is written in by WhereYouAre
   const settings = useQuery({ ...settingsQuery(), enabled: !offline }).data ?? null;
 
-  return (
-    <Card as="section" className="today-day-panel" id="today-day-panel" aria-labelledby="day-title">
-      {phase.kind === 'needs-day' && <p className="today-day-why">{phase.message}</p>}
-      <h2 id="day-title">Where are you?</h2>
+  const body = (
+    <>
       <WhereYouAre inline place={settings ? settings.place : undefined} home={settings?.home_place} offline={offline} toast={toast}
         onChange={onPlace} />
       <h3 className="today-typed-title">Or type today's temperatures</h3>
-      <TypedForm typed={typed} locked={locked} onTyped={onTyped} onCancel={onClose} />
+      <TypedForm typed={typed} locked={locked} onTyped={onTyped} />
       {typed && (
         <p className="hint">
           You typed today's temperatures. <button className="btn btn-link" disabled={locked} onClick={() => onTyped(null)}>Use the forecast again</button>
@@ -701,13 +722,19 @@ function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPl
           <DayNoteForm note={phase.answer.context.note ?? null} locked={locked} onNote={onNote} />
         </Fold>
       )}
+    </>
+  );
+  if (inSheet) return <div className="today-day-panel-body">{body}</div>;
+  return (
+    <Card as="section" className="today-day-panel" aria-labelledby="day-title">
+      {phase.kind === 'needs-day' && <p className="today-day-why">{phase.message}</p>}
+      <h2 id="day-title">Where you are</h2>
+      {body}
     </Card>
   );
 }
 
-function TypedForm({ typed, locked, onTyped, onCancel }: {
-  typed: TypedDay | null; locked: boolean; onTyped(t: Omit<TypedDay, 'day'>): void; onCancel?: () => void;
-}) {
+function TypedForm({ typed, locked, onTyped }: { typed: TypedDay | null; locked: boolean; onTyped(t: Omit<TypedDay, 'day'>): void }) {
   const [low, setLow] = useState(typed ? String(typed.low_c) : '');
   const [high, setHigh] = useState(typed ? String(typed.high_c) : '');
   const [rain, setRain] = useState(typed?.rain ?? false);
@@ -739,7 +766,6 @@ function TypedForm({ typed, locked, onTyped, onCancel }: {
       </label>
       <div className="row today-typed-actions">
         <button className="btn btn-primary" type="submit" disabled={locked || !low.trim()} title={locked ? OFFLINE_TITLE : undefined}>Dress me for this</button>
-        {onCancel && <button className="btn btn-ghost" type="button" onClick={onCancel}>Close</button>}
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>
@@ -793,6 +819,8 @@ interface BodyProps {
   waiting: boolean;
   /** The owner asked to see the rules' outfits while Claude chooses. */
   meanwhile: boolean;
+  /** While Claude chooses: the outfits that were on the page before, shown (dimmed) in their place; null for none. */
+  before: Outfit[] | null;
   onMeanwhile(): void;
   onAskAgain(): void;
   /** The day's conversation with Claude about the outfits, shown under them once Claude's are on the page. */
@@ -801,11 +829,25 @@ interface BodyProps {
 
 function Body(props: BodyProps) {
   const { phase, asking, items, offline, changed, onClear, onRetry, stylist, waiting, meanwhile, onMeanwhile, onAskAgain } = props;
+  // What is under the outfits (Claude's line and the conversation) goes while Claude chooses again; its space is kept
+  // until it is back, so Recent outfits below it does not jump up and then down again.
+  const after = useRef<HTMLDivElement>(null);
+  const [keptHeight, setKeptHeight] = useState(0);
+  useLayoutEffect(() => {
+    const el = after.current;
+    if (waiting || !el || typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(() => setKeptHeight(el.offsetHeight));
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [waiting, phase.kind]);
   if (phase.kind === 'loading') {
     return (
       <div className="today-loading" role="status">
-        <div className="today-pieces" aria-hidden="true">{Array.from({ length: 5 }, (_, i) => <div key={i} className="tile-skeleton" />)}</div>
         <p className="muted"><span className="spinner" aria-hidden="true" /> Choosing today's outfits…</p>
+        <Card className="today-card" aria-hidden="true">
+          <div className="today-pieces">{Array.from({ length: 5 }, (_, i) => <div key={i} className="tile-skeleton" />)}</div>
+          <div className="tile-skeleton today-wear-skeleton" />
+        </Card>
       </div>
     );
   }
@@ -833,14 +875,14 @@ function Body(props: BodyProps) {
         <ul className="today-missing-list" aria-label="Why not">
           {answer.missing.map((m) => <li key={m}>{m}</li>)}
         </ul>
-        {items && toAdd.length > 0 && (
+        {items && toAdd.length > 0 && !changed && (
           <p className="muted" data-testid="add-first">Add first: {joinWords(toAdd)}.</p>
         )}
         <div className="row today-missing-actions">
-          {offline
-            ? <span className="btn btn-primary is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Add clothes</span>
-            : <Link to="/add" className="btn btn-primary">Add clothes</Link>}
-          {changed && <button className="btn" disabled={offline} onClick={onClear}>Clear your changes</button>}
+          {/* your own changes are why: undoing them is the answer, not adding clothes */}
+          {changed ? <Button variant="primary" disabled={offline} title={offline ? OFFLINE_TITLE : undefined} onClick={onClear}>Clear your changes</Button>
+            : offline ? <span className="btn btn-primary is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Add clothes</span>
+              : <Link to="/add" className="btn btn-primary">Add clothes</Link>}
         </div>
       </div>
     );
@@ -852,32 +894,35 @@ function Body(props: BodyProps) {
           <span>Saved earlier today{timeOf(savedAt) ? `, at ${timeOf(savedAt)}` : ''}. You're offline, so these can't be changed or worn until Nines on your computer can be reached.</span>
         </Notice>
       )}
-      {waiting && <StylistWaiting key={stylist?.id ?? ''} meanwhile={meanwhile} onMeanwhile={onMeanwhile} />}
-      {(!waiting || meanwhile) && <Carousel {...props} outfits={answer.outfits} />}
-      {(!waiting || meanwhile) && (
-        <HowItWorks title="Changing an outfit" className="today-how" testId="today-how">
-          <p>Tap a piece to see it. Its <MoreIcon className="inline-icon" aria-label="more" /> button leaves it out, or builds every outfit around it.</p>
-          <p>As worn draws the outfit from the pieces' own drawings; choose Pieces to change one.</p>
-        </HowItWorks>
-      )}
-      {!waiting && stylist?.state === 'ready' && (
-        <div className="today-stylist" data-testid="stylist-read">
-          {stylist.message && <p className="today-stylist-note muted" data-testid="stylist-note">{stylist.message}</p>}
-          <StylistAgain locked={props.actions.locked} busy={asking || !!props.talk.answering} onClick={onAskAgain}>Ask Claude again</StylistAgain>
-          <Talk {...props.talk} locked={props.actions.locked} busy={asking} words={TODAY_TALK} lockedTitle={OFFLINE_TITLE} />
-        </div>
-      )}
-      {!waiting && stylist?.state === 'failed' && (
-        <div className="today-stylist" data-testid="stylist-failed">
-          {stylist.message && <p>{stylist.message}</p>}
-          <StylistAgain locked={props.actions.locked} busy={asking} onClick={onAskAgain}>Try again</StylistAgain>
-        </div>
-      )}
+      {/* while Claude chooses, the outfits on the page stay where they are, dimmed under the waiting card, so nothing
+          below them moves; "Show Nines' own picks meanwhile" lets them be used, and the card moves under them */}
+      <Carousel {...props} outfits={props.before ?? answer.outfits} />
+      <HowItWorks title="Changing an outfit" className="today-how" testId="today-how">
+        <p>Tap a piece to see it. Its <MoreIcon className="inline-icon" aria-label="more" /> button leaves it out, or builds every outfit around it.</p>
+        <p>As worn draws the outfit from the pieces' own drawings; choose Pieces to change one.</p>
+      </HowItWorks>
+      <div ref={after} style={waiting && keptHeight ? { minHeight: keptHeight } : undefined}>
+        {waiting && meanwhile && <StylistWaiting key={stylist?.id ?? ''} meanwhile onMeanwhile={onMeanwhile} />}
+        {!waiting && stylist?.state === 'ready' && (
+          <div className="today-stylist" data-testid="stylist-read">
+            {stylist.message && <p className="today-stylist-note muted" data-testid="stylist-note">{stylist.message}</p>}
+            <StylistAgain locked={props.actions.locked} busy={asking || !!props.talk.answering} onClick={onAskAgain}>Ask Claude again</StylistAgain>
+            <Talk {...props.talk} locked={props.actions.locked} busy={asking} words={TODAY_TALK} lockedTitle={OFFLINE_TITLE} />
+          </div>
+        )}
+        {!waiting && stylist?.state === 'failed' && (
+          <div className="today-stylist" data-testid="stylist-failed">
+            {stylist.message && <p>{stylist.message}</p>}
+            <StylistAgain locked={props.actions.locked} busy={asking} onClick={onAskAgain}>Try again</StylistAgain>
+          </div>
+        )}
+      </div>
     </>
   );
 }
 
-/** In place of the outfits while Claude chooses them: what is happening, and the rules' outfits on request. */
+/** Over the outfits while Claude chooses them (under them once the rules' outfits are shown meanwhile): what is
+ * happening, and the rules' outfits on request. */
 function StylistWaiting({ meanwhile, onMeanwhile }: { meanwhile: boolean; onMeanwhile(): void }) {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
@@ -885,7 +930,7 @@ function StylistWaiting({ meanwhile, onMeanwhile }: { meanwhile: boolean; onMean
     return () => window.clearTimeout(timer);
   }, []);
   return (
-    <Card className="today-stylist-wait" role="status" aria-labelledby="stylist-wait-title" data-testid="stylist-waiting">
+    <Card className={`today-stylist-wait${meanwhile ? '' : ' is-over'}`} role="status" aria-labelledby="stylist-wait-title" data-testid="stylist-waiting">
       <span className="today-stylist-mark" aria-hidden="true"><span /><span /><span /></span>
       <div>
         <h2 id="stylist-wait-title">Claude is choosing today's outfits…</h2>
@@ -906,6 +951,9 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
   const track = useRef<HTMLDivElement>(null);
   const count = outfits.length;
   const current = Math.min(index, count - 1);
+  const { waiting, meanwhile, stylist, onMeanwhile, actions, byId } = rest;
+  // Claude is choosing: the outfits stay on the page, dimmed and out of reach, under the waiting card
+  const covered = waiting && !meanwhile;
 
   // Show the remembered outfit straight away (coming back from an item), without animating there.
   useLayoutEffect(() => {
@@ -914,6 +962,16 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
     // only when the list of outfits changes or the carousel appears
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outfits]);
+
+  // The track is as tall as the outfit in front, not the tallest of them, so no blank band ends the card.
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const slide = track.current?.children[current] as HTMLElement | undefined;
+    if (!slide || typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(() => setHeight(slide.offsetHeight));
+    watch.observe(slide);
+    return () => watch.disconnect();
+  }, [current, outfits]);
 
   const go = useCallback((i: number) => {
     const el = track.current;
@@ -932,33 +990,46 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
   };
 
   const [view, setView] = useTodayView();
+  // a piece's choices, in a sheet over the page (from the bottom on a phone, beside the piece on a computer)
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const anchor = useRef<HTMLElement | null>(null);
+  const locked = actions.locked;
+  const title = locked ? OFFLINE_TITLE : undefined;
 
   return (
-    <section className={`today-outfits${asking ? ' is-asking' : ''}`} aria-label="Today's outfits" aria-roledescription="carousel">
+    <section className={`today-outfits${asking || covered ? ' is-asking' : ''}`} aria-label="Today's outfits" aria-roledescription="carousel">
       <div className="today-outfits-head">
         <h2 aria-live="polite">
           {current === 0 ? 'Best for today' : `Another idea`}
           <span className="count"> · {count === 1 ? 'the only outfit' : `${current + 1} of ${count}`}</span>
         </h2>
-        {asking && <span className="today-asking muted"><span className="spinner" aria-hidden="true" /><span className="visually-hidden">Asking again…</span></span>}
         <SegmentedControl label="Show the outfit" small className="today-view" value={view}
           options={VIEW_OPTIONS} onChange={setView} />
       </div>
 
-      <div className="today-track" ref={track} onScroll={onScroll} tabIndex={-1}>
-        {outfits.map((o, i) => (
-          <article key={outfitIds(o.pieces).join(',')} className="today-slide" aria-roledescription="slide"
-            aria-label={`Outfit ${i + 1} of ${count}`} aria-hidden={i !== current} inert={i !== current}
-            data-testid={i === current ? 'current-outfit' : undefined}>
-            <OutfitCard outfit={o} view={view} {...rest} by={chosenBy(o, rest.stylist)}
-              read={readFor(o, rest.stylist)}
-              next={count > 1 ? { label: i < count - 1 ? 'See another idea' : 'Back to the best one', go: () => go(i < count - 1 ? i + 1 : 0) } : undefined} />
-          </article>
-        ))}
+      <div className="today-stage">
+        <div className="today-track" ref={track} onScroll={onScroll} tabIndex={-1} inert={covered}
+          style={height ? { height } : undefined}>
+          {outfits.map((o, i) => (
+            <article key={outfitIds(o.pieces).join(',')} className="today-slide" aria-roledescription="slide"
+              aria-label={`Outfit ${i + 1} of ${count}`} aria-hidden={i !== current} inert={i !== current}
+              data-testid={i === current ? 'current-outfit' : undefined}>
+              <OutfitCard outfit={o} view={view} {...rest} by={chosenBy(o, stylist)}
+                read={readFor(o, stylist)} menuFor={menuFor}
+                onMore={(id, el) => {
+                  anchor.current = el;
+                  setMenuFor(menuFor === id ? null : id);
+                }}
+                next={count > 1 ? { label: i < count - 1 ? 'See another idea' : 'Back to the best one', go: () => go(i < count - 1 ? i + 1 : 0) } : undefined} />
+            </article>
+          ))}
+        </div>
+        {covered ? <StylistWaiting key={stylist?.id ?? ''} meanwhile={false} onMeanwhile={onMeanwhile} />
+          : asking && <p className="today-asking" role="status"><span className="spinner" aria-hidden="true" /> Asking again…</p>}
       </div>
 
       {count > 1 && (
-        <div className="today-nav" role="group" aria-label="Choose an outfit">
+        <div className="today-nav" role="group" aria-label="Choose an outfit" inert={covered}>
           {outfits.map((_, i) => (
             <button key={i} className={`today-thumb${i === current ? ' is-on' : ''}`} aria-label={`Outfit ${i + 1}`}
               aria-pressed={i === current} onClick={() => go(i)}>
@@ -967,12 +1038,26 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
           ))}
         </div>
       )}
+
+      {menuFor && view === 'pieces' && (
+        <Sheet title={itemName(byId.get(menuFor))} anchor={anchor} onClose={() => setMenuFor(null)} className="today-piece-sheet" testId="piece-sheet">
+          <div className="today-piece-choices">
+            <Button block disabled={locked} title={title} onClick={() => { setMenuFor(null); actions.leaveOut(menuFor); }}>Not this piece</Button>
+            <Button block disabled={locked} title={title} onClick={() => { setMenuFor(null); actions.startFrom(menuFor); }}>
+              {actions.buildAround === menuFor ? 'Stop building around it' : 'Build around this piece'}
+            </Button>
+          </div>
+        </Sheet>
+      )}
     </section>
   );
 }
 
-function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, next, by, read }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
+function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, next, by, read, menuFor, onMore }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
   outfit: Outfit; view: TodayView;
+  /** The piece whose choices are open (the sheet itself is the carousel's), and how they are opened. */
+  menuFor: string | null;
+  onMore(id: string, button: HTMLElement): void;
   /** Who chose it ("Chosen by Claude"), once Claude has answered; null otherwise. */
   by: string | null;
   /** Claude's reading of the day, under who chose it, for an outfit Claude chose. */
@@ -984,14 +1069,6 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
   const isWorn = !!worn && sameOutfit(worn.ids, ids);
   const locked = actions.locked;
   const title = locked ? OFFLINE_TITLE : undefined;
-  const [menuFor, setMenuFor] = useState<string | null>(null);
-  const menuItem = menuFor ? byId.get(menuFor) : undefined;
-  useEffect(() => {
-    if (!menuFor) return;
-    const close = (e: KeyboardEvent) => e.key === 'Escape' && setMenuFor(null);
-    window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
-  }, [menuFor]);
   return (
     <Card className="today-card">
       <div className="today-card-pieces">
@@ -1003,22 +1080,10 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
           {wornOrder(outfit.pieces).map((p) => (
             <li key={p.id}>
               <Piece id={p.id} place={p.place} item={byId.get(p.id)} isBase={actions.buildAround === p.id}
-                open={menuFor === p.id} onMore={() => setMenuFor(menuFor === p.id ? null : p.id)} />
+                open={menuFor === p.id} onMore={(el) => onMore(p.id, el)} />
             </li>
           ))}
         </ul>
-        {menuFor && view === 'pieces' && (
-          <div className="today-piece-menu" role="group" aria-label={`Choices for ${itemName(menuItem)}`}>
-            <p><strong>{itemName(menuItem)}</strong></p>
-            <div className="row">
-              <button className="btn btn-small" disabled={locked} title={title} onClick={() => { setMenuFor(null); actions.leaveOut(menuFor); }}>Not this piece</button>
-              <button className="btn btn-small" disabled={locked} title={title} onClick={() => { setMenuFor(null); actions.startFrom(menuFor); }}>
-                {actions.buildAround === menuFor ? 'Stop starting from it' : 'Start from this piece'}
-              </button>
-              <button className="btn btn-small btn-ghost" onClick={() => setMenuFor(null)}>Close</button>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="today-wear">
@@ -1054,7 +1119,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
 }
 
 function Piece({ id, place, item, isBase, open, onMore }: {
-  id: string; place: Place; item: ItemSummary | undefined; isBase: boolean; open: boolean; onMore(): void;
+  id: string; place: Place; item: ItemSummary | undefined; isBase: boolean; open: boolean; onMore(button: HTMLElement): void;
 }) {
   const name = itemName(item);
   return (
@@ -1064,7 +1129,8 @@ function Piece({ id, place, item, isBase, open, onMore }: {
         <span className="today-piece-place">{isBase ? 'Built around' : placeLabel(place)}</span>
         <span className="today-piece-name">{name}</span>
       </Link>
-      <button className="today-piece-more" aria-label={`Choices for ${name}`} aria-expanded={open} onClick={onMore}>
+      <button className="today-piece-more" aria-label={`Choices for ${name}`} aria-haspopup="dialog" aria-expanded={open}
+        onClick={(e) => onMore(e.currentTarget)}>
         <MoreIcon />
       </button>
     </div>

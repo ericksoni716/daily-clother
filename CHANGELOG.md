@@ -12,6 +12,15 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **You might like, in the Wardrobe.** A small card with three things on sale that Claude found
+  from what you wear and love, not from something missing: each with its picture, price and how
+  many of your pieces it goes with, and **Save** (onto the wishlist, its price watched),
+  **More like this** and **Not for me** (with Undo). Nothing that only repeats what you have,
+  and never the same product twice. Tap **Look now** the first time; after that Nines looks by
+  itself once a week while it is running, which you can turn off under **How Nines looks**. A
+  few "Not for me" alike may offer a line for Your style, kept only when you say so. The demo
+  closet never searches.
+
 - **See it with your clothes.** A find on a wish's page that has been checked against your closet
   (one Claude found, or a link you sent) has a **See it with your clothes** button. It opens up to
   three outfits made with it and your own pieces, each drawn as worn, with the shop's picture beside

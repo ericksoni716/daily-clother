@@ -262,7 +262,20 @@ Settings; once the closet has enough to suggest from and they are not answered, 
 you live" offers them. What holds suggestions back, the days you ruled out and what you hid
 are folded at the end of the section. Swim trunks and shoes made for one sport (tennis, golf,
 studded boots) are not counted there: a pair of tennis shoes never stands in for everyday
-sneakers. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
+sneakers. **You might like**: three things Claude found on sale from what you wear and love,
+not from a gap, each with the shop's picture (a hanger until there is one), its name (which
+opens the shop's page in your browser), the shop and price, one line from the closet ("Goes
+with 6 of your pieces."), **Save** (onto the wishlist, with the product as its first find, so
+its price is checked once a day), **More like this** (a look for more like it, which joins
+the card) and **×**, Not for me (gone for good, with Undo in its place; after three alike,
+such as three bright colours, it may offer a line for Your style, kept only when you tap Save
+to Your style, with Undo). The newest three show, older ones behind "See earlier ones". Before
+the first look it says what it does, with **Look now** (and what a look costs through the API
+key, when that is on); with too little to go on it says to wear and rate a few more pieces
+and does not search; the demo closet never searches. **How Nines looks**, folded, says what a
+look sends and holds **Look for me each week**, on once you have tapped Look now, off before:
+then Nines looks by itself once a week while it is running. Nothing it shows is a product Claude
+made up; a week with nothing new says so. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
 and a **Wishlist** row that opens the wishlist, saying how many things are on it ("3 things", or
 "Nothing on it yet") and, when prices went down, how many ("2 prices went down"). **Not worn**:
 pieces never worn and pieces not worn for a long time in their season, each to Archive or Keep.

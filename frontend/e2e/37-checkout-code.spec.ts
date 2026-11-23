@@ -26,7 +26,7 @@ test('a page sent with a code in its text shows the price with the code, and tha
   expect(await axeViolations(page, '[data-testid="find"]')).toEqual([]);
 
   // the wishlist's row says the price with the code too
-  await page.goto('/wardrobe');
+  await page.goto('/wardrobe/wishlist');
   const row = page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'Linen shirt with a code' });
   await expect(row).toContainText('$40.80 with code TEST40 at Example Shop', { timeout: 30_000 });
 });

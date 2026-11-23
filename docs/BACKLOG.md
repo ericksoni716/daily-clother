@@ -46,6 +46,16 @@ only here); take a line out when it is done.
   dropped: watch how often a look keeps fewer than three. A pick's price is not checked again until
   it is saved. Not for me as a × was chosen to keep the card short; if it is missed, make it words.
   The weekly look runs only while the computer is on, like the price checks.
+- **On sale now** (23 November; DECISIONS, the section of that name). Built and tested with Claude
+  and the shops stood in for (made-up pages read by the real page reader); not measured on real
+  shops: what a sale look costs and how long it takes through the plan and the API key, how many of
+  Claude's eight survive the page check (many shops publish no list price in their data, so most
+  kept sales may be marked "Claude read the earlier price"), and whether a third really comes from
+  outside the shops and brands named. "Your size is in stock" from the page needs a product group's
+  variants with sizes; only an exact match of your size is read (no "M" for "Medium"). A sale the
+  daily re-read cannot read twice leaves the card even if the shop was only down. The sale look says
+  "Claude is searching shops" also while Nines reads the pages (no step of its own). More like this
+  on a sale pick makes a sale look. The 15% line is a guess to revisit with the owner.
 
 - **See it with your clothes** (23 November; DECISIONS, the section of that name). Looked at for a coat, a cardigan,
   chinos and chelsea boots on the demo closet. Found and not fixed (older than it, and a decision of "The outfit as
@@ -455,7 +465,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 - [ ] **Wearing while the computer is off**: "I'm wearing this", a rating and a tick on a packing list are kept on the phone and sent when Nines answers again (the backlog's offline edit queue).
 
 **The wardrobe**
-- [ ] **On sale now** (step 5 of "Finding clothes you might like").
+- [x] **On sale now** (step 5 of "Finding clothes you might like").
 - [ ] **Your nines** (the owner's idea): the nine pieces worn most, three by three.
 - [ ] **What your clothes cost you**: what you spent by year from prices and dates, what the wishlist would cost, and the pieces that have earned their price.
 - [ ] **Worth buying, folded**: each card a title, how much it helps and one line, opening on a tap.
@@ -475,7 +485,7 @@ The owner: "is there some way to ideate/find clothes I might like", "rather than
 - [x] **2. See it with your clothes.** A find, or a judged link, drawn into an outfit with pieces the owner has: the find's described values go through `drawing/item.py` as a new item's do, and the example outfits Would this work? already builds are shown as worn. A drawing from words is approximate; the card says so and keeps the shop's picture beside it.
 - [x] **3. Tell the search who you are.** Done (migration 0047; DECISIONS, "What the search is told about you"): sizes went in a row in Settings → Everyday, not the style conversation. `find_prompt` also gets the lines of Your style, the pieces loved and worn most in that kind (`taste.py`), the brands on the owner's items, and sizes. Sizes need a home: kept once, per kind of piece, with a brand's own where it differs (a migration; a row in Settings → Everyday or asked in the style conversation, to decide then). What is sent to Claude for a search grows, so the privacy sentence beside "Find some" and DECISIONS ("Shopping for a wish") change with it.
 - [x] **4. "You might like" in the Wardrobe.** Done (migration 0048; DECISIONS, "You might like"): Look now, then weekly on the price round with a switch; Save, More like this, Not for me with Undo, and a line offered for Your style after three alike. Not measured yet: a real look's cost and time. A small card, not a feed: three picks a week chosen from taste rather than from a gap, each with its picture, price and what it goes with, and Save (onto the wishlist), Not for me and More like this. A reaction may offer a line for Your style, kept only on a tap as everywhere else. Run in the background on the daily round `shop.py` already has for prices, inside the monthly limit, and never in the demo closet. Needs step 3. To measure first: what one such search costs and how long it takes through the plan and the API key.
-- [ ] **5. On sale now.** Things marked down across shops that suit the owner and that they would not have gone looking for: each with the price before and now, the size in stock where the page says, and the same check against the closet. An honest limit to design around: Claude's web search cannot read every shop's sale, so the search needs somewhere to start. Starting points, to settle with the owner: the brands they own and rate well, shops they name (a short list kept in Settings), shops that have sold them a find before, and Claude's own searches for sales in the kinds the closet's taste favours. Weekly in the background, inside the limit; a pick shown once and not again after Not for me. A sale price is read again by `productpage.py` before it is shown, so a sale that ended is not offered. Needs steps 3 and 4 (it is the same card with a second row, or a second card: decide when 4 exists).
+- [x] **5. On sale now.** Done (migration 0050; DECISIONS, "On sale now"): a second view on the You might like card and Shops you like in Settings → Everyday; each product's page read by Nines before it is shown, 15% off at least, weekly on another day than the taste look, read again daily. Not measured yet: a real look's cost, time and how many products survive the page check. Things marked down across shops that suit the owner and that they would not have gone looking for: each with the price before and now, the size in stock where the page says, and the same check against the closet. An honest limit to design around: Claude's web search cannot read every shop's sale, so the search needs somewhere to start. Starting points, to settle with the owner: the brands they own and rate well, shops they name (a short list kept in Settings), shops that have sold them a find before, and Claude's own searches for sales in the kinds the closet's taste favours. Weekly in the background, inside the limit; a pick shown once and not again after Not for me. A sale price is read again by `productpage.py` before it is shown, so a sale that ended is not offered. Needs steps 3 and 4 (it is the same card with a second row, or a second card: decide when 4 exists).
 
 ## From the review of 17 November (asked for by the owner)
 

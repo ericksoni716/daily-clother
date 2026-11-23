@@ -298,7 +298,20 @@ key, when that is on); with too little to go on it says to wear and rate a few m
 and does not search; the demo closet never searches. **How Nines looks**, folded, says what a
 look sends and holds **Look for me each week**, on once you have tapped Look now, off before:
 then Nines looks by itself once a week while it is running. Nothing it shows is a product Claude
-made up; a week with nothing new says so. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
+made up; a week with nothing new says so. The card has two views, **For you** and **On sale**
+(remembered on this device), each with its own three, its own Look now and its own sentence for
+each state. **On sale** shows things marked down now: Claude starts from the shops you like
+(Settings), the brands you wear and rate well, shops you have found things at before, then
+smaller makers you may not know, and Nines opens each shop's page itself before showing it (the
+price is the page's; a sale that ended, a sold-out product or less than 15% off is left out).
+A sale row says its shop, then its prices in the wishlist's words ("Was $120.00, now $84.00 (30%
+less)"), the line from the closet, and "Your size is in stock." when the page says so, or
+"Claude read the earlier price from the page." when only Claude did. Save keeps the earlier price
+on the wish, so its page shows the drop. Before the first look, with no shops named, it offers
+"Name a few shops you like and Nines starts there.", which opens Shops you like in Settings.
+**Look for me each week** covers both: once you have looked for sales, Nines looks once a week
+for them too, on another day than the other look, and reads each sale's page again once a day; a
+sale that ended leaves the card. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
 and a **Wishlist** row that opens the wishlist, saying how many things are on it ("3 things", or
 "Nothing on it yet") and, when prices went down, how many ("2 prices went down"). **Not worn**:
 pieces never worn and pieces not worn for a long time in their season, each to Archive or Keep
@@ -415,7 +428,13 @@ the item page.
   size on most of your tops is M." with **Use it**, when your own pieces of that kind say a size.
   **A brand that fits differently** opens a small form (the kind, the brand, your size in it, Save
   and Cancel); each brand kept shows under its kind ("In Example Brand, L") with **Remove**.
-  "Find some" tells Claude the size for the wish's kind.
+  "Find some" tells Claude the size for the wish's kind. After it, **Shops you like**: one line
+  naming them ("Shops you like: Example Shop · shop.example", or that you have named none) and
+  **Change**, which opens a sheet: a sentence saying Nines starts there when it looks for things on
+  sale and tells Claude the names, each shop with **Remove**, and a box with **Add** (a pasted link
+  keeps only its site), saved as you go ("Saving…", "Saved" or "Didn't save" with Try again, and
+  Nines' sentence when it does not take one). Up to 12. The Wardrobe's On sale view opens it with
+  `/settings?open=shops`.
 - **Claude**: one line saying how Nines reaches Claude ("Using your Claude plan"), or one red
   sentence and Check again when it can't; **Manage** opens Advanced.
 - **Updates**: one line ("Nines 0.9.0 · up to date", or "Nines 0.9.1 is ready to install."

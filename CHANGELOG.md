@@ -12,6 +12,20 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **On sale now, on the You might like card.** A switch on the card, **For you** and **On
+  sale**, remembered on your device. On sale shows three things marked down now that suit you,
+  from the shops you like, the brands you wear, shops you have found things at before and
+  smaller makers you may not know. Nines opens each shop's page itself before showing it: the
+  price is the page's, a sale that has ended or is sold out is not shown, and anything under
+  15% off is left out. Each row says the prices in the wishlist's words ("Was $120.00, now
+  $84.00 (30% less)"), "Your size is in stock." when the page says so, and when only Claude read
+  the earlier price. Save keeps the earlier price on the wish, so its page shows the drop. Once
+  you have looked for sales once, Nines looks once a week under the same switch, on a different
+  day from the other look, and checks each sale's page again daily: one that ended leaves the
+  card.
+- **Shops you like, in Settings, Everyday.** Up to 12 shop names or sites, where a look for
+  things on sale starts. They are sent to Claude with that look.
+
 - **You might like, in the Wardrobe.** A small card with three things on sale that Claude found
   from what you wear and love, not from something missing: each with its picture, price and how
   many of your pieces it goes with, and **Save** (onto the wishlist, its price watched),

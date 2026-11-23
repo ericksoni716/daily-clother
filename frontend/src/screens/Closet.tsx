@@ -9,7 +9,7 @@ import { cleanAll, putBack, type Cleaned } from '../laundry';
 import { groupTitle, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { goBack, itemPath, Link, navigate } from '../router';
-import { ANY, chooseWhat, columnsFor, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
+import { ANY, chooseWhat, columnsFor, keepTileSize, loadTileSize, shortName, TILE_MIN_WIDE, type TileSize, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
 import { progressOf } from '../progress';
 import { itemSaved, itemsQuery, progressQuery, reviewQuery, useVocab } from '../queries';
 import { useApp } from '../store';
@@ -68,6 +68,9 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const [moment, setMoment] = useState(gridMoment);
   const gridView = gridViewOf(showDrawings, moment);
   const [filtering, setFiltering] = useState(false);
+  // Larger or Smaller pictures: two or three across on a phone, kept on this device
+  const [size, setSizeNow] = useState<TileSize>(loadTileSize);
+  const setSize = (next: TileSize) => { setSizeNow(next); keepTileSize(next); };
   const [panelTop, setPanelTop] = useState(0);
   const filterButton = useRef<HTMLButtonElement>(null);
   const layout = useRef<HTMLDivElement>(null);
@@ -145,7 +148,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
     seen?.observe(el);
     return () => seen?.disconnect();
   }, [wide]);
-  const columns = wide && layoutWidth > 0 ? columnsFor(layoutWidth, TILE_MIN_WIDE, GRID_GAP_WIDE) : null;
+  const columns = wide && layoutWidth > 0 ? columnsFor(layoutWidth, TILE_MIN_WIDE[size], GRID_GAP_WIDE) : null;
 
   // The piece chosen stays where it was on the screen while the panel opens beside the grid, and the panel opens level
   // with the top of the screen, so a tile far down does not open a panel out of sight.
@@ -233,7 +236,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
                 {filtering && (
                   <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" onClose={() => setFiltering(false)}>
                     <FilterChoices status={status} laundry={activeLaundry} away={activeAway} onAway={setAway} onLaundry={setLaundry}
-                      view={list && !empty ? gridView : null}
+                      view={list && !empty ? gridView : null} size={size} onSize={setSize}
                       onView={(value) => { gridMoment = { view: value, setting: showDrawings }; setMoment(gridMoment); }}
                       choices={choices} what={activeWhat} onWhat={(level, id) => setWhat(chooseWhat(activeWhat, level, id))} />
                   </Sheet>
@@ -300,10 +303,10 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
             failed={(m) => toast(m, 'error')}
             onReturned={(id, back) => setReturned((r) => { const n = new Set(r); if (back) n.add(id); else n.delete(id); return n; })} />
         ) : (
-          <ul className={`grid${columns ? ' has-columns' : ''}`} aria-label="Clothes"
+          <ul className={`grid${size === 'smaller' ? ' grid-smaller' : ''}${columns ? ' has-columns' : ''}`} aria-label="Clothes"
             style={columns ? { '--columns': columns } as CSSProperties : undefined}>
             {shown.map((it) => (
-              <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} progress={progressOf(it, work)} view={gridView} onChoose={choose} /></li>
+              <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} progress={progressOf(it, work)} view={gridView} small={size === 'smaller'} onChoose={choose} /></li>
             ))}
           </ul>
         )
@@ -327,9 +330,10 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
 }
 
 const LAUNDRY: Record<Laundry, string> = { clean: 'Clean', laundry: 'In the laundry' };
-/** The grid's smallest tile and the room between tiles on a computer (styles.css, "grid & tiles"). */
-const TILE_MIN_WIDE = 180;
+/** The room between tiles on a computer (styles.css, "grid & tiles"). */
 const GRID_GAP_WIDE = 16;
+/** How many letters of a name a small tile shows, on two lines (`shortName`). */
+const SMALL_NAME = 22;
 
 const NEEDS_CHECK = 'Needs a check';
 const AWAY = 'Away';
@@ -375,11 +379,13 @@ function StatusLine({ toCheck, inLaundry: n, checking, washing, onCheck, onLaund
   );
 }
 
-function FilterChoices({ status, laundry, away, onLaundry, onAway, choices, what, onWhat, view, onView }: {
+function FilterChoices({ status, laundry, away, onLaundry, onAway, choices, what, onWhat, view, onView, size, onSize }: {
   status: 'active' | 'archived';
-  /** what the grid shows, photos or drawings (null while there is nothing to show) */
+  /** what the grid shows, photos or drawings (null while there is nothing to show), and how large */
   view: GridView | null;
   onView(view: GridView): void;
+  size: TileSize;
+  onSize(size: TileSize): void;
   laundry: Laundry | null;
   away: boolean;
   onLaundry(l: Laundry | null): void;
@@ -410,6 +416,8 @@ function FilterChoices({ status, laundry, away, onLaundry, onAway, choices, what
           <div className="view-choices">
             <SegmentedControl label="Show" className="view-choice" value={view} onChange={onView}
               options={[{ value: 'photos', label: 'Photos' }, { value: 'drawings', label: 'Drawings' }]} />
+            <SegmentedControl label="Picture size" className="view-choice" value={size} onChange={onSize}
+              options={[{ value: 'larger', label: 'Larger' }, { value: 'smaller', label: 'Smaller' }]} />
           </div>
         </div>
       )}
@@ -450,8 +458,10 @@ function FilterChoices({ status, laundry, away, onLaundry, onAway, choices, what
 
 /** One tile of the grid. Memoised: a poll or a save that changes one item draws that item's tile only. `progress` is
  * how far the work on it has got (progress.ts), shown as the step's small mark. */
-const Tile = memo(function Tile({ item, status, selected, progress, view, onChoose }: {
+const Tile = memo(function Tile({ item, status, selected, progress, view, small, onChoose }: {
   item: ItemSummary; status: 'active' | 'archived'; selected: boolean; progress: Progress | null; view: GridView;
+  /** a small tile (Smaller pictures): its name on two short lines, cut after a whole word, and no caption */
+  small: boolean;
   onChoose(id: string, tile: HTMLElement): void;
 }) {
   const name = item.name || label('category', item.category) || 'New item';
@@ -462,11 +472,15 @@ const Tile = memo(function Tile({ item, status, selected, progress, view, onChoo
       <div className="tile-card">
         <TilePicture item={item} view={view} />
         {progress && <StepMark progress={progress} />}
-        {item.laundry === 'laundry' && <span className="tile-mark" data-testid="laundry-mark">In the laundry</span>}
+        {item.laundry === 'laundry' && <span className="tile-mark" data-testid="laundry-mark">{small ? 'Laundry' : 'In the laundry'}</span>}
         <AwayMark item={item} />
       </div>
-      <span className="tile-name">{name}</span>
-      <span className="tile-caption">{caption || ' '}</span>
+      {small ? <span className="tile-name" title={name}>{shortName(name, SMALL_NAME)}</span> : (
+        <>
+          <span className="tile-name">{name}</span>
+          <span className="tile-caption">{caption || ' '}</span>
+        </>
+      )}
     </Link>
   );
 });

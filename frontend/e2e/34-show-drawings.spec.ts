@@ -90,3 +90,49 @@ test.describe('on a phone', () => {
     await expect.poll(() => allDrawings(tilePics(page))).toBe(true);
   });
 });
+
+test.describe('smaller pictures on a phone', () => {
+  test.use({ viewport: { width: 320, height: 568 }, hasTouch: true, isMobile: true });
+
+  test('Smaller shows three across, remembered on this device; a long name is cut after a whole word', async ({ page }) => {
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    const items = (await (await page.request.get('/api/items')).json()).items as { id: string; name: string }[];
+    const long = 'Heavyweight brushed cotton flannel overshirt in faded forest green and charcoal check';
+    await page.request.patch(`/api/items/${items[0].id}`, { data: { name: long }, headers: { 'X-Closet-Client': '1' } });
+    await page.goto('/');
+    const grid = page.locator('ul.grid');
+    const columns = () => grid.evaluate((g) => getComputedStyle(g).gridTemplateColumns.split(' ').length);
+    await expect(page.getByTestId('tile').first()).toBeVisible();
+    expect(await columns()).toBe(2);
+
+    await page.getByRole('button', { name: /^Filter/ }).click();
+    const size = page.getByRole('dialog', { name: 'Filter' }).getByRole('group', { name: 'Picture size' });
+    await expect(size.getByRole('button', { name: 'Larger' })).toHaveAttribute('aria-pressed', 'true');
+    await size.getByRole('button', { name: 'Smaller' }).click();
+    await expect.poll(columns).toBe(3);
+    await page.getByRole('button', { name: 'Done' }).click();
+
+    // every name fits its tile, and is either whole or cut after a whole word
+    const names = page.getByTestId('tile').locator('.tile-name');
+    for (const el of await names.all()) {
+      const { text, fits } = await el.evaluate((e) => ({ text: e.textContent ?? '', fits: e.scrollWidth <= e.clientWidth + 1 && e.scrollHeight <= e.clientHeight + 1 }));
+      expect(fits, text).toBe(true);
+    }
+    const cut = (await page.getByTestId('tile').filter({ has: page.getByRole('img', { name: long }) }).locator('.tile-name').textContent())!;
+    expect(cut.endsWith('…')).toBe(true);
+    expect(long.startsWith(cut.slice(0, -1).trimEnd())).toBe(true);
+    expect(long[cut.slice(0, -1).trimEnd().length]).toBe(' ');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+    await page.screenshot({ path: test.info().outputPath('smaller-320.png') });
+
+    // remembered on this device, through a reload
+    await page.reload();
+    await expect(page.getByTestId('tile').first()).toBeVisible();
+    expect(await columns()).toBe(3);
+    await page.getByRole('button', { name: /^Filter/ }).click();
+    await size.getByRole('button', { name: 'Larger' }).click();
+    await expect.poll(columns).toBe(2);
+    await page.request.patch(`/api/items/${items[0].id}`, { data: { name: items[0].name }, headers: { 'X-Closet-Client': '1' } });
+  });
+});

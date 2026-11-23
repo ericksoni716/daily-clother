@@ -153,7 +153,10 @@ and In use or Archived) whose choices stay visible as chips; **What it is** list
 in, and the one you choose opens to what is in it (Jeans, Trousers, Shorts, then the kinds); the
 filters that are on sit beside it. At the top of the Filter sheet, **Show** chooses **Photos** or
 **Drawings** for the grid: it starts from Settings' **Show drawings instead of photos** each time
-Nines is opened, and changing it shows the other kind in the grid only, until then. One line over the grid says what wants seeing to: "5 to
+Nines is opened, and changing it shows the other kind in the grid only, until then. Beside it,
+**Larger** or **Smaller** pictures: two or three across on a phone (more to a row on a computer),
+remembered on this device; a small tile shows the picture and the name on two short lines, cut after a
+whole word. One line over the grid says what wants seeing to: "5 to
 check · 4 in the laundry" (to check: the pieces added and not checked yet, and those with a
 detail Claude was unsure of). Each part shows only those pieces, as a chip that removes
 itself: "Needs a check" then offers "Check them one at a time" (the review), and "In the

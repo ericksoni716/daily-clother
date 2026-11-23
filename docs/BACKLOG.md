@@ -475,7 +475,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 - [x] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
 - [x] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
 - [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
-- [ ] **The closet at a glance**: three across as a choice, a search box that takes the row, the Photos or Drawings switch in words, and search that finds a shade, a brand, a material or a note.
+- [x] **The closet at a glance**: three across as a choice, a search box that takes the row, the Photos or Drawings switch in words, and search that finds a shade, a brand, a material or a note.
 - [ ] **Would this work? by hand**: kind and colour first, the rest behind "More about it".
 - [x] **The figure: an open layer under an open jacket** shows its fronts, not a thin strip (changes "The outfit as worn" in DECISIONS; say so).
 

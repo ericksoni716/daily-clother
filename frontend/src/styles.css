@@ -503,11 +503,22 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* ---------------------------------------------------------------- grid & tiles */
 .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
 @media (min-width: 560px) { .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 22px 16px; } }
+/* Smaller pictures: three across on a phone, and the matching step wider (closet.TILE_MIN_WIDE) */
+.grid.grid-smaller { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 8px; }
+@media (min-width: 560px) { .grid.grid-smaller { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 18px 12px; } }
 @media (min-width: 1000px) {
   .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-  /* as many to a row as fit the closet's whole width, worked out on the page: the same with a piece's panel open */
-  .grid.has-columns { grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); }
+  .grid.grid-smaller { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 22px 16px; }
+  /* as many to a row as fit the closet's whole width, worked out on the page (its style sets --columns over the 5
+     here): the same with a piece's panel open */
+  .grid.has-columns { --columns: 5; grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); }
 }
+/* a small tile's name: two short lines broken between words (closet.shortName cuts it after a whole word) */
+.grid-smaller .tile-name {
+  font-size: var(--text-xs); white-space: normal; overflow-wrap: break-word;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+}
+.grid-smaller .tile-mark { top: 4px; right: 4px; padding: 2px 6px; }
 
 .tile { display: flex; flex-direction: column; text-decoration: none; color: var(--ink); border-radius: var(--radius-md); }
 .tile-card {

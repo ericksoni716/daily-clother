@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANY, chooseWhat, columnsFor, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, searchWords, whatChoices, whatIn, whatName } from './closet';
+import { ANY, chooseWhat, columnsFor, shortName, TILE_MIN_WIDE, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, searchWords, whatChoices, whatIn, whatName } from './closet';
 import type { KindGroup } from './kinds';
 
 describe('how many tiles to a row on a computer', () => {
@@ -177,5 +177,23 @@ describe('what the closet search finds', () => {
     expect(matchesSearch('Flannel overshirt', 'shirt')).toBe(true);
     expect(matchesSearch('Flannel overshirt', '  ')).toBe(true);
     expect(matchesSearch('Flannel overshirt', '')).toBe(true);
+  });
+});
+
+describe('smaller pictures', () => {
+  it('fit more to a row on a computer', () => {
+    expect(columnsFor(1100, TILE_MIN_WIDE.larger, 16)).toBe(5);
+    expect(columnsFor(1100, TILE_MIN_WIDE.smaller, 16)).toBe(7);
+  });
+
+  it.each([
+    ['Navy polo', 'Navy polo'],
+    ['Light wash jeans', 'Light wash jeans'],
+    ['Heavyweight brushed cotton flannel overshirt in faded forest green', 'Heavyweight brushed…'],
+    ['Grey wool trousers, pleated', 'Grey wool trousers…'],
+    ['Extraordinarilylongsinglewordname', 'Extraordinarilylong…'],
+    ['  Two   spaces  ', 'Two spaces'],
+  ])('a small tile names "%s" as "%s"', (name, shown) => {
+    expect(shortName(name, 20)).toBe(shown);
   });
 });

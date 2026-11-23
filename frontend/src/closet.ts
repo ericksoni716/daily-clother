@@ -122,3 +122,40 @@ export function matchesSearch(text: string, query: string): boolean {
   const hay = searchWords(text).join(' ');
   return typed.every((t) => hay.includes(t));
 }
+
+/** How large the closet's pictures are: "larger", two across on a phone, or "smaller", three across. A habit of the
+ * device (how many fit depends on its screen), so it is kept on it, not on the computer. */
+export type TileSize = 'larger' | 'smaller';
+export const TILE_SIZE_KEY = 'closet.tileSize';
+
+export function loadTileSize(): TileSize {
+  try {
+    return localStorage.getItem(TILE_SIZE_KEY) === 'smaller' ? 'smaller' : 'larger';
+  } catch {
+    return 'larger';
+  }
+}
+
+export function keepTileSize(size: TileSize): void {
+  try {
+    localStorage.setItem(TILE_SIZE_KEY, size);
+  } catch {
+    /* private browsing: the choice lasts until the page closes */
+  }
+}
+
+/** The smallest a tile may be on a computer, for each size (styles.css, "grid & tiles"). */
+export const TILE_MIN_WIDE: Record<TileSize, number> = { larger: 180, smaller: 130 };
+
+/**
+ * A piece's name as a small tile shows it, on two short lines: whole when it fits in `max` letters, else cut after
+ * the last whole word that fits, with "…" (never in the middle of a word, unless the first word alone is too long).
+ */
+export function shortName(name: string, max: number): string {
+  const text = name.replace(/\s+/g, ' ').trim();
+  if (text.length <= max) return text;
+  const room = text.slice(0, max);
+  const space = room.lastIndexOf(' ');
+  const kept = (space > 0 ? room.slice(0, space) : room.slice(0, max - 1)).replace(/[\s,;:·–-]+$/u, '');
+  return `${kept}…`;
+}

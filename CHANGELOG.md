@@ -12,6 +12,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Smaller pictures in the closet.** Under **Show** in the Filter sheet, **Smaller** puts three
+  pieces across on a phone (and more to a row on a computer); **Larger** goes back to two. This
+  device remembers your choice. A small tile shows the picture and the name on two short lines,
+  cut after a whole word when it is long.
 - **Where a piece is.** On a piece's page, under Wearing and washing, one row says where it is: in
   your closet, at the cleaner's, at the tailor's or lent out, with the day you expect it back and a
   note of your own if you like (the note stays on your computer; Claude never reads it). **Change**

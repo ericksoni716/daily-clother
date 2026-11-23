@@ -155,6 +155,15 @@ def test_the_list_carries_what_the_closet_search_looks_in(client):
     assert (listed["brand"], listed["material"], listed["own_notes"]) == (None, None, "")
 
 
+def test_a_colour_chosen_alone_is_listed_with_no_shade_for_the_closet_search(client):
+    """The closet's search looks in the listed shade: a colour the owner chose alone lists the colour word and no
+    shade nobody chose (P15), so it is found as blue and never as French blue."""
+    item = upload(client, name="Plain shirt").json()
+    client.patch(f"/api/items/{item['id']}", json={"color": "blue", "color_hex": None})
+    listed = {i["id"]: i for i in client.get("/api/items").json()["items"]}[item["id"]]
+    assert (listed["color"], listed["shade"]) == ("blue", None)
+
+
 def test_media_cannot_escape_the_images_folder(client, cfg):
     item = upload(client).json()
     for sneaky in ("/media/../settings.json", "/media/%2e%2e/settings.json", "/media/..%2fsettings.json",

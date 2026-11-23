@@ -173,6 +173,15 @@ describe('what the closet search finds', () => {
     expect(finds(chinos, 'off-white chinos')).toBe(true);
   });
 
+  it('finds a piece whose colour was chosen alone by its colour word, and by no shade nobody chose', () => {
+    // a colour chosen alone keeps no shade (the item page, 23 November: P15), so the list gives it none
+    const blue = { ...shirt, color: 'blue', shade: null, kind_name: null, brand: null, material: null, own_notes: '' };
+    const found = (q: string) => matchesSearch(searchedText(blue, groups), q);
+    expect(found('blue')).toBe(true);
+    expect(found('french blue')).toBe(false);
+    expect(found('cobalt')).toBe(false);
+  });
+
   it('finds a word inside a longer one, and everything when nothing is typed', () => {
     expect(matchesSearch('Flannel overshirt', 'shirt')).toBe(true);
     expect(matchesSearch('Flannel overshirt', '  ')).toBe(true);

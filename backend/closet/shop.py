@@ -513,6 +513,21 @@ def _open_finds(conn: sqlite3.Connection) -> tuple[list[sqlite3.Row], dict[str, 
     return finds, history
 
 
+def wish_prices(conn: sqlite3.Connection) -> list[dict]:
+    """Every wish still wanted, oldest first, with what each of its finds still on sale costs today: {wish_id, prices:
+    [{price, currency}]}, the newest find first, each price the one after its checkout code when one applies. For what
+    the wishlist would cost (insights)."""
+    finds, _ = _open_finds(conn)
+    prices: dict[str, list[dict]] = {}
+    for f in finds:
+        if f["price"] is None or not f["available"]:
+            continue
+        after = price_with(f["price"], f["code_percent"], f["code_amount"]) if f["code"] else None
+        prices.setdefault(f["wish_id"], []).append({"price": f["price"] if after is None else after, "currency": f["currency"]})
+    return [{"wish_id": r["id"], "prices": prices.get(r["id"], [])}
+            for r in conn.execute("SELECT id FROM wishes WHERE bought_at IS NULL ORDER BY created_at, id")]
+
+
 def on_the_list(conn: sqlite3.Connection) -> dict[str, dict]:
     """What the wishlist shows on each open wish's row, by wish: `link`, its newest find sent as a link ({name, shop,
     price, currency, available}, with `code` and `with_code`, the price after it, when it has a checkout code that

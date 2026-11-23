@@ -130,8 +130,8 @@ def test_never_worn_does_not_claim_everything_was_worn_when_it_is_too_early_to_s
     never = find(items, wears)["never_worn"]
     assert never["items"] == []
     assert "has been worn at least once" not in never["sentence"]
-    assert never["sentence"] == (f"5 pieces have not been worn yet, but it is too early to say: the wear log goes back 2 days, "
-                                 f"and they show here once {insights.NEVER_MIN_SEASON_DAYS} days of their season have passed.")
+    assert never["sentence"] == (f"5 pieces have not been worn yet, but it is too early to say: you began recording what you "
+                                 f"wear 2 days ago, and they show here once {insights.NEVER_MIN_SEASON_DAYS} days of their season have passed.")
     # the only piece not worn is a winter coat, in August
     today = date(2026, 8, 20)
     busy = item("busy", "jeans", "Busy jeans")
@@ -200,7 +200,8 @@ def test_season_days_counts_only_the_seasons_months():
 def test_not_worn_lately_waits_for_a_long_enough_log():
     busy, wears = busy_log()
     lately = find([busy], wears)["not_worn_lately"]
-    assert lately["enough"] is False and "The wear log goes back 12 days" in lately["sentence"]
+    assert lately["enough"] is False and "You began recording what you wear 12 days ago." in lately["sentence"]
+    assert "wear log" not in lately["sentence"]
 
 
 # ---------------------------------------------------------------------------- worn most and the spread
@@ -273,7 +274,7 @@ def test_a_closet_with_too_little_history_says_so_for_every_finding():
     for key in ("cost_per_wear", "never_worn", "not_worn_lately", "worn_most", "spread", "makeup"):
         assert answer[key]["enough"] is False, key
         assert answer[key]["sentence"], key
-    assert answer["log"] == {"wears": 0, "first": None, "days": 0}
+    assert answer["log"] == {"wears": 0, "first": None, "last": None, "days": 0}
     empty = find([], [])
     assert empty["makeup"]["sentence"] == "There is nothing in this closet yet."
 
@@ -326,7 +327,8 @@ def test_insights_answers_for_the_open_closet(client):
     main = client.get("/api/insights")
     assert main.status_code == 200
     body = main.json()
-    assert set(body) == {"today", "log", "cost_per_wear", "never_worn", "not_worn_lately", "worn_most", "spread", "makeup"}
+    assert set(body) == {"today", "log", "cost_per_wear", "never_worn", "not_worn_lately", "worn_most", "nines", "spending",
+                         "spread", "makeup"}
     assert body["makeup"]["pieces"] == 1 and body["log"]["wears"] == 0
 
     assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
@@ -391,6 +393,146 @@ def test_insights_are_told_each_pieces_kind(client, monkeypatch):
     made = upload(client).json()
     monkeypatch.setattr(today, "cloth", lambda row: {"kind": "swim_trunks" if row["id"] == made["id"] else None})
     rows = []
-    monkeypatch.setattr(app_module, "find_insights", lambda items, wears, day: rows.extend(items) or {})
+    monkeypatch.setattr(app_module, "find_insights", lambda items, wears, day, **kw: rows.extend(items) or {})
     client.get("/api/insights")
     assert [r["kind"] for r in rows if r["id"] == made["id"]] == ["swim_trunks"]
+
+
+# ---------------------------------------------------------------------------- Your nines
+def test_your_nines_are_the_nine_worn_most_in_each_window():
+    items = [item(f"p{n}", "tee", f"Piece {n}") for n in range(12)]
+    # piece n is worn n+1 times in the last 30 days; piece 0 is also worn on 20 days long ago
+    wears = [w for n in range(12) for w in worn(f"p{n}", *range(1, n + 2))] + worn("p0", *range(200, 220))
+    windows = {w["days"]: w for w in find(items, wears)["nines"]["windows"]}
+    assert list(windows) == [30, 90, None]
+    w30 = windows[30]
+    assert [i["id"] for i in w30["items"]] == [f"p{n}" for n in range(11, 2, -1)]
+    assert w30["items"][0] == {"id": "p11", "wears": 12} and w30["pieces"] == 12 and w30["sentence"] is None
+    # all time: piece 0's old wears count, and put it first
+    assert windows[None]["items"][0] == {"id": "p0", "wears": 21}
+    assert len(windows[None]["items"]) == insights.NINES
+
+
+def test_your_nines_breaks_ties_by_the_most_recent_wear_then_the_name():
+    items = [item("b", "tee", "Beta tee"), item("a", "tee", "Alpha tee"), item("c", "tee", "Cyan tee")]
+    wears = worn("b", 5, 6) + worn("a", 5, 6) + worn("c", 1, 9)
+    w30 = find(items, wears)["nines"]["windows"][0]
+    assert [i["id"] for i in w30["items"]] == ["c", "a", "b"]   # c worn most recently; then Alpha before Beta
+
+
+def test_your_nines_with_fewer_than_nine_says_how_many():
+    items = [item("jeans", "jeans", "Dark jeans"), item("tee", "tee", "White tee"), item("cap", "hat", "Cap")]
+    windows = {w["days"]: w for w in find(items, worn("jeans", 1, 2) + worn("tee", 50))["nines"]["windows"]}
+    assert windows[30]["items"] == [{"id": "jeans", "wears": 2}]
+    assert windows[30]["sentence"] == "Only 1 piece was worn in the last 30 days."
+    assert windows[90]["sentence"] == "Only 2 pieces were worn in the last 90 days."
+    assert windows[None]["sentence"] == "Only 2 pieces have been worn since you began recording what you wear."
+
+
+def test_your_nines_with_nothing_recorded_says_so():
+    empty = find([item("a")], [])["nines"]["windows"]
+    assert all(w["items"] == [] and w["sentence"] == insights.NO_LOG for w in empty)
+    # nothing recorded since a day before the window: the same sentence the page says elsewhere for a break
+    rows = [item(f"p{n}", name=f"Piece {n}") for n in range(3)]
+    wears = [{"item_id": f"p{n}", "worn_on": "2026-07-20"} for n in range(3)]
+    found = find(rows, wears, date(2026, 11, 12))
+    windows = {w["days"]: w for w in found["nines"]["windows"]}
+    assert windows[30]["sentence"] == "Nothing has been recorded as worn since 20 July 2026."
+    assert windows[30]["sentence"] in found["not_worn_lately"]["sentence"]
+    assert len(windows[None]["items"]) == 3
+
+
+def test_your_nines_count_what_is_worn_at_home():
+    # lounge pants worn every evening are what was worn: they count here, though Not worn and What's missing leave them out
+    rows = [item("lounge", "trousers", "Tartan lounge pants", kind="lounge_pants"), item("jeans", "jeans", "Dark jeans")]
+    w30 = find(rows, worn("lounge", 1, 2, 3) + worn("jeans", 1))["nines"]["windows"][0]
+    assert [i["id"] for i in w30["items"]] == ["lounge", "jeans"]
+
+
+def test_your_nines_leave_out_archived_pieces():
+    rows = [item("gone", "tee", "Old tee", status="archived"), item("tee", "tee", "White tee")]
+    w30 = find(rows, worn("gone", 1, 2, 3) + worn("tee", 1))["nines"]["windows"][0]
+    assert [i["id"] for i in w30["items"]] == ["tee"]
+
+
+# ---------------------------------------------------------------------------- what your clothes cost you
+def test_what_was_spent_is_counted_by_the_year_each_piece_was_bought():
+    rows = [item("coat", "coat", "Coat", price=30000, acquired_on="2026-02-01"),
+            item("tee", "tee", "Tee", price=2550, acquired_on="2026-10-09"),
+            item("boots", "boots", "Boots", price=20000, acquired_on="2025-11-30"),
+            item("jeans", "jeans", "Jeans", price=9000),                       # a price, no date
+            item("hat", "hat", "Hat", acquired_on="2024-01-01"),               # a date, no price
+            item("cap", "hat", "Cap")]
+    spent = find(rows, worn("cap", 1, 2))["spending"]
+    assert spent["year"] == 2026 and spent["currency"] == "$"
+    assert spent["by_year"] == [{"year": 2026, "spent_cents": 32550, "pieces": 2}, {"year": 2025, "spent_cents": 20000, "pieces": 1}]
+    assert (spent["pieces"], spent["priced"], spent["dated"], spent["unpriced"]) == (6, 4, 3, 2)
+    assert spent["enough"] is True
+    # the piece to price first is the one worn most
+    assert spent["first_unpriced"] == "cap"
+
+
+def test_what_was_spent_waits_for_a_few_pieces_with_a_price_and_a_date():
+    rows = [item("coat", "coat", "Coat", price=30000, acquired_on="2026-02-01"),
+            item("tee", "tee", "Tee", price=2500), item("cap", "hat", "Cap")]
+    spent = find(rows, [])["spending"]
+    assert spent["enough"] is False and spent["dated"] == 1 and spent["unpriced"] == 1
+    none = find([item("a"), item("b")], [])["spending"]
+    assert none["enough"] is False and none["priced"] == 0 and none["by_year"] == [] and none["first_unpriced"] == "a"
+    assert none["earned"] == [] and none["not_earned"] == []
+
+
+def test_a_date_that_is_not_a_date_counts_as_none():
+    rows = [item(f"p{n}", price=1000, acquired_on=d) for n, d in enumerate(["2026-01-01", "soon", "", None])]
+    spent = find(rows, [])["spending"]
+    assert spent["dated"] == 1 and spent["by_year"] == [{"year": 2026, "spent_cents": 1000, "pieces": 1}]
+
+
+def test_pieces_that_earned_their_price_and_those_that_have_not():
+    rows = [item("jeans", "jeans", "Jeans", price=9000), item("tee", "tee", "Tee", price=2000),
+            item("coat", "coat", "Coat", price=40000), item("shirt", "shirt", "Shirt", price=6000),
+            item("boots", "boots", "Boots", price=25000), item("cap", "hat", "Cap")]
+    wears = worn("jeans", *range(1, 31)) + worn("tee", 1, 2, 3, 4) + worn("shirt", 1, 2) + worn("cap", *range(1, 40))
+    spent = find(rows, wears)["spending"]
+    assert spent["earned"] == [{"id": "jeans", "price_cents": 9000, "wears": 30, "per_wear_cents": 300},
+                               {"id": "tee", "price_cents": 2000, "wears": 4, "per_wear_cents": 500}]
+    # a price and fewer than 3 wears, the dearest first; never the same piece in both
+    assert [(p["id"], p["wears"]) for p in spent["not_earned"]] == [("coat", 0), ("boots", 0), ("shirt", 2)]
+    assert not {p["id"] for p in spent["earned"]} & {p["id"] for p in spent["not_earned"]}
+
+
+def test_what_the_wishlist_would_cost_is_summed_by_currency_and_never_across():
+    wishlist = [{"wish_id": "w1", "prices": [{"price": 120.0, "currency": "USD"}, {"price": 99.995, "currency": "USD"}]},
+                {"wish_id": "w2", "prices": [{"price": 54.4, "currency": "USD"}]},
+                {"wish_id": "w3", "prices": [{"price": 80, "currency": "EUR"}, {"price": 10, "currency": "USD"}]},
+                {"wish_id": "w4", "prices": []}]
+    cost = insights.find_insights([item("a")], [], TODAY, wishlist=wishlist)["spending"]["wishlist"]
+    assert cost["wishes"] == 4 and cost["unpriced"] == 1
+    # each wish at its lowest price in the currency of its first find, rounded to the cent
+    assert cost["totals"] == [{"currency": "USD", "cents": 15440, "wishes": 2}, {"currency": "EUR", "cents": 8000, "wishes": 1}]
+
+
+def test_a_wishlist_with_no_prices_or_no_wishes():
+    assert find([item("a")], [])["spending"]["wishlist"] == {"wishes": 0, "unpriced": 0, "totals": []}
+    cost = insights.find_insights([item("a")], [], TODAY, wishlist=[{"wish_id": "w", "prices": []}])["spending"]["wishlist"]
+    assert cost == {"wishes": 1, "unpriced": 1, "totals": []}
+
+
+def test_the_wishlist_is_priced_from_its_finds_still_on_sale(client, cfg):
+    from closet import db, shop
+    wish = client.post("/api/wishlist", json={"name": "Brown loafers"}).json()
+    client.post("/api/wishlist", json={"name": "A scarf"})
+    # a find on sale with a checkout code, and one sold out (not counted)
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        now = "2026-11-20T10:00:00Z"
+        for fid, price, available, code in (("f1", 100.0, 1, "TEN"), ("f2", 50.0, 0, None)):
+            conn.execute("INSERT INTO finds (id, wish_id, name, shop, url, price, currency, available, piece, found_at, updated_at, "
+                         "code, code_percent) VALUES (?, ?, 'Loafers', 'Example Shop', ?, ?, 'USD', ?, '{}', ?, ?, ?, ?)",
+                         (fid, wish["id"], f"https://shop.example/{fid}", price, available, now, now, code, 10 if code else None))
+        conn.commit()
+        assert shop.wish_prices(conn)[0] == {"wish_id": wish["id"], "prices": [{"price": 90.0, "currency": "USD"}]}
+    finally:
+        conn.close()
+    cost = client.get("/api/insights").json()["spending"]["wishlist"]
+    assert cost == {"wishes": 2, "unpriced": 1, "totals": [{"currency": "USD", "cents": 9000, "wishes": 1}]}

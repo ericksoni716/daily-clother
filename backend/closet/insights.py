@@ -1,4 +1,4 @@
-"""How what is owned is being used: cost per wear, what is not worn, what is worn most.
+"""How what is owned is being used: cost per wear, what is not worn, what is worn most, Your nines, what was spent.
 
 Pure functions: no database, no network, and the clock is passed in.
 `find_insights(items, wears, today)` takes the closet's items (rows with at
@@ -8,7 +8,9 @@ returns a few findings about the open closet. Each finding has a `title`,
 whether there is `enough` history for its numbers to mean something, and a
 `sentence` the owner reads first, naming their own items. When there is too
 little history the sentence says so instead of showing numbers. The same
-inputs always give the same answer.
+inputs always give the same answer. Your nines and what was spent carry
+numbers only; the page puts them into words (`frontend/src/insights.ts`), so
+money is said in one place (`frontend/src/spend.ts`).
 
 This is not the gap analysis (`gaps.py`), which says what to buy; this says
 how what is owned is being used. Archived items are left out; items in the
@@ -20,6 +22,7 @@ from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 
 from . import gaps, vocab
 from .vocab import day_words
@@ -56,6 +59,14 @@ MOST_WINDOWS = (30, 90, None)  # the last 30 days, the last 90 days, and all tim
 MOST_LIST = 5                  # pieces listed per window
 MOST_MIN_WEARS = 5             # a window with fewer wears than this says so instead of ranking
 
+# ------------------------------------------------------------------ Your nines
+NINES = 9                      # the pieces worn most in each window of MOST_WINDOWS, as a three-by-three square
+
+# ------------------------------------------------------------------ what your clothes cost you
+SPENT_MIN_PIECES = 3           # what was spent is said once at least this many pieces have both a price and a date bought
+EARNED_MIN_WEARS = 3           # a piece with a price has "earned" it once worn this many times; fewer, and it has not yet
+EARNED_LIST = 3                # pieces listed as having earned their price, and as not having earned it yet
+
 # ------------------------------------------------------------------ how wears are spread within a kind of clothing
 SPREAD_WINDOW_DAYS = 90        # the spread is read from the last this many days
 SPREAD_MIN_PIECES = 2          # a category needs at least this many pieces to have a spread
@@ -90,6 +101,7 @@ class _Piece:
     season: str | None
     price: int | None         # cents
     added: date | None
+    acquired: date | None = None   # the date bought, as the owner gave it on the item's page
     wears: list[date] = field(default_factory=list)   # oldest first, one per day
     everyday: bool = True     # one Today offers (gaps.everyday): only these are ever "not worn"
 
@@ -153,7 +165,8 @@ def _closet(items: Iterable[object], wears: Iterable[object], today: date) -> tu
             formality=_get(row, "formality") if _get(row, "formality") in vocab.FORMALITY else None,
             season=_get(row, "season") if _get(row, "season") in vocab.SEASON else None,
             price=price if isinstance(price, int) and not isinstance(price, bool) and price >= 0 else None,
-            added=_date(_get(row, "created_at")), everyday=gaps.everyday({"kind": _get(row, "kind")}))
+            added=_date(_get(row, "created_at")), acquired=_date(_get(row, "acquired_on")),
+            everyday=gaps.everyday({"kind": _get(row, "kind")}))
     days: dict[str, set[date]] = {}
     for w in wears:
         item_id, day = _get(w, "item_id"), _date(_get(w, "worn_on"))
@@ -302,8 +315,8 @@ def _never_worn(pieces: list[_Piece], log: _Log, today: date) -> dict:
     if not found and not early:
         sentence = f"Everything you have had for more than {RECENT_DAYS} days has been worn at least once."
     elif not found:
-        sentence = (f"{_n(early, 'piece')} {'has' if one else 'have'} not been worn yet, but it is too early to say: the wear log "
-                    f"goes back {_n(log.days, 'day')}, and {'it shows' if one else 'they show'} here once "
+        sentence = (f"{_n(early, 'piece')} {'has' if one else 'have'} not been worn yet, but it is too early to say: you began "
+                    f"recording what you wear {_ago(log.days)}, and {'it shows' if one else 'they show'} here once "
                     f"{NEVER_MIN_SEASON_DAYS} days of {'its' if one else 'their'} season have passed.")
     else:
         # the headline claims only what is true of every piece it counts
@@ -314,7 +327,7 @@ def _never_worn(pieces: list[_Piece], log: _Log, today: date) -> dict:
             said = f"not been worn in the {_n((today - found[0][0]).days, 'day')} since you added it"
         else:
             said = f"not been worn for at least {_n(min((today - since).days for since, _, _ in found), 'day')} each"
-        sentence = f"{_n(len(found), 'piece')} {has} {said}. Archive what you no longer want, or keep it."
+        sentence = f"{_n(len(found), 'piece')} {has} {said}."
         if early:
             sentence += (f" {early} more {'is' if one else 'are'} left out until enough of {'its' if one else 'their'} "
                          "season has passed.")
@@ -326,8 +339,8 @@ def _not_worn_lately(pieces: list[_Piece], log: _Log, today: date) -> dict:
     if log.wears == 0:
         return {**out, "sentence": NO_LOG}
     if log.days < NEGLECT_DAYS:
-        return {**out, "sentence": f"The wear log goes back {_n(log.days, 'day')}. Pieces left unworn for {NEGLECT_DAYS} days "
-                                   "of their season show here once it goes back that far."}
+        return {**out, "sentence": f"You began recording what you wear {_ago(log.days)}. Pieces left unworn for "
+                                   f"{NEGLECT_DAYS} days of their season show here once you have recorded that long."}
     if _quiet(log, today, NEGLECT_DAYS):
         return {**out, "sentence": f"{_quiet_words(log)} Pieces left unworn show here again once you record what you "
                                    "wear."}
@@ -374,7 +387,7 @@ def _worn_most(pieces: list[_Piece], log: _Log, today: date) -> dict:
         more = level - len(tied)   # pieces worn as often that did not fit in the list
         sentence += f", and {more} more worn as often." if more else "."
         if days and log.days < days - 1:
-            sentence += f" The wear log goes back {_n(log.days, 'day')}."
+            sentence += f" You began recording what you wear {_ago(log.days)}."
         windows.append({**w, "enough": True, "sentence": sentence, "items": [{"id": p.id, "wears": n} for n, p in ranked]})
     shown = next((w for w in windows if w["enough"]), windows[-1])
     return {"title": "Worn most", "enough": shown["enough"], "sentence": shown["sentence"], "windows": windows}
@@ -451,19 +464,103 @@ def _makeup(pieces: list[_Piece], log: _Log, today: date) -> dict:
             "sentence": f"You have {_n(len(pieces), 'piece')}; {n} of them ({_share(n, len(pieces))}%) {worn}."}
 
 
-def find_insights(items: Iterable[object], wears: Iterable[object], today: date) -> dict:
+def _nines(pieces: list[_Piece], log: _Log, today: date) -> dict:
+    """The nine pieces worn most in each window, every piece counted (what is worn at home too: it is what was worn).
+
+    Ties go to the piece worn more recently, then by name, as for worn most. A window with fewer than nine says how many
+    were worn; one with none says why: nothing recorded yet, or nothing recorded since a day before the window."""
+    windows = []
+    for days in MOST_WINDOWS:
+        start = today - timedelta(days=days - 1) if days else None
+        ranked = sorted(((p.worn_since(start), p) for p in pieces if p.worn_since(start)),
+                        key=lambda x: (-x[0], -x[1].last.toordinal(), x[1].name.lower(), x[1].id))
+        if log.wears == 0:
+            sentence = NO_LOG
+        elif not ranked:
+            sentence = _quiet_words(log) if log.last is not None and (start is None or log.last < start) else \
+                f"Nothing has been recorded as worn {_window_words(days)}."
+        elif len(ranked) < NINES:
+            sentence = (f"Only {_n(len(ranked), 'piece')} {'was' if len(ranked) == 1 else 'were'} worn {_window_words(days)}."
+                        if days else
+                        f"Only {_n(len(ranked), 'piece')} {'has' if len(ranked) == 1 else 'have'} been worn {_window_words(days)}.")
+        else:
+            sentence = None
+        windows.append({"days": days, "pieces": len(ranked), "sentence": sentence,
+                        "items": [{"id": p.id, "wears": n} for n, p in ranked[:NINES]]})
+    return {"title": "Your nines", "windows": windows}
+
+
+def _wishlist_cost(wishlist: Iterable[dict] | None) -> dict:
+    """What the open wishes would cost at today's prices: each wish at the lowest price of the finds still on sale in
+    one currency (the currency of its first find given), summed by currency and never across currencies."""
+    totals: dict[str, dict] = {}
+    wishes = unpriced = 0
+    for w in wishlist or ():
+        wishes += 1
+        prices = [(float(f["price"]), str(f["currency"])) for f in (w.get("prices") or ())
+                  if isinstance(f.get("price"), (int, float)) and not isinstance(f.get("price"), bool) and f["price"] >= 0
+                  and isinstance(f.get("currency"), str) and f["currency"]]
+        if not prices:
+            unpriced += 1
+            continue
+        currency = prices[0][1]
+        cents = min(int((Decimal(str(p)) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)) for p, c in prices if c == currency)
+        t = totals.setdefault(currency, {"currency": currency, "cents": 0, "wishes": 0})
+        t["cents"] += cents
+        t["wishes"] += 1
+    return {"wishes": wishes, "unpriced": unpriced,
+            "totals": sorted(totals.values(), key=lambda t: (-t["wishes"], t["currency"]))}
+
+
+def _spending(pieces: list[_Piece], today: date, wishlist: Iterable[dict] | None) -> dict:
+    """What the closet cost, from each piece's price and the date it was bought: by year, the pieces that have earned
+    their price and those that have not yet, and what the wishlist would cost. Prices are in the one currency the
+    price field shows (CURRENCY); the wishlist's are in each shop's."""
+    priced = [p for p in pieces if p.price is not None]
+    dated = [p for p in priced if p.acquired is not None]
+    unpriced = [p for p in pieces if p.price is None]
+    years: dict[int, dict] = {}
+    for p in dated:
+        y = years.setdefault(p.acquired.year, {"year": p.acquired.year, "spent_cents": 0, "pieces": 0})
+        y["spent_cents"] += p.price
+        y["pieces"] += 1
+    earned = sorted((p for p in priced if len(p.wears) >= EARNED_MIN_WEARS),
+                    key=lambda p: (_per_wear(p), -len(p.wears), p.name.lower(), p.id))[:EARNED_LIST]
+    not_earned = sorted((p for p in priced if len(p.wears) < EARNED_MIN_WEARS),
+                        key=lambda p: (-p.price, len(p.wears), p.name.lower(), p.id))[:EARNED_LIST]
+    # the piece to give a price first: the one worn most, so its cost per wear means the most
+    first = min(unpriced, key=lambda p: (-len(p.wears), p.name.lower(), p.id)) if unpriced else None
+    return {
+        "currency": CURRENCY, "year": today.year, "pieces": len(pieces), "priced": len(priced), "dated": len(dated),
+        "unpriced": len(unpriced), "first_unpriced": first.id if first else None,
+        "enough": len(dated) >= SPENT_MIN_PIECES,
+        "by_year": sorted(years.values(), key=lambda y: -y["year"]),
+        "earned": [{"id": p.id, "price_cents": p.price, "wears": len(p.wears), "per_wear_cents": _per_wear(p)} for p in earned],
+        "not_earned": [{"id": p.id, "price_cents": p.price, "wears": len(p.wears)} for p in not_earned],
+        "wishlist": _wishlist_cost(wishlist),
+    }
+
+
+def find_insights(items: Iterable[object], wears: Iterable[object], today: date, wishlist: Iterable[dict] | None = None) -> dict:
     """A few findings about how the open closet is used, each with a sentence first.
 
-    Returns {today, log: {wears, first, days}, cost_per_wear, never_worn, not_worn_lately, worn_most, spread, makeup}.
+    `wishlist` is the open wishes, each {wish_id, prices: [{price, currency}]}: the prices of its finds still on sale,
+    after any checkout code, the newest find first.
+
+    Returns {today, log: {wears, first, last, days}, cost_per_wear, never_worn, not_worn_lately, worn_most, nines,
+    spending, spread, makeup}.
     """
     pieces, log = _closet(items if items is not None else (), wears if wears is not None else (), today)
     return {
         "today": today.isoformat(),
-        "log": {"wears": log.wears, "first": log.first.isoformat() if log.first else None, "days": log.days},
+        "log": {"wears": log.wears, "first": log.first.isoformat() if log.first else None,
+                "last": log.last.isoformat() if log.last else None, "days": log.days},
         "cost_per_wear": _cost_per_wear(pieces),
         "never_worn": _never_worn(pieces, log, today),
         "not_worn_lately": _not_worn_lately(pieces, log, today),
         "worn_most": _worn_most(pieces, log, today),
+        "nines": _nines(pieces, log, today),
+        "spending": _spending(pieces, today, wishlist),
         "spread": _spread(pieces, log, today),
         "makeup": _makeup(pieces, log, today),
     }

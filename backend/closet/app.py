@@ -1263,7 +1263,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     def get_insights(conn=Depends(conn_dep)):
         rows = closet_rows(conn)   # with each piece's kind: what Today never offers is never "not worn"
         worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
-        return find_insights(rows, worn, wears.today())
+        return find_insights(rows, worn, wears.today(), wishlist=shop.wish_prices(conn))
     app.include_router(wishlist.router(conn_dep, gap_analysis, state, rows=shop.on_the_list))
 
     def closet_for_check(profile: str) -> tuple[list[dict], list[dict], dict | None]:

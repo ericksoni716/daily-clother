@@ -646,7 +646,7 @@ function SwimChoice({ choice, plan, disabled, onChange }: {
 /** Tennis or golf on the trip: a pair of the matching shoes is packed beside the days, without "I want to take this". */
 function SportChoice({ chosen, disabled, onChange }: { chosen: TripSport[]; disabled: boolean; onChange(s: TripSport[]): void }) {
   return (
-    <div className="today-choice trip-sport" role="group" aria-label="Playing on the trip">
+    <div className="trip-sport" role="group" aria-label="Playing on the trip">
       <span className="chip-group-title" aria-hidden="true">Playing on the trip</span>
       <div className="chips">
         {TRIP_SPORTS.map((s) => (

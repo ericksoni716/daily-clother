@@ -44,8 +44,8 @@
 .trip-laundry .hint { margin: 0; }
 .trip-swim { margin: 0 0 14px; max-width: 30rem; }
 .trip-swim-auto { margin-top: 2px; }
-.trip-sport { margin: 0 0 14px; max-width: 30rem; }
-.trip-sport .hint { margin: 4px 0 0; }
+.trip-sport { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; max-width: 30rem; }
+.trip-sport .hint { margin: 0; }
 .trip-big-button { min-height: 52px; font-size: var(--text-md); }
 .trip-save { max-width: 30rem; margin: 18px 0 8px; }
 

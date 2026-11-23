@@ -1,13 +1,16 @@
-/** You might like: three things a week Claude found from what you wear and love, and plain words for the card. */
-import { LOOK_SENDS, priceWords, runWords } from './shop';
+/** You might like: three things a week Claude found from what you wear and love, three on sale, and plain words for the
+ * card. */
+import { dropWords, LOOK_SENDS, priceWords, runWords } from './shop';
 import { aboutUsd } from './spend';
 import { rememberWords, savedLine } from './today';
 import type { Verdict, WouldPiece } from './wouldwork';
 
+/** 'taste': chosen from what you wear and love; 'sale': marked down now, and checked on its page by Nines. */
+export type PickKind = 'taste' | 'sale';
+
 export interface ShopPick {
   id: string;
-  /** 'taste': chosen from what you wear and love. "On sale now" (BACKLOG, step 5) would add a second kind. */
-  kind: 'taste' | 'sale';
+  kind: PickKind;
   /** How the look was started: Look now, by itself each week, or More like this. */
   source: 'look' | 'weekly' | 'more';
   name: string;
@@ -15,8 +18,12 @@ export interface ShopPick {
   url: string;
   image_url: string | null;
   price: number | null;
-  /** The price before a markdown, when the shop shows one (step 5); null here. */
+  /** A sale's price before the markdown; null for a taste pick. */
   price_before: number | null;
+  /** Who read the price before: Nines, from the page's own data, or only Claude. */
+  before_by?: 'page' | 'claude' | null;
+  /** The page says your size is in stock (null: nobody said). */
+  in_stock?: boolean | null;
   currency: string;
   piece: WouldPiece;
   verdict: Verdict | null;
@@ -30,6 +37,8 @@ export interface ShopPick {
 
 export interface PickRun {
   source: ShopPick['source'];
+  /** Which kind of look it is (absent in a copy kept before sales: a taste look). */
+  kind?: PickKind;
   state: 'running' | 'done' | 'failed';
   message: string | null;
   added: number | null;
@@ -49,8 +58,12 @@ export interface PicksAnswer {
   picks: ShopPick[];
   run: PickRun | null;
   last: { source: ShopPick['source']; at: string; found: number } | null;
-  /** You have tapped Look now at least once. */
+  /** You have tapped Look now at least once, for either kind. */
   looked: boolean;
+  /** Each kind's own: whether you have looked, and its last look (absent in a copy kept before sales). */
+  views?: Record<PickKind, { looked: boolean; last: PicksAnswer['last'] }>;
+  /** How many shops you like (Settings): none, and the sale view offers to name some. */
+  shops?: number;
   /** The weekly look is on. */
   weekly: boolean;
   /** There is enough to go on: what you wear and rate, or a line of your own in Your style. */
@@ -76,15 +89,63 @@ export const WEEKLY_LABEL = 'Look for me each week';
 export const REFUSED = "Not for me. You won't see it again.";
 export { LOOK_SENDS };
 
+// On sale
+export const SALE_NEVER = 'Nines can look for things on sale that suit you, in shops you might never have found.';
+export const SALE_NOTHING = "Nothing on sale this time that suits you and that Nines could check on the shop's page.";
+export const SHOPS_OFFER = 'Name a few shops you like and Nines starts there.';
+export const IN_STOCK = 'Your size is in stock.';
+/** As a find whose price Claude read is marked ("Claude read its price from the page"). */
+export const BEFORE_BY_CLAUDE = 'Claude read the earlier price from the page.';
+
+/** Shops you like (Settings, Everyday): the sheet's one line, and the row's. */
+export const SHOPS_HINT = 'Nines starts here when it looks for things on sale, and tells Claude these names.';
+
+export function shopsLine(shops: { shops: { name: string }[] } | undefined): string {
+  const names = (shops?.shops ?? []).map((s) => s.name);
+  return names.length ? `Shops you like: ${names.join(' · ')}` : 'You have not named any shops you like yet.';
+}
+
+/** The card's two views, as Today's "Pieces / As worn". */
+export const VIEW_OPTIONS = [{ value: 'taste', label: 'For you' }, { value: 'sale', label: 'On sale' }] as const;
+
+/** One view's picks. */
+export function picksOf(picks: ShopPick[], kind: PickKind): ShopPick[] {
+  return picks.filter((p) => (p.kind ?? 'taste') === kind);
+}
+
+/** The kind of look running or last run (a copy kept before sales knew only taste looks). */
+export function runKind(run: PickRun | null | undefined): PickKind {
+  return run?.kind ?? 'taste';
+}
+
 /** What the card shows. */
 export type CardState = 'demo' | 'looking' | 'list' | 'thin' | 'never' | 'nothing';
 
-export function cardState(a: Pick<PicksAnswer, 'demo' | 'run' | 'picks' | 'enough' | 'looked'>): CardState {
+/** What one view of the card shows: a look of its kind running, its picks, or why there are none. */
+export function cardState(a: Pick<PicksAnswer, 'demo' | 'run' | 'picks' | 'enough' | 'looked' | 'views'>,
+  kind: PickKind = 'taste'): CardState {
   if (a.demo) return 'demo';
-  if (a.run?.state === 'running') return 'looking';
-  if (a.picks.length) return 'list';
+  if (a.run?.state === 'running' && runKind(a.run) === kind) return 'looking';
+  if (picksOf(a.picks, kind).length) return 'list';
   if (!a.enough) return 'thin';
-  return a.looked ? 'nothing' : 'never';
+  const looked = a.views ? a.views[kind].looked : kind === 'taste' && a.looked;
+  return looked ? 'nothing' : 'never';
+}
+
+/** A sale's prices in the wishlist's words: "Was $120.00, now $84.00 (30% less)"; null for a taste pick or a price
+ * missing. */
+export function salePriceLine(p: Pick<ShopPick, 'kind' | 'price' | 'price_before' | 'currency'>): string | null {
+  if (p.kind !== 'sale' || p.price === null || p.price_before === null || p.price_before <= p.price) return null;
+  const percent = Math.round(((p.price_before - p.price) / p.price_before) * 100);
+  return dropWords({ from: p.price_before, to: p.price, currency: p.currency, percent });
+}
+
+/** What a sale row says under its prices: that your size is in stock, when the page said so, and that only Claude
+ * read the earlier price, when only Claude did. */
+export function saleNote(p: Pick<ShopPick, 'kind' | 'in_stock' | 'before_by'>): string | null {
+  if (p.kind !== 'sale') return null;
+  const said = [p.in_stock ? IN_STOCK : '', p.before_by === 'claude' ? BEFORE_BY_CLAUDE : ''].filter(Boolean);
+  return said.length ? said.join(' ') : null;
 }
 
 /** While a look runs, the card asks again every two seconds; otherwise never (a look costs money, and only you or the
@@ -104,9 +165,10 @@ export function pickName(name: string, limit = PICK_NAME_MAX): string {
   return `${(cut.includes(' ') ? cut.slice(0, cut.lastIndexOf(' ')) : cut).replace(/[ ,;:-]+$/, '')}…`;
 }
 
-/** "Example Shop · $45.00"; the shop alone when the page showed no price. */
-export function shopLine(p: Pick<ShopPick, 'shop' | 'price' | 'currency'>): string {
-  return p.price === null ? p.shop : `${p.shop} · ${priceWords(p.price, p.currency)}`;
+/** "Example Shop · $45.00"; the shop alone when the page showed no price, or for a sale (its prices have a line of
+ * their own, `salePriceLine`). */
+export function shopLine(p: Pick<ShopPick, 'shop' | 'price' | 'currency'> & { kind?: PickKind }): string {
+  return p.price === null || p.kind === 'sale' ? p.shop : `${p.shop} · ${priceWords(p.price, p.currency)}`;
 }
 
 /** One line from the verdict: "Fills a gap in your closet.", "Goes with 6 of your pieces."; the verdict's own words
@@ -148,6 +210,24 @@ function local(): KV | null {
 }
 
 const savedKey = (profile: string) => `nines:picks:${profile}`;
+const VIEW_KEY = 'nines:picks-view';
+
+/** The view you last chose, remembered on this device: For you until you choose On sale. */
+export function savedView(kv: KV | null = local()): PickKind {
+  try {
+    return kv?.getItem(VIEW_KEY) === 'sale' ? 'sale' : 'taste';
+  } catch {
+    return 'taste';
+  }
+}
+
+export function saveView(kind: PickKind, kv: KV | null = local()): void {
+  try {
+    kv?.setItem(VIEW_KEY, kind);
+  } catch {
+    /* private mode: the view is not remembered */
+  }
+}
 
 /** What the card last showed, kept for when Nines cannot be reached. */
 export function savePicks(profile: string, answer: PicksAnswer, kv: KV | null = local(), now = new Date()): void {

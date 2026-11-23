@@ -461,6 +461,8 @@ export interface Settings {
   style_profile: StyleProfile;
   /** As `GET /api/sizes`. Absent in a copy saved before sizes were kept. */
   sizes?: Sizes;
+  /** As `GET /api/shops`. Absent in a copy saved before shops were kept. */
+  shops?: Shops;
   /** As `GET /api/tagging/spend`. */
   tagging_spend: TaggingSpend;
 }
@@ -525,6 +527,14 @@ export interface Sizes {
   max_size: number;
   max_brand: number;
   max_brands: number;
+}
+
+/** Shops you like (Settings, Everyday): where a look for things on sale starts (`shops.py`), with the most kept and
+ * the longest name. */
+export interface Shops {
+  shops: { id: number; name: string }[];
+  max_shops: number;
+  max_name: number;
 }
 
 /** Laundry that keeps itself. `day`: Monday 0 to Sunday 6, or null for no set laundry day. */

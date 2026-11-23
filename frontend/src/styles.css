@@ -879,6 +879,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .sizes-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .sizes-box input:disabled { color: var(--ink-3); border-style: dashed; }
 .sizes-add { align-self: flex-start; }
+/* Shops you like: the list, a remove beside each, then the box to add one */
+.shops-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.shops-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: var(--tap); border-bottom: 1px solid var(--line); }
+.shops-item > span { min-width: 0; overflow-wrap: anywhere; }
+.shops-item .btn { min-height: var(--tap); }
 .sizes-brand-form { display: flex; flex-direction: column; padding-top: 12px; border-top: 1px solid var(--line); }
 .sizes-brand-form .field { margin-bottom: 10px; max-width: 22rem; }
 .settings-rewear select, .settings-laundry select, .sizes-brand-form select {

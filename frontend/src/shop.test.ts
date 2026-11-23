@@ -6,7 +6,7 @@ import { parseRoute } from './router';
 import {
   atYourPrice, checkedWords, downWords, dropWords, findsInOrder, historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords,
   priceWords, rangeWords, runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shopPoll, type ShopRun, typedPrice,
-  watchWords, webLink, withinWords,
+  watchWords, webLink, wishlistWords, withinWords,
 } from './shop';
 import { timeOf } from './today';
 
@@ -190,5 +190,20 @@ describe('the wish page and price news', () => {
     expect(newsWords([n])).toBe('A tan rain coat is down to $150.00 at Example Shop, from $177.00.');
     expect(newsWords([{ ...n, at_price: true }])).toBe("A tan rain coat is down to $150.00 at Example Shop, from $177.00. That's within your price.");
     expect(newsWords([n, { ...n, name: 'A belt' }, n])).toBe('Prices went down for 3 things on your wishlist.');
+  });
+});
+
+describe("the Wardrobe's row to the wishlist", () => {
+  const drop = { from: 68, to: 54.4, currency: 'USD', percent: 20, shop: 'Example Shop' };
+
+  it('says how many things are on the list', () => {
+    expect(wishlistWords([])).toEqual({ count: 'Nothing on it yet', down: null });
+    expect(wishlistWords([{ drop: null }])).toEqual({ count: '1 thing', down: null });
+    expect(wishlistWords([{}, { drop: null }, {}])).toEqual({ count: '3 things', down: null });
+  });
+
+  it('and how many of their prices went down, as their rows in the list show', () => {
+    expect(wishlistWords([{ drop }])).toEqual({ count: '1 thing', down: '1 price went down' });
+    expect(wishlistWords([{ drop }, { drop: null }, { drop }])).toEqual({ count: '3 things', down: '2 prices went down' });
   });
 });

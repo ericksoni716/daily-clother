@@ -174,6 +174,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **"Would this work?", a search and a look answer sooner.** Checking a piece against your closet
+  takes under a quarter of the time it took: "Would this work?" answers in about a second on the demo
+  closet, and the five finds of a search, of You might like or of On sale are judged in about five
+  seconds instead of half a minute. The answers are exactly the same. Today's outfits, What's
+  missing and a trip's plan are worked out sooner too.
 - **Photos or drawings, in words.** The closet's switch between photos and drawings was two small
   pictures. It is now a choice of **Photos** or **Drawings**, in words, at the top of the Filter
   sheet under **Show**.

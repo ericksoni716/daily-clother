@@ -13,7 +13,7 @@ differ, the last line of a section says where the screen is headed.
 - **Today**: [Today](#today) · [Worn](#worn) · [Trips](#trips)
 - **Closet**: [Closet](#closet) · [An item](#an-item) · [Review](#review)
 - **Add**: [Add](#add) · [Several pieces in one photo](#several-pieces-in-one-photo)
-- **Wardrobe**: [Wardrobe](#wardrobe) · [A wish](#a-wish) · [Would this work?](#would-this-work)
+- **Wardrobe**: [Wardrobe](#wardrobe) · [Wishlist](#wishlist) · [A wish](#a-wish) · [Add a link](#add-a-link) · [Would this work?](#would-this-work)
 - **Settings**: [Settings](#settings) · [Advanced settings](#advanced-settings)
 - [Things that work the same everywhere](#things-that-work-the-same-everywhere)
 
@@ -23,16 +23,16 @@ On a phone the bar at the bottom has the four places and Add: Today, Closet, Add
 button in the middle), Wardrobe and Settings. On a computer the sidebar starts with the app's
 name, Nines, beside its mark (the empty dinner jacket of the icon), then Add clothes, then
 Today, Closet and Wardrobe, with Settings at the foot. Everything else is one level down in the place it belongs to, and that place stays lit there: Worn and Trips in
-Today, the review and Archived in the closet, Would this work? and a wish in the Wardrobe,
-Advanced in Settings. While anything waits to be checked, Closet carries a dot (on a phone) or
+Today, the review and Archived in the closet, Would this work?, the wishlist and a wish in the
+Wardrobe, Advanced in Settings. While anything waits to be checked, Closet carries a dot (on a phone) or
 the number (on a computer).
 
 The app opens on Today once the closet has enough clothes to dress from, and on the closet
-before that. A back link ("‹ Today", "‹ Closet", "‹ Wardrobe") goes back to the page you came
-from, where you left it; on a page opened straight from its address it opens the page it
-names. Back and Forward bring a page back to where you had scrolled it. The addresses of the
-places that were merged (`/missing`, `/missing/check`, `/missing/item/<id>`, `/insights`,
-and `/worn`, `/would-work`, `/wishlist`) open the place that holds them now and take its
+before that. A back link ("‹ Today", "‹ Closet", "‹ Wardrobe", "‹ Wishlist") goes back to the
+page you came from, where you left it; on a page opened straight from its address it opens the
+page it names. Back and Forward bring a page back to where you had scrolled it. The addresses of
+the places that were merged (`/missing`, `/missing/check`, `/missing/item/<id>`, `/insights`,
+and `/worn`, `/would-work`, `/wishlist`) open the page that holds them now and take its
 address. Routes are in `frontend/src/router.tsx`, the places and the moved addresses in
 `frontend/src/places.ts`.
 
@@ -261,22 +261,32 @@ Settings; once the closet has enough to suggest from and they are not answered, 
 you live" offers them. What holds suggestions back, the days you ruled out and what you hid
 are folded at the end of the section. Swim trunks and shoes made for one sport (tennis, golf,
 studded boots) are not counted there: a pair of tennis shoes never stands in for everyday
-sneakers. **Thinking of buying something?**: Would this work?,
-and your wishlist, a row per wish that opens its page, with "Add a link" (a product's page: a
-new wish made from it, then its page opens) and "Add by hand" (beside the rest on a computer).
-A row shows the note, what to look for, or the page it was sent as ("$68.00 at Example Shop"),
-and "Down from $68.00 to $54.40" when a price went down, with "That's within your price." when it
-is no more than the most you'd pay. **Not worn**: pieces never worn and
-pieces not worn for a long time in their season, each to Archive or Keep. **Worn most**: over
-the last 30 or 90 days or all time.
+sneakers. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
+and a **Wishlist** row that opens the wishlist, saying how many things are on it ("3 things", or
+"Nothing on it yet") and, when prices went down, how many ("2 prices went down"). **Not worn**:
+pieces never worn and pieces not worn for a long time in their season, each to Archive or Keep.
+**Worn most**: over the last 30 or 90 days or all time.
 **More numbers**, folded: how wears are spread in each kind of clothing, what the closet is
 made of, and cost per wear for pieces with a price. A piece opens in the Wardrobe
-(`/wardrobe/item/<id>`; beside the page on a computer). Offline, it shows what it last found,
-marked as saved earlier.
+(`/wardrobe/item/<id>`; beside the page on a computer), with "‹ Wardrobe". Offline, it shows
+what it last found, marked as saved earlier.
+
+## Wishlist
+
+`/wardrobe/wishlist`, from the Wishlist row on the Wardrobe or the price banner's "See them";
+"‹ Wardrobe" goes back. "Add a link" (a product's page: a new wish made from it, then its page
+opens) and "Add by hand" (what you are looking for, and a note), then a row per wish that opens
+its page. A row shows the note, what to look for, or the page it was sent as ("$68.00 at Example
+Shop"), and "Down from $68.00 to $54.40" when a price went down, with "That's within your price."
+when it is no more than the most you'd pay. With nothing on it: "Your wishlist is empty", "Things
+you'd like to buy wait here, and Nines tells you when their price goes down.", and "See what's
+worth buying", which opens the Wardrobe. It shows once the wishes are in, without waiting for what
+is worth buying. Offline, it shows the copy saved on this device, marked as saved earlier, and
+nothing can be added.
 
 ## A wish
 
-`/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wardrobe" goes back. Top to bottom: what to
+`/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wishlist" goes back. Top to bottom: what to
 look for (or "Added by hand"); what is watched, the pages you sent first ("You sent this link", and
 "Claude read its price from the page" when it did), then what Claude found, each checked against the
 closet, with "Open in shop", "Stop watching" (it goes, and with it its daily check) and, when its
@@ -290,18 +300,19 @@ Claude only when the page gives no price); with nothing watched yet, the price i
 ("Claude looks at any price." or "Claude looks for ones up to $150.00."). Then the note (saved when
 you leave the box or tap Save note, saying "Saving…", "Saved" or "Didn't save" with Try again), and
 "Would it go with my clothes?" (Would this work? for this wish; for a page you sent it starts with
-the product's name), "I bought it" and "Remove from the list". **The most you'd pay** opens in a
-sheet: one amount and its currency, with Save, Clear and Cancel; Nines tells you when a price goes
-down to it or less, and Claude's searches stay under it. A wish that still has a lowest price from
+the product's name), "I bought it" (it leaves the list and Add opens) and "Remove from the list"
+(back to the wishlist). **The most you'd pay** opens in a sheet: one amount and its currency, with
+Save, Clear and Cancel; Nines tells you when a price goes down to it or less, and Claude's searches
+stay under it. A wish that still has a lowest price from
 before says so until it is changed. While a page is read the wish says who is reading it. Opening
-the page counts as seeing its price news.
+the page counts as seeing its price news. Like the wishlist, it waits only for the wishes.
 
 ## Add a link
 
 `/wardrobe/link?url=<a product's page>` (or `text=` or `title=`, whichever holds the link),
 which the share sheet opens on Android and in Chrome on a computer, and an iPhone Shortcut
-opens (README). "‹ Wardrobe" goes back. The wishlist's "Add a link" box, filled in with the
-link; nothing is added until you tap "Add to the list", which makes the wish and opens its page.
+opens (README). "‹ Wishlist" goes to the wishlist. The wishlist's "Add a link" box, filled in with
+the link; nothing is added until you tap "Add to the list", which makes the wish and opens its page.
 When what was shared holds no link, it says so and the box is empty.
 
 ## Would this work?

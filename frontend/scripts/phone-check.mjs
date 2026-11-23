@@ -251,7 +251,7 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
   const pages = ['/today', '/today/worn', '/trips', `/trips/${encodeURIComponent(tripId)}`,
     '/', `/item/${encodeURIComponent(itemId)}`, `/item/${encodeURIComponent(shoeId)}`, '/archived', '/review',
     '/add',
-    '/wardrobe', '/wardrobe/check', `/wardrobe/wish/${encodeURIComponent(wishId)}`,
+    '/wardrobe', '/wardrobe/wishlist', '/wardrobe/check', `/wardrobe/wish/${encodeURIComponent(wishId)}`,
     `/wardrobe/wish/${encodeURIComponent(linkedId)}`, `/wardrobe/link?url=${encodeURIComponent(SHOP_PAGE)}`,
     '/settings', '/settings/advanced'];
   const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;

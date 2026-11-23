@@ -23,7 +23,7 @@ test.describe('shopping for a wish', () => {
     // first: either means the page is up (fixtures.ts's goToCloset waits the same way)
     await expect(page.locator('#closet-title').or(page.locator('#today-title'))).toBeVisible();
 
-    await page.goto(backend.url + '/wardrobe');
+    await page.goto(backend.url + '/wardrobe/wishlist');
     const wishlist = page.getByTestId('wishlist');
     await wishlist.getByRole('button', { name: 'Add by hand' }).click({ timeout: 30_000 });
     await wishlist.getByLabel('What are you looking for?').fill('A tan rain coat');
@@ -107,7 +107,7 @@ test.describe('shopping for a wish', () => {
     // the demo closet never searches, and says why
     expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'demo' } })).ok()).toBe(true);
     expect((await page.request.post(backend.url + '/api/wishlist', { data: { name: 'Brown loafers' } })).ok()).toBe(true);
-    await page.goto(backend.url + '/wardrobe');
+    await page.goto(backend.url + '/wardrobe/wishlist');
     await page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'Brown loafers' }).click({ timeout: 30_000 });
     const demoWish = page.getByTestId('wish');
     await expect(demoWish).toContainText('The demo closet never searches shops', { timeout: 30_000 });
@@ -120,7 +120,7 @@ test.describe('shopping for a wish', () => {
     test.setTimeout(120_000);
     expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto(backend.url + '/wardrobe');
+    await page.goto(backend.url + '/wardrobe/wishlist');
     const wishlist = page.getByTestId('wishlist');
     await wishlist.getByRole('button', { name: 'Add a link' }).click({ timeout: 30_000 });
     const box = wishlist.getByRole('form', { name: 'Add a link' });
@@ -155,10 +155,20 @@ test.describe('shopping for a wish', () => {
     await wish.getByRole('button', { name: 'Would it go with my clothes?' }).click();
     await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
     await expect(page.getByTestId('would-work').getByLabel('Name (optional)')).toHaveValue('Linen camp-collar shirt');
+    // on the Wardrobe, the row to the wishlist counts the things on it and the prices that went down, as the list does
+    const { wishes } = await (await page.request.get(backend.url + '/api/wishlist')).json();
+    const down = wishes.filter((w: { drop: unknown }) => w.drop).length;
+    expect(down).toBeGreaterThan(0);
     await page.goto(backend.url + '/wardrobe');
+    const open = page.getByTestId('wishlist-open');
+    await expect(open).toContainText(`${wishes.length} ${wishes.length === 1 ? 'thing' : 'things'}`, { timeout: 30_000 });
+    await expect(open.getByTestId('wishlist-down')).toHaveText(`${down} ${down === 1 ? 'price' : 'prices'} went down`);
+    await open.click();
+    await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
     const row = page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'Linen camp-collar shirt' });
     await expect(row.getByTestId('wish-drop')).toHaveText('Down from $68.00 to $54.40', { timeout: 30_000 });
     await expect(row).toContainText('$54.40 at Example Shop');
+    await expect(page.getByTestId('wishlist').getByTestId('wish-drop')).toHaveCount(down);
   });
 
   test('a link shared from another app opens the box filled in, and nothing is added without a tap', async ({ page }) => {
@@ -174,6 +184,7 @@ test.describe('shopping for a wish', () => {
     await expect(box.getByLabel("The address of a product's page")).toHaveValue('https://shop.example/plain-shirt');
     expect(await count()).toBe(before);
     expect(await axeViolations(page)).toEqual([]);
+    await expect(page.getByRole('link', { name: 'Wishlist', exact: true })).toHaveAttribute('href', '/wardrobe/wishlist');
 
     await box.getByRole('button', { name: 'Add to the list' }).click();
     // the page gives no price, so Claude's stand-in reads it
@@ -184,5 +195,9 @@ test.describe('shopping for a wish', () => {
     expect(await count()).toBe(before + 1);
     // nothing wider than the phone
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    // "‹ Wishlist" leads to the list, with the new wish on it (the shared link's page is not offered again)
+    await page.getByRole('link', { name: 'Wishlist', exact: true }).click();
+    await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
+    await expect(page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'A plain shirt' })).toBeVisible();
   });
 });

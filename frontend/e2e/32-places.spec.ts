@@ -13,6 +13,7 @@ const MOVED: [from: string, to: RegExp, ready: string][] = [
   ['/insights', /\/wardrobe$/, '#wardrobe-title'],
   ['/missing/check', /\/wardrobe\/check$/, '[data-testid="would-work"]'],
   ['/would-work', /\/wardrobe\/check$/, '[data-testid="would-work"]'],
+  ['/wishlist', /\/wardrobe\/wishlist$/, '#wishlist-title'],
   ['/worn', /\/today\/worn$/, '.worn h1'],
 ];
 
@@ -39,7 +40,7 @@ test('every old address lands on its new place, stays there after a reload, and 
   await expect(page.getByRole('textbox', { name: 'Name' })).toBeVisible();
 });
 
-test('on a phone: Worn, Trips and the review are one level down in their place, and their back links go Back', async ({ page }) => {
+test('on a phone: Worn, Trips, the review and the wishlist are one level down in their place, and their back links go Back', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await goToCloset(page);
   await useProfile(page, 'demo');
@@ -81,7 +82,7 @@ test('on a phone: Worn, Trips and the review are one level down in their place, 
   await expect(page.getByRole('button', { name: 'Remove filter: Needs a check' })).toBeVisible();
   await page.getByRole('button', { name: 'Remove filter: Needs a check' }).click();
 
-  // the Wardrobe: Would this work? and a wish are on the page, each with "‹ Wardrobe"
+  // the Wardrobe: Would this work? and the wishlist are one tap from the page, each with "‹ Wardrobe"
   await tabbar.getByRole('link', { name: 'Wardrobe' }).click();
   await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });
   await page.getByRole('link', { name: 'Would this work?' }).click();
@@ -89,4 +90,28 @@ test('on a phone: Worn, Trips and the review are one level down in their place, 
   await expect(lit).toHaveText('Wardrobe');
   await page.locator('.page-back').click();
   await expect(page).toHaveURL(/\/wardrobe$/);
+
+  // the wishlist, from its row under the things worth buying, and a wish from the list, with "‹ Wishlist"; each back
+  // link goes Back, and the Wardrobe comes back where it was left
+  const row = page.getByTestId('wishlist-open');
+  await row.scrollIntoViewIfNeeded();
+  const atRow = await page.evaluate(() => window.scrollY);
+  expect(atRow).toBeGreaterThan(200);
+  await row.click();
+  await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
+  await expect(page.getByRole('heading', { name: 'Wishlist', level: 1 })).toBeVisible();
+  await expect(lit).toHaveText('Wardrobe');
+  await page.getByTestId('wish-row').first().click();
+  await expect(page).toHaveURL(/\/wardrobe\/wish\//);
+  await expect(lit).toHaveText('Wardrobe');
+  // going back adds nothing to history
+  const deep = await page.evaluate(() => history.length);
+  await expect(page.locator('.page-back')).toHaveText('Wishlist');
+  await page.locator('.page-back').click();
+  await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
+  await expect(page.locator('.page-back')).toHaveText('Wardrobe');
+  await page.locator('.page-back').click();
+  await expect(page).toHaveURL(/\/wardrobe$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(atRow - 2);
+  expect(await page.evaluate(() => history.length)).toBe(deep);
 });

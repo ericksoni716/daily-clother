@@ -1,8 +1,9 @@
 /**
  * Wardrobe: what to buy and how the closet is used, on one page (it was What's missing and Insights). The few things
- * most worth buying; "Thinking of buying something?" with Would this work? and the wishlist; what is not worn and what
- * is worn most; the other figures behind "More numbers". A wish, Would this work? and an item have pages of their own
- * under /wardrobe. The parts are in Missing.tsx (buying) and Insights.tsx (how the closet is used).
+ * most worth buying; "Thinking of buying something?" with Would this work? and the row that opens the wishlist; what is
+ * not worn and what is worn most; the other figures behind "More numbers". The wishlist, a wish, Would this work? and an
+ * item have pages of their own under /wardrobe. The parts are in Missing.tsx (buying) and Insights.tsx (how the closet
+ * is used).
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -12,7 +13,7 @@ import { LifeQuestions } from '../components/LifeQuestions';
 import { BackLink, EmptyState, Notice, PageHeader } from '../components/ui';
 import { saveGaps, type Wish } from '../gaps';
 import { saveInsights } from '../insights';
-import { goBack, navigate, wishPath } from '../router';
+import { goBack, navigate, WISHLIST_PATH, wishPath } from '../router';
 import { touch, useItems } from '../queries';
 import { queryKeys, type EditKind, type KeyName } from '../queryKeys';
 import { shownWithCopy, useTellFailure } from '../savedCopy';
@@ -21,21 +22,29 @@ import type { SituationId } from '../life';
 import { wishById } from '../wouldwork';
 import { ItemDetail } from './ItemDetail';
 import { INSIGHTS_OFFLINE, savedInsights, Usage } from './Insights';
-import { LifeAbout, LifeBasis, OFFLINE_TITLE, savedLists, savedWhen, Thinking, WishCard, WorthBuying, type Actions, type Lists } from './Missing';
+import {
+  LifeAbout, LifeBasis, OFFLINE_TITLE, savedLists, savedWhen, savedWishes, Thinking, WishCard, Wishlist, WorthBuying, type Actions, type Lists,
+} from './Missing';
 import { sharedLink } from '../shop';
 import { LinkForm } from './Shop';
 import { WouldWork } from './WouldWork';
 import './Missing.css';
 
 const OFFLINE_EMPTY = "You're offline, and nothing was saved on this device yet. Your wardrobe shows here once Nines on your computer can be reached.";
+const OFFLINE_WISHES = "You're offline, and your wishlist was not saved on this device. It shows here once Nines on your computer can be reached.";
 
 /** Wish edits that cannot change any wish's finds (a new wish's finds are read when its card shows). */
 const NOT_FINDS = ['finds'] as const;
+/** A wish made from a link fills no gap (only a wish made from a gap marks one), so the analysis of what is worth
+ * buying is not asked for again: the new wish's page opens without waiting for it. */
+const FROM_A_LINK = ['finds', 'gaps'] as const;
 
-export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wide }: {
+export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wishlist = false, wide }: {
   itemId: string | null; check: boolean; wishId: string | null; wish: string | null;
   /** The page a shared link opens (`/wardrobe/link?url=…`): the link box, filled in, for the owner to confirm. */
   link?: boolean;
+  /** The wishlist's own page (`/wardrobe/wishlist`), which needs only the wishes. */
+  wishlist?: boolean;
   wide: boolean;
 }) {
   const { profile, offline, toast } = useApp();
@@ -76,6 +85,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wide
   const failed = gapsQ.error ?? wishesQ.error;
   const phase = shownWithCopy(lists, failed, () => savedLists(profile), OFFLINE_EMPTY);
   const usage = shownWithCopy(insightsQ.data, insightsQ.error, () => savedInsights(profile), INSIGHTS_OFFLINE);
+  const wishShown = shownWithCopy(wishesQ.data, wishesQ.error, () => savedWishes(profile), OFFLINE_WISHES);
   const asking = gapsQ.isFetching || wishesQ.isFetching;
   useTellFailure(failed, !!lists, Math.max(gapsQ.errorUpdatedAt, wishesQ.errorUpdatedAt), toast);
   useTellFailure(insightsQ.error, insightsQ.data !== undefined, insightsQ.errorUpdatedAt, toast);
@@ -96,7 +106,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wide
   }, [check, qc]);
 
   const byId = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);
-  const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
+  const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null) || (wishShown.kind === 'ready' && wishShown.savedAt !== null);
 
   /** Runs a change on the server, then asks again for what it changed (the analysis is kept on the server, so it is
    * quick) before the buttons are given back. */
@@ -131,7 +141,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wide
       setBusy('new-link');
       try {
         const made = await api.addLink(url);
-        await touch(qc, 'wish', NOT_FINDS);
+        await touch(qc, 'wish', FROM_A_LINK);
         // its own page says how the reading goes; from a shared link, Back then leaves rather than offering it again
         navigate(wishPath(made.id), { replace: link });
         return null;
@@ -172,23 +182,42 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wide
     const shared = sharedLink(window.location.search);
     return (
       <section className="wish-page" aria-labelledby="link-title">
-        <PageHeader title="Add a link" titleId="link-title" back={{ to: '/wardrobe', label: 'Wardrobe' }} />
+        <PageHeader title="Add a link" titleId="link-title" back={{ to: WISHLIST_PATH, label: 'Wishlist' }} />
         {shared.none && <p className="notice">What you shared has no link in it. Paste the address of the product's page here.</p>}
         <LinkForm key={shared.link} initial={shared.link} submit="Add to the list" busy={busy === 'new-link'} locked={locked}
-          lockedTitle={OFFLINE_TITLE} autoFocus={!shared.link} onSubmit={actions.addLink} onCancel={() => goBack('/wardrobe')} />
+          lockedTitle={OFFLINE_TITLE} autoFocus={!shared.link} onSubmit={actions.addLink} onCancel={() => goBack(WISHLIST_PATH)} />
       </section>
     );
   }
 
+  // the wishlist on its own page: it waits for the wishes only, then shows them and the ways to add one at once
+  if (wishlist) {
+    return (
+      <section className="wish-page" aria-labelledby="wishlist-title" aria-busy={wishesQ.isFetching}>
+        <PageHeader title="Wishlist" titleId="wishlist-title" back={{ to: '/wardrobe', label: 'Wardrobe' }} />
+        {wishShown.kind === 'ready' && wishShown.savedAt && <SavedEarlier at={wishShown.savedAt} />}
+        {wishShown.kind === 'ready' ? <Wishlist wishes={wishShown.data} actions={actions} />
+          : wishShown.kind === 'loading' ? <div className="missing-skeleton" aria-hidden="true" />
+            : (
+              <div className={wishShown.offline ? 'notice' : 'form-error missing-error'} role="alert">
+                <p>{wishShown.message}</p>
+                {!wishShown.offline && <div className="row"><button className="btn btn-small" onClick={() => void wishesQ.refetch()}>Try again</button></div>}
+              </div>
+            )}
+      </section>
+    );
+  }
+
+  // a wish on its own page, which needs only the wishes too (not the analysis of what is worth buying)
   if (wish !== null) {
-    const shown = wishById(wishes, wish);
+    const shown = wishById(wishShown.kind === 'ready' ? wishShown.data : null, wish);
     return (
       <section className="wish-page" aria-labelledby="wish-title">
-        <PageHeader title={shown?.name ?? 'A wish'} titleId="wish-title" back={{ to: '/wardrobe', label: 'Wardrobe' }} />
-        {phase.kind === 'ready' && phase.savedAt && <SavedEarlier at={phase.savedAt} />}
-        {shown ? <WishCard key={shown.id} wish={shown} actions={actions} onNote={saveNote} onRemoved={() => goBack('/wardrobe')} />
-          : phase.kind === 'loading' ? <div className="missing-skeleton" aria-hidden="true" />
-            : phase.kind === 'error' ? <p className={phase.offline ? 'notice' : 'form-error'} role="alert">{phase.message}</p>
+        <PageHeader title={shown?.name ?? 'A wish'} titleId="wish-title" back={{ to: WISHLIST_PATH, label: 'Wishlist' }} />
+        {wishShown.kind === 'ready' && wishShown.savedAt && <SavedEarlier at={wishShown.savedAt} />}
+        {shown ? <WishCard key={shown.id} wish={shown} actions={actions} onNote={saveNote} onRemoved={() => goBack(WISHLIST_PATH)} />
+          : wishShown.kind === 'loading' ? <div className="missing-skeleton" aria-hidden="true" />
+            : wishShown.kind === 'error' ? <p className={wishShown.offline ? 'notice' : 'form-error'} role="alert">{wishShown.message}</p>
               : <EmptyState title="This wish is not on your list any more" body="It may have been bought or removed on another device." />}
       </section>
     );
@@ -205,7 +234,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wide
     );
   }
 
-  const thinking = <Thinking wishes={wishes} actions={actions} failed={phase.kind === 'error'} />;
+  const thinking = <Thinking wishes={wishes} locked={locked} />;
   // the page waits for both answers, then shows everything at once (DESIGN, "The page holds still")
   const waiting = phase.kind === 'loading' || (phase.kind === 'ready' && usage.kind === 'loading');
 
@@ -260,7 +289,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wide
         {itemId ? (
           <>
             <div className="missing-panel-top">
-              <BackLink to="/wardrobe" className="btn btn-ghost btn-small back-link"><ChevronLeftIcon /> Back to the wishlist</BackLink>
+              <BackLink to="/wardrobe" className="btn btn-ghost btn-small back-link"><ChevronLeftIcon /> Wardrobe</BackLink>
             </div>
             <ItemDetail key={itemId} id={itemId} status="active" inPanel />
           </>

@@ -216,10 +216,12 @@ waits until Nines on your computer can be reached.
 under **Worth buying**: the three most helpful first, then **See all** for the rest. Each suggestion says why, in sentences about your own clothes, what to
 look for (the kind of piece, the season, the colours that go with what you
 have) and shows the pieces it is based on; tap one to open it. Tap **I'll look
-for this** to put it on **Your wishlist**, or **Not for me** to hide it (you can
+for this** to put it on your wishlist, or **Not for me** to hide it (you can
 say why, but you don't have to; **Hidden** at the bottom brings it back). The
-wishlist is under **Thinking of buying something?** (beside the suggestions on a
-computer); add something by hand with **Add by hand**. Tap a wish to open its own page:
+wishlist has a page of its own: tap **Wishlist** under **Thinking of buying
+something?** (beside the suggestions on a computer), which says how many things are
+on it and how many prices went down. Add something by hand there with **Add by hand**.
+Tap a wish to open its own page:
 keep a note there (size, shop, budget; it says **Saved** as it saves), shop for it, and
 when you have it tap **I bought it**: it leaves the list and **Add** opens so you can
 photograph it. Your decisions are kept when the
@@ -301,8 +303,8 @@ computer and makes a wish named after the product, with its price. Only when the
 page doesn't give its price is Claude asked to read it, the same way as **Check
 now**. On a wish's page, **Add a link** adds another product to that wish.
 The pages you send are checked once a day with the rest, and when a price goes
-down the banner tells you, and the wish's row in the wishlist says so ("Down from
-$68.00 to $54.40").
+down the banner tells you (with several, **See them** opens the wishlist), and the
+wish's row in the wishlist says so ("Down from $68.00 to $54.40").
 Nines only opens `https://` addresses of shops on the internet, never one on
 your own network. To send a page from your phone's share sheet, see **Send a
 product's page to your wishlist** below.

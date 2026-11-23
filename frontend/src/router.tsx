@@ -219,7 +219,7 @@ export type Route =
   | { name: 'closet'; status: 'active' | 'archived'; itemId: string | null }
   | { name: 'today'; itemId: string | null }
   | { name: 'worn' }
-  | { name: 'wardrobe'; itemId: string | null; check: boolean; wishId: string | null; wish: string | null; link?: boolean }
+  | { name: 'wardrobe'; itemId: string | null; check: boolean; wishId: string | null; wish: string | null; link?: boolean; wishlist?: boolean }
   | { name: 'add' }
   | { name: 'several'; id: string }
   | { name: 'settings' }
@@ -249,6 +249,8 @@ export function parseRoute(path: string): Route {
   // Would this work?, started from the page or from a wish
   const check = path.match(/^\/wardrobe\/check(?:\/wish\/([^/]+))?\/?$/);
   if (check) return { name: 'wardrobe', itemId: null, check: true, wishId: id(check[1]), wish: null };
+  // the wishlist on its own page: a row per wish, and the ways to add one
+  if (/^\/wardrobe\/wishlist\/?$/.test(path)) return { name: 'wardrobe', itemId: null, check: false, wishId: null, wish: null, wishlist: true };
   // a wish on its own page: its note, its shop finds and prices
   const wish = path.match(/^\/wardrobe\/wish\/([^/]+)\/?$/);
   if (wish) return { name: 'wardrobe', itemId: null, check: false, wishId: null, wish: decodeURIComponent(wish[1]) };
@@ -262,6 +264,9 @@ export function parseRoute(path: string): Route {
 export function itemPath(id: string, status: 'active' | 'archived'): string {
   return `${status === 'archived' ? '/archived' : ''}/item/${encodeURIComponent(id)}`;
 }
+
+/** The wishlist's own page in the Wardrobe: a row per wish, "Add a link" and "Add by hand". */
+export const WISHLIST_PATH = '/wardrobe/wishlist';
 
 /** A wish's own page in the Wardrobe: its finds and prices, its note, and what to do with it. */
 export const wishPath = (id: string) => `/wardrobe/wish/${encodeURIComponent(id)}`;

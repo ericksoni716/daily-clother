@@ -101,5 +101,7 @@ describe('where a new page opens', () => {
   it('opens a different screen at its top on a computer', () => {
     expect(startsAtTop('/item/abc', '/today', true)).toBe(true);
     expect(startsAtTop('/wardrobe', '/wardrobe/check', true)).toBe(true);
+    expect(startsAtTop('/wardrobe', '/wardrobe/wishlist', true)).toBe(true);
+    expect(startsAtTop('/wardrobe/wishlist', '/wardrobe/wish/w1', true)).toBe(true);
   });
 });

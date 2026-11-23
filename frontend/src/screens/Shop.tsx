@@ -81,6 +81,7 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   const starting = begin.isPending || addLink.isPending;
   const running = answer?.run?.state === 'running';
   const wasRunning = useRef(false);
+  const answered = useRef(false);
   const watching = !locked && profile !== 'demo';
 
   // You are looking at the wish: its price news is seen (on the phone and the computer alike), and again whenever a
@@ -96,7 +97,12 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
       // the wish's name (a link names it) and its row's price may have changed
       void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
       if (watching) seen([wish.id]).catch(() => undefined);
+    } else if (!answered.current && run && run.state !== 'running') {
+      // one that ended before the page first asked (a link read in the moment the page took to open): the list may
+      // have been read before it ended, so it is asked for again, once
+      void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
     }
+    if (answer) answered.current = true;
     wasRunning.current = run?.state === 'running';
   }, [answer, toast, wish.name, wish.id, qc, watching, seen]);
 

@@ -1,6 +1,7 @@
 /** Shopping for a wish: the products Claude found and the pages the owner sent, their prices, the news when one went
  * down, and plain words for them. */
 import type { Wish } from './gaps';
+import { plural } from './insights';
 import { timeOf } from './today';
 import { localDay, whenWorn } from './wears';
 import type { Verdict, WouldPiece } from './wouldwork';
@@ -241,6 +242,17 @@ export function atYourPrice(w: PriceOf, price: { to: number; currency: string })
  * the most you'd pay; null otherwise. */
 export function withinWords(w: PriceOf & Pick<Wish, 'drop'>): string | null {
   return w.drop && atYourPrice(w, w.drop) ? "That's within your price." : null;
+}
+
+/** What the Wardrobe's row to the wishlist says under its name: how many things are on it ("3 things", or "Nothing on it
+ * yet"), and how many of their prices went down ("2 prices went down", null when none did), counting the wishes whose
+ * row in the list shows a drop. */
+export function wishlistWords(wishes: Pick<Wish, 'drop'>[]): { count: string; down: string | null } {
+  const down = wishes.filter((w) => w.drop).length;
+  return {
+    count: wishes.length ? plural(wishes.length, 'thing') : 'Nothing on it yet',
+    down: down ? `${plural(down, 'price')} went down` : null,
+  };
 }
 
 /** A price that came down since you last looked at the wish (`GET /api/wishlist/news`): the banner's news. */

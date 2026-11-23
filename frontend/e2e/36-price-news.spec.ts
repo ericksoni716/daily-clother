@@ -40,10 +40,14 @@ test('price news (stand-in): a banner tells you, and See it opens the wish, whic
   await expect(page.getByRole('heading', { name: 'A tan rain coat', level: 1 })).toBeVisible();
   await expect(banner).toHaveCount(0);
   expect(seen[0]).toEqual([wish.id]);
+  // opened from the banner, the wish's "‹ Wishlist" leads to the list
+  await page.getByRole('link', { name: 'Wishlist', exact: true }).click();
+  await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
+  await expect(page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'A tan rain coat' })).toBeVisible();
   await page.request.delete(`/api/wishlist/${wish.id}`);
 });
 
-test('price news (stand-in) for several wishes: one sentence, See them opens the Wardrobe, Got it marks them all seen', async ({ page }) => {
+test('price news (stand-in) for several wishes: one sentence, See them opens the wishlist, Got it marks them all seen', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const seen = await standIn(page, [news('w1'), news('w2', { name: 'Brown suede loafers with a long name', to: 54.4, from: 68 })]);
   await goToCloset(page);
@@ -52,7 +56,9 @@ test('price news (stand-in) for several wishes: one sentence, See them opens the
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 
   await banner.getByRole('button', { name: 'See them' }).click();
-  await expect(page).toHaveURL(/\/wardrobe$/);
+  await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
+  await expect(page.getByRole('heading', { name: 'Wishlist', level: 1 })).toBeVisible();
+  await expect(page.locator('nav.tabbar [aria-current="page"]')).toHaveText('Wardrobe');
   await expect(banner).toBeVisible();   // the list is not each wish: the news stays until you look or say Got it
   expect(seen).toEqual([]);
   await banner.getByRole('button', { name: 'Got it' }).click();

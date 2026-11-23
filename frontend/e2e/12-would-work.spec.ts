@@ -95,10 +95,13 @@ test('would this work?, described by hand in the demo closet on a computer, on a
   // ...and it is still on the wishlist once: the button does not add it again
   await expect(panel.getByRole('button', { name: 'On your wishlist' })).toBeDisabled();
   expect((await (await page.request.get('/api/wishlist')).json()).wishes).toHaveLength(1);
-  // back to the Wardrobe: the wishlist is in the side panel, with the new wish in it
+  // back to the Wardrobe: the row to the wishlist is in the side panel, counting the new wish, and opens the list
   await panel.locator('.wouldwork-back').click();
   await expect(page).toHaveURL(/\/wardrobe$/);
-  await expect(page.getByRole('complementary', { name: 'Thinking of buying something?' }).getByTestId('wish-row')).toHaveCount(1);
+  const row = page.getByRole('complementary', { name: 'Thinking of buying something?' }).getByTestId('wishlist-open');
+  await expect(row).toContainText('1 thing');
+  await row.click();
+  await expect(page.getByTestId('wishlist').getByTestId('wish-row')).toHaveCount(1);
 });
 
 test('would this work?: leaving while the check is being sent and coming back picks it up', async ({ page }) => {
@@ -160,6 +163,7 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   await page.request.post('/api/wishlist', { data: { gap_id: rain.id } });
   // back from the check, the lists are asked for again: the wish shows without reloading the page
   await page.locator('.wouldwork-back').click();
+  await page.getByTestId('wishlist-open').click();
   await page.getByTestId('wish-row').first().click();
   await page.getByTestId('wish').getByRole('button', { name: 'Would it go with my clothes?' }).click();
   await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
@@ -181,6 +185,7 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   expect(wishes).toHaveLength(1);
   expect(wishes[0].note).toContain('keeps the rain off');
   await page.locator('.wouldwork-back').click();
+  await page.getByTestId('wishlist-open').click();
   await page.getByTestId('wish-row').first().click();
   await expect(page.getByTestId('wish').getByRole('textbox', { name: 'Note' })).toHaveValue(/keeps the rain off/);
 });

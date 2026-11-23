@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { api } from '../api';
 import { queryKeys } from '../queryKeys';
-import { navigate, wishPath } from '../router';
+import { navigate, WISHLIST_PATH, wishPath } from '../router';
 import { NEWS_POLL_MS, newsWords } from '../shop';
 import { useApp } from '../store';
 import { Button, Notice } from './ui';
@@ -19,8 +19,9 @@ export function useNewsSeen() {
 
 /**
  * "A tan rain coat is down to $150.00 at Example Shop, from $177.00." with See it and Got it, on every screen until
- * you look; for several wishes, how many, with See them and Got it. Asked for when the page opens, every half hour
- * while it is shown, and when it comes back into view; never while it is hidden, offline, or in the demo closet.
+ * you look; for several wishes, how many, with See them (the wishlist) and Got it. Asked for when the page opens,
+ * every half hour while it is shown, and when it comes back into view; never while it is hidden, offline, or in the
+ * demo closet.
  */
 export function PriceNewsBanner({ offline, toast }: { offline: boolean; toast: Toast }) {
   const { profile } = useApp();
@@ -46,8 +47,8 @@ export function PriceNewsBanner({ offline, toast }: { offline: boolean; toast: T
   return (
     <Notice role="status" testId="price-news" className="update-notice"
       action={<>
-        {/* opening the wish marks its news seen (its page does) */}
-        <Button variant="primary" small disabled={busy} onClick={() => navigate(one ? wishPath(one.wish_id) : '/wardrobe')}>
+        {/* opening the wish marks its news seen (its page does); the wishlist is not each wish, so it marks nothing */}
+        <Button variant="primary" small disabled={busy} onClick={() => navigate(one ? wishPath(one.wish_id) : WISHLIST_PATH)}>
           {one ? 'See it' : 'See them'}
         </Button>
         <Button variant="ghost" small disabled={busy} onClick={() => void gotIt(news.map((n) => n.wish_id))}>Got it</Button>

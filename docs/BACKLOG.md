@@ -14,6 +14,14 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **A link judged against the closet, and Google Shopping** (23 November; DECISIONS, the section of
+  that name). Built and tested with Claude and the web stood in for; not yet tried with real calls on
+  real shops' pages, so how well a page's words alone give the colour and pattern is not known. Left
+  undone: the product's picture is not sent to Claude (text only, on purpose, for now); a link that
+  waited is described only when its page is read again (Check now, or the daily round the day after),
+  not as soon as Claude can be reached; "Would it go with my clothes?" on a described link still
+  starts from the name alone rather than from Claude's description; the Google Shopping search has no
+  size or brands (step 3) and is always "men's".
 - **The wishlist's own page** (23 November; DECISIONS, "The wishlist's own page"). Would this work?
   opened from a wish ("Would it go with my clothes?") still goes back to the Wardrobe, not to the wish
   or the wishlist. The toast after "I'll look for this" cannot open the list: toasts take no action.
@@ -49,8 +57,9 @@ only here); take a line out when it is done.
 - **Wishlist links and their prices** (22 November; DECISIONS, "Wishlist links and their prices").
   Built and tested with the web and Claude stood in for; not yet tried on real shops' pages, nor
   the iPhone Shortcut (README) on a real iPhone, nor the share sheet on a real Android phone.
-  Left undone: a link is not judged against the closet ("Would it go with my clothes?" does it by
-  hand); a page that turns programs away (bot protection) goes to Claude every day it is checked;
+  A link is now judged against the closet once Claude has described it from its page's words
+  (DECISIONS, "A link judged against the closet, and Google Shopping"). Left undone: a page that
+  turns programs away (bot protection) goes to Claude every day it is checked;
   only microdata given as `content` is read, not a price written as the element's text; a wish's
   name cannot be changed on its page (the API takes it); a link shared while the computer cannot
   be reached is not kept for later.
@@ -376,7 +385,7 @@ Patterns from the photo (owner's request; it had fallen out of the app):
 
 The owner: "is there some way to ideate/find clothes I might like", "rather than using things like google shopping which seems to target me well"; then "I also would love to discover sale items across the internet to find gems that I otherwise might never see". Today Nines shops only for a need it already has a name for (a gap or a wish, then "Find some", up to 8 products), and the search is told only the wish's kind, colours, price range and note (`find_prompt` in `backend/closet/tagger/shopping.py`): not Your style, the pieces loved or worn most, the brands owned or a size. Nines will not beat a shop search at browsing, since Claude's web search is slow and is no catalogue; what it has that a shop search lacks is the closet, the wears and the ratings. So the order below starts with judging what the owner finds elsewhere and ends with Nines looking by itself. Each step is its own pull request, in this order; all go in the Wardrobe (no new place in the tab bar).
 
-- [ ] **1. A shared link is judged against the closet.** A link sent to the wishlist (Add a link, the share sheet, the iPhone Shortcut) becomes a wish but is not checked ("Wishlist links and their prices" under Left over). Its page should answer at once, as Would this work? does: what it goes with, what it repeats, which gap it would fill, with the product's picture. The page's name and description are read by `productpage.py`; what the check needs beyond them (kind, colour, formality) is asked of Claude once, as a find's is. Also a "Search Google Shopping" button on each gap and each wish, opening the owner's browser on a search made from what to look for (kind, colour, and size and brands once step 3 keeps them). Nothing about the closet is in that address beyond those words; say so in DECISIONS.
+- [x] **1. A shared link is judged against the closet.** A link sent to the wishlist (Add a link, the share sheet, the iPhone Shortcut) becomes a wish but is not checked ("Wishlist links and their prices" under Left over). Its page should answer at once, as Would this work? does: what it goes with, what it repeats, which gap it would fill, with the product's picture. The page's name and description are read by `productpage.py`; what the check needs beyond them (kind, colour, formality) is asked of Claude once, as a find's is. Also a "Search Google Shopping" button on each gap and each wish, opening the owner's browser on a search made from what to look for (kind, colour, and size and brands once step 3 keeps them). Nothing about the closet is in that address beyond those words; say so in DECISIONS.
 - [ ] **2. See it with your clothes.** A find, or a judged link, drawn into an outfit with pieces the owner has: the find's described values go through `drawing/item.py` as a new item's do, and the example outfits Would this work? already builds are shown as worn. A drawing from words is approximate; the card says so and keeps the shop's picture beside it.
 - [ ] **3. Tell the search who you are.** `find_prompt` also gets the lines of Your style, the pieces loved and worn most in that kind (`taste.py`), the brands on the owner's items, and sizes. Sizes need a home: kept once, per kind of piece, with a brand's own where it differs (a migration; a row in Settings → Everyday or asked in the style conversation, to decide then). What is sent to Claude for a search grows, so the privacy sentence beside "Find some" and DECISIONS ("Shopping for a wish") change with it.
 - [ ] **4. "You might like" in the Wardrobe.** A small card, not a feed: three picks a week chosen from taste rather than from a gap, each with its picture, price and what it goes with, and Save (onto the wishlist), Not for me and More like this. A reaction may offer a line for Your style, kept only on a tap as everywhere else. Run in the background on the daily round `shop.py` already has for prices, inside the monthly limit, and never in the demo closet. Needs step 3. To measure first: what one such search costs and how long it takes through the plan and the API key.

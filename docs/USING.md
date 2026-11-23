@@ -255,8 +255,9 @@ again (Undo does not), until the pieces are added.
 `/wardrobe`. What to buy and how your clothes are used, on one page. **Worth buying**: what
 the closet lacks, found by rule from the clothes, the wears, where you live and how you live,
 the three most helpful first and "See all N" for the rest; each with why, what to look for,
-your pieces it is based on, "I'll look for this" (onto the wishlist) and "Not for me" (hide
-it, and optionally similar ones). "Based on…" opens How you live, the same questions as
+your pieces it is based on, "Search Google Shopping" (opens Google Shopping in your browser,
+searching for "men's", the first colour and the kind of piece, nothing else), "I'll look for
+this" (onto the wishlist) and "Not for me" (hide it, and optionally similar ones). "Based on…" opens How you live, the same questions as
 Settings; once the closet has enough to suggest from and they are not answered, "Tell it how
 you live" offers them. What holds suggestions back, the days you ruled out and what you hid
 are folded at the end of the section. Swim trunks and shoes made for one sport (tennis, golf,
@@ -289,7 +290,10 @@ nothing can be added.
 `/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wishlist" goes back. Top to bottom: what to
 look for (or "Added by hand"); what is watched, the pages you sent first ("You sent this link", and
 "Claude read its price from the page" when it did), then what Claude found, each checked against the
-closet, with "Open in shop", "Stop watching" (it goes, and with it its daily check) and, when its
+closet (a page you sent too, once Claude has described it from the page's words: its verdict, what it
+goes with, what it repeats and what gap it would fill, with the shop's picture; until then one sentence
+says why it is not checked, such as "Nines checks it against your closet once Claude can describe
+it."), with "Open in shop", "Stop watching" (it goes, and with it its daily check) and, when its
 price changed from one day to another, "The price was … on 3 Nov and … yesterday.". A find with a
 code at checkout says the price after it under its price ("$106.20 with code TEST40 at checkout (40%
 off)") and who saw it ("Nines saw this code on the page." or "Claude saw this code on the page.";
@@ -300,9 +304,11 @@ when the page stops showing it, and one you typed stays until you remove it. Und
 sentence, "Nines checks the price once a day while it's running and tells you when it goes down."
 (with a price, "…when it goes down to $150.00 or less."), with "Set the most you'd pay" or
 "Change", then when it was last checked and "Check now" (the pages you sent read by Nines, the rest
-by Claude). Then looking for more: "Find some" or "Find more" (Claude searches shops) and "Add a
-link" (a product's page added as a find: Nines reads its name and price from the page, and asks
-Claude only when the page gives no price); with nothing watched yet, the price is offered here
+by Claude, and a page you sent that is not described yet described by Claude). Then looking for
+more: "Find some" or "Find more" (Claude searches shops) and "Add a link" (a product's page added as
+a find: Nines reads its name and price from the page, asks Claude only when the page gives no price,
+then asks Claude once to describe it from what the page says), and "Search Google Shopping" (as on
+Worth buying, from what to look for, or the wish's name when it has none); with nothing watched yet, the price is offered here
 ("Claude looks at any price." or "Claude looks for ones up to $150.00."). Then the note (saved when
 you leave the box or tap Save note, saying "Saving…", "Saved" or "Didn't save" with Try again), and
 "Would it go with my clothes?" (Would this work? for this wish; for a page you sent it starts with
@@ -310,7 +316,8 @@ the product's name), "I bought it" (it leaves the list and Add opens) and "Remov
 (back to the wishlist). **The most you'd pay** opens in a sheet: one amount and its currency, with
 Save, Clear and Cancel; Nines tells you when a price goes down to it or less, and Claude's searches
 stay under it. A wish that still has a lowest price from
-before says so until it is changed. While a page is read the wish says who is reading it. Opening
+before says so until it is changed. While a page is read the wish says who is reading it ("Claude
+is describing it…" while Claude describes a page you sent). Opening
 the page counts as seeing its price news. Like the wishlist, it waits only for the wishes.
 
 ## Add a link

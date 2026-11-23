@@ -12,6 +12,15 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **A link you send to your wishlist is checked against your closet.** Once Nines has read the
+  product's name from its page, Claude describes it from what the page says (nothing about your
+  closet is sent), and the wish shows it as it shows what Claude finds: whether it would work, what
+  it goes with, what it repeats and which gap it would fill, with the shop's picture. When Claude
+  can't be reached, the limit is reached or the demo closet is open, the card says it isn't checked
+  yet, and Nines describes it at the next price check.
+- **Search Google Shopping**, on each thing worth buying and on each wish, opens Google Shopping in
+  your browser, searching for the kind of piece and its first colour (or the wish's name). Nothing
+  else about you or your closet goes into the search.
 - **Nines tells you when a price on your wishlist goes down.** A banner at the top of every
   screen says "A tan rain coat is down to $150.00 at Example Shop, from $177.00.", with **See it**
   (opens the wish) and **Got it**; when several went down it counts them, and **See them** opens

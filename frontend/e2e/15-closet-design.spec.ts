@@ -110,6 +110,58 @@ test.describe('phone', () => {
     await page.getByRole('button', { name: 'Remove filter: In the laundry' }).click();
   });
 
+  test('a reload, coming back from a piece or from another place keeps the search, the filters and the place in the list', async ({ page }) => {
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    await page.goto('/');
+    await expect(page.getByTestId('tile').first()).toBeVisible();
+    await page.getByRole('searchbox').fill('o');
+    await page.getByRole('button', { name: /^Filter/ }).click();
+    await page.getByRole('group', { name: 'Filter by laundry' }).getByRole('button', { name: 'Clean', exact: true }).click();
+    await page.getByRole('button', { name: 'Done' }).click();
+    const found = await page.getByTestId('tile').count();
+    expect(found).toBeGreaterThan(10);
+    await page.mouse.wheel(0, 700);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(600);
+    const at = await page.evaluate(() => window.scrollY);
+    const kept = async () => {
+      await expect(page.getByRole('searchbox')).toHaveValue('o');
+      await expect(page.getByRole('button', { name: 'Remove filter: Clean' })).toBeVisible();
+      await expect(page.getByTestId('tile')).toHaveCount(found);
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(at - 5);
+      expect(await page.evaluate(() => window.scrollY)).toBeLessThan(at + 5);
+    };
+
+    // a reload
+    await page.reload();
+    await kept();
+    // a piece opened and its "‹ Closet"
+    const tile = page.getByTestId('tile').nth(4);
+    await tile.click();
+    await expect(page).toHaveURL(/\/item\//);
+    await page.getByRole('link', { name: 'Closet', exact: true }).first().click();
+    await kept();
+    // a piece's page reloaded, then back to the closet
+    await page.getByTestId('tile').nth(4).click();
+    await expect(page).toHaveURL(/\/item\//);
+    await page.reload();
+    await page.goBack();
+    await kept();
+    // another place, then the closet from the tab bar
+    await page.getByRole('link', { name: /^Wardrobe/ }).click();
+    await expect(page).toHaveURL(/\/wardrobe/);
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Closet/ }).click();
+    await expect(page.getByRole('searchbox')).toHaveValue('o');
+    await expect(page.getByTestId('tile')).toHaveCount(found);
+
+    // cleared, they stay cleared
+    await page.getByRole('searchbox').fill('');
+    await page.getByRole('button', { name: 'Remove filter: Clean' }).click();
+    await page.reload();
+    await expect(page.getByRole('searchbox')).toHaveValue('');
+    await expect(page.getByRole('button', { name: /^Remove filter/ })).toHaveCount(0);
+  });
+
   test('an item opens at its top, and the closet keeps its search when you come back', async ({ page }) => {
     await goToCloset(page);
     await useProfile(page, 'demo');

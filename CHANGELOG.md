@@ -215,6 +215,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **The closet remembers where you were.** Reloading the page, coming back from a piece (also after
+  reloading the piece's page) or coming back from another place keeps the closet's search, its
+  filters and your place in the list. The search and filters are in the closet's address.
 - **All clean can be undone.** After **All clean** the closet says how many pieces you marked clean,
   with **Undo**, which puts each one back in the laundry as it was (with the wears it had since its
   wash, so the laundry day still washes it when it would have). With the laundry shown and nothing

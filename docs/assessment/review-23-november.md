@@ -106,7 +106,7 @@ page and "Would this work? by hand". Each rule's test is in its module's own tes
 | P9. The search box shrinks to "S" | In the next batch (closet) | |
 | P10. The page behind a phone sheet scrolls | Held still | #322 |
 | P11. Reasons after a rating do not follow it | They follow it | #318 |
-| P12. Reload forgets | Partly: Today's changes kept (#318); the closet's filter and Would this work? in the next batch | #318 |
+| P12. Reload forgets | Partly: Today's changes kept (#318); the closet's search, filters and place in the list kept in its address (this batch); Would this work? open | #318, this batch |
 | P13. "Asking again…" wraps the heading | Said over the outfits | #318 |
 | P14. Offline, the same sentence on each card | Said once | #318 |
 | P15. Choosing a colour chooses a shade | In the next batch (item page) | |

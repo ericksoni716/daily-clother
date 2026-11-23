@@ -8,8 +8,8 @@ import { gridViewOf, smallPicture, useShowDrawings, type GridView, type MomentVi
 import { cleanAll, putBack, type Cleaned } from '../laundry';
 import { groupTitle, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
-import { goBack, itemPath, Link, navigate } from '../router';
-import { ANY, chooseWhat, columnsFor, keepTileSize, loadTileSize, shortName, TILE_MIN_WIDE, type TileSize, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
+import { goBack, itemPath, Link, navigate, replaceSearch } from '../router';
+import { ANY, chooseWhat, columnsFor, filtersFromSearch, filtersToSearch, keepFilters, keptFilters, NO_FILTERS, keepTileSize, loadTileSize, shortName, TILE_MIN_WIDE, type TileSize, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
 import { progressOf } from '../progress';
 import { itemSaved, itemsQuery, progressQuery, reviewQuery, useVocab } from '../queries';
 import { useApp } from '../store';
@@ -26,11 +26,6 @@ interface Props {
   toReview?: number | null;
 }
 
-/** The search and filters, kept while the app is open: on a phone the item page replaces the closet, and coming
- * back from it should find the list as it was left. Kept per closet (demo or real) and per In use / Archived. */
-interface Filters { what: What; query: string; laundry: Laundry | null; check: boolean; away: boolean }
-const NO_FILTERS: Filters = { what: ANY, query: '', laundry: null, check: false, away: false };
-const filterMemory = new Map<string, Filters>();
 /** The Photos / Drawings switch, used for the moment: kept while the app is open (not on the device), and set aside
  * once the setting changes (`gridViewOf`). */
 let gridMoment: MomentView | null = null;
@@ -46,8 +41,10 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const [washing, setWashing] = useState(false);
   const list = items.data ?? null;
   const loadError = !!items.error;
+  // The search and filters live in the address (`?q=navy&laundry=laundry`), so a reload and Back keep them; the closet
+  // opened from its plain address (the tab bar, a back link) finds them as this tab last left them.
   const memoryKey = `${profile}:${status}`;
-  const kept = filterMemory.get(memoryKey) ?? NO_FILTERS;
+  const [kept] = useState(() => filtersFromSearch(window.location.search) ?? keptFilters(memoryKey) ?? NO_FILTERS);
   // what a piece is: a group, then a category in it, then a kind (`closet.ts`, "What")
   const [what, setWhat] = useState<What>(kept.what);
   const [query, setQuery] = useState(kept.query);
@@ -59,9 +56,11 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const [away, setAwayOn] = useState(kept.away);
   const [returned, setReturned] = useState<Set<string>>(() => new Set());
   const setAway = (on: boolean) => { setAwayOn(on); setReturned(new Set()); };
+  const search = filtersToSearch({ what, query, laundry, check, away });
   useEffect(() => {
-    filterMemory.set(memoryKey, { what, query, laundry, check, away });
-  }, [memoryKey, what, query, laundry, check, away]);
+    keepFilters(memoryKey, search);
+    replaceSearch(search);
+  }, [memoryKey, search, selectedId]);
   const review = useQuery({ ...reviewQuery(), enabled: !offline && status === 'active' }).data;
   const toCheck = useMemo(() => new Set((review?.items ?? []).map((i) => i.id)), [review]);
   const showDrawings = useShowDrawings();
@@ -186,7 +185,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   }, [panel, selectedId]);
 
   // Close and Escape go back to the closet: Back, when the page before is the closet, so history does not grow.
-  const closePanel = useCallback(() => goBack(closetPath), [closetPath]);
+  const closePanel = useCallback(() => goBack(closetPath + search), [closetPath, search]);
   useEffect(() => {
     if (!panel) return;
     const key = (e: KeyboardEvent) => {
@@ -306,7 +305,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
           <ul className={`grid${size === 'smaller' ? ' grid-smaller' : ''}${columns ? ' has-columns' : ''}`} aria-label="Clothes"
             style={columns ? { '--columns': columns } as CSSProperties : undefined}>
             {shown.map((it) => (
-              <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} progress={progressOf(it, work)} view={gridView} small={size === 'smaller'} onChoose={choose} /></li>
+              <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} progress={progressOf(it, work)} view={gridView} small={size === 'smaller'} search={search} onChoose={choose} /></li>
             ))}
           </ul>
         )
@@ -458,8 +457,10 @@ function FilterChoices({ status, laundry, away, onLaundry, onAway, choices, what
 
 /** One tile of the grid. Memoised: a poll or a save that changes one item draws that item's tile only. `progress` is
  * how far the work on it has got (progress.ts), shown as the step's small mark. */
-const Tile = memo(function Tile({ item, status, selected, progress, view, small, onChoose }: {
+const Tile = memo(function Tile({ item, status, selected, progress, view, small, search, onChoose }: {
   item: ItemSummary; status: 'active' | 'archived'; selected: boolean; progress: Progress | null; view: GridView;
+  /** the closet's search and filters, carried in the piece's address so they come back with it */
+  search: string;
   /** a small tile (Smaller pictures): its name on two short lines, cut after a whole word, and no caption */
   small: boolean;
   onChoose(id: string, tile: HTMLElement): void;
@@ -467,7 +468,7 @@ const Tile = memo(function Tile({ item, status, selected, progress, view, small,
   const name = item.name || label('category', item.category) || 'New item';
   const caption = tileCaption(item.category, item.color);
   return (
-    <Link to={itemPath(item.id, status)} className={`tile${selected ? ' is-selected' : ''}`} aria-current={selected ? 'true' : undefined}
+    <Link to={itemPath(item.id, status) + search} className={`tile${selected ? ' is-selected' : ''}`} aria-current={selected ? 'true' : undefined}
       data-testid="tile" data-id={item.id} onClick={(e) => onChoose(item.id, e.currentTarget)}>
       <div className="tile-card">
         <TilePicture item={item} view={view} />

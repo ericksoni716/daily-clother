@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANY, chooseWhat, columnsFor, shortName, TILE_MIN_WIDE, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, searchWords, whatChoices, whatIn, whatName } from './closet';
+import { ANY, chooseWhat, filtersFromSearch, filtersToSearch, NO_FILTERS, columnsFor, shortName, TILE_MIN_WIDE, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, searchWords, whatChoices, whatIn, whatName } from './closet';
 import type { KindGroup } from './kinds';
 
 describe('how many tiles to a row on a computer', () => {
@@ -195,5 +195,24 @@ describe('smaller pictures', () => {
     ['  Two   spaces  ', 'Two spaces'],
   ])('a small tile names "%s" as "%s"', (name, shown) => {
     expect(shortName(name, 20)).toBe(shown);
+  });
+});
+
+describe('the search and filters in the address', () => {
+  it.each([
+    [{ ...NO_FILTERS }, ''],
+    [{ ...NO_FILTERS, query: 'navy linen' }, '?q=navy+linen'],
+    [{ ...NO_FILTERS, what: { group: 'trousers', category: 'jeans', kind: null } }, '?group=trousers&category=jeans'],
+    [{ ...NO_FILTERS, query: 'écru', laundry: 'laundry' as const, check: true, away: true }, '?q=%C3%A9cru&laundry=laundry&check=1&away=1'],
+  ])('%o is kept as "%s" and read back the same', (filters, search) => {
+    expect(filtersToSearch(filters)).toBe(search);
+    expect(filtersFromSearch(search)).toEqual(search ? filters : null);
+  });
+
+  it('reads an address that says nothing of them as nothing, and sets aside what it cannot be', () => {
+    expect(filtersFromSearch('')).toBeNull();
+    expect(filtersFromSearch('?signin=1')).toBeNull();
+    expect(filtersFromSearch('?laundry=wet&kind=chinos')).toEqual(NO_FILTERS);
+    expect(filtersFromSearch('?q=')).toEqual(NO_FILTERS);
   });
 });

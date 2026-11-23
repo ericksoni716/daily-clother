@@ -2,7 +2,7 @@
  * many tiles to a row on a computer, and what the laundry's line and an empty grid say. */
 import { groupsIn, kindsOf, type KindGroup } from './kinds';
 import { categoryPlural, label } from './labels';
-import type { ItemSummary } from './types';
+import type { ItemSummary, Laundry } from './types';
 
 /**
  * How many tiles fit a row `width` wide, each at least `min` wide with `gap` between them: what the grid's
@@ -158,4 +158,59 @@ export function shortName(name: string, max: number): string {
   const space = room.lastIndexOf(' ');
   const kept = (space > 0 ? room.slice(0, space) : room.slice(0, max - 1)).replace(/[\s,;:·–-]+$/u, '');
   return `${kept}…`;
+}
+
+/** The closet's search and filters: kept in its address, so a reload, Back and a link keep them. */
+export interface ClosetFilters { what: What; query: string; laundry: Laundry | null; check: boolean; away: boolean }
+export const NO_FILTERS: ClosetFilters = { what: ANY, query: '', laundry: null, check: false, away: false };
+const PARAMS = ['q', 'group', 'category', 'kind', 'laundry', 'check', 'away'] as const;
+
+/** The address's query for the search and filters ("" when none is on): `?q=navy&group=trousers&laundry=laundry`. */
+export function filtersToSearch(f: ClosetFilters): string {
+  const q = new URLSearchParams();
+  if (f.query) q.set('q', f.query);
+  if (f.what.group) q.set('group', f.what.group);
+  if (f.what.group && f.what.category) q.set('category', f.what.category);
+  if (f.what.group && f.what.kind) q.set('kind', f.what.kind);
+  if (f.laundry) q.set('laundry', f.laundry);
+  if (f.check) q.set('check', '1');
+  if (f.away) q.set('away', '1');
+  const out = q.toString();
+  return out ? `?${out}` : '';
+}
+
+/** The search and filters an address keeps, or null when it says nothing about them (the closet's own address). */
+export function filtersFromSearch(search: string): ClosetFilters | null {
+  const q = new URLSearchParams(search);
+  if (!PARAMS.some((p) => q.has(p))) return null;
+  const group = q.get('group') || null;
+  const laundry = q.get('laundry');
+  return {
+    what: { group, category: group ? q.get('category') || null : null, kind: group ? q.get('kind') || null : null },
+    query: q.get('q') ?? '',
+    laundry: laundry === 'clean' || laundry === 'laundry' ? laundry : null,
+    check: q.get('check') === '1',
+    away: q.get('away') === '1',
+  };
+}
+
+/** The search and filters last used on this tab, per closet and per In use or Archived: what the closet comes back to
+ * when it is opened from its plain address (the tab bar, a back link). Kept for the tab, as its scroll positions are. */
+const KEPT = 'closet-filters';
+
+export function keptFilters(key: string): ClosetFilters | null {
+  try {
+    const search = window.sessionStorage.getItem(`${KEPT}:${key}`);
+    return search === null ? null : filtersFromSearch(search) ?? NO_FILTERS;
+  } catch {
+    return null;
+  }
+}
+
+export function keepFilters(key: string, search: string): void {
+  try {
+    window.sessionStorage.setItem(`${KEPT}:${key}`, search);
+  } catch {
+    /* storage is off (a private window): the address still keeps them */
+  }
 }

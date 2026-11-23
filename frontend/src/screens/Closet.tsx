@@ -219,14 +219,14 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
       {list ? (
         <>
           <div className="closet-toolbar">
-            {list && !empty && (
-              <label className="search">
-                <SearchIcon />
-                <span className="visually-hidden">Search your clothes</span>
-                <input type="search" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
-              </label>
-            )}
             <div className="closet-toolbar-row">
+              {list && !empty && (
+                <label className="search">
+                  <SearchIcon />
+                  <span className="visually-hidden">Search your clothes</span>
+                  <input type="search" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+                </label>
+              )}
               <div className="filter-wrap">
                 <button ref={filterButton} type="button" className={`btn filter-button${filters ? ' has-filters' : ''}`} aria-expanded={filtering}
                   aria-haspopup="dialog" onClick={() => setFiltering((f) => !f)}>
@@ -235,7 +235,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
                   {filters > 0 && <><span className="visually-hidden">, </span><span className="filter-count">{filters}</span><span className="visually-hidden"> on</span></>}
                 </button>
                 {filtering && (
-                  <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" testId="filter-sheet" onClose={() => setFiltering(false)}>
+                  <Sheet title="Show and filter" popover keep={filterButton} className="filter-sheet" testId="filter-sheet" onClose={() => setFiltering(false)}>
                     <FilterChoices status={status} laundry={activeLaundry} away={activeAway} onAway={setAway} onLaundry={setLaundry}
                       view={list && !empty ? gridView : null} size={size} onSize={setSize}
                       onView={(value) => { gridMoment = { view: value, setting: showDrawings }; setMoment(gridMoment); }}
@@ -348,33 +348,27 @@ function StatusLine({ toCheck, inLaundry: n, checking, washing, onCheck, onLaund
   toCheck: number; inLaundry: number; checking: boolean; washing: boolean; onCheck(): void; onLaundry(): void;
   away: ItemSummary[]; awayOn: boolean; onAway(): void;
 }) {
-  const laundry = n > 0 || washing;
-  if (!toCheck && !laundry && !checking && !away.length && !awayOn) return null;
+  const parts: { key: string; on: boolean; text: string; act(): void }[] = [];
+  if (toCheck > 0 || checking) parts.push({ key: 'to-check', on: checking, text: `${toCheck} to check`, act: onCheck });
+  if (n > 0 || washing) parts.push({ key: 'in-laundry', on: washing, text: laundryPart(n), act: onLaundry });
+  if (away.length > 0 || awayOn) parts.push({ key: 'away', on: awayOn, text: awayPart(away), act: onAway });
+  if (!parts.length) return null;
+  // one line that wraps as text does; each part with the dot after it stays together, so no line starts with a dot
   return (
     <div className="closet-status" data-testid="closet-status">
       <p className="closet-status-line">
-        {(toCheck > 0 || checking) && (
-          <button type="button" className={`btn btn-link closet-status-part${checking ? ' is-on' : ''}`} aria-pressed={checking}
-            data-testid="to-check" onClick={onCheck}>
-            {toCheck} to check
-          </button>
-        )}
-        {(toCheck > 0 || checking) && laundry && <span aria-hidden="true"> · </span>}
-        {laundry && (
-          <button type="button" className={`btn btn-link closet-status-part${washing ? ' is-on' : ''}`} aria-pressed={washing}
-            data-testid="in-laundry" onClick={onLaundry}>
-            {laundryPart(n)}
-          </button>
-        )}
-        {(away.length > 0 || awayOn) && (
-          <span className={`closet-status-group${toCheck > 0 || checking || laundry ? ' is-own-line' : ''}`}>
-            {(toCheck > 0 || checking || laundry) && <span className="closet-status-dot" aria-hidden="true"> · </span>}
-            <button type="button" className={`btn btn-link closet-status-part${awayOn ? ' is-on' : ''}`} aria-pressed={awayOn}
-              data-testid="away" onClick={onAway}>
-              {awayPart(away)}
-            </button>
+        {parts.map((part, i) => (
+          <span key={part.key}>
+            <span className="closet-status-item">
+              <button type="button" className={`btn btn-link closet-status-part${part.on ? ' is-on' : ''}`} aria-pressed={part.on}
+                data-testid={part.key} onClick={part.act}>
+                {part.text}
+              </button>
+              {i < parts.length - 1 && <span aria-hidden="true"> ·</span>}
+            </span>
+            {i < parts.length - 1 && ' '}
           </span>
-        )}
+        ))}
       </p>
     </div>
   );

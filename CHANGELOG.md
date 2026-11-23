@@ -24,7 +24,7 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   mending has **Take it to the tailor's** in one tap. While a piece is away, Today does not offer it,
   a trip packs it only if you expect it back before you leave (and says it counts on that), and
   "not worn" leaves it alone; What's missing and Would this work? still count it as yours. The
-  closet's line says how many are away ("2 away, 1 expected back"); tapping it lists them, soonest
+  closet's line says how many are away ("2 away"); tapping it lists them, soonest
   back first, with **It's back** beside each. Wearing a piece that is away today brings it back.
 - **Your nines, in the Wardrobe.** The nine pieces you wore most, as a square of three by three
   of their pictures (photos or drawings, as Settings says), each with how many times you wore it
@@ -136,9 +136,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 - **Photos or drawings, in words.** The closet's switch between photos and drawings was two small
   pictures. It is now a choice of **Photos** or **Drawings**, in words, at the top of the Filter
-  sheet under **Show**. The filters you have on now sit beside the Filter button.
-- **The closet's search has a row of its own and finds more.** It no longer shrinks to "Sear" or
-  "S" beside the buttons on a narrow phone: Filter sits under it. It finds a piece by its shade
+  sheet under **Show**.
+- **The top of the closet is shorter, and its search finds more.** The line over the grid is one
+  line of text that wraps ("5 to check · 4 in the laundry · 2 away"; the away list says which are
+  past their day), the search shares its row with Filter without ever shrinking below its word, and
+  the filters you have on get a row of their own only when there are any, so a small phone shows two
+  rows of smaller pictures at once. The Filter sheet is called "Show and filter". The search finds a piece by its shade
   ("navy"), brand, material ("linen") or a word of your own notes, as well as by its name, what it
   is and its colour; every word you type has to match, in any of those, and accents and capitals
   make no difference.

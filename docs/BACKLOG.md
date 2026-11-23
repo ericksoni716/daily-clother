@@ -14,6 +14,11 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The closet at a glance** (23 November; DECISIONS, "What a piece is is asked once", "Larger or Smaller
+  pictures"). Left: on a computer with a piece's panel open, Larger tiles are narrow and still cut a name mid-word with
+  "…" (the small tile's whole-word cut is not used there). A category whose pieces sit in two groups is found by the
+  search, not by the list: "Sweaters" under Knitwear leaves out a fleece pullover, which is Activewear by its kind.
+  The Filter button keeps its word "Filter" while its sheet is titled "Show and filter".
 - **The review of the shared parts** (23 November; DECISIONS, "The failed state", "Banners wait for the next screen",
   "One way to write a date"). Left: Today's own failed state ("Couldn't choose today's outfits: …") still words
   itself and was left to the Today batch; the item page still says "Saved" in a toast for each change rather than a

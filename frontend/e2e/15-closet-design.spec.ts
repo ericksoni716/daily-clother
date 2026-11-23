@@ -1,4 +1,4 @@
-import { expect, goToCloset, openFold, test, useProfile } from './fixtures';
+import { CLIENT, expect, goToCloset, openFold, test, useProfile } from './fixtures';
 
 /** Design 3: the Closet grid and the item page, on a phone and a computer, saved as pictures. */
 
@@ -22,11 +22,11 @@ test.describe('phone', () => {
       const tile = (await page.getByTestId('tile').nth(i).boundingBox())!;
       expect(tile.y + tile.height).toBeLessThanOrEqual(bar.y);
     }
-    // one toolbar: the search on a row of its own, Filter under it
+    // one toolbar: the search and Filter on one row
     const toolbar = page.locator('.closet-toolbar');
     const search = (await toolbar.getByRole('searchbox').boundingBox())!;
     const filter = (await toolbar.getByRole('button', { name: /^Filter/ }).boundingBox())!;
-    expect(filter.y).toBeGreaterThanOrEqual(search.y + search.height);
+    expect(Math.abs(search.y + search.height / 2 - (filter.y + filter.height / 2))).toBeLessThan(4);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await page.screenshot({ path: test.info().outputPath(`closet-phone.png`) });
 
@@ -78,7 +78,37 @@ test.describe('phone', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   });
 
-  test('the search box keeps a row of its own and its whole word, at 320px wide with filters on', async ({ page }) => {
+  for (const size of ['smaller', 'larger'] as const) {
+    test(`the first screen of the smallest phone shows ${size === 'smaller' ? 'two whole rows' : 'a whole row and the top of the next'} with ${size} pictures`, async ({ page }) => {
+      // the phone check's smallest phone (an iPhone 13 mini with Safari's bars: 375x629), the demo closet with a piece
+      // away past its day, so the closet's line has all three parts
+      await page.setViewportSize({ width: 375, height: 629 });
+      await goToCloset(page);
+      await useProfile(page, 'demo');
+      const items = (await (await page.request.get('/api/items')).json()).items as { id: string; laundry: string }[];
+      const away = items.find((i) => i.laundry === 'clean')!.id;
+      await page.request.put(`/api/items/${away}/away`, { data: { place: 'cleaner', since: '2020-01-01', until: '2020-01-06' }, headers: CLIENT });
+      await page.goto('/');
+      await page.evaluate((s) => localStorage.setItem('closet.tileSize', s), size);
+      await page.reload();
+      await expect(page.getByTestId('away')).toHaveText('1 away');
+      const tiles = page.getByTestId('tile');
+      await expect(tiles.first()).toBeVisible();
+      await page.waitForLoadState('networkidle');
+      const bar = (await page.locator('nav.tabbar').boundingBox())!;
+      const across = size === 'smaller' ? 3 : 2;
+      for (let i = 0; i < across * (size === 'smaller' ? 2 : 1); i++) {
+        const b = (await tiles.nth(i).boundingBox())!;
+        expect(b.y + b.height, `tile ${i + 1}`).toBeLessThanOrEqual(bar.y);
+      }
+      if (size === 'larger') expect((await tiles.nth(2).locator('.tile-card').boundingBox())!.y).toBeLessThan(bar.y - 40);
+      await page.screenshot({ path: test.info().outputPath(`375-first-screen-${size}.png`) });
+      await page.request.post(`/api/items/${away}/back`, { headers: CLIENT });
+      await page.evaluate(() => localStorage.removeItem('closet.tileSize'));
+    });
+  }
+
+  test('the search box takes the row Filter leaves and keeps its whole word, at 320px wide with filters on', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
     await goToCloset(page);
     await useProfile(page, 'demo');
@@ -91,12 +121,16 @@ test.describe('phone', () => {
     const search = (await box.boundingBox())!;
     const row = (await toolbar.evaluate((el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
       return { left: r.left + parseFloat(s.paddingLeft), width: r.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) }; }));
-    // the whole row is the search's, and nothing beside it
-    expect(search.width).toBeGreaterThanOrEqual(row.width - 1);
-    for (const other of await toolbar.locator('button, [role="group"], li').all()) {
-      const b = await other.boundingBox();
-      if (b) expect(b.y >= search.y + search.height || b.y + b.height <= search.y).toBe(true);
-    }
+    // the row is the search's and Filter's, Filter with its word and its count; the filters that are on go under them
+    const filter = toolbar.getByRole('button', { name: /^Filter/ });
+    const f = (await filter.boundingBox())!;
+    expect(Math.abs(f.y - search.y)).toBeLessThan(4);
+    expect(search.width + f.width).toBeGreaterThanOrEqual(row.width - 12);
+    await expect(filter.locator('.filter-text')).toHaveText('Filter');
+    await expect(filter.locator('.filter-count')).toBeVisible();
+    expect(await filter.evaluate((b) => b.scrollWidth <= b.clientWidth + 1)).toBe(true);
+    const chip = (await toolbar.getByRole('button', { name: 'Remove filter: In the laundry' }).boundingBox())!;
+    expect(chip.y).toBeGreaterThanOrEqual(search.y + search.height);
     // its word is shown whole
     const fits = await box.evaluate((input: HTMLInputElement) => {
       const s = getComputedStyle(input);

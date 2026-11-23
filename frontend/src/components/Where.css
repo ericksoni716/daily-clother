@@ -39,11 +39,3 @@
 .away-when { color: var(--ink-3); }
 .away-when.is-late { color: var(--ink); font-weight: var(--weight-label); }
 .away-row .btn { flex: none; }
-
-/* the closet line's away part: after the others on a computer; on a phone, where the three rarely fit, on a line of
-   its own under them, so no dot is left at the start or the end of a line */
-.closet-status-group { display: inline-flex; align-items: center; white-space: pre; }
-@media (max-width: 699px) {
-  .closet-status-group.is-own-line { display: flex; }
-  .closet-status-group.is-own-line .closet-status-dot { display: none; }
-}

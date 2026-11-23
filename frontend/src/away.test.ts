@@ -56,11 +56,11 @@ describe('the closet', () => {
     expect(awayOrder(list).map((p) => p.id)).toEqual(['d', 'c', 'a']);
   });
 
-  it('counts them for the line over the grid, with those past their day', () => {
+  it('counts them for the line over the grid; which are past their day is said in the list it opens', () => {
     const late = piece('d', { place: 'tailor', since: '2026-11-10', until: '2026-11-20' });
     const soon = piece('c', { place: 'cleaner', since: '2026-11-20', until: '2026-11-27' });
-    expect(awayPart([soon], TODAY)).toBe('1 away');
-    expect(awayPart([soon, late], TODAY)).toBe('2 away, 1 expected back');
+    expect(awayPart([soon])).toBe('1 away');
+    expect(awayPart([soon, late])).toBe('2 away');
   });
 });
 

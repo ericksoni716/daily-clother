@@ -196,6 +196,12 @@ describe('smaller pictures', () => {
   ])('a small tile names "%s" as "%s"', (name, shown) => {
     expect(shortName(name, 20)).toBe(shown);
   });
+
+  it('ends a name cut short with the one-character ellipsis the rest of the app uses', () => {
+    const cut = shortName('Heavyweight brushed cotton flannel overshirt', 20);
+    expect(cut.endsWith('\u2026')).toBe(true);
+    expect(cut).not.toContain('...');
+  });
 });
 
 describe('the search and filters in the address', () => {

@@ -67,6 +67,8 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const [moment, setMoment] = useState(gridMoment);
   const gridView = gridViewOf(showDrawings, moment);
   const [filtering, setFiltering] = useState(false);
+  // In use or Archived chosen in the sheet opens the other list: the sheet closes, so the list is what you see
+  useEffect(() => setFiltering(false), [status]);
   // Larger or Smaller pictures: two or three across on a phone, kept on this device
   const [size, setSizeNow] = useState<TileSize>(loadTileSize);
   const setSize = (next: TileSize) => { setSizeNow(next); keepTileSize(next); };

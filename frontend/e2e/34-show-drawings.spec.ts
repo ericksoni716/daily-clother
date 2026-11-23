@@ -113,10 +113,16 @@ test.describe('smaller pictures on a phone', () => {
     await expect.poll(columns).toBe(3);
     await page.getByRole('button', { name: 'Done' }).click();
 
-    // every name fits its tile, and is either whole or cut after a whole word
+    // every name fits its tile's width, its words whole on their lines (in a wide font a third line is cut, after a word)
     const names = page.getByTestId('tile').locator('.tile-name');
     for (const el of await names.all()) {
-      const { text, fits } = await el.evaluate((e) => ({ text: e.textContent ?? '', fits: e.scrollWidth <= e.clientWidth + 1 && e.scrollHeight <= e.clientHeight + 1 }));
+      const { text, fits } = await el.evaluate((e) => {
+        const words = (e.textContent ?? '').split(' ');
+        e.textContent = words.join('\n');   // each word on its own line: none of them may be wider than the tile
+        const each = e.scrollWidth <= e.clientWidth + 1;
+        e.textContent = words.join(' ');
+        return { text: words.join(' '), fits: each && e.scrollWidth <= e.clientWidth + 1 };
+      });
       expect(fits, text).toBe(true);
     }
     const cut = (await page.getByTestId('tile').filter({ has: page.getByRole('img', { name: long }) }).locator('.tile-name').textContent())!;

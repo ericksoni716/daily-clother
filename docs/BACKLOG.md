@@ -39,12 +39,6 @@ only here); take a line out when it is done.
   Not worn after a shorter break (weeks, not 90 days with nothing recorded) can still list pieces last worn before
   it. Dates outside the Wardrobe and wishes (Settings, the item page, backups) still use the browser's own format
   (`labels.formatDateTime`).
-- **Today's rules after the logic review** (23 November; DECISIONS, "The owner's outfit rules"). Trips
-  and Would this work? still write a few sentences of their own with "is" for jeans and shoes; they
-  could use `outfits.be` as Today and What's missing now do. A trip's day card does not yet pass
-  `owned_outers` or `closet_mids` to `outfits._explain`, so a coat left at home for the trip (in the
-  wash, waiting to be mended) is not compared with: its card still says "the warmest you have". The wide-day layer is chosen from the owner's bands at the low; a day
-  read with no hours (typed temperatures) uses the typed low the same way.
 - **You might like** (23 November; DECISIONS, the section of that name). Built and tested with Claude
   stood in for; what a real look costs and how long it takes through the plan and the API key were
   not measured (the card says the search's estimate), nor whether its picks are any good on the

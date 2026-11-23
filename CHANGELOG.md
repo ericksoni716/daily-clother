@@ -62,8 +62,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   short line when its weather is not known ("No forecast for that day. Try again"). A piece away is
   offered for a day ahead only when you expect it back before that day; a planned piece still away
   on the morning is swapped and named with where it is ("Your navy blazer is at the cleaner's until
-  Friday 27 November"), and so is one in a kept outfit you wear. The demo's plan is now an outfit the
-  rules have nothing to warn about.
+  Friday 27 November"), and so is one in a kept outfit you wear; an outfit for a day ahead that counts on
+  a piece coming back says so in one line. Right after you plan a day it opens on the plan, with one
+  Remove the plan. On a phone the outfit's heading keeps its words whole ("Best for today", "Best for
+  Sat") with the count on its own small line. When your plans or the outfits you keep can't be read,
+  the page says so with Try again. The demo's plan is now an outfit the rules have nothing to warn
+  about.
 
 - **Outfits you keep.** **Keep this outfit** under any outfit on Today, and in a worn outfit's
   choices, saves it without wearing it. Worn has a second half, **Outfits you keep**: name one in

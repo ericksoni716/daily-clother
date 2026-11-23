@@ -21,11 +21,14 @@ only here); take a line out when it is done.
   about a day holds that one day, even when the sentence names more. Planned pieces are kept out of
   the laundry's way by one more wear each, not by every day still to come; a plan is not told to the
   trip planner, which may still pack its pieces. The morning of a planned day is not in the phone check
-  (the server's clock cannot be moved there); `e2e/41-another-day.spec.ts` pictures it. A day ahead
-  that counts on an away piece being back does not say so, as a trip's plan does. A swapped piece on a
-  day ahead makes the plan's line two lines (the only case it is not one). Right after "Wear this on
-  Saturday" the line says "Planned for Saturday. Remove the plan" over an outfit that says "Planned"
-  with its own Remove the plan, until the day is opened again.
+  (the server's clock cannot be moved there); `e2e/41-another-day.spec.ts` pictures it. On a phone
+  Today's page reads about 66 words more than before (484 to 550 at 393px in the phone check's closet):
+  14 are this work's own (Another day, Keep this outfit under each of three outfits, "Thursday is
+  planned."), the rest the rules' reasons for a different third outfit, as the demo's plan keeps its
+  oxford shirt and chinos out of the laundry's way. Every outfit on Today and a day ahead repeats the
+  rules' taste line ("Dressed a little lighter than usual…"); saying it once is Today's to decide.
+  A failed read of the kept outfits on Today only leaves "Keep this outfit" in place of "Kept under
+  Worn" (keeping again says it is kept already); Worn says the read failed.
 
 - **The closet at a glance** (23 November; DECISIONS, "What a piece is is asked once", "Larger or Smaller
   pictures"). Left: on a computer with a piece's panel open, Larger tiles are narrow and still cut a name mid-word with

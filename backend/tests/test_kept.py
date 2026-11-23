@@ -74,3 +74,13 @@ def test_keeping_refuses_a_piece_not_in_the_closet(client):
     ids = small_closet(client)
     assert keep(client, {**outfit_of(ids), "base": "not-there"}).status_code == 404
     assert client.patch("/api/outfits/kept/nope", json={"name": "x"}).status_code == 404
+
+
+def test_wear_this_on_a_kept_outfit_with_a_piece_away_fills_its_place_and_says_where_it_is(client):
+    ids = small_closet(client)
+    oid = keep(client, outfit_of(ids)).json()["outfit"]["id"]
+    assert client.put(f"/api/items/{ids['tee1']}/away", json={"place": "tailor", "until": "2026-11-20"}).status_code == 200
+    answer = suggest(client, again=oid)
+    assert answer["context"]["again"]["unavailable"] == [ids["tee1"]]
+    assert answer["context"]["again"]["away"] == {ids["tee1"]: "is at the tailor's until Friday 20 November"}
+    assert answer["outfits"][0]["pieces"]["base"] == ids["tee2"]

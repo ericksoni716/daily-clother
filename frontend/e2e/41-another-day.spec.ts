@@ -53,9 +53,12 @@ test('another day: the sheet, the day in Today\'s layout, "Wear this tomorrow", 
 
   await expect(page).toHaveURL(new RegExp(`/today/day/${localDay(1)}$`));
   await expect(page.getByRole('link', { name: 'Today' }).first()).toBeVisible();
-  // no weather can be had in the browser tests: said once, and the day is dressed as a mild one
+  // no weather can be had in the browser tests: said once, in one short line with Try again, and the day is dressed as
+  // a mild one
   await expect(page.getByTestId('day-line')).toContainText('a mild day');
-  await expect(page.getByText(/Nines can't tell what the weather will be that day/)).toBeVisible();
+  const noWeather = page.getByTestId('ahead-no-weather');
+  await expect(noWeather).toHaveText('No forecast for that day. Try again');
+  await expect(noWeather.getByRole('button', { name: 'Try again' })).toBeEnabled();
   await expect(planLine(page)).toHaveText('Nothing planned for tomorrow yet.');
   await expect(page.getByTestId('recent-outfits')).toHaveCount(0);
   const wear = current(page).getByRole('button', { name: 'Wear this tomorrow' });
@@ -66,7 +69,7 @@ test('another day: the sheet, the day in Today\'s layout, "Wear this tomorrow", 
 
   await wear.click();
   await expect(page.locator('.toast', { hasText: 'Planned for tomorrow. That morning, Today opens on it.' })).toBeVisible();
-  await expect(current(page).getByTestId('planned-day')).toHaveText('Planned for tomorrow');
+  await expect(current(page).getByTestId('planned-day')).toHaveText('Planned');   // the heading names the day
   await expect(planLine(page)).toContainText('Planned for tomorrow. Remove the plan');
   expect(await offset()).toBe(before);   // the page holds still
   // a plan, not a wear: nothing worn today
@@ -90,6 +93,69 @@ test('another day: the sheet, the day in Today\'s layout, "Wear this tomorrow", 
   await expect(current(page).getByTestId('planned-day')).toBeVisible();
   expect(await axeViolations(page)).toEqual([]);
 });
+
+for (const weather of ['a forecast', 'no forecast']) {
+  test(`a day ahead on the smallest phone, with ${weather}: five pieces and its button are on the first screen, planned or not`, async ({ page }) => {
+    // as Today's own first screen (10-today.spec.ts): the phone check's smallest phone, an iPhone 13 mini with Safari's
+    // bars. Before, the reason for the day's weather ran to three lines and, with the plan's line, pushed the pieces and
+    // the button under the tab bar.
+    await openDemo(page);
+    await page.setViewportSize({ width: 375, height: 629 });
+    const day = localDay(2);
+    await page.route('**/api/outfits/today', async (route: Route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      const response = await route.fetch(weather === 'a forecast' ? { postData: { ...body, low_c: 14, high_c: 20, rain: false } } : undefined);
+      const json = await response.json();
+      if (response.ok()) {
+        json.outfits = json.outfits.filter((o: { pieces: Record<string, unknown> }) => Object.values(o.pieces).flat().filter(Boolean).length === 5);
+        if (weather === 'a forecast') {
+          Object.assign(json.context, { source: 'forecast', place: 'Brooklyn, New York, United States', rain_chance: 10, message: null });
+          delete json.context.retry;
+        }
+      }
+      await route.fulfill({ response, json });
+    });
+    const shoot = async (name: string, button: string) => {
+      await expect(current(page).getByTestId('piece')).toHaveCount(5);
+      await expect(page.getByTestId('ahead-no-weather')).toHaveCount(weather === 'a forecast' ? 0 : 1);
+      // each line over the outfit is one line
+      for (const line of [page.getByTestId('plan-line'), ...(weather === 'a forecast' ? [] : [page.getByTestId('ahead-no-weather')])]) {
+        const lines = await line.evaluate((el) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
+        expect(lines).toBeLessThan(1.5);
+      }
+      await page.screenshot({ path: test.info().outputPath(`day-first-screen-${weather.replace(' ', '-')}-${name}.png`) });
+      const tabbar = (await page.locator('nav.tabbar').boundingBox())!;
+      const main = (await current(page).getByRole('button', { name: button }).boundingBox())!;
+      const room = tabbar.y - (main.y + main.height);
+      expect(room).toBeGreaterThanOrEqual(16);
+      for (const piece of await current(page).getByTestId('piece').all()) {
+        const b = (await piece.boundingBox())!;
+        expect(b.y + b.height).toBeLessThanOrEqual(main.y);
+      }
+    };
+
+    await page.goto(`/today/day/${day}`);
+    await expect(planLine(page)).toHaveText(/^Nothing planned for \w+ yet\.$/);
+    const wear = current(page).getByRole('button', { name: /^Wear this on / });
+    await expect(wear).toBeVisible();
+    await shoot('not-planned', (await wear.textContent())!.trim());
+
+    // planned: the outfit says so where its button was, and the line over it is the way to other outfits
+    await page.request.put(`/api/plans/${day}`, { data: { pieces: await outfitOf(page) } });
+    await page.reload();
+    await expect(current(page).getByTestId('planned-day')).toBeVisible();
+    await expect(planLine(page)).toHaveText('See other outfits');
+    await shoot('planned', 'Remove the plan');
+    expect(await axeViolations(page)).toEqual([]);
+  });
+}
+
+/** An outfit of five pieces the rules offer for the day two days ahead, as pieces. */
+async function outfitOf(page: Page) {
+  const r = await page.request.post('/api/outfits/today', { data: { day: localDay(2), low_c: 14, high_c: 20, rain: false } });
+  const outfits = (await r.json()).outfits as { pieces: Record<string, unknown> }[];
+  return outfits.find((o) => Object.values(o.pieces).flat().filter(Boolean).length === 5)!.pieces;
+}
 
 /** The first outfit Today offers, as pieces. */
 async function firstOutfit(page: Page) {
@@ -140,7 +206,7 @@ test('the morning of a planned day: Today opens on the plan, says a piece was sw
   await page.keyboard.press('Escape');
 
   await planLine(page).getByRole('button', { name: 'See other outfits' }).click();
-  await expect(planLine(page)).toContainText('These are other outfits than the one you planned.');
+  await expect(planLine(page)).toContainText('These are other outfits than the one you planned.');   // the morning's words
   expect(asked.at(-1)!.planned).toBe(false);
   await planLine(page).getByRole('button', { name: 'Back to your plan' }).click();
   await expect(planLine(page)).toContainText('You planned this outfit for today.');

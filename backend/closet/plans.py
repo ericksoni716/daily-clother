@@ -11,6 +11,11 @@ leave it in the laundry on the planned day, by the laundry's own rule (`closet/w
 before a wash, and the laundry day that washes what went in before it). A piece that would still be clean (a
 jacket, shoes, a knit with wears to spare, or a laundry day in between) is offered as usual. `held` is that rule,
 pure; the owner can still wear the piece by hand or build around it.
+
+Where a piece is (`closet/away.py`): a day ahead counts a piece away as back when the owner expects it back before
+that day, by the rule a trip packs by (`back_by`); one with no day said, or a later one, is not offered. On the
+morning, a planned piece still away is filled like one in the laundry, and Today names it with where it is
+(`today.again_of`'s `away`). Sending a planned piece away is never refused: the plan simply fills its place.
 """
 from __future__ import annotations
 
@@ -206,6 +211,30 @@ def held(rows: Iterable[Mapping], plans: Iterable[Mapping], wear_day: date,
                 out[pid] = plan["day"]
     return out
 
+
+# ------------------------------------------------------------------ away by then
+def back_before(row: Mapping, day: date) -> bool:
+    """Whether an away piece is expected back before `day`: the rule a trip packs by (`trips.Planner._back_before`:
+    on the day itself is too late). A piece with no day said, or a later one, is not."""
+    until = row.get("away_until")
+    return bool(row.get("away") and until and str(until) < day.isoformat())
+
+
+def back_by(rows: list[dict], day: date) -> list[dict]:
+    """The closet as it will be on a day ahead, for where pieces are: one away and expected back before that day is
+    counted back, as coming back makes it (`away.bring_back`: clean from the cleaner's, mended from the tailor's); one
+    away with no day said, or a later one, stays away and is not offered."""
+    out = []
+    for r in rows:
+        if back_before(r, day):
+            back = {**r, "away": None, "away_since": None, "away_until": None}
+            if r["away"] == "cleaner":
+                back.update(laundry="clean", wears_since_wash=0)
+            elif r["away"] == "tailor" and r.get("condition") == "needs_repair":
+                back["condition"] = None
+            r = back
+        out.append(r)
+    return out
 
 
 # ------------------------------------------------------------------ the routes

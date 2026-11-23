@@ -79,6 +79,8 @@
 /* the weather could not be fetched: one line, with what to do about it beside it (in body weight, so it stays one line on a 375px phone in a wide font) */
 .today-no-weather { margin: 0 0 var(--space-1); font-size: var(--text-sm); line-height: 1.45; color: var(--warn); font-weight: var(--weight-body); }
 .today-no-weather .inline-icon { margin-right: 2px; }
+/* a day ahead: the reason sits close under the weather line, in the room its 44px row leaves under the text */
+.today-ahead-no-weather { margin: -12px 0 0; white-space: nowrap; }
 /* a link in a line of text: as tall as the text, with a 44px hit area that does not push the lines apart */
 .btn-link.today-inline-action { position: relative; display: inline; min-height: 0; padding: 0; font-size: var(--text-sm); font-weight: inherit; }
 .btn-link.today-inline-action::after { content: ''; position: absolute; inset: calc((var(--tap) - 100%) / -2) -4px; }
@@ -293,8 +295,24 @@
 /* the header keeps its height: 44px to tap, drawn as a line of text */
 .today-header .btn-link.today-another::after { content: ''; position: absolute; inset: calc((var(--tap) - 100%) / -2) -8px; }
 .today-ahead-header .page-heading { min-width: 0; }
+/* a day ahead on a phone: "‹ Wed 25 Nov" in one row with Another day (the back link drawn as its arrow, named Today) */
+@media (max-width: 599px) {
+  .today-ahead-header .page-heading { display: flex; align-items: center; }
+  /* its word "Today" is still its name, kept past the clipped edge */
+  .today-ahead-header .page-back {
+    flex: none; width: var(--tap); padding: 0 0 0 11px; gap: 12px; justify-content: flex-start; overflow: hidden; white-space: nowrap;
+    margin-left: -12px;
+  }
+  .today-ahead-header .page-back svg { flex: none; width: 22px; height: 22px; }
+}
 /* the one line about the day's plan, over the outfits: one paragraph, so the outfits do not move when it changes */
 .today-plan { margin: -2px 0 var(--space-3); font-size: var(--text-sm); color: var(--ink-2); line-height: 1.45; overflow-wrap: anywhere; }
+/* on a day ahead: one line of fixed height, so the outfit under it holds still whatever the line says */
+.today-plan-ahead { height: 1.45em; margin-bottom: var(--space-1); white-space: nowrap; overflow-wrap: normal; }
+.today-ahead .today-outfits-head { margin-bottom: 0; }
+.today-ahead .today-outfits-head .count { white-space: nowrap; }   /* "1 of 3" wraps whole, never "1 of" and "3" */
+/* "Planned" beside Remove the plan, on one row like the button it takes the place of */
+.today-worn.today-planned { min-width: 0; }
 /* the plans of the coming week, one line on Today */
 .today-soon { margin: var(--space-4) 0 0; font-size: var(--text-sm); color: var(--ink-2); }
 .today-trip-day { margin-top: var(--space-2); }

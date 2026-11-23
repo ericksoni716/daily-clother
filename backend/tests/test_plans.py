@@ -177,6 +177,65 @@ def test_a_planned_piece_that_cannot_be_worn_by_then_is_swapped(client, clock):
     assert answer["outfits"][0]["pieces"]["base"] == ids["tee2"]   # its place filled as "Wear this again" fills one
 
 
+# ------------------------------------------------------------------ where a piece is (closet/away.py)
+def send_away(client, item_id, place="cleaner", until=None):
+    r = client.put(f"/api/items/{item_id}/away", json={"place": place, "until": until.isoformat() if until else None})
+    assert r.status_code == 200, r.text
+
+
+def test_a_planned_piece_away_on_the_morning_is_filled_and_named_with_where_it_is(client, clock):
+    ids = small_closet(client)
+    plan(client, SATURDAY, outfit_of(ids))
+    friday = SATURDAY + timedelta(days=6)
+    send_away(client, ids["tee1"], "cleaner", friday)   # sending it away refuses nothing: the plan stays
+    send_away(client, ids["jeans"], "lent")
+    assert [p["day"] for p in client.get("/api/plans").json()["plans"]] == [SATURDAY.isoformat()]
+    clock["day"] = SATURDAY
+    answer = suggest(client)
+    planned = answer["context"]["plan"]
+    assert planned["unavailable"] == [ids["tee1"], ids["jeans"]] and planned["kept"] == [ids["sneakers"]]
+    assert planned["away"] == {ids["tee1"]: "is at the cleaner's until Friday 20 November", ids["jeans"]: "are lent out"}
+    assert answer["outfits"] == []   # the small closet has no other bottoms: said by the rules as for the laundry
+    assert client.post(f"/api/items/{ids['jeans']}/back").status_code == 200
+    answer = suggest(client)
+    assert answer["context"]["plan"]["away"] == {ids["tee1"]: "is at the cleaner's until Friday 20 November"}
+    assert answer["outfits"][0]["pieces"]["base"] == ids["tee2"]   # its place filled as one in the laundry
+    # a piece in the laundry is swapped as before, with nothing said of where it is
+    client.post(f"/api/items/{ids['tee2']}/laundry", json={"state": "laundry"})
+    client.post(f"/api/items/{ids['tee1']}/back")
+    client.post(f"/api/items/{ids['tee1']}/laundry", json={"state": "laundry"})
+    planned = suggest(client)["context"]["plan"]
+    assert planned["unavailable"] == [ids["tee1"]] and "away" not in planned
+
+
+def test_a_day_ahead_offers_a_piece_away_only_when_it_is_expected_back_before_that_day_as_a_trip_packs(client, clock):
+    ids = small_closet(client)
+    client.post(f"/api/items/{ids['tee2']}/laundry", json={"state": "laundry"})   # tee1 is the only tee, if it is back
+    day = SATURDAY.isoformat()
+    send_away(client, ids["tee1"], "cleaner")   # no day said: not offered
+    assert suggest(client, day=day)["outfits"] == []
+    send_away(client, ids["tee1"], "cleaner", SATURDAY)   # on the day itself is too late, as for a trip
+    assert suggest(client, day=day)["outfits"] == []
+    send_away(client, ids["tee1"], "cleaner", SATURDAY + timedelta(days=1))
+    assert suggest(client, day=day)["outfits"] == []
+    send_away(client, ids["tee1"], "cleaner", SATURDAY - timedelta(days=1))   # back the day before
+    assert {o["pieces"]["base"] for o in suggest(client, day=day)["outfits"]} == {ids["tee1"]}
+    # today it is still away
+    assert all(o["pieces"]["base"] != ids["tee1"] for o in suggest(client)["outfits"])
+
+
+def test_back_by_counts_a_piece_back_as_coming_back_makes_it():
+    rows = [{"id": "a", "away": "cleaner", "away_until": "2026-11-13", "laundry": "laundry", "wears_since_wash": 3},
+            {"id": "b", "away": "tailor", "away_until": "2026-11-13", "condition": "needs_repair"},
+            {"id": "c", "away": "lent", "away_until": "2026-11-14"},
+            {"id": "d", "away": "lent", "away_until": None},
+            {"id": "e", "away": None}]
+    back = {r["id"]: r for r in plans.back_by(rows, SATURDAY)}   # Saturday 14 November
+    assert (back["a"]["away"], back["a"]["laundry"], back["a"]["wears_since_wash"]) == (None, "clean", 0)
+    assert (back["b"]["away"], back["b"]["condition"]) == (None, None)
+    assert back["c"]["away"] == "lent" and back["d"]["away"] == "lent" and back["e"] == rows[4]
+
+
 # ------------------------------------------------------------------ kept out of the laundry's way
 def test_planned_pieces_are_kept_out_of_the_laundrys_way_on_the_days_before(client, clock):
     ids = small_closet(client)
@@ -217,8 +276,8 @@ def test_another_day_is_dressed_for_its_forecast_and_says_where_it_comes_from(cl
     assert suggest(client, day=far.isoformat())["context"]["source"] == "usual"
     clock["unknown"] = True
     ctx = suggest(client, day=SATURDAY.isoformat())["context"]
-    assert ctx["source"] == "mild" and ctx["message"].startswith("Nines can't tell what the weather will be that day")
-    assert "Couldn't reach the weather service." in ctx["message"] and "left out of the plan" not in ctx["message"]
+    # no weather: one short sentence (the weather line says "a mild day"), and Try again when the service was not reached
+    assert (ctx["source"], ctx["message"], ctx["retry"]) == ("mild", "No forecast for that day.", True)
     for bad in (TODAY.isoformat(), "someday"):
         assert client.post("/api/outfits/today", json={"day": bad}).status_code == 422
 
@@ -228,10 +287,17 @@ def test_ahead_weather_says_why_there_is_none():
         return lambda *a: {"days": days, "message": message}
     usual = {"date": "2026-12-20", "low_c": 1.0, "high_c": 6.0, "rain": True, "rain_chance": 60, "summary": None, "source": "usual"}
     place = {"name": "Home"}
-    assert today.ahead_weather(None, place, date(2026, 12, 20), TODAY, lookup([usual])) == {"weather": usual, "message": None}
-    assert today.ahead_weather(None, None, date(2026, 12, 20), TODAY)["message"].startswith("Choose where you are")
-    none = today.ahead_weather(None, place, date(2026, 12, 20), TODAY, lookup([tripweather.unknown("2026-12-20")]))
-    assert none == {"weather": None, "message": "The weather service has nothing for that day."}
+    day = date(2026, 12, 20)
+    assert today.ahead_weather(None, place, day, TODAY, lookup([usual])) == {"weather": usual, "message": None, "retry": False}
+    assert today.ahead_weather(None, None, day, TODAY) == {
+        "weather": None, "message": "Set your place in Settings for a forecast.", "retry": False}
+    unknown = [tripweather.unknown("2026-12-20")]
+    nothing = today.ahead_weather(None, place, day, TODAY, lookup(unknown, "The weather service has nothing for some of "
+                                                                     "these dates. Days without weather are left out."))
+    assert nothing == {"weather": None, "message": "No forecast for that day.", "retry": False}
+    unreached = today.ahead_weather(None, place, day, TODAY, lookup(unknown, "Couldn't reach the weather service. Days "
+                                                                       "without weather are left out."))
+    assert unreached == {"weather": None, "message": "No forecast for that day.", "retry": True}
 
 
 def test_what_is_in_the_laundry_today_is_clean_by_a_day_far_enough_ahead_as_for_a_trip(client, clock):

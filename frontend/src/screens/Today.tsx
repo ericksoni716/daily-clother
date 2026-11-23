@@ -11,7 +11,7 @@ import { WhereYouAre } from '../components/WhereYouAre';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
 import { keptToast, keptWith } from '../kept';
-import { heldLine, planFor, planLine, plannedFor, plannedToast, plansSoon, swapLine, tripLine, wearOn, type Plan } from '../plans';
+import { awayClause, heldLine, planFor, planLine, plannedFor, plannedToast, plansSoon, swapLine, tripLine, wearOn, type Plan } from '../plans';
 import { keptQuery, plansQuery, touch, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
@@ -384,7 +384,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
       qc.setQueryData<Plan[]>(queryKeys.plans(), (list) => [...(list ?? []).filter((p) => p.day !== ahead), saved.plan]
         .sort((a, b) => a.day.localeCompare(b.day)));
       void touch(qc, 'plan', ['plans']);
-      setUndoPlan(saved.replaced ? { words: `${plannedFor(ahead, today)}, in place of the last plan.`, before: saved.replaced, day: ahead } : null);
+      setUndoPlan(saved.replaced ? { words: 'The last plan was replaced.', before: saved.replaced, day: ahead } : null);
       toast(plannedToast(ahead, today));
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -534,7 +534,9 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
     </button>
   );
   const header = ahead ? (
-    <PageHeader className="today-header today-ahead-header" title={weekdayOf(ahead)} titleId="today-title"
+    // on a phone, one row: ‹, "Wed 25 Nov" and Another day, so the day's outfit and its button stay on the first screen
+    <PageHeader className="today-header today-ahead-header" titleId="today-title"
+      title={<><span className="date-long">{weekdayOf(ahead)}</span><span className="date-short">{weekdayOf(ahead).slice(0, 3)}</span></>}
       back={{ to: '/today', label: 'Today' }} secondary={anotherDay}
       count={<><span className="date-long">{dayMonth(ahead)}</span><span className="date-short">{dayMonth(ahead, true)}</span></>} />
   ) : (
@@ -605,11 +607,12 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const dayWord = ahead ? sayDay(ahead, today) : 'today';
 
   const main = (
-    <div className="today" aria-busy={asking || phase.kind === 'loading'}>
+    <div className={ahead ? 'today today-ahead' : 'today'} aria-busy={asking || phase.kind === 'loading'}>
       {header}
       {daySheet}
 
-      {tripDay ? null : <DayLine phase={phase} editing={editDay} locked={locked} changeRef={changeButton} onEdit={() => setEditDay(!editDay)} />}
+      {tripDay ? null : <DayLine phase={phase} editing={editDay} locked={locked} changeRef={changeButton} onEdit={() => setEditDay(!editDay)}
+        asking={asking} onRetry={ask} />}
       {ahead ? editDay && ctx && (
         <Sheet title={`About ${dayWord}`} anchor={changeButton} onClose={() => setEditDay(false)}
           className="today-day-sheet" testId="day-sheet">
@@ -653,7 +656,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
               : `Starting from an outfit you wore${phase.kind === 'ready' && phase.answer.context.again?.worn_on ? ` ${wornDay({ worn_on: phase.answer.context.again.worn_on })}` : ''}`} <span aria-hidden="true">×</span>
           </button>
           {phase.kind === 'ready' && (phase.answer.context.again?.unavailable.length ?? 0) > 0 && (
-            <span className="muted">Not clean or not available today: {joinWords(phase.answer.context.again!.unavailable.map(nameOf))}.</span>
+            <span className="muted">{againGone(phase.answer.context.again!, nameOf)}</span>
           )}
         </div>
       )}
@@ -776,8 +779,9 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
 
 // ------------------------------------------------------------------ the day
 
-function DayLine({ phase, editing, locked, changeRef, onEdit }: {
+function DayLine({ phase, editing, locked, changeRef, onEdit, asking = false, onRetry }: {
   phase: Phase; editing: boolean; locked: boolean; changeRef: RefObject<HTMLButtonElement | null>; onEdit(): void;
+  asking?: boolean; onRetry?(): void;
 }) {
   const c = phase.kind === 'ready' ? phase.answer.context : null;
   return (
@@ -804,7 +808,15 @@ function DayLine({ phase, editing, locked, changeRef, onEdit }: {
         </p>
       )}
       {c?.old && <p className="today-day-old" role="note">{c.message || 'This is an older forecast: the weather service could not be reached.'}</p>}
-      {c?.ahead && c.source === 'mild' && c.message && <p className="today-day-old" role="note" data-testid="ahead-no-weather">{c.message}</p>}
+      {c?.ahead && c.source === 'mild' && c.message && (
+        // a day ahead with no weather: one short line, with the way to try again when there is one (the weather line
+        // already says the outfits are for a mild day)
+        <p className="today-no-weather today-ahead-no-weather" role="status" data-testid="ahead-no-weather">
+          <WarnIcon className="inline-icon" /> {c.message}
+          {c.retry && onRetry && <>{' '}<button className="btn btn-link today-inline-action" disabled={locked || asking}
+            title={locked ? OFFLINE_TITLE : undefined} onClick={onRetry}>Try again</button></>}
+        </p>
+      )}
     </section>
   );
 }
@@ -1179,7 +1191,8 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
     <section className={`today-outfits${asking || covered ? ' is-asking' : ''}`} aria-label="Today's outfits" aria-roledescription="carousel">
       <div className="today-outfits-head">
         <h2 aria-live="polite">
-          {current === 0 ? `Best for ${rest.ahead ? sayDay(rest.ahead, rest.today) : 'today'}` : `Another idea`}
+          {/* a day ahead: its heading names the day, so this stays short enough for one line on a phone */}
+          {current === 0 ? `Best for ${rest.ahead ? 'this day' : 'today'}` : `Another idea`}
           <span className="count"> · {count === 1 ? 'the only outfit' : `${current + 1} of ${count}`}</span>
         </h2>
         <SegmentedControl label="Show the outfit" small className="today-view" value={view}
@@ -1277,7 +1290,8 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
           </>
         ) : isPlanned && ahead ? (
           <>
-            <p className="today-worn" data-testid="planned-day"><CheckIcon /> {plannedFor(ahead, today)}</p>
+            {/* the heading names the day: "Planned", with Remove the plan beside it on one row */}
+            <p className="today-worn today-planned" data-testid="planned-day"><CheckIcon /> Planned</p>
             <button className="btn" disabled={busy || locked} title={title} onClick={() => onUnplan()}>Remove the plan</button>
           </>
         ) : (
@@ -1329,6 +1343,15 @@ function Piece({ id, place, item, isBase, open, onMore }: {
   );
 }
 
+/** Under "Starting from an outfit you kept": the pieces that could not come back, a piece away named with where it is
+ * ("Your navy blazer is at the cleaner's until Friday 27 November."), the rest as before. */
+function againGone(again: NonNullable<TodayAnswer['context']['again']>, nameOf: (id: string) => string): string {
+  const away = again.unavailable.filter((id) => again.away?.[id]).map((id) => ({ name: nameOf(id), away: again.away![id] }));
+  const rest = again.unavailable.filter((id) => !again.away?.[id]).map(nameOf);
+  return [away.length ? `${awayClause(away)}.` : '', rest.length ? `Not clean or not available today: ${joinWords(rest)}.` : '']
+    .filter(Boolean).join(' ');
+}
+
 /** A day in a sentence: "today", "tomorrow", "Saturday", "Sat 12 Dec". */
 function sayDay(day: string, today: string): string {
   if (day === today) return 'today';
@@ -1351,15 +1374,22 @@ function PlanLine({ ahead, today, planned, planNow, undo, other, busy, locked, n
     <button className="btn btn-link today-inline-action" disabled={busy || locked} title={title} onClick={act}>{label}</button>
   );
   let body: ReactNode;
+  let long = false;   // a swapped piece named: the rare line that may take two
   if (undo) body = <>{undo.words} {link('Undo', onUndo)}</>;
   else if (planned) {
-    const swapped = swapLine(planned.unavailable.map(nameOf), planned.day, today);
-    body = <>{planLine(planned.day, today, planned.note)}{swapped ? ` ${swapped}` : ''} {link('See other outfits', () => onOther(true))}</>;
-  } else if (other) body = <>These are other outfits than the one you planned. {link('Back to your plan', () => onOther(false))}</>;
+    const swapped = swapLine(planned.unavailable.map((id) => ({ name: nameOf(id), away: planned.away?.[id] })), planned.day, today);
+    long = !!swapped;
+    // a day ahead: the heading names the day and the outfit says "Planned for Saturday", so the line is the way out
+    // (with a swapped piece named); the morning says whose outfit it is, with the word about the day
+    body = ahead && planned.day === ahead
+      ? <>{swapped ? `${swapped} ` : ''}{link('See other outfits', () => onOther(true))}</>
+      : <>{planLine(planned.day, today, planned.note)}{swapped ? ` ${swapped}` : ''} {link('See other outfits', () => onOther(true))}</>;
+  } else if (other) body = <>{ahead ? 'Other outfits than your plan.' : 'These are other outfits than the one you planned.'} {link('Back to your plan', () => onOther(false))}</>;
   else if (planNow && ahead) body = <>{plannedFor(ahead, today)}. {link('Remove the plan', onRemove)}</>;
   else if (ahead) body = <span className="muted">Nothing planned for {dayWord} yet.</span>;
   else return null;
-  return <p className="today-plan" role="status" data-testid="plan-line">{body}</p>;
+  // on a day ahead, one line of fixed height over the outfit, whatever it says, so the outfit holds still under it
+  return <p className={ahead && !long ? 'today-plan today-plan-ahead' : 'today-plan'} role="status" data-testid="plan-line">{body}</p>;
 }
 
 /** Offline, a day ahead with a plan: the planned outfit as this device kept it, which cannot be changed until Nines is

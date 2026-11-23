@@ -97,15 +97,37 @@ export function planLine(day: string, today: string, note: string | null): strin
   return `You planned this outfit for ${when}.${note ? ` “${note}”` : ''}`;
 }
 
-/** "The white tee can't be worn by then, so another piece takes its place." (or "pieces take their places"). */
-export function swapLine(given: string[], day: string, today: string): string | null {
+/** A piece's name in the middle of a sentence, as the rules' own sentences name one: "the oatmeal henley", but "the
+ * GANT polo". */
+function midName(n: string): string {
+  return n.length > 1 && n[1] === n[1].toLowerCase() ? n[0].toLowerCase() + n.slice(1) : n;
+}
+
+/** A piece that had to be swapped: its name, and where it is when it is away, with its verb, as the server says it
+ * ("is at the cleaner's until Friday 27 November"). */
+export interface Swapped { name: string; away?: string | null }
+
+/** Where the away pieces are, as the start of a sentence: "Your navy blazer is at the cleaner's until Friday 27
+ * November", "Your navy blazer is at the cleaner's and your jeans are lent out". */
+export function awayClause(pieces: Swapped[]): string {
+  const parts = pieces.filter((p) => p.away).map((p) => `your ${midName(p.name)} ${p.away}`);
+  const said = joinWords(parts);
+  return said ? said[0].toUpperCase() + said.slice(1) : '';
+}
+
+/** "The white tee can't be worn by then, so another piece takes its place." (or "pieces take their places"); a piece
+ * away is named with where it is: "Your navy blazer is at the cleaner's until Friday 27 November, so another piece takes
+ * its place." */
+export function swapLine(given: Swapped[], day: string, today: string): string | null {
   if (!given.length) return null;
-  // in the middle of a sentence, as the rules' own sentences name a piece: "the oatmeal henley", but "the GANT polo"
-  const names = given.map((n) => (n.length > 1 && n[1] === n[1].toLowerCase() ? n[0].toLowerCase() + n.slice(1) : n));
+  const takes = (n: number) => (n === 1 ? 'another piece takes its place' : 'other pieces take their places');
+  const away = given.filter((p) => p.away);
+  const rest = given.filter((p) => !p.away).map((p) => midName(p.name));
   const when = day === today ? 'today' : 'by then';
-  return names.length === 1
-    ? `The ${names[0]} can't be worn ${when}, so another piece takes its place.`
-    : `The ${joinWords(names)} can't be worn ${when}, so other pieces take their places.`;
+  const lines = [];
+  if (away.length) lines.push(`${awayClause(away)}, so ${takes(away.length)}.`);
+  if (rest.length) lines.push(`The ${joinWords(rest)} can't be worn ${when}, so ${takes(rest.length)}.`);
+  return lines.join(' ');
 }
 
 /** In a planned piece's sheet: why Today does not offer it now. */

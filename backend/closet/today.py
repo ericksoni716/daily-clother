@@ -162,28 +162,36 @@ def clean_by(rows: list[dict], today: date, day: date) -> list[dict]:
     return [{**r, "laundry": "clean", "wears_since_wash": 0} if outfits._in_laundry(r) else r for r in rows]
 
 
+NO_FORECAST_AHEAD = "No forecast for that day."
+NO_PLACE_AHEAD = "Set your place in Settings for a forecast."
+
+
 def ahead_weather(state: State, place: dict | None, day: date, today: date, lookup=None) -> dict:
-    """The weather for a day ahead at `place`: {weather, message}. `weather` is the day as a trip's days have it
+    """The weather for a day ahead at `place`: {weather, message, retry}. `weather` is the day as a trip's days have it
     ({date, low_c, high_c, rain, rain_chance, summary, source}, `source` "forecast" or "usual"), or None when neither
-    can be had, and `message` then says why."""
+    can be had; `message` then says so in one short sentence (the weather line already says the outfits are for a mild
+    day), and `retry` whether trying again may find it (the weather service could not be reached)."""
     if not place:
-        return {"weather": None, "message": "Choose where you are in Settings, and Nines can look up the weather for that day."}
+        return {"weather": None, "message": NO_PLACE_AHEAD, "retry": False}
     found = (lookup or tripweather.lookup)(state, place, day, day, today)
     got = found["days"][0] if found.get("days") else None
     if not got or got.get("source") not in ("forecast", "usual"):
-        why = found.get("message") or "The weather service has nothing for that day."
-        return {"weather": None, "message": why.split(" Days without weather")[0]}
-    return {"weather": got, "message": None}
+        why = found.get("message") or ""
+        # the weather service answered with nothing for that day: trying again finds nothing more
+        retry = bool(why) and not why.startswith("The weather service has nothing")
+        return {"weather": None, "message": NO_FORECAST_AHEAD, "retry": retry}
+    return {"weather": got, "message": None, "retry": False}
 
 
 def again_of(outfit: dict, rows: list[dict], leave_out: set[str]) -> dict:
     """Which pieces of an outfit worn before come back today: those that can be worn, by the engine's own list of
     what cannot (`outfits._unavailable`: in the laundry, archived, waiting to be mended, disliked or left out). A piece
     Nines never chooses by itself (tennis shoes, swim trunks, lounge pants) comes back: the owner asks for it by name,
-    as when building around it. Places the outfit left empty, and those whose piece cannot be worn, are open."""
+    as when building around it. Places the outfit left empty, and those whose piece cannot be worn, are open. `away`,
+    given only when one is, says where each away piece of them is, with its verb, so the page can name it."""
     by_id = {r["id"]: r for r in rows}
     today_ = outfits.Context(0, 0, leave_out=tuple(leave_out))   # only what is left out is read from it
-    kept, unavailable = [], []
+    kept, unavailable, away = [], [], {}
     for place in outfits.PLACES:
         pid = outfit["pieces"].get(place)
         if not pid:
@@ -191,9 +199,15 @@ def again_of(outfit: dict, rows: list[dict], leave_out: set[str]) -> dict:
         r = by_id.get(pid)
         if r is None or outfits._unavailable(r, today_) not in (None, *outfits.ASKED_FOR_ONLY):
             unavailable.append(pid)
+            if r is not None and (where := outfits.away_words(r)):
+                piece = outfits._piece(dict(r))
+                away[pid] = f"{outfits.be([piece]) if piece else 'is'} {where}"
         else:
             kept.append(pid)
-    return {"id": outfit["id"], "worn_on": outfit["worn_on"], "kept": kept, "unavailable": unavailable}
+    out = {"id": outfit["id"], "worn_on": outfit["worn_on"], "kept": kept, "unavailable": unavailable}
+    if away:   # where an away piece is, to name it with its place ("is at the cleaner's until Friday 27 November")
+        out["away"] = away
+    return out
 
 
 def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None = None, path=None,
@@ -239,14 +253,14 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         note = daynote.shown(state, today_)
         on = note if daynote.active(note, today_) else None   # a note for days still ahead changes nothing yet
 
-    forecast, place, old, message, mild, reading = None, None, False, None, False, None
+    forecast, place, old, message, mild, reading, retry = None, None, False, None, False, None, False
     if other is not None and len(given) < len(WEATHER_FIELDS):
         place = (on.get("place") if on else None) or state.get("place")
         found = ahead_weather(state, place, other, today_)
         forecast = found["weather"]
         if forecast is None and ("low_c" not in given or "high_c" not in given):
             mild = True
-            message = f"Nines can't tell what the weather will be that day, so these are for a mild day. {found['message']}"
+            message, retry = found["message"], found["retry"]
     elif len(given) < len(WEATHER_FIELDS):
         found = weather.lookup(state, on.get("place") if on else None)
         place = found["place"]
@@ -294,7 +308,7 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
     ctx, count = outfits.parse_request({**request, **day, "worn_days_ago": worn_days_ago(conn, on_day)})
     rows = closet_rows(conn)
     if other is not None:
-        rows = clean_by(rows, today_, other)
+        rows = plans.back_by(clean_by(rows, today_, other), other)
     if ctx.build_around and not any(r["id"] == ctx.build_around for r in rows):
         raise outfits.ContextError("The item to build around is not in this closet.")
     again = None
@@ -354,6 +368,8 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         context["held"] = held
     if other is not None:
         context["ahead"] = True
+        if mild:
+            context["retry"] = retry
         stylist = None   # another day is dressed by the rules: Claude chooses for today only
     answer = outfits.suggest(rows, ctx, count, feedback)
     if planned is not None and not planned["unavailable"] and answer["outfits"]:

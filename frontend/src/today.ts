@@ -84,13 +84,16 @@ export interface DayContext {
   /** Why the forecast is old, or why there is none (source 'mild'), in the server's words; null otherwise. */
   message?: string | null;
   /** When the outfits start from one worn before: which of its pieces came back and which could not. */
-  again?: { id: string; worn_on: string | null; kept: string[]; unavailable: string[] };
-  /** The day's plan, when the outfits start from it: which of its pieces stay and which had to be swapped. */
-  plan?: { day: string; kept: string[]; unavailable: string[]; note: string | null };
+  again?: { id: string; worn_on: string | null; kept: string[]; unavailable: string[]; away?: Record<string, string> };
+  /** The day's plan, when the outfits start from it: which of its pieces stay and which had to be swapped. `away`, in
+   * both: where each swapped piece that is away is, with its verb ("is at the cleaner's until Friday 27 November"). */
+  plan?: { day: string; kept: string[]; unavailable: string[]; note: string | null; away?: Record<string, string> };
   /** Planned pieces not offered, as wearing them now leaves them in the laundry on their day: id -> that day. */
   held?: Record<string, string>;
   /** A day dressed ahead (Dress for another day), not today. */
   ahead?: boolean;
+  /** A day ahead with no weather: whether trying again may find it (the weather service could not be reached). */
+  retry?: boolean;
   /** A day ahead inside a saved trip, which has that day's outfit. */
   trip?: { id: string; place: string | null; first_day: string; last_day: string };
   /** The hours dressed for, read from the forecast hour by hour; null when it has no hours or the day was typed. */

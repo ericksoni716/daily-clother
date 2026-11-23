@@ -45,10 +45,15 @@ describe('the words of a plan', () => {
 
   it('says which piece was swapped, and why a planned piece is not offered', () => {
     expect(swapLine([], TODAY, TODAY)).toBeNull();
-    expect(swapLine(['Oatmeal henley'], TODAY, TODAY)).toBe("The oatmeal henley can't be worn today, so another piece takes its place.");
-    expect(swapLine(['GANT polo'], TODAY, TODAY)).toContain('The GANT polo');
-    expect(swapLine(['white tee'], TODAY, TODAY)).toBe("The white tee can't be worn today, so another piece takes its place.");
-    expect(swapLine(['white tee', 'jeans'], '2026-11-28', TODAY)).toBe("The white tee and jeans can't be worn by then, so other pieces take their places.");
+    expect(swapLine([{ name: 'Oatmeal henley' }], TODAY, TODAY)).toBe("The oatmeal henley can't be worn today, so another piece takes its place.");
+    expect(swapLine([{ name: 'GANT polo' }], TODAY, TODAY)).toContain('The GANT polo');
+    expect(swapLine([{ name: 'white tee' }], TODAY, TODAY)).toBe("The white tee can't be worn today, so another piece takes its place.");
+    expect(swapLine([{ name: 'white tee' }, { name: 'jeans' }], '2026-11-28', TODAY)).toBe("The white tee and jeans can't be worn by then, so other pieces take their places.");
+    // a piece away is named with where it is (Where a piece is), the rest as before
+    expect(swapLine([{ name: 'Navy blazer', away: "is at the cleaner's until Friday 27 November" }], TODAY, TODAY))
+      .toBe("Your navy blazer is at the cleaner's until Friday 27 November, so another piece takes its place.");
+    expect(swapLine([{ name: 'Navy blazer', away: "is at the cleaner's" }, { name: 'Blue jeans', away: 'are lent out' }, { name: 'White tee' }], TODAY, TODAY))
+      .toBe("Your navy blazer is at the cleaner's and your blue jeans are lent out, so other pieces take their places. The white tee can't be worn today, so another piece takes its place.");
     expect(heldLine('2026-11-28', TODAY)).toBe('You planned this for Saturday. Wearing it now would leave it in the laundry by then.');
     expect(tripLine('Lisbon, Portugal')).toBe('This day is part of your trip to Lisbon, which has its outfit already.');
   });

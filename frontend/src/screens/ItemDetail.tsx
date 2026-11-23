@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
-import { BackLink, confirmKeys, Failed, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
+import { BackLink, confirmKeys, Failed, Notice, PHONE, SAVE_WORDS, SaveStatus, Section, SegmentedControl, Sheet, useConfirmFocus, type SaveState } from '../components/ui';
 import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { WhatItIs } from '../components/WhatItIs';
 import { WhereItIs } from '../components/WhereItIs';
@@ -46,6 +46,19 @@ function applyPatch(item: Item, changes: ItemPatch): Item {
   return { ...item, ...(rest as Partial<Item>) };
 }
 
+/** How long "Saved" stays beside what changed before it goes quiet (as `SaveStatus` elsewhere). */
+const KEPT_MS = 3000;
+
+/** Where the last change on the page was made and how its save went: said beside it, quietly (`Kept`). */
+const KeptAt = createContext<{ at: string | null; state: SaveState }>({ at: null, state: 'idle' });
+
+/** "Saving… / Saved / Didn't save" beside one field, when it is the one that changed; it keeps its place, so nothing
+ * moves when it speaks. A fault also says why in a toast. */
+function Kept({ at }: { at: string }) {
+  const kept = useContext(KeptAt);
+  return <SaveStatus className="kept" state={kept.at === at ? kept.state : 'idle'} testId={`kept-${at}`} />;
+}
+
 export function ItemDetail({ id, status, inPanel }: Props) {
   const { toast, offline, profile } = useApp();
   const qc = useQueryClient();
@@ -62,6 +75,15 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   // Saves still on their way: the item is not read again meanwhile, so what the owner just chose stays on screen.
   const inflight = useRef(0);
   const saves = useRef(new SaveLine());
+  // the field whose change is being kept, said beside it (a toast only for what went wrong, or needs saying apart)
+  const [kept, setKept] = useState<{ at: string | null; state: SaveState }>({ at: null, state: 'idle' });
+  const keptTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(keptTimer.current), []);
+  const keep = useCallback((at: string, state: SaveState) => {
+    window.clearTimeout(keptTimer.current);
+    setKept({ at, state });
+    if (state === 'saved') keptTimer.current = window.setTimeout(() => setKept({ at: null, state: 'idle' }), KEPT_MS);
+  }, []);
   const backTo = status === 'archived' ? '/archived' : '/';
 
   const load = useCallback(() => {
@@ -81,8 +103,11 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     }
   }, [id, qc, toast]);
 
-  const save = useCallback(async (changes: ItemPatch, saidAs = 'Saved') => {
+  /** Saves a change made on the page. `at` names the field it is said beside; `toast` is said apart instead (archiving,
+   * which changes where the piece is listed). */
+  const save = useCallback(async (changes: ItemPatch, how: { at: string } | { toast: string }) => {
     if (!item) return;
+    if ('at' in how) keep(how.at, 'saving');
     const key = queryKeys.item(id);
     const before = item;
     void qc.cancelQueries({ queryKey: key, exact: true });
@@ -96,16 +121,18 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         writeSummary(qc, saved);
         void touch(qc, 'item', ['items', 'item']);
       }
-      toast(saidAs);
+      if ('at' in how) keep(how.at, 'saved');
+      else toast(how.toast);
     } catch (e) {
       inflight.current--;
+      if ('at' in how) keep(how.at, 'failed');
       toast((e as ApiError).message, 'error');
       if (!inflight.current) {
         qc.setQueryData(key, before);
         load();
       }
     }
-  }, [item, id, qc, toast, load]);
+  }, [item, id, qc, toast, load, keep]);
 
   // Wears and the laundry are changed through their own calls, each answering with the whole item.
   const act = useCallback(async (call: () => Promise<Item>, kind: EditKind, saidAs: string): Promise<Item | undefined> => {
@@ -180,6 +207,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   );
 
   return (
+    <KeptAt.Provider value={kept}>
     <article className="detail" aria-label={item.name || 'Item'}>
       <DetailTop inPanel={inPanel} backTo={backTo} />
       {locked && <Notice as="p">You're offline, so this item can't be changed right now.</Notice>}
@@ -219,25 +247,29 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       <header className="detail-head">
         <h2 className="detail-title">
           <NameField value={item.name} placeholder={label('category', item.category) || 'Name this item'} disabled={locked}
-            onSave={(name) => save({ name })} />
+            onSave={(name) => save({ name }, { at: 'name' })} />
         </h2>
+        <Kept at="name" />
       </header>
 
       {/* 2. the essentials, gone through on every new piece: what it is, its brand and its price */}
       <section className="essentials" aria-label="What it is, brand and price" data-testid="essentials">
-        <WhatItIs item={item} groups={vocab.kind_groups} disabled={locked} onPick={async (kind) => {
+        <WhatItIs item={item} groups={vocab.kind_groups} disabled={locked} kept={kept.at === 'kind' ? kept.state : 'idle'} onPick={async (kind) => {
           if (kind.id === item.kind && item.kind_by === 'owner') return true;
+          keep('kind', 'saving');
           try {
-            fixed(await api.setKind(item.id, kind.id), `What it is: ${kind.name}`);
+            itemSaved(qc, await api.setKind(item.id, kind.id));
+            keep('kind', 'saved');
             return true;
           } catch (e) {
+            keep('kind', 'failed');
             failed((e as ApiError).message);
             return false;
           }
         }} />
         <div className="essentials-fields">
-          <TextField label="Brand" value={item.brand} disabled={locked} onSave={(v) => save({ brand: v })} />
-          <PriceField cents={item.price_cents} disabled={locked} onSave={(c) => save({ price_cents: c })} />
+          <TextField label="Brand" at="brand" value={item.brand} disabled={locked} onSave={(v) => save({ brand: v }, { at: 'brand' })} />
+          <PriceField cents={item.price_cents} disabled={locked} onSave={(c) => save({ price_cents: c }, { at: 'price' })} />
         </div>
       </section>
 
@@ -249,9 +281,15 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         where={<WhereItIs item={item} disabled={locked} run={(call, said) => act(call, 'away', said)} />} />
 
       <Section id={`about-${item.id}`} title="About it" className="detail-about">
-        <ChipGroup field="rating" options={vocab.rating} value={item.rating} disabled={locked} labelOf={ratingLabel}
-          onChange={(v) => save({ rating: v })} />
-        <NotesBox item={item} disabled={locked} onSave={(patch) => save(patch)} />
+        <div className="kept-at">
+          <ChipGroup field="rating" options={vocab.rating} value={item.rating} disabled={locked} labelOf={ratingLabel}
+            onChange={(v) => save({ rating: v }, { at: 'rating' })} />
+          <Kept at="rating" />
+        </div>
+        <div className="kept-at">
+          <NotesBox item={item} disabled={locked} onSave={(patch) => save(patch, { at: 'notes' })} />
+          <Kept at="notes" />
+        </div>
       </Section>
 
       {/* 4. how it looks: the description the drawing is made from, fixing it, a shoe's drawings by Claude */}
@@ -268,25 +306,26 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         <Editing.Provider value={{ editing, setEditing }}>
           <ul className="detail-rows">
             <DetailRow field="color" value={shadeLabel(label('color', item.color), item.shade)} swatch={item.color ? (item.color_hex ?? swatchOf(item.color)) : undefined} disabled={locked}>
-              {(done) => <ColourChoices item={item} colours={vocab.color} shades={vocab.shades} disabled={locked} done={done} onSave={save} />}
+              {(done) => <ColourChoices item={item} colours={vocab.color} shades={vocab.shades} disabled={locked} done={done}
+                onSave={(changes) => save(changes, { at: 'color' })} />}
             </DetailRow>
             <DetailRow field="pattern" value={label('pattern', item.pattern)} disabled={locked}
               extra={<MeasuredColours colours={item.pattern_colors} />}
               extraWords={item.pattern_colors?.length ? `Colours measured from the photo: ${measuredColours(item.pattern_colors)}` : undefined}>
               {(done) => <ChipGroup field="pattern" options={vocab.pattern} value={item.pattern} disabled={locked}
                 beside={<MeasuredColours colours={item.pattern_colors} />}
-                onChange={(v) => { done(); void save({ pattern: v }); }} />}
+                onChange={(v) => { done(); void save({ pattern: v }, { at: 'pattern' }); }} />}
             </DetailRow>
             {(['location', 'formality', 'season'] as const).map((f) => f === 'formality' ? (
               <DetailRow key={f} field={f} value={formalityLabel(item.formality, item.formality_also, vocab.formality)} wrap disabled={locked}>
                 {(done) => <FormalityChips levels={vocab.formality} value={item.formality} also={item.formality_also} disabled={locked}
-                  onLevel={(v) => { done(); void save({ formality: v, formality_also: null }); }}
-                  onAlso={(v) => { done(); void save({ formality_also: v }); }} />}
+                  onLevel={(v) => { done(); void save({ formality: v, formality_also: null }, { at: 'formality' }); }}
+                  onAlso={(v) => { done(); void save({ formality_also: v }, { at: 'formality' }); }} />}
               </DetailRow>
             ) : (
               <DetailRow key={f} field={f} value={label(f, item[f])} disabled={locked}>
                 {(done) => <ChipGroup field={f} options={vocab[f]} value={item[f]} disabled={locked}
-                  onChange={(v) => { done(); void save({ [f]: v }); }} />}
+                  onChange={(v) => { done(); void save({ [f]: v }, { at: f }); }} />}
               </DetailRow>
             ))}
           </ul>
@@ -296,10 +335,13 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       <details className="more">
         <summary>Size, material and more</summary>
         <div className="more-body">
-          <TextField label="Size" value={item.size} disabled={locked} onSave={(v) => save({ size: v })} />
-          <TextField label="Material" value={item.material} disabled={locked} placeholder="e.g. cotton, wool blend" onSave={(v) => save({ material: v })} />
-          <TextField label="Date acquired" type="date" value={item.acquired_on} disabled={locked} onSave={(v) => save({ acquired_on: v })} />
-          <ChipGroup field="condition" options={vocab.condition} value={item.condition} disabled={locked} onChange={(v) => save({ condition: v })} />
+          <TextField label="Size" at="size" value={item.size} disabled={locked} onSave={(v) => save({ size: v }, { at: 'size' })} />
+          <TextField label="Material" at="material" value={item.material} disabled={locked} placeholder="e.g. cotton, wool blend" onSave={(v) => save({ material: v }, { at: 'material' })} />
+          <TextField label="Date acquired" at="acquired" type="date" value={item.acquired_on} disabled={locked} onSave={(v) => save({ acquired_on: v }, { at: 'acquired' })} />
+          <div className="kept-at">
+            <ChipGroup field="condition" options={vocab.condition} value={item.condition} disabled={locked} onChange={(v) => save({ condition: v }, { at: 'condition' })} />
+            <Kept at="condition" />
+          </div>
         </div>
       </details>
 
@@ -317,7 +359,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
             </div>
           )}
           <Actions item={item} disabled={locked} onArchive={async (archived) => {
-            await save({ status: archived ? 'archived' : 'active' }, archived ? 'Archived' : 'Back in your closet');
+            await save({ status: archived ? 'archived' : 'active' }, { toast: archived ? 'Archived' : 'Back in your closet' });
           }} onDelete={async () => {
             try {
               await api.remove(id);
@@ -332,6 +374,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         </div>
       </details>
     </article>
+    </KeptAt.Provider>
   );
 }
 
@@ -357,6 +400,8 @@ function DetailRow({ field, value, swatch, extra, extraWords, wrap, disabled, ch
   children(done: () => void): ReactNode;
 }) {
   const { editing, setEditing } = useContext(Editing);
+  const kept = useContext(KeptAt);
+  const said = kept.at === field ? kept.state : 'idle';
   const phone = useMediaQuery(PHONE);
   const editorId = useId();
   const open = editing === field && !disabled;
@@ -368,7 +413,7 @@ function DetailRow({ field, value, swatch, extra, extraWords, wrap, disabled, ch
   return (
     <li className={`detail-row${open ? ' is-open' : ''}`}>
       <button type="button" className="detail-row-button" aria-expanded={open} aria-controls={open ? editorId : undefined}
-        aria-label={`${title}: ${shown}${extraWords ? `. ${extraWords}` : ''}`} disabled={disabled} title={disabled ? OFFLINE_TITLE : undefined}
+        aria-label={`${title}: ${shown}${extraWords ? `. ${extraWords}` : ''}${said !== 'idle' ? `. ${SAVE_WORDS[said]}` : ''}`} disabled={disabled} title={disabled ? OFFLINE_TITLE : undefined}
         onClick={() => setEditing(open ? null : field)}>
         <span className="detail-row-label">{title}</span>{' '}
         <span className={`detail-row-value${value ? '' : ' is-empty'}`}>
@@ -376,6 +421,8 @@ function DetailRow({ field, value, swatch, extra, extraWords, wrap, disabled, ch
           <span className={`detail-row-text${wrap ? ' is-wrapping' : ''}`}>{shown}</span>
           {extra}
         </span>
+        {/* in the button, its words are put in the button's name too, so they are read out with it */}
+        {' '}<span className="save-status kept" data-testid={`kept-${field}`}>{said !== 'idle' ? SAVE_WORDS[said] : ''}</span>
         <ChevronIcon className="detail-row-chevron" />
       </button>
       {open && (
@@ -625,10 +672,12 @@ interface TextFieldProps {
   multiline?: boolean;
   /** A short line under the field, read out with it. */
   hint?: string;
+  /** the name its change is said beside (`Kept`) */
+  at?: string;
   onSave(v: string | null): void;
 }
 
-function TextField({ label: text, value, disabled, placeholder, type = 'text', multiline, hint, onSave }: TextFieldProps) {
+function TextField({ label: text, value, disabled, placeholder, type = 'text', multiline, hint, at, onSave }: TextFieldProps) {
   const [v, setV] = useFieldText(value ?? '');
   const hintId = useId();
   const commit = () => {
@@ -650,11 +699,12 @@ function TextField({ label: text, value, disabled, placeholder, type = 'text', m
       )}
     </label>
   );
-  if (!hint) return field;
+  if (!hint && !at) return field;
   return (
-    <div className="field-with-hint">
+    <div className="field-with-hint kept-at">
       {field}
-      <p className="hint" id={hintId}>{hint}</p>
+      {hint && <p className="hint" id={hintId}>{hint}</p>}
+      {at && <Kept at={at} />}
     </div>
   );
 }
@@ -674,7 +724,8 @@ function PriceField({ cents, disabled, onSave }: { cents: number | null; disable
     if (parsed !== undefined && parsed !== cents) onSave(parsed);
   });
   return (
-    <div className="field-with-hint">
+    <div className="field-with-hint kept-at">
+      <Kept at="price" />
       <label className="field">
         <span>Price</span>
         <span className="input-prefix">

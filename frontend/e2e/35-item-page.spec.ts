@@ -138,6 +138,42 @@ test.describe('the item page in the demo closet', () => {
     await expect(essentials.getByTestId('what-is-it')).toContainText('Henley');
   });
 
+  test('a change is said to be kept beside it, quietly, and no toast covers what you tap next', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    const id = demoId('Grey hoodie');
+    await page.goto(`/item/${id}`);
+    const essentials = page.getByTestId('essentials');
+    const brand = essentials.getByRole('textbox', { name: 'Brand' });
+    await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('Grey hoodie');
+
+    // the brand: "Saved" beside its box, and no toast (the review of 23 November: every change raised its own)
+    await brand.fill('Made-up Knits');
+    await brand.press('Enter');
+    await expect(page.getByTestId('kept-brand')).toHaveText('Saved');
+    await expect(page.locator('.toast')).toHaveCount(0);
+    // a row of Details: the word sits in the row that changed
+    const fold = await openFold(page, 'Details');
+    await fold.getByRole('button', { name: /^Season:/ }).click();
+    await page.getByRole('dialog', { name: 'Season' }).getByRole('button', { name: 'All year' }).click();
+    await expect(page.getByTestId('kept-season')).toHaveText('Saved');
+    await expect(page.locator('.toast')).toHaveCount(0);
+    // it goes quiet again by itself, keeping its place
+    await expect(page.getByTestId('kept-brand')).toHaveText('', { timeout: 6000 });
+    expect(await sideways(page)).toEqual([]);
+
+    // what went wrong is still a toast: offline the page says it cannot change, and a refused save says why
+    await page.route(`**/api/items/${id}`, (route) => route.request().method() === 'PATCH'
+      ? route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ detail: 'That brand cannot be kept.' }) })
+      : route.fallback());
+    await brand.fill('Another made-up brand');
+    await brand.press('Enter');
+    await expect(page.locator('.toast', { hasText: 'That brand cannot be kept.' })).toBeVisible();
+    await expect(page.getByTestId('kept-brand')).toHaveText("Didn't save");
+    await page.unroute(`**/api/items/${id}`);
+  });
+
   test("a colour's shades are offered under it, and the shade chosen is kept with its colour", async ({ page }) => {
     await page.setViewportSize(PHONE);
     await goToCloset(page);

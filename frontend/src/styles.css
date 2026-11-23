@@ -786,6 +786,12 @@ html.sheet-open, html.sheet-open body { overflow: hidden; overscroll-behavior: n
 .save-status { display: inline-block; min-height: 1.4em; font-size: var(--text-sm); color: var(--ink-3); }
 .save-status.is-failed { color: var(--danger); }
 .save-status .btn-link { min-height: 0; padding: 0; }
+/* the item page says a change is kept beside the field that changed (`Kept` in ItemDetail): over the free end of the
+   field's label line, in the row before its chevron, or under the name; it never moves what is around it */
+.kept-at { position: relative; }
+.kept-at > .save-status.kept { position: absolute; top: 0; right: 0; min-height: 0; line-height: 1.4; }
+.detail-row-button .save-status.kept { flex: none; min-height: 0; white-space: nowrap; }
+.detail-head .save-status.kept { display: block; text-align: right; min-height: 1.4em; line-height: 1.4; margin-bottom: calc(-1 * var(--space-2)); }
 
 .more-body .chip-group { margin: 4px 0 14px; }
 @media (min-width: 600px) { .more-body { grid-template-columns: 1fr 1fr; column-gap: 14px; } .more-body .chip-group, .more-body label:last-child { grid-column: 1 / -1; } }

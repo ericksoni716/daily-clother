@@ -73,7 +73,8 @@ test('item detail: switch pictures, change a chip, it persists', async ({ page }
   await formality.getByRole('button', { name: target }).click();
   await answer;
   await expect(formality.getByRole('button', { name: target })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
+  // said beside the row that changed, not in a toast (23 November)
+  await expect(panel.getByTestId('kept-formality')).toHaveText('Saved');
 
   // About it: how you feel about it, and one box for your notes
   answer = stored();

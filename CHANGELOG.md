@@ -12,6 +12,30 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Your nines, in the Wardrobe.** The nine pieces you wore most, as a square of three by three
+  of their pictures (photos or drawings, as Settings says), each with how many times you wore it
+  and opening the piece. Choose the last 30 days, 90 days or all time. It takes the place of the
+  Worn most list. With fewer than nine it shows what there is and says how many.
+- **What your clothes cost you.** One line in the Wardrobe says what you spent this year and on
+  how many pieces, once a few pieces have a price and a date bought; until then it says how many
+  have no price yet and opens the piece you wear most to add one. Under More numbers: what you
+  spent each year, the pieces that have earned their price and those that have not yet, and what
+  your wishlist would cost at today's prices (said per currency when shops price in more than one,
+  never added up).
+- **On sale now, on the You might like card.** A switch on the card, **For you** and **On
+  sale**, remembered on your device. On sale shows three things marked down now that suit you,
+  from the shops you like, the brands you wear, shops you have found things at before and
+  smaller makers you may not know. Nines opens each shop's page itself before showing it: the
+  price is the page's, a sale that has ended or is sold out is not shown, and anything under
+  15% off is left out. Each row says the prices in the wishlist's words ("Was $120.00, now
+  $84.00 (30% less)"), "Your size is in stock." when the page says so, and when only Claude read
+  the earlier price. Save keeps the earlier price on the wish, so its page shows the drop. Once
+  you have looked for sales once, Nines looks once a week under the same switch, on a different
+  day from the other look, and checks each sale's page again daily: one that ended leaves the
+  card.
+- **Shops you like, in Settings, Everyday.** Up to 12 shop names or sites, where a look for
+  things on sale starts. They are sent to Claude with that look.
+
 - **You might like, in the Wardrobe.** A small card with three things on sale that Claude found
   from what you wear and love, not from something missing: each with its picture, price and how
   many of your pieces it goes with, and **Save** (onto the wishlist, its price watched),
@@ -96,6 +120,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **The Wardrobe is about half as long.** Each thing worth buying is a closed card: its name, how
+  much it helps and one line of why. Tap it to open it in place with everything it showed before.
+  "I'll look for this" no longer folds the card and moves the page: the card stays where it is and
+  says it is on your wishlist, with Undo. "Tell it how you live" is its title and its two buttons, without a sentence. How
+  your clothes are used says each fact once: no heading over a label that repeats it, how long
+  you have been recording what you wear said once, and in those words rather than "the wear log".
 - **Today's first screen holds the outfit and its button** on the smallest iPhone, with five
   pieces: the pieces are four to a row on a phone, the date sits beside "Today", and when the
   weather cannot be fetched that is one line, "No forecast.", with **Try again** and **Type

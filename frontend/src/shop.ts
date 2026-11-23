@@ -429,5 +429,9 @@ const SENDS_ABOUT_YOU = 'your style, what you tend to wear, the brands you own a
 /** What a search sends to Claude, said under "Find some"; the demo closet searches nothing, so it is not said there. */
 export const SEARCH_SENDS = `A search sends Claude the wish, ${SENDS_ABOUT_YOU}`;
 
-/** What a look for things you might like sends to Claude: the same, without a wish. */
-export const LOOK_SENDS = `A look sends Claude ${SENDS_ABOUT_YOU}`;
+/** What a look for things on sale sends besides (DECISIONS, "On sale now"): where it starts. */
+export const SALE_SENDS = 'A look for things on sale also sends the shops you like and the shops you found things at before.';
+
+/** What a look for things you might like sends to Claude: the same, without a wish, and where a look for sales starts.
+ * The one place this is said. */
+export const LOOK_SENDS = `A look sends Claude ${SENDS_ABOUT_YOU} ${SALE_SENDS}`;

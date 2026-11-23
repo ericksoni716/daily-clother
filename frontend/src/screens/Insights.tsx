@@ -1,7 +1,8 @@
 /**
- * The parts of the Wardrobe page about how the closet is used: what is not worn (to archive or keep), what is worn
- * most, and, behind "More numbers", how wears are spread, what the closet is made of and cost per wear. The page,
- * which reads the answer, is Wardrobe.tsx.
+ * The parts of the Wardrobe page about how the closet is used: Your nines (the nine pieces worn most), what is not worn
+ * (to archive or keep), one line on what your clothes cost you, and, behind "More numbers", how wears are spread, what
+ * the closet is made of and what the clothes cost, year by year and per wear. The page, which reads the answer, is
+ * Wardrobe.tsx.
  */
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { api } from '../api';
@@ -9,10 +10,12 @@ import { HangerIcon } from '../components/Icons';
 import { Card as UiCard, Fold, ItemThumb, SegmentedControl } from '../components/ui';
 import { useShowDrawings, type GridView } from '../drawing';
 import {
-  barWidth, costCaption, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, loadSavedInsights,
-  MAKEUP_FIELDS, makeupHero, plural, shortDate, spreadHero, unwornCaption, unwornHero, windowLabel, wornMostHero, type CostPiece, type Counted, type Insights, type MakeupField, type Unworn,
+  barWidth, earnedCaption, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, loadSavedInsights,
+  MAKEUP_FIELDS, makeupHero, ninesWindow, plural, shortDate, spentWords, spreadHero, unwornCaption, windowLabel, wishlistCostWords,
+  yearWords, type Counted, type Insights, type MakeupField, type NinesWindow, type PricedPiece, type Spending, type Unworn,
   type UnwornPiece,
 } from '../insights';
+import { amount } from '../spend';
 import { categoryPlural, label } from '../labels';
 import { Link } from '../router';
 import { useItemEdit } from '../queries';
@@ -76,21 +79,33 @@ export function Usage({ answer, byId, locked }: { answer: Insights; byId: ById; 
     setKept({});
   }, [profile]);
 
+  const nothing = answer.log.wears === 0;
+  const lately = answer.not_worn_lately;
+  // after a break from recording, Not worn for a long time says so (once); with too short a record it says nothing here
+  const quiet = !lately.enough && lately.items.length === 0 && answer.log.days >= 90;
   return (
     <ViewContext.Provider value={view}>
-      <section className="wardrobe-section insights" aria-labelledby="unworn-title">
-        <h2 id="unworn-title" className="missing-section-title">Not worn</h2>
-        <div className="insights-grid">
-          <UnwornCard finding={answer.never_worn} testid="never-worn" byId={byId} kept={kept} gone={goneIds} offline={locked}
-            archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
-          <UnwornCard finding={answer.not_worn_lately} testid="not-worn-lately" byId={byId} kept={kept} gone={goneIds} offline={locked}
-            archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
-        </div>
-      </section>
-      <section className="wardrobe-section insights" aria-labelledby="worn-most-title">
-        <h2 id="worn-most-title" className="missing-section-title">Worn most</h2>
-        <WornMostCard answer={answer} byId={byId} />
-      </section>
+      {answer.nines && (
+        <section className="wardrobe-section insights" aria-labelledby="nines-title">
+          <h2 id="nines-title" className="missing-section-title">Your nines</h2>
+          <p className="hint nines-hint">The nine pieces you wore most, and how many times you wore each.</p>
+          <Nines windows={answer.nines.windows} byId={byId} />
+        </section>
+      )}
+      {!nothing && (
+        <section className="wardrobe-section insights" aria-labelledby="unworn-title">
+          <h2 id="unworn-title" className="missing-section-title">Not worn</h2>
+          <div className="insights-grid">
+            <UnwornCard finding={answer.never_worn} testid="never-worn" byId={byId} kept={kept} gone={goneIds} offline={locked}
+              archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
+            {(lately.items.length > 0 || quiet) && (
+              <UnwornCard finding={lately} title={lately.title} testid="not-worn-lately" byId={byId} kept={kept} gone={goneIds} offline={locked}
+                archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
+            )}
+          </div>
+        </section>
+      )}
+      {answer.spending && <Spent spending={answer.spending} byId={byId} />}
       <Fold title="More numbers" lazy className="insights more-numbers" testId="more-numbers">
         <div className="insights-grid">
           <SpreadCard answer={answer} byId={byId} />
@@ -106,12 +121,14 @@ type ById = Map<string, ItemSummary>;
 
 /** A finding: a short label, the one figure it leads with (when there is one) and one sentence that says what it means. */
 function Card({ title, hero, sentence, testid, wide, children }: {
-  title: string; hero: string | null; sentence: string; testid: string; wide?: boolean; children?: ReactNode;
+  /** Left out where the section's heading already says it ("Not worn"), so a heading is never said twice. */
+  title?: string; hero: string | null; sentence: string; testid: string; wide?: boolean; children?: ReactNode;
 }) {
   const id = `insights-${testid}`;
   return (
-    <UiCard as="section" className={`insights-card${wide ? ' is-wide' : ''}`} aria-labelledby={id} data-testid={testid}>
-      <h3 id={id} className="insights-card-title">{title}</h3>
+    <UiCard as="section" className={`insights-card${wide ? ' is-wide' : ''}`} aria-labelledby={title ? id : undefined}
+      aria-label={title ? undefined : sentence} data-testid={testid}>
+      {title && <h3 id={id} className="insights-card-title">{title}</h3>}
       {hero && <p className="insights-hero" data-testid="insight-hero">{hero}</p>}
       <p className="insights-sentence">{sentence}</p>
       {children}
@@ -146,42 +163,107 @@ function Piece({ id, byId, caption, title, children }: { id: string; byId: ById;
   );
 }
 
-function CostRow({ heading, detail, pieces, byId }: { heading: string; detail?: ReactNode; pieces: CostPiece[]; byId: ById }) {
+function CostRow({ heading, detail, pieces, currency, byId }: {
+  heading: string; detail?: ReactNode; pieces: PricedPiece[]; currency: string; byId: ById;
+}) {
   if (!pieces.length) return null;
   return (
     <>
-      <h3 className="chip-group-title">{heading}</h3>
+      <h4 className="chip-group-title">{heading}</h4>
       {detail}
       <ul className="insights-pieces">
-        {pieces.map((p) => <Piece key={p.id} id={p.id} byId={byId} caption={costCaption(p)} title={p.sentence} />)}
+        {pieces.map((p) => <Piece key={p.id} id={p.id} byId={byId} caption={earnedCaption(p, currency)} />)}
       </ul>
     </>
   );
 }
 
 /**
- * Cost per wear: worth having, not what to judge every piece by (the owner, 16 November). So it comes last, at the
- * width of the cards beside it, with its figure inside its sentence rather than leading the card, and its pieces
- * folded away until asked for.
+ * What your clothes cost you, in full: what was spent each year, the closet's cost per wear, the pieces that have
+ * earned their price and those that have not yet (folded until asked for), and what the wishlist would cost. Worth
+ * having, not what to judge every piece by (the owner, 16 November), so it is the last card of More numbers, with no
+ * figure leading it. The one line in view is `Spent`.
  */
 function CostCard({ answer, byId }: { answer: Insights; byId: ById }) {
   const f = answer.cost_per_wear;
+  const s = answer.spending;
+  const years = s ? yearWords(s) : [];
+  const wishlist = s ? wishlistCostWords(s.wishlist) : null;
+  const best = s?.earned[0];
   return (
-    <Card title={f.title} hero={null} sentence={f.sentence} testid="cost-per-wear">
-      {(f.best.length > 0 || f.worst.length > 0) && (
+    <Card title="What your clothes cost you" hero={null} sentence={f.sentence} testid="cost-per-wear">
+      {years.length > 0 && (
+        <ul className="insights-years" data-testid="cost-years">{years.map((y) => <li key={y}>{y}</li>)}</ul>
+      )}
+      {s && (s.earned.length > 0 || s.not_earned.length > 0) && (
         <details className="more insights-cost-pieces" data-testid="cost-pieces">
-          <summary>Best value and most per wear</summary>
-          <CostRow heading="Best value" pieces={f.best} byId={byId}
-            detail={f.best[0] && <p className="insights-detail muted small" data-testid="cost-best">{f.best[0].sentence}</p>} />
-          <CostRow heading="Most per wear" pieces={f.worst} byId={byId} />
+          <summary>Which pieces have earned their price</summary>
+          <CostRow heading="Earned their price" pieces={s.earned} currency={s.currency} byId={byId}
+            detail={best && <p className="insights-detail muted small" data-testid="cost-best">
+              Your {nameOf(byId.get(best.id))} cost {amount(best.per_wear_cents ?? 0, s.currency, true)} a wear over {plural(best.wears, 'wear')}.
+            </p>} />
+          <CostRow heading="Not yet: a price, and few or no wears" pieces={s.not_earned} currency={s.currency} byId={byId} />
         </details>
       )}
+      {wishlist && <p className="insights-detail" data-testid="cost-wishlist">{wishlist}</p>}
     </Card>
+  );
+}
+
+/** The one line in view about what your clothes cost: this year's spending, or how many pieces have no price yet, with a
+ * link to the piece to start with (the one you wear most), where the price and the date bought are filled in. */
+function Spent({ spending, byId }: { spending: Spending; byId: ById }) {
+  const words = spentWords(spending);
+  if (!words) return null;
+  const first = spending.first_missing;
+  return (
+    <p className="wardrobe-spent" data-testid="spent">
+      {words.text}
+      {words.fill && first && byId.has(first) && (
+        <>
+          {' '}
+          <Link to={piecePath(first)} className="wardrobe-spent-link">
+            {words.fill === 'price' ? 'Add one to the piece you wear most.' : 'Add the date to the piece you wear most.'}
+          </Link>
+        </>
+      )}
+    </p>
+  );
+}
+
+/**
+ * Your nines: the nine pieces worn most over the chosen time, as a three-by-three square of their pictures (photos or
+ * drawings, as Settings says), each with its number of wears, each opening the piece. With fewer than nine it shows
+ * what there is and says so in one line.
+ */
+function Nines({ windows, byId }: { windows: NinesWindow[]; byId: ById }) {
+  const [index, setIndex] = useState(() => ninesWindow(windows));
+  const w = windows[Math.min(index, windows.length - 1)];
+  return (
+    <div className="nines" data-testid="nines">
+      <SegmentedControl label="Over" small className="insights-windows" value={String(index)}
+        options={windows.map((x, i) => ({ value: String(i), label: windowLabel(x.days) }))}
+        onChange={(i) => setIndex(Number(i))} />
+      {w.items.length > 0 && (
+        <ol className="nines-grid" aria-label={`Worn most, ${windowLabel(w.days).toLowerCase()}`}>
+          {w.items.map((p) => (
+            <li key={p.id}>
+              <Link to={piecePath(p.id)} className="nines-tile" data-testid="nine" aria-label={`${nameOf(byId.get(p.id))}, ${plural(p.wears, 'wear')}`}>
+                <ItemThumb className="nines-pic" picture={<Picture item={byId.get(p.id)} />} />
+                <span className="nines-count">{p.wears}</span>
+              </Link>
+            </li>
+          ))}
+        </ol>
+      )}
+      {w.sentence && <p className="insights-sentence nines-line">{w.sentence}</p>}
+    </div>
   );
 }
 
 interface UnwornProps {
   finding: Unworn;
+  title?: string;
   testid: string;
   byId: ById;
   kept: Record<string, string>;
@@ -193,12 +275,12 @@ interface UnwornProps {
   onShowKept(): void;
 }
 
-function UnwornCard({ finding, testid, byId, kept, gone, offline, archiving, onArchive, onKeep, onShowKept }: UnwornProps) {
+function UnwornCard({ finding, title, testid, byId, kept, gone, offline, archiving, onArchive, onKeep, onShowKept }: UnwornProps) {
   const listed = finding.items.filter((p) => !gone.includes(p.id));
   const shown = listed.filter((p) => !kept[p.id]);
   const hidden = listed.length - shown.length;
   return (
-    <Card title={finding.title} hero={unwornHero(finding, listed.length)} sentence={finding.sentence} testid={testid} wide>
+    <Card title={title} hero={null} sentence={finding.sentence} testid={testid} wide>
       {shown.length > 0 && (
         <ul className="insights-pieces">
           {shown.map((p: UnwornPiece) => (
@@ -241,20 +323,6 @@ function Bars({ rows, byId }: { rows: Counted[]; byId: ById }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-function WornMostCard({ answer, byId }: { answer: Insights; byId: ById }) {
-  const windows = answer.worn_most.windows;
-  const [index, setIndex] = useState(() => Math.max(0, windows.findIndex((w) => w.enough)));
-  const w = windows[Math.min(index, windows.length - 1)];
-  return (
-    <Card title={answer.worn_most.title} hero={wornMostHero(w)} sentence={w.sentence} testid="worn-most">
-      <SegmentedControl label="Over" small className="insights-windows" value={String(index)}
-        options={windows.map((x, i) => ({ value: String(i), label: windowLabel(x.days) }))}
-        onChange={(i) => setIndex(Number(i))} />
-      {w.items.length > 0 && <Bars rows={w.items} byId={byId} />}
-    </Card>
   );
 }
 

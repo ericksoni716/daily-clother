@@ -33,21 +33,24 @@ test('how the closet is used, in the demo closet: a cost per wear, and archiving
   await expect(cards.last()).toHaveAttribute('data-testid', 'cost-per-wear');
   const cost = page.getByTestId('cost-per-wear');
   await expect(cost).not.toHaveClass(/is-wide/);
-  await expect(cost.getByRole('heading', { level: 3 })).toHaveText('Cost per wear');
+  await expect(cost.getByRole('heading', { level: 3 })).toHaveText('What your clothes cost you');
   await expect(cost.getByTestId('insight-hero')).toHaveCount(0);
   await expect(cost.locator('.insights-sentence')).toHaveText(/^You paid \$[\d,]+ for the \d+ pieces with a price and have worn them \d+ times: \$[\d,]+\.\d\d a wear\.$/);
   await expect(page.getByTestId('cost-best')).toBeHidden();
-  await cost.getByText('Best value and most per wear').click();
+  await cost.getByText('Which pieces have earned their price').click();
   await expect(page.getByTestId('cost-best')).toHaveText(/^Your .+ cost \$[\d,]+\.\d\d a wear over \d+ wears?\.$/);
   // pieces not worn yet are listed once, in their own card, not again under cost per wear
   await expect(cost.getByRole('heading', { name: 'Not worn yet' })).toHaveCount(0);
 
+  // under the one heading "Not worn", said once: no second label, and the count only in its sentence
   const never = page.getByTestId('never-worn');
-  await expect(never.getByRole('heading', { level: 3 })).toHaveText('Not worn yet');
+  await expect(page.getByRole('heading', { name: 'Not worn', level: 2 })).toBeVisible();
+  await expect(never.getByRole('heading')).toHaveCount(0);
+  await expect(never.getByTestId('insight-hero')).toHaveCount(0);
   const pieces = never.getByTestId('insight-piece');
   await expect(pieces.first()).toBeVisible();
   const before = await pieces.count();
-  await expect(never.getByTestId('insight-hero')).toHaveText(before === 1 ? '1 piece' : `${before} pieces`);
+  await expect(never.locator('.insights-sentence')).toHaveText(new RegExp(`^${before} pieces? ha(s|ve) not been worn`));
   // the Archive buttons line up, whatever the length of the names above them
   const tops = await never.getByRole('button', { name: /^Archive / }).evaluateAll((bs) => bs.map((b) => Math.round(b.getBoundingClientRect().top)));
   expect(new Set(tops).size).toBe(1);
@@ -108,7 +111,7 @@ test('how the closet is used shows drawings or photos as Settings says', async (
   expect((await page.request.put('/api/settings', { data: { show_drawings: true } })).ok()).toBe(true);
   await page.goto('/wardrobe');
   await moreNumbers(page);
-  await page.getByTestId('cost-per-wear').getByText('Best value and most per wear').click();
+  await page.getByTestId('cost-per-wear').getByText('Which pieces have earned their price').click();
   const pics = page.getByTestId('cost-per-wear').locator('.insights-piece-pic img');
   await expect(pics.first()).toBeVisible();
   expect(await pics.evaluateAll((imgs) => imgs.every((i) => i.classList.contains('pic-illustration')))).toBe(true);
@@ -118,4 +121,43 @@ test('how the closet is used shows drawings or photos as Settings says', async (
   await expect(all.first()).toBeVisible();
   // the demo's photographed pieces show their photo (cut out), as in the grid
   expect(await all.evaluateAll((imgs) => imgs.some((i) => !i.classList.contains('pic-illustration')))).toBe(true);
+});
+
+test('Your nines: the nine pieces worn most, as a square, over the time you choose, each opening the piece', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  // drawings, as Settings says, like every other picture of a piece
+  expect((await page.request.put('/api/settings', { data: { show_drawings: true } })).ok()).toBe(true);
+  try {
+    await page.goto('/wardrobe');
+    const nines = page.getByTestId('nines');
+    await expect(page.getByRole('heading', { name: 'Your nines', level: 2 })).toBeVisible({ timeout: 30_000 });
+    const tiles = nines.getByTestId('nine');
+    await expect(tiles).toHaveCount(9);
+    await expect(nines.getByRole('button', { name: 'Last 30 days' })).toHaveAttribute('aria-pressed', 'true');
+    // each says its number of wears, the most first
+    const counts = (await tiles.locator('.nines-count').allInnerTexts()).map(Number);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
+    await expect(tiles.first()).toHaveAttribute('aria-label', new RegExp(`, ${counts[0]} wears?$`));
+    expect(await nines.locator('img').evaluateAll((imgs) => imgs.length > 0 && imgs.every((i) => i.classList.contains('pic-illustration')))).toBe(true);
+    // a square on a phone: three across, three down, about as tall as it is wide
+    const grid = (await nines.locator('.nines-grid').boundingBox())!;
+    expect(Math.abs(grid.width - grid.height)).toBeLessThan(12);
+    expect(grid.width).toBeLessThanOrEqual(375);
+    // all time
+    await nines.getByRole('button', { name: 'All time' }).click();
+    await expect(tiles).toHaveCount(9);
+    // a piece opens in the Wardrobe
+    const href = await tiles.first().getAttribute('href');
+    expect(href).toMatch(/^\/wardrobe\/item\//);
+    await tiles.first().click();
+    await expect(page).toHaveURL(new RegExp(`${href}$`));
+    // and on a computer it is not a wall: about a phone's width
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/wardrobe');
+    expect((await page.getByTestId('nines').locator('.nines-grid').boundingBox())!.width).toBeLessThanOrEqual(420);
+  } finally {
+    await page.request.put('/api/settings', { data: { show_drawings: false } });
+  }
 });

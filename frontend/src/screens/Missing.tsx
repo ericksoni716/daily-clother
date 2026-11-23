@@ -8,7 +8,7 @@ import { CheckIcon, ChevronIcon, HangerIcon, LinkIcon, PlusIcon } from '../compo
 import { Pieces } from '../components/ItemPic';
 import {
   colorWords, type Gap, type GapsAnswer, groupReasons, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
-  type LookFor, reasonLabel, type Wish,
+  type LookFor, reasonLabel, shortWhy, type Wish,
 } from '../gaps';
 import { Button, buttonClass, Card, EmptyState, Fold, SaveStatus, ShowMore, useSaveStatus } from '../components/ui';
 import { swatchOf } from '../labels';
@@ -65,8 +65,7 @@ export function LifeBasis({ context, locked, busy, invite = true, onOpen, onDism
       </button>
       {invite && !life && !context.prompt_dismissed && !demo && !locked && (
         <div className="life-invitation">
-          <div><h2>Tell it how you live <span>· 1 minute</span></h2>
-            <p>More for your everyday. Less for days you never dress for.</p></div>
+          <h2>Tell it how you live <span>· 1 minute</span></h2>
           <div className="row">
             <Button variant="primary" small onClick={onOpen}>Answer a few questions</Button>
             <Button variant="ghost" small disabled={busy} onClick={onDismiss}>Not now</Button>
@@ -101,6 +100,8 @@ export interface Actions {
   locked: boolean;
   busy: string | null;
   wish(g: Gap): Promise<unknown>;
+  /** Undo for "I'll look for this": the wish made from the gap is taken off the list again. */
+  unwish(g: Gap): Promise<unknown>;
   hide(g: Gap, reason: HideReason | null): Promise<unknown>;
   unhide(id: string): Promise<unknown>;
   undoHolds(g: Gap): Promise<unknown>;
@@ -168,7 +169,7 @@ export function WorthBuying({ gaps, byId, actions, offline, situation, onSituati
       {shown.length > 0 && open === 0 && <p className="notice">You've decided on every suggestion. New ones show here when your closet changes.</p>}
       <ShowMore items={shown} first={TOP_GAPS} wide={TOP_GAPS} as="ol" className="gap-list" label="Worth buying, most helpful first"
         keyOf={(g) => g.id}
-        render={(g) => (g.state === 'wished' ? <WishedGap gap={g} /> : <GapCard gap={g} byId={byId} actions={actions} />)} />
+        render={(g) => <GapCard gap={g} byId={byId} actions={actions} />} />
 
       {heldBack.length > 0 && <Fold className="missing-hidden" testId="held-back-gaps" title={`Suggestions held back (${heldBack.length})`}>
         <p className="hint">These suggestions match something you said you never dress for. Undo brings them back for the days listed.</p>
@@ -258,58 +259,78 @@ function GapWhy({ why }: { why: string[] }) {
   );
 }
 
-function GapCard({ gap, byId, actions }: { gap: Gap; byId: Map<string, ItemSummary>; actions: Actions }) {
+/**
+ * A thing worth buying, as a card that opens in place: closed, its name, how much it helps and one line of why; open,
+ * what it showed before (every reason, what to look for, your pieces, the search and the two buttons). Its name is the
+ * button; the whole head is the place to tap. "I'll look for this" leaves the card where it is and says so in place,
+ * with Undo, so nothing on the page moves (DESIGN, "The page holds still"). The same card draws a wished gap, so it
+ * keeps whether it is open when its state changes.
+ */
+function GapCard({ gap, byId, actions, startOpen = false }: { gap: Gap; byId: Map<string, ItemSummary>; actions: Actions; startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen);
   const [asking, setAsking] = useState(false);
   const titleId = useId();
+  const bodyId = useId();
   const busy = actions.busy === gap.id;
   const title = actions.locked ? OFFLINE_TITLE : undefined;
+  const wished = gap.state === 'wished';
   return (
-    <Card as="article" className="gap-card" data-testid="gap" data-gap={gap.id} aria-labelledby={titleId}>
+    <Card as="article" className={`gap-card${open ? ' is-open' : ''}${wished ? ' is-wished' : ''}`} data-testid="gap" data-gap={gap.id}
+      aria-labelledby={titleId}>
       <header className="gap-head">
-        <h3 id={titleId}>{gap.name}</h3>
-        <HelpPill score={gap.score} />
+        <h3 id={titleId}>
+          <button type="button" className="gap-toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen(!open)}>
+            {gap.name}
+          </button>
+        </h3>
+        <ChevronIcon className="gap-chevron" aria-hidden="true" />
+        <p className="gap-line">
+          <HelpPill score={gap.score} />
+          {!open && (wished
+            ? <span className="gap-wished"><CheckIcon /> On your wishlist</span>
+            : <span className="gap-summary gap-short" data-testid="gap-summary">{shortWhy(gap.why)}</span>)}
+        </p>
       </header>
-      <SituationLabels gap={gap} />
-      <div className="gap-body">
-        <GapWhy why={gap.why} />
-        <LookForBox look={gap.look_for} />
+      <div id={bodyId} className="gap-open" hidden={!open}>
+        {open && (
+          <>
+            <SituationLabels gap={gap} />
+            <div className="gap-body">
+              <GapWhy why={gap.why} />
+              <LookForBox look={gap.look_for} />
+            </div>
+            <p className="gap-search">
+              <a className={buttonClass({ variant: 'link', small: true, className: 'wish-inline-button' })} data-testid="google-shopping"
+                href={googleShoppingLink(gap)} target="_blank" rel="noopener noreferrer">Search Google Shopping</a>
+            </p>
+            {gap.evidence.items.length > 0 && (
+              <div className="gap-pieces">
+                <h4 className="gap-label">From your closet</h4>
+                <Pieces ids={gap.evidence.items} byId={byId} max={6} label={`Your pieces for ${gap.name}`} />
+              </div>
+            )}
+            {wished ? (
+              <div className="row gap-actions gap-wished-row" role="status">
+                <span className="gap-wished"><CheckIcon /> On your wishlist</span>
+                <Button variant="ghost" disabled={actions.locked || busy} title={title} aria-label={`Undo: take ${gap.name} off your wishlist`}
+                  onClick={() => void actions.unwish(gap)}>Undo</Button>
+              </div>
+            ) : asking ? (
+              <HideForm name={gap.name} locked={actions.locked} busy={busy} onCancel={() => setAsking(false)}
+                onHide={async (reason) => {
+                  await actions.hide(gap, reason);
+                }} />
+            ) : (
+              <div className="row gap-actions">
+                <Button variant="primary" disabled={actions.locked || busy} title={title} onClick={() => void actions.wish(gap)}>
+                  <CheckIcon /> I'll look for this
+                </Button>
+                <Button variant="ghost" disabled={actions.locked || busy} title={title} onClick={() => setAsking(true)}>Not for me</Button>
+              </div>
+            )}
+          </>
+        )}
       </div>
-      <p className="gap-search">
-        <a className={buttonClass({ variant: 'link', small: true, className: 'wish-inline-button' })} data-testid="google-shopping"
-          href={googleShoppingLink(gap)} target="_blank" rel="noopener noreferrer">Search Google Shopping</a>
-      </p>
-      {gap.evidence.items.length > 0 && (
-        <div className="gap-pieces">
-          <h4 className="gap-label">From your closet</h4>
-          <Pieces ids={gap.evidence.items} byId={byId} max={6} label={`Your pieces for ${gap.name}`} />
-        </div>
-      )}
-      {asking ? (
-        <HideForm name={gap.name} locked={actions.locked} busy={busy} onCancel={() => setAsking(false)}
-          onHide={async (reason) => {
-            await actions.hide(gap, reason);
-          }} />
-      ) : (
-        <div className="row gap-actions">
-          <Button variant="primary" disabled={actions.locked || busy} title={title} onClick={() => void actions.wish(gap)}>
-            <CheckIcon /> I'll look for this
-          </Button>
-          <Button variant="ghost" disabled={actions.locked || busy} title={title} onClick={() => setAsking(true)}>Not for me</Button>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function WishedGap({ gap }: { gap: Gap }) {
-  return (
-    <Card as="article" className="gap-card is-wished" data-testid="gap" data-gap={gap.id} aria-label={gap.name}>
-      <header className="gap-head">
-        <h3>{gap.name}</h3>
-        <HelpPill score={gap.score} />
-      </header>
-      <p className="gap-wished"><CheckIcon /> On your wishlist</p>
-      <SituationLabels gap={gap} />
     </Card>
   );
 }

@@ -139,6 +139,8 @@ class Asker(Protocol):
 
     def picks(self, asked: dict, routes: tuple[str, ...]) -> shopping.ShopAnswer: ...
 
+    def sale(self, asked: dict, routes: tuple[str, ...]) -> shopping.SaleAnswer: ...
+
 
 class ClaudeAsker:
     """The real one: `tagger/shopping.py` behind the monthly limit, each kind of call recorded as its own purpose."""
@@ -149,6 +151,7 @@ class ClaudeAsker:
         self.pricing = spend.Meter(cfg, state, spend.PURPOSE_PRICES, spend.estimate_shop)
         self.describing = spend.Meter(cfg, state, spend.PURPOSE_DESCRIBE_LINK, spend.estimate_describe_link)
         self.picking = spend.Meter(cfg, state, spend.PURPOSE_PICKS, spend.estimate_shop)
+        self.selling = spend.Meter(cfg, state, spend.PURPOSE_SALE, spend.estimate_shop)
 
     def find(self, wish: dict, routes: tuple[str, ...]) -> shopping.ShopAnswer:
         return shopping.find(wish, routes, client=self.client, meter=self.finding)
@@ -161,6 +164,9 @@ class ClaudeAsker:
 
     def picks(self, asked: dict, routes: tuple[str, ...]) -> shopping.ShopAnswer:
         return shopping.picks(asked, routes, client=self.client, meter=self.picking)
+
+    def sale(self, asked: dict, routes: tuple[str, ...]) -> shopping.SaleAnswer:
+        return shopping.sale(asked, routes, client=self.client, meter=self.selling)
 
 
 # the closet to check finds against, for a profile: (item rows, wear log)
@@ -224,6 +230,22 @@ def clean_find(raw: object) -> dict | None:
         return None
     return {"name": name, "shop": shop, "url": url, "image_url": clean_url(raw.get("image_url")),
             "price": clean_price(price) if price is not None else None, "currency": currency, "piece": piece}
+
+
+def clean_sale(raw: object) -> dict | None:
+    """One product from a sale look (`shopping.SaleFound`) as a find (`clean_find`), with the price before the markdown
+    Claude saw (`price_before`, checked as a price; None when it gave none or it does not fit) and whether Claude says
+    the page shows the owner's size in stock (`size_in_stock`: True, False, or None when it did not say). Unchecked
+    against the page: `picks.check_sale` does that."""
+    if hasattr(raw, "model_dump"):
+        raw = raw.model_dump()
+    f = clean_find(raw)
+    if f is None:
+        return None
+    before = raw.get("price_before")
+    stock = raw.get("size_in_stock")
+    return {**f, "price_before": clean_price(before) if before is not None else None,
+            "size_in_stock": stock if isinstance(stock, bool) else None}
 
 
 def _piece_of(raw: dict, name: str) -> dict | None:
@@ -307,7 +329,8 @@ def clean_read(p: productpage.Product) -> dict:
     """What Nines read on a link's page, checked as Claude's answers are: text shortened, a picture only by a web
     address, a price only as a number in range (else none), a currency only as three letters (else none), and of the
     checkout codes its text shows, the biggest discount among those that fit (`clean_code`; an amount off only in the
-    page's currency), else none. Its words about the product (description, brand, colour, material) are kept only to
+    page's currency), else none. The price before a markdown is kept only as a price above the price (for "On sale
+    now"), and the sizes its variants offer as at most `productpage.SIZES_MAX` short sizes. Its words about the product (description, brand, colour, material) are kept only to
     be sent to Claude to describe it."""
     price, currency = clean_price(p.price), clean_currency(p.currency)
     codes = []
@@ -319,8 +342,13 @@ def clean_read(p: productpage.Product) -> dict:
             checked["currency"] = c.currency
         if checked:
             codes.append(checked)
+    before = clean_price(getattr(p, "price_before", None))
+    sizes = {s: bool(v) for s, v in list((getattr(p, "sizes", None) or {}).items())[:productpage.SIZES_MAX]
+             if isinstance(s, str) and _words(s, 20)}
     return {"name": _words(p.name, NAME_MAX), "shop": _words(p.shop, SHOP_MAX), "image_url": clean_url(p.image_url),
             "price": price, "currency": currency, "available": p.available is not False, "code": best_code(codes, price),
+            "price_before": before if before is not None and price is not None and before > price else None,
+            "sizes": sizes,
             "description": _words(p.description, DESCRIPTION_MAX), "brand": _words(p.brand, BRAND_MAX),
             "color": _words(p.color, COLOR_MAX), "material": _words(p.material, wouldwork.MATERIAL_MAX)}
 
@@ -483,6 +511,21 @@ def _open_finds(conn: sqlite3.Connection) -> tuple[list[sqlite3.Row], dict[str, 
                           "WHERE w.bought_at IS NULL ORDER BY p.at, p.id"):
         history.setdefault(r["find_id"], []).append(_point(r))
     return finds, history
+
+
+def wish_prices(conn: sqlite3.Connection) -> list[dict]:
+    """Every wish still wanted, oldest first, with what each of its finds still on sale costs today: {wish_id, prices:
+    [{price, currency}]}, the newest find first, each price the one after its checkout code when one applies. For what
+    the wishlist would cost (insights)."""
+    finds, _ = _open_finds(conn)
+    prices: dict[str, list[dict]] = {}
+    for f in finds:
+        if f["price"] is None or not f["available"]:
+            continue
+        after = price_with(f["price"], f["code_percent"], f["code_amount"]) if f["code"] else None
+        prices.setdefault(f["wish_id"], []).append({"price": f["price"] if after is None else after, "currency": f["currency"]})
+    return [{"wish_id": r["id"], "prices": prices.get(r["id"], [])}
+            for r in conn.execute("SELECT id FROM wishes WHERE bought_at IS NULL ORDER BY created_at, id")]
 
 
 def on_the_list(conn: sqlite3.Connection) -> dict[str, dict]:
@@ -1123,6 +1166,11 @@ class Shopper:
         except Exception as e:   # a page that breaks the reader is a page not read; never the address in the log
             log.error("a product's page could not be read: %s", type(e).__name__)
             return None, None
+
+    def read_page(self, url: str) -> tuple[dict | None, str | None]:
+        """`_read_page`, for "On sale now" (`closet/picks.py`): a product's page Claude gave, read through exactly the
+        checks and the one reader a link the owner sends goes through."""
+        return self._read_page(url)
 
     def _link(self, profile: str, wish_id: str, find_id: str) -> dict | None:
         conn = db.connect(self.cfg.db_path(profile))

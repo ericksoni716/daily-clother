@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from closet import app as app_module
 from closet import db, demo, gaps, life, productpage, shop, spend
 from closet.tagger import correcting, shopping
-from closet.tagger.shopping import Described, Found, PriceAnswer, PriceSeen, ShopAnswer
+from closet.tagger.shopping import Described, Found, PriceAnswer, PriceSeen, SaleAnswer, ShopAnswer
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError, Unreachable
 
 from .conftest import fake_cutter
@@ -55,6 +55,7 @@ class FakeShop:
         self.calls: list[tuple] = []
         self.described: list[tuple] = []
         self.description: Described | Exception = described()
+        self.sale_finds: list = []   # what the next "On sale now" look answers (test_sale.py gives it products)
 
     def find(self, wish, routes):
         self.calls.append(("find", wish, routes))
@@ -70,6 +71,12 @@ class FakeShop:
             return PriceAnswer(prices=self.prices_seen)
         return PriceAnswer(prices=[PriceSeen(url=f["url"], price=round((f["price"] or 100) * 0.8, 2),
                                              currency=f["currency"], available=True) for f in finds])
+
+    def sale(self, asked, routes):
+        self.calls.append(("sale", asked, routes))
+        if self.error:
+            raise self.error
+        return SaleAnswer(finds=self.sale_finds, note="")
 
     def describe(self, product, routes):
         self.described.append((product, routes))

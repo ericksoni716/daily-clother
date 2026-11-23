@@ -53,6 +53,7 @@ const SHEETS = [
   { route: '/settings', button: 'Talk to Claude about your style', sheet: 'style-talk-sheet', name: 'settings-style-talk' },
   { route: '/settings', button: /^(See all lines|Change the lines)$/, sheet: 'style-lines-sheet', name: 'settings-style-lines' },
   { route: '/settings', button: 'Change your sizes', sheet: 'sizes-sheet', name: 'settings-sizes' },
+  { route: '/settings', button: 'Change the shops you like', sheet: 'shops-sheet', name: 'settings-shops' },
   { route: ({ itemId }) => `/item/${encodeURIComponent(itemId)}`, fold: 'Details', button: /^Colour:/,
     sheet: 'detail-editor-color', name: 'item-colour' },
   { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: "Set the most you'd pay",
@@ -66,6 +67,10 @@ const SHEETS = [
   { route: '/today/worn', button: 'More for this outfit', sheet: 'worn-menu', name: 'worn-menu' },
   { route: '/today/worn', button: 'Record an outfit', sheet: 'record-sheet', name: 'worn-record' },
   { route: ({ tripId }) => `/trips/${encodeURIComponent(tripId)}`, button: /^Choices for/, sheet: 'trip-menu', name: 'trip-piece' },
+];
+// Views switched on a screen, pictured as the part that changes: You might like's On sale.
+const VIEWS = [
+  { route: '/wardrobe', button: 'On sale', part: 'section.picks', wait: '[data-testid="pick-price"]', name: 'wardrobe-on-sale' },
 ];
 // A made-up shop's page with a long product name, which the backend's stand-in serves (never the web).
 const SHOP_PAGE = 'https://shop.example/long-name';
@@ -153,6 +158,15 @@ async function setUp(base) {
     await call(`/api/items/${encodeURIComponent(item.id)}`, 'PATCH', { name: LONG.item });
     // a shoe's page as well: its photos and drawings make it the longest item page
     const shoe = items.find((i) => ['sneakers', 'boots', 'dress_shoes', 'sandals'].includes(i.category)) ?? item;
+    // Made-up prices and dates bought on a few pieces (the demo closet has prices and no dates), so the Wardrobe's line
+    // on what your clothes cost has a year to tell
+    const year = new Date().getFullYear();
+    const bought = [[18900, `${year}-02-14`], [6500, `${year}-05-03`], [12000, `${year}-09-21`], [24500, `${year - 1}-10-30`],
+      [4500, `${year - 1}-04-12`]];
+    for (const [i, [cents, day]] of bought.entries()) {
+      const piece = items[i + 1];
+      if (piece) await call(`/api/items/${encodeURIComponent(piece.id)}`, 'PATCH', { price_cents: cents, acquired_on: day });
+    }
     // A trip asks the weather service for its forecast unless the weather is given, so it is given: mild and dry.
     const first = localDay(10), last = localDay(13);
     const weather = [];
@@ -189,7 +203,14 @@ async function setUp(base) {
     // You might like: one look (the backend's stand-in answers in a second, with long names), so the Wardrobe's card
     // shows its three picks
     await call('/api/picks/look', 'POST');
-    for (let i = 0; i < 40 && (await call('/api/picks')).run?.state === 'running'; i++) await new Promise((r) => setTimeout(r, 250));
+    for (let i = 0; i < 400 && (await call('/api/picks')).run?.state === 'running'; i++) await new Promise((r) => setTimeout(r, 250));
+    // ...and one look for things on sale (its made-up pages read by the real reader), so its view shows three, and
+    // shops you like with long names
+    await call('/api/picks/look?kind=sale', 'POST');
+    for (let i = 0; i < 400 && (await call('/api/picks')).run?.state === 'running'; i++) await new Promise((r) => setTimeout(r, 250));
+    for (const name of ['Example Outfitters of Unreasonably Long Names', 'small-maker-with-a-long-site.example', 'Example Shop']) {
+      await call('/api/shops', 'POST', { name });
+    }
     // Your sizes: each kind's as long as a size may be but one (the rest is offered from the closet's own), and a brand
     // with a long name that fits differently
     await call('/api/sizes/tops', 'PUT', { size: 'XL Tall (EU 54/56)' });
@@ -318,6 +339,21 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           if (wait) await page.getByTestId(sheet).locator(wait).first().waitFor({ timeout: 20_000 }).catch(() => failures.push(`${name} at ${size}px showed no ${wait}`));
           await page.waitForTimeout(600);
           await page.screenshot({ path: join(OUT, `${size}-${scheme}-${name}.png`) });
+          const { extra, culprits } = await page.evaluate(overflow);
+          if (extra > 1) failures.push(`${name} at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
+          if (errors.length) failures.push(`${name} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
+          await page.close();
+        }
+        for (const { route, button, part, wait, name } of VIEWS) {
+          const page = await context.newPage();
+          const errors = [];
+          page.on('pageerror', (e) => errors.push(e.message));
+          await page.goto(base + route);
+          await settle(page);
+          await page.locator(part).getByRole('button', { name: button }).click();
+          await page.locator(part).locator(wait).first().waitFor({ timeout: 10_000 }).catch(() => failures.push(`${name} at ${size}px showed no ${wait}`));
+          await page.waitForTimeout(300);
+          await page.locator(part).screenshot({ path: join(OUT, `${size}-${scheme}-${name}.png`) });
           const { extra, culprits } = await page.evaluate(overflow);
           if (extra > 1) failures.push(`${name} at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
           if (errors.length) failures.push(`${name} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);

@@ -56,6 +56,7 @@ from . import (
     shoes,
     shoeviews,
     shop,
+    shops,
     sizes,
     sources,
     spend,
@@ -1262,7 +1263,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     def get_insights(conn=Depends(conn_dep)):
         rows = closet_rows(conn)   # with each piece's kind: what Today never offers is never "not worn"
         worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
-        return find_insights(rows, worn, wears.today())
+        return find_insights(rows, worn, wears.today(), wishlist=shop.wish_prices(conn))
     app.include_router(wishlist.router(conn_dep, gap_analysis, state, rows=shop.on_the_list))
 
     def closet_for_check(profile: str) -> tuple[list[dict], list[dict], dict | None]:
@@ -1284,6 +1285,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     assert sv.picker, "build_services wires it"
     app.include_router(picks.router(sv.picker, state, conn_dep))
     app.include_router(sizes.router(conn_dep))
+    app.include_router(shops.router(conn_dep))
     # ---------------------------------------------------------------- the day in the owner's words
     def day_answer(message: str | None = None, saved: bool | None = None) -> dict:
         out = {"note": daynote.describe(daynote.current(state, wears.today()), wears.today()), "message": message}
@@ -1550,6 +1552,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             "updates": sv.updater.status() if sv.updater else None,   # GET /api/updates
             "style_profile": styleprofile.current(conn),       # GET /api/style/profile
             "sizes": sizes.current(conn),                      # GET /api/sizes
+            "shops": shops.current(conn),                      # GET /api/shops
             "tagging_spend": spend.summary(cfg, state, conn),  # GET /api/tagging/spend
         }
 

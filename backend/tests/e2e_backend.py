@@ -23,7 +23,11 @@ real API route talking to `conftest.FakeApi`).
 Searching shops for a wish is a stand-in too (`FakeShop`): after a second it "finds" a tan rain-proof coat, a
 navy polo and a product with a link that is not a web address (which the app drops), and a price check sees every
 price 20% lower. "You might like" is the same stand-in (`FakeShop.picks`): after a second, a trench coat, a chore jacket, a
-sweater, trousers and a striped shirt with long names, on new pages at each look. With CLOSET_E2E_SEED=demo the owner's own closet starts as a copy of the demo closet, so what is
+sweater, trousers and a striped shirt with long names, on new pages at each look. "On sale now" too (`FakeShop.sale`):
+after a second, five products marked down, on made-up pages of shop.example that the real page reader reads
+(`SALE_PAGES`): an overcoat whose page gives its price before as a strikethrough price (and whose size Claude says is
+in stock), a knit whose price before only Claude saw, boots whose page gives an OpenGraph original price, trousers
+only 8% off and a sold-out shirt (both dropped), each look on new pages. With CLOSET_E2E_SEED=demo the owner's own closet starts as a copy of the demo closet, so what is
 found is checked against a closet with something in it (the demo closet itself never searches).
 
 A product's page sent as a link is never fetched from the web, with or without the other stand-ins (`ShopPages`):
@@ -95,7 +99,7 @@ from closet import apikey, app, cli, demo, productpage, tracejobs, weather
 from closet.tagger import routes as tagger_routes
 from closet.tagger import shoedrawing
 from closet.tagger.correcting import CorrectionResult
-from closet.tagger.shopping import Described, Found, PriceAnswer, PriceSeen, ShopAnswer
+from closet.tagger.shopping import Described, Found, PriceAnswer, PriceSeen, SaleAnswer, SaleFound, ShopAnswer
 from closet.tagger.tagging import TaggingError, TagResult, Unreachable
 
 from .conftest import (
@@ -291,6 +295,33 @@ class FakeShop:
                    price=89.0, category="shirt", color="blue", pattern="stripe", formality="smart_casual"),
             _found(name="Not a real link", url="javascript:alert(1)", price=10.0, category="tee", color="white")])
 
+    def sale(self, asked, routes):
+        """On sale now: after a second, five products marked down with long names, each look's on pages of their own
+        (`SALE_PAGES` gives what each page shows; the overcoat, the knit and the boots are kept)."""
+        time.sleep(1)
+        self.looks += 1
+        n = self.looks
+
+        def on_sale(slug, **kw):
+            found = _found(url=f"https://shop.example/sale-{n}-{slug}",
+                           **{k: v for k, v in kw.items() if k not in ("price_before", "size_in_stock")})
+            return SaleFound(**found.model_dump(), price_before=kw.get("price_before"),
+                             size_in_stock=kw.get("size_in_stock"))
+        return SaleAnswer(note="", finds=[
+            on_sale("overcoat", name="Double-faced wool and cashmere unstructured overcoat with raglan sleeves and patch "
+                    "pockets", shop="Example Maker of Considered Outerwear and Other Long Names", price=168.0,
+                    price_before=240.0, category="coat", color="tan", season="cool", material="wool and cashmere",
+                    size_in_stock=True),
+            on_sale("knit", name="Hand-framed lambswool shawl-collar cardigan in a heathered oatmeal with leather buttons",
+                    price=105.0, price_before=150.0, category="sweater", color="olive", season="cool",
+                    formality="smart_casual", material="lambswool"),
+            on_sale("boots", name="Waxed suede chukka boots on a crepe sole", price=195.0, price_before=260.0,
+                    category="boots", color="black", material="suede"),
+            on_sale("trousers", name="Cotton twill pleated trousers", price=110.0, price_before=120.0,
+                    category="trousers", color="tan"),
+            on_sale("shirt", name="Brushed flannel work shirt", price=60.0, price_before=95.0, category="shirt",
+                    color="green", pattern="plaid")])
+
     def describe(self, product, routes):
         time.sleep(1)   # long enough for the page to show Claude describing it
         return Described(clothing=True, category="shirt", color="white", formality="casual", season="warm",
@@ -310,6 +341,31 @@ SHOP_PAGE_TEXT = {
 }
 
 
+# What each "On sale now" page shows (`FakeShop.sale`), by the end of its address: (price, the price before in its own
+# data, how it gives it, whether it can be bought)
+SALE_PAGES = {
+    "overcoat": (168.0, 240.0, "strikethrough", True),
+    "knit": (105.0, None, None, True),        # the page gives no price before: only Claude saw $150
+    "boots": (195.0, 260.0, "og", True),
+    "trousers": (110.0, 120.0, "strikethrough", True),   # 8% off: not a sale worth a pick
+    "shirt": (60.0, 95.0, "strikethrough", False),       # sold out
+}
+
+
+def sale_page(slug: str) -> str:
+    price, before, how, available = SALE_PAGES[slug]
+    offer = {"@type": "Offer", "price": f"{price:.2f}", "priceCurrency": "USD",
+             "availability": f"https://schema.org/{'InStock' if available else 'OutOfStock'}"}
+    if how == "strikethrough":
+        offer["priceSpecification"] = [{"@type": "UnitPriceSpecification", "price": f"{before:.2f}",
+                                        "priceType": "https://schema.org/StrikethroughPrice"}]
+    data = {"@context": "https://schema.org", "@type": "Product", "name": slug, "offers": offer}
+    head = f'<script type="application/ld+json">{json.dumps(data)}</script>'
+    if how == "og":
+        head += f'<meta property="product:original_price:amount" content="{before:.2f}">'
+    return f"<html><head>{head}</head><body></body></html>"
+
+
 class ShopPages:
     """Stands in for the web a link's page is read from (see the top): the real reading of the page, on made-up
     pages."""
@@ -325,8 +381,11 @@ class ShopPages:
 
     def get(self, target, seconds):
         url = target.url.split("?")[0]
+        slug = url.rsplit("-", 1)[-1] if url.startswith("https://shop.example/sale-") else None
         if url == "https://shop.example/plain-shirt":
             text = "<html><head><title>A plain shirt</title></head><body></body></html>"
+        elif slug in SALE_PAGES:
+            text = sale_page(slug)
         elif url in SHOP_PAGE_NAMES:
             n = self.reads.get(url, 0)
             self.reads[url] = n + 1

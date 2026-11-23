@@ -109,6 +109,9 @@ for (const [layout, use] of LAYOUTS) {
         // the Wardrobe (What's missing and Insights together), with its More numbers open, and what it holds
         await visit(page, '/wardrobe', '#wardrobe-title');
         await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });
+        // the first thing worth buying opened, so what an open card holds is checked too
+        await page.getByTestId('gap').first().getByRole('heading', { level: 3 }).getByRole('button').click();
+        await expect(page.getByTestId('gap').first().getByTestId('look-for')).toBeVisible();
         await page.getByTestId('more-numbers').getByText('More numbers').click();
         await expect(page.getByTestId('cost-per-wear')).toBeVisible();
         await check(page, 'wardrobe', phone, shot);

@@ -49,6 +49,15 @@ async function openWish(page: Page, name: string) {
 
 const gap = (page: Page, name: string) => page.getByTestId('gap').filter({ has: page.getByRole('heading', { name, exact: true }) });
 
+/** Opens a closed card in place: its name is the button. Returns the card. */
+async function openGap(page: Page, name: string) {
+  const card = gap(page, name);
+  const toggle = card.getByRole('heading', { level: 3 }).getByRole('button');
+  if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  return card;
+}
+
 async function gapNames(page: Page): Promise<string[]> {
   return page.getByTestId('gap').getByRole('heading', { level: 3 }).allInnerTexts();
 }
@@ -63,6 +72,15 @@ test("the wardrobe shows the three most worth buying first, then the rest, with 
   await page.getByRole('button', { name: /^See all \d+$/ }).click();
   expect(await page.getByTestId('gap').count()).toBeGreaterThan(3);
   const first = page.getByTestId('gap').first();
+  // a closed card: its name, how much it helps and one line of why; nothing more until it is opened
+  await expect(first.getByTestId('gap-summary')).toBeVisible();
+  await expect(first.getByTestId('look-for')).toHaveCount(0);
+  await expect(first.getByRole('button', { name: "I'll look for this" })).toHaveCount(0);
+  // opened in place: nothing above it moves
+  const [firstName] = await gapNames(page);
+  const top = (await first.boundingBox())!.y;
+  await openGap(page, firstName);
+  expect(Math.abs((await first.boundingBox())!.y - top)).toBeLessThan(1);
   // one sentence for why; the rest, day by day, behind a disclosure
   await expect(first.getByTestId('gap-summary')).toBeVisible();
   await expect(first.getByRole('list', { name: 'Why' })).toBeHidden();
@@ -76,10 +94,13 @@ test("the wardrobe shows the three most worth buying first, then the rest, with 
   await expect(first.getByTestId('help')).toHaveText(/^Helps (a little|some|a fair bit|a lot)$/);
   // no field names or numbers out of 100
   await expect(first).not.toContainText(/smart_casual|dress_shoes|score/);
-  // what is not worn and what is worn most are said once, in their own sections, not again under the suggestions
+  // what is not worn and what is worn most are said once, in their own sections, not again under the suggestions, and
+  // each heading once: Your nines takes the place of Worn most
   await expect(page.getByRole('heading', { name: 'Also worth knowing' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Not worn yet' })).toHaveCount(1);
-  await expect(page.getByRole('heading', { name: 'Worn most', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Not worn', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('heading', { name: 'Not worn yet' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Your nines', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Worn most' })).toHaveCount(0);
 
   // one of the owner's own pieces opens the item beside the page, and comes back to "Thinking of buying something?"
   const piece = page.getByTestId('gap-piece').first();
@@ -94,7 +115,7 @@ test("the wardrobe shows the three most worth buying first, then the rest, with 
 
 test('a reason given for several kinds of day is said once, with the days listed under it', async ({ page }) => {
   await openMissing(page);
-  const rain = gap(page, 'A rain-proof outer layer');
+  const rain = await openGap(page, 'A rain-proof outer layer');
   const sentence = 'A mac, trench or waxed jacket keeps the rain off without an umbrella. You have none.';
   await expect(rain.getByTestId('gap-summary')).toHaveText(sentence);
   // the card is no longer a wall of the same sentence
@@ -109,7 +130,7 @@ test("\"I'll look for this\" puts a gap on the wishlist; the note is kept; it ca
   await openMissing(page);
   await expect(page.getByTestId('wishlist-open')).toContainText('Nothing on it yet');
   const [name] = await gapNames(page);
-  await gap(page, name).getByRole('button', { name: "I'll look for this" }).click();
+  await (await openGap(page, name)).getByRole('button', { name: "I'll look for this" }).click();
   // the Wardrobe's row to the wishlist counts it
   await expect(page.getByTestId('wishlist-open')).toContainText('1 thing');
   // the gap stays in its place, marked, instead of being offered again
@@ -138,14 +159,14 @@ test("\"I'll look for this\" puts a gap on the wishlist; the note is kept; it ca
   await page.locator('.page-back').click();   // "‹ Wardrobe"
   await expect(page).toHaveURL(/\/wardrobe$/);
   await seeAll(page);
-  await expect(gap(page, name).getByRole('button', { name: "I'll look for this" })).toBeVisible();
+  await expect((await openGap(page, name)).getByRole('button', { name: "I'll look for this" })).toBeVisible();
 });
 
 test('"Not for me" hides a gap with a reason, and it can be brought back', async ({ page }) => {
   await openMissing(page);
   const names = await gapNames(page);
   const name = names[1];
-  await gap(page, name).getByRole('button', { name: 'Not for me' }).click();
+  await (await openGap(page, name)).getByRole('button', { name: 'Not for me' }).click();
   await gap(page, name).getByText('Too expensive').click();
   await gap(page, name).getByRole('button', { name: `Hide ${name}` }).click();
   await expect(gap(page, name)).toHaveCount(0);
@@ -198,8 +219,26 @@ test('on a phone: the Wardrobe is in the tab bar, and its row to the wishlist, a
   await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('gap')).toHaveCount(3);
   const [name] = await gapNames(page);
-  await gap(page, name).getByRole('button', { name: "I'll look for this" }).click();
+  const card = await openGap(page, name);
+  const wish = card.getByRole('button', { name: "I'll look for this" });
+  await wish.scrollIntoViewIfNeeded();
+  const before = (await card.boundingBox())!;
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await wish.click();
   const row = page.getByTestId('wishlist-open');
+  await expect(row).toHaveText(/^Wishlist\s*1 thing$/);
+  // the card stays where it is, open, and says in place that it is on your wishlist, with Undo: the page does not jump
+  const status = card.getByRole('status').filter({ hasText: 'On your wishlist' });
+  await expect(status).toBeVisible();
+  const after = (await card.boundingBox())!;
+  expect(Math.abs(after.y - before.y)).toBeLessThan(2);
+  expect(Math.abs(after.height - before.height)).toBeLessThan(60);
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+  // Undo takes it off the list again, in place
+  await status.getByRole('button', { name: /^Undo/ }).click();
+  await expect(card.getByRole('button', { name: "I'll look for this" })).toBeVisible();
+  await expect(row).toHaveText(/^Wishlist\s*Nothing on it yet$/);
+  await card.getByRole('button', { name: "I'll look for this" }).click();
   await expect(row).toHaveText(/^Wishlist\s*1 thing$/);
   // below the things worth buying, on the same page
   const lastGap = await page.getByTestId('gap').last().boundingBox();
@@ -225,7 +264,7 @@ test("what's missing offline: the answer fetched earlier is shown as saved, and 
   await expect(page.getByText(/^Saved earlier today/)).toBeVisible();
   await seeAll(page);
   expect(await gapNames(page)).toEqual(names);
-  const wish = page.getByTestId('gap').first().getByRole('button', { name: "I'll look for this" });
+  const wish = (await openGap(page, names[0])).getByRole('button', { name: "I'll look for this" });
   await expect(wish).toBeDisabled();
   await expect(wish).toHaveAttribute('title', /needs Nines on your computer/i);
   // the wishlist opens offline too, from the copy saved on this device, and its buttons say why they are off

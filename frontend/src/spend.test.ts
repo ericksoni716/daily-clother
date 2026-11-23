@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { aboutUsd, apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, importLine, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from './spend';
+import { aboutUsd, amount, apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, importLine, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from './spend';
 
 describe('money wording', () => {
+  it('says what something cost, whole amounts without cents, in its own currency, never converted', () => {
+    expect(amount(124000)).toBe('$1,240');
+    expect(amount(4550)).toBe('$45.50');
+    expect(amount(300, '$', true)).toBe('$3.00');
+    expect(amount(8000, 'EUR')).toBe('€80');
+    expect(amount(1999, 'GBP')).toBe('£19.99');
+    expect(amount(8000, 'ZZZ')).toMatch(/^(ZZZ\s?80|80 ZZZ)$/);
+  });
+
   it('shows dollars and cents, and never a fraction of a cent', () => {
     expect(formatUsd(0)).toBe('$0.00');
     expect(formatUsd(null)).toBe('$0.00');

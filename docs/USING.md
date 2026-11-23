@@ -277,15 +277,20 @@ again (Undo does not), until the pieces are added.
 
 `/wardrobe`. What to buy and how your clothes are used, on one page. **Worth buying**: what
 the closet lacks, found by rule from the clothes, the wears, where you live and how you live,
-the three most helpful first and "See all N" for the rest; each with why, what to look for,
-your pieces it is based on, "Search Google Shopping" (opens Google Shopping in your browser,
-searching for "men's", the first colour and the kind of piece, nothing else), "I'll look for
-this" (onto the wishlist) and "Not for me" (hide it, and optionally similar ones). "Based on…" opens How you live, the same questions as
-Settings; once the closet has enough to suggest from and they are not answered, "Tell it how
-you live" offers them. What holds suggestions back, the days you ruled out and what you hid
-are folded at the end of the section. Swim trunks, shoes made for one sport (tennis, golf,
-studded boots) and what you wear at home (pyjamas, lounge pants, robes) are not counted there:
-a pair of tennis shoes never stands in for everyday sneakers, nor lounge pants for trousers. **You might like**: three things Claude found on sale from what you wear and love,
+the three most helpful first and "See all N" for the rest. Each is a closed card: its name, how
+much it helps ("Helps a lot") and one line of why. A tap anywhere on its head opens it in place
+(nothing above it moves) to every reason (one sentence, then "Why, day by day"), what to look
+for with its colours, your pieces it is based on, "Search Google Shopping" (opens Google Shopping
+in your browser, searching for "men's", the first colour and the kind of piece, nothing else),
+"I'll look for this" and "Not for me" (hide it, and optionally similar ones). "I'll look for
+this" puts it on the wishlist and leaves the card where it is, saying "On your wishlist" with
+**Undo** (closed, the card says "On your wishlist" instead of its line of why). "Based on…" opens
+How you live, the same questions as Settings; once the closet has enough to suggest from and they
+are not answered, "Tell it how you live · 1 minute" offers them, with Not now. What holds
+suggestions back, the days you ruled out and what you hid are folded at the end of the section.
+Swim trunks, shoes made for one sport (tennis, golf, studded boots) and what you wear at home
+(pyjamas, lounge pants, robes) are not counted there: a pair of tennis shoes never stands in for
+everyday sneakers, nor lounge pants for trousers. **You might like**: three things Claude found on sale from what you wear and love,
 not from a gap, each with the shop's picture (a hanger until there is one), its name (which
 opens the shop's page in your browser), the shop and price, one line from the closet ("Goes
 with 6 of your pieces."), **Save** (onto the wishlist, with the product as its first find, so
@@ -298,15 +303,39 @@ key, when that is on); with too little to go on it says to wear and rate a few m
 and does not search; the demo closet never searches. **How Nines looks**, folded, says what a
 look sends and holds **Look for me each week**, on once you have tapped Look now, off before:
 then Nines looks by itself once a week while it is running. Nothing it shows is a product Claude
-made up; a week with nothing new says so. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
+made up; a week with nothing new says so. The card has two views, **For you** and **On sale**
+(remembered on this device), each with its own three, its own Look now and its own sentence for
+each state. **On sale** shows things marked down now: Claude starts from the shops you like
+(Settings), the brands you wear and rate well, shops you have found things at before, then
+smaller makers you may not know, and Nines opens each shop's page itself before showing it (the
+price is the page's; a sale that ended, a sold-out product or less than 15% off is left out).
+A sale row says its shop, then its prices in the wishlist's words ("Was $120.00, now $84.00 (30%
+less)"), the line from the closet, and "Your size is in stock." when the page says so, or
+"Claude read the earlier price from the page." when only Claude did. Save keeps the earlier price
+on the wish, so its page shows the drop. Before the first look, with no shops named, it offers
+"Name a few shops you like and Nines starts there.", which opens Shops you like in Settings.
+**Look for me each week** covers both: once you have looked for sales, Nines looks once a week
+for them too, on another day than the other look, and reads each sale's page again once a day; a
+sale that ended leaves the card. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
 and a **Wishlist** row that opens the wishlist, saying how many things are on it ("3 things", or
-"Nothing on it yet") and, when prices went down, how many ("2 prices went down"). **Not worn**:
-pieces never worn and pieces not worn for a long time in their season, each to Archive or Keep
-(never swim trunks, sport shoes or what you wear at home; after months with nothing recorded it
-says so instead of listing everything).
-**Worn most**: over the last 30 or 90 days or all time.
-**More numbers**, folded: how wears are spread in each kind of clothing, what the closet is
-made of, and cost per wear for pieces with a price. A piece opens in the Wardrobe
+"Nothing on it yet") and, when prices went down, how many ("2 prices went down"). **Your nines**: the
+nine pieces you wore most over the last 30 days, 90 days or all time (it opens on the first with
+nine), as a square of three by three of their pictures (photos or drawings, as Settings says),
+each with how many times you wore it and opening the piece. Everything you wore counts, lounge
+pants and tennis shoes too. With fewer than nine it shows those and says how many; with nothing
+recorded it says so. **Not worn**: pieces never worn, each to Archive or Keep, under one sentence
+that says how many and since when; pieces not worn for a long time in their season are listed
+under it only when there are some (never swim trunks, sport shoes or what you wear at home; after
+months with nothing recorded it says so instead of listing everything). Then one line on what
+your clothes cost you: what you spent this year and on how many pieces, from each piece's price
+and date bought, once at least three pieces have both; until then how many pieces have no price
+yet (or a price and no date bought), with a link to the piece you wear most, where both are
+filled in. **More numbers**, folded: how wears are spread in each kind of clothing, what the
+closet is made of, and **What your clothes cost you**: what you spent each year, the closet's cost
+per wear, the pieces that have earned their price (worn three times or more, the least per wear
+first) and those that have not yet (a price and fewer than three wears), and what the wishlist
+would cost at today's prices, said separately for each currency when shops price in more than
+one. A piece opens in the Wardrobe
 (`/wardrobe/item/<id>`; beside the page on a computer), with "‹ Wardrobe". Offline, it shows
 what it last found, marked as saved earlier.
 
@@ -415,7 +444,13 @@ the item page.
   size on most of your tops is M." with **Use it**, when your own pieces of that kind say a size.
   **A brand that fits differently** opens a small form (the kind, the brand, your size in it, Save
   and Cancel); each brand kept shows under its kind ("In Example Brand, L") with **Remove**.
-  "Find some" tells Claude the size for the wish's kind.
+  "Find some" tells Claude the size for the wish's kind. After it, **Shops you like**: one line
+  naming them ("Shops you like: Example Shop · shop.example", or that you have named none) and
+  **Change**, which opens a sheet: a sentence saying Nines starts there when it looks for things on
+  sale and tells Claude the names, each shop with **Remove**, and a box with **Add** (a pasted link
+  keeps only its site), saved as you go ("Saving…", "Saved" or "Didn't save" with Try again, and
+  Nines' sentence when it does not take one). Up to 12. The Wardrobe's On sale view opens it with
+  `/settings?open=shops`.
 - **Claude**: one line saying how Nines reaches Claude ("Using your Claude plan"), or one red
   sentence and Check again when it can't; **Manage** opens Advanced.
 - **Updates**: one line ("Nines 0.9.0 · up to date", or "Nines 0.9.1 is ready to install."

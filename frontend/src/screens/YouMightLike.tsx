@@ -1,18 +1,20 @@
 /**
- * You might like: a small card in the Wardrobe with three things Claude found from what you wear and love (not from a
- * gap), each with Save (onto the wishlist), More like this and Not for me (with Undo). Look now on a tap; by itself
- * once a week once you have looked. Its words and decisions are in picks.ts; the backend is closet/picks.py.
+ * You might like: a small card in the Wardrobe with two views, For you (three things Claude found from what you wear
+ * and love, not from a gap) and On sale (three marked down now, each checked on its page by Nines), each pick with Save
+ * (onto the wishlist), More like this and Not for me (with Undo). Look now on a tap; by itself once a week once you have
+ * looked. Its words and decisions are in picks.ts; the backend is closet/picks.py.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api';
 import { CloseIcon, HangerIcon } from '../components/Icons';
 import { Toggle } from '../components/Toggle';
-import { Button, Fold, Notice, Section, ShowMore, buttonClass } from '../components/ui';
+import { Button, Fold, Notice, Section, SegmentedControl, ShowMore, buttonClass } from '../components/ui';
 import {
-  cardState, DEMO, LOOK_SENDS, LOOKING, lookCostWords, NEVER_LOOKED, NOTHING, offerWords, pickName, picksPoll,
-  PICKS_SHOWN, REFUSED, savedPicks, savePicks, shopLine, THIN, verdictLine, WEEKLY_LABEL, withRefused,
-  type ShopPick, type PicksAnswer,
+  cardState, DEMO, LOOK_SENDS, LOOKING, lookCostWords, NEVER_LOOKED, NOTHING, offerWords, pickName, picksOf, picksPoll,
+  PICKS_SHOWN, REFUSED, runKind, SALE_NEVER, SALE_NOTHING, saleNote, salePriceLine, savedPicks, savedView, savePicks,
+  saveView, SHOPS_OFFER, shopLine, THIN, verdictLine, VIEW_OPTIONS, WEEKLY_LABEL, withRefused,
+  type PickKind, type ShopPick, type PicksAnswer,
 } from '../picks';
 import { touch } from '../queries';
 import { queryKeys } from '../queryKeys';
@@ -39,6 +41,7 @@ export function YouMightLike({ locked }: { locked: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [refused, setRefused] = useState<{ pick: ShopPick; index: number } | null>(null);
+  const [view, setView] = useState<PickKind>(() => savedView());
   if (shown.kind === 'loading') {   // its space kept, so nothing below moves when it comes
     return (
       <Section id="picks-title" title="You might like" className="picks">
@@ -50,7 +53,8 @@ export function YouMightLike({ locked }: { locked: boolean }) {
   const data = shown.data;
   const off = locked || shown.savedAt !== null;
   const title = off ? OFFLINE_TITLE : undefined;
-  const state = cardState(data);
+  const state = cardState(data, view);
+  const sale = view === 'sale';
 
   /** Sends one action and puts the card's answer in place; a look that cannot start says why in the card, once. */
   async function act(key: string, call: () => Promise<PicksAnswer>, done?: string): Promise<PicksAnswer | null> {
@@ -72,30 +76,40 @@ export function YouMightLike({ locked }: { locked: boolean }) {
   }
 
   const looking = state === 'looking';
+  const anyLooking = data.run?.state === 'running';   // one look at a time, of either kind
   const lookNow = (variant: 'primary' | 'link') => (
-    <Button small variant={variant} data-testid="picks-look" disabled={off || busy !== null || looking} title={title}
-      onClick={() => void act('look', api.lookForPicks)}>Look now</Button>
+    <Button small variant={variant} data-testid="picks-look" disabled={off || busy !== null || anyLooking} title={title}
+      onClick={() => void act('look', () => api.lookForPicks(view))}>Look now</Button>
   );
-  const run = data.run;
+  const run = data.run && runKind(data.run) === view ? data.run : null;
   const said = problem ?? (run?.state === 'failed' ? run.message : null);
-  const list = withRefused(data.picks, refused);
+  const list = picksOf(withRefused(data.picks, refused), view);
+  const nothing = sale ? SALE_NOTHING : NOTHING;
   const cost = lookCostWords(data.estimate);   // beside Look now; in the fold once there are picks
 
   return (
     <Section id="picks-title" title="You might like" className="picks" action={state === 'list' && lookNow('link')}
-      hint={state === 'list' && run?.state === 'done' && run.added === 0 ? NOTHING : undefined}>
+      hint={state === 'list' && run?.state === 'done' && run.added === 0 ? nothing : undefined}>
+      {state !== 'demo' && (
+        <SegmentedControl label="Which things to show" small className="picks-view" value={view} options={VIEW_OPTIONS}
+          onChange={(v) => { setView(v); saveView(v); setProblem(null); }} />
+      )}
       {state === 'demo' && <p className="picks-line">{DEMO}</p>}
       {state === 'thin' && <p className="picks-line" data-testid="picks-thin">{THIN}</p>}
       {(state === 'never' || state === 'nothing') && (
         <div className="picks-start">
-          <p className="picks-line">{state === 'never' ? NEVER_LOOKED : NOTHING}</p>
+          <p className="picks-line">{state === 'never' ? (sale ? SALE_NEVER : NEVER_LOOKED) : nothing}</p>
           {lookNow('primary')}
           {cost && <p className="muted picks-small">{cost}</p>}
+          {sale && !data.shops && (
+            <Link to="/settings?open=shops" className={buttonClass({ variant: 'link', small: true })}
+              data-testid="picks-shops">{SHOPS_OFFER}</Link>
+          )}
         </div>
       )}
       {list.length > 0 && (
-        <ShowMore items={list} first={PICKS_SHOWN} wide={PICKS_SHOWN} keyOf={(p) => p.id} moreLabel="See earlier ones"
-          className="pick-list" label="Things you might like" testId="picks"
+        <ShowMore key={view} items={list} first={PICKS_SHOWN} wide={PICKS_SHOWN} keyOf={(p) => p.id} moreLabel="See earlier ones"
+          className="pick-list" label={sale ? 'Things on sale you might like' : 'Things you might like'} testId="picks"
           render={(p) => p.state === 'refused' ? (
             <div className="pick pick-refused" role="status">
               <p>{REFUSED}</p>
@@ -139,6 +153,8 @@ function PickRow({ pick, off, busy, title, onSave, onMore, onRefuse }: {
   const image = webLink(pick.image_url);
   const [broken, setBroken] = useState(false);
   const why = verdictLine(pick);
+  const prices = salePriceLine(pick);
+  const note = saleNote(pick);
   return (
     <article className="pick" data-testid="pick">
       <div className="pick-pic" aria-hidden="true">
@@ -151,7 +167,9 @@ function PickRow({ pick, off, busy, title, onSave, onMore, onRefuse }: {
           ? <a className="pick-name" href={link} target="_blank" rel="noopener noreferrer" title={pick.name}>{pickName(pick.name)}</a>
           : <span className="pick-name" title={pick.name}>{pickName(pick.name)}</span>}
         <p className="pick-shop">{shopLine(pick)}</p>
+        {prices && <p className="pick-price" data-testid="pick-price">{prices}</p>}
         {why && <p className="pick-why">{why}</p>}
+        {note && <p className="pick-shop" data-testid="pick-note">{note}</p>}
       </div>
       <button type="button" className="pick-refuse" aria-label={`Not for me: ${pick.name}`} title="Not for me"
         disabled={off || busy} onClick={onRefuse}><CloseIcon /></button>

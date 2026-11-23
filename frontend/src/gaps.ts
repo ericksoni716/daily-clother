@@ -174,6 +174,16 @@ export function groupReasons(why: string[] | null | undefined): ReasonGroup[] {
   return groups;
 }
 
+/** The one line of why a closed card shows: the first reason's first sentence, up to its colon or semicolon ("Every
+ * outfit for hot business days rests on your stone pleated chinos."). The whole reason is in the card once opened. */
+export function shortWhy(why: string[] | null | undefined): string {
+  const first = groupReasons(why)[0]?.text ?? '';
+  const sentence = first.split(/(?<=[.!?])\s+/)[0];
+  const cut = sentence.search(/[:;]\s/);
+  const short = (cut > 0 ? sentence.slice(0, cut) : sentence).trim().replace(/[.,:;]+$/, '');
+  return short ? `${short}.` : '';
+}
+
 // --------------------------------------------------------------------- what to look for
 
 const PLURAL_CATEGORIES = ['jeans', 'trousers', 'shorts', 'sneakers', 'boots', 'dress_shoes', 'sandals'];

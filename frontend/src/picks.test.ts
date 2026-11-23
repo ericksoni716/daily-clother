@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  cardState, DEMO, LOOK_SENDS, LOOKING, lookCostWords, NEVER_LOOKED, offerWords, pickName, picksPoll, PICKS_POLL_MS,
-  savedPicks, savePicks, shopLine, THIN, verdictLine, withRefused, type PicksAnswer, type ShopPick,
+  BEFORE_BY_CLAUDE, cardState, DEMO, IN_STOCK, LOOK_SENDS, LOOKING, lookCostWords, NEVER_LOOKED, offerWords, pickName,
+  picksOf, picksPoll, PICKS_POLL_MS, SALE_NEVER, SALE_NOTHING, saleNote, salePriceLine, savedPicks, savedView, savePicks,
+  saveView, SHOPS_OFFER, shopLine, shopsLine, THIN, verdictLine, VIEW_OPTIONS, withRefused, type PicksAnswer, type ShopPick,
 } from './picks';
-import { SEARCH_SENDS } from './shop';
+import { dropWords, SALE_SENDS, SEARCH_SENDS } from './shop';
 
 const pick = (changes: Partial<ShopPick> = {}): ShopPick => ({
   id: 'p1', kind: 'taste', source: 'look', name: 'Olive chore coat', shop: 'Example Shop', url: 'https://shop.example/p',
@@ -35,8 +36,9 @@ describe('You might like', () => {
     for (const s of [NEVER_LOOKED, THIN, DEMO]) expect(s.split(/(?<=\.) /)).toHaveLength(s === DEMO ? 2 : 1);
     expect(THIN).toBe('Wear and rate a few more pieces and Nines can look for things you might like.');
     expect(LOOKING).toBe('Claude is searching shops. This can take a few minutes…');
-    // what a look sends is the search's sentence without the wish: one wording
-    expect(LOOK_SENDS).toBe(SEARCH_SENDS.replace('A search sends Claude the wish, ', 'A look sends Claude '));
+    // what a look sends is the search's sentence without the wish, and where a look for sales starts: one wording
+    expect(LOOK_SENDS).toBe(`${SEARCH_SENDS.replace('A search sends Claude the wish, ', 'A look sends Claude ')} ${SALE_SENDS}`);
+    expect(SALE_SENDS).toBe('A look for things on sale also sends the shops you like and the shops you found things at before.');
     expect(lookCostWords({ api: true, look_usd: 0.1734 })).toBe("If your plan can't be used, a look costs about $0.17 at most with the API key.");
     expect(lookCostWords({ api: false, look_usd: 0.17 })).toBeNull();
   });
@@ -77,5 +79,58 @@ describe('You might like', () => {
     expect(saved?.data.picks).toHaveLength(1);
     expect(saved?.data.run).toBeNull();
     expect(savedPicks('demo', kv)).toBeNull();
+  });
+});
+
+describe('On sale', () => {
+  const sale = (changes: Partial<ShopPick> = {}) => pick({
+    id: 's1', kind: 'sale', price: 84, price_before: 120, before_by: 'page', in_stock: null, ...changes,
+  });
+  const running = (kind: 'taste' | 'sale') => ({ source: 'look' as const, kind, state: 'running' as const, message: null,
+    added: null, started_at: '', finished_at: null });
+  const views = (taste: boolean, onSale: boolean) => ({ taste: { looked: taste, last: null }, sale: { looked: onSale, last: null } });
+
+  it('says a sale row in the wishlist words, with the size and who read the earlier price', () => {
+    expect(salePriceLine(sale())).toBe('Was $120.00, now $84.00 (30% less)');
+    expect(salePriceLine(sale())).toBe(dropWords({ from: 120, to: 84, currency: 'USD', percent: 30 }));
+    expect(salePriceLine(pick())).toBeNull();
+    expect(salePriceLine(sale({ price_before: 84 }))).toBeNull();
+    expect(shopLine(sale())).toBe('Example Shop');   // its prices have their own line
+    expect(saleNote(sale())).toBeNull();
+    expect(saleNote(sale({ in_stock: true }))).toBe(IN_STOCK);
+    expect(saleNote(sale({ before_by: 'claude' }))).toBe(BEFORE_BY_CLAUDE);
+    expect(saleNote(sale({ in_stock: true, before_by: 'claude' })))
+      .toBe('Your size is in stock. Claude read the earlier price from the page.');
+    expect(saleNote(pick({ in_stock: true }))).toBeNull();
+  });
+
+  it('shows each view its own picks and its own state', () => {
+    const both = answer({ picks: [pick(), sale()], views: views(true, true) });
+    expect(picksOf(both.picks, 'sale').map((p) => p.id)).toEqual(['s1']);
+    expect(cardState(both, 'sale')).toBe('list');
+    expect(cardState(answer({ picks: [pick()], looked: true, views: views(true, false) }), 'sale')).toBe('never');
+    expect(cardState(answer({ looked: true, views: views(false, true) }), 'sale')).toBe('nothing');
+    expect(cardState(answer({ looked: true, views: views(false, true) }), 'taste')).toBe('never');
+    // a look runs in its own view; the other shows what it has
+    expect(cardState(answer({ picks: [pick()], run: running('sale'), views: views(true, true) }), 'sale')).toBe('looking');
+    expect(cardState(answer({ picks: [pick()], run: running('sale'), views: views(true, true) }), 'taste')).toBe('list');
+    expect(cardState(answer({ enough: false }), 'sale')).toBe('thin');
+    expect(cardState(answer({ demo: true }), 'sale')).toBe('demo');
+    expect(VIEW_OPTIONS.map((o) => o.label)).toEqual(['For you', 'On sale']);
+  });
+
+  it('says each sale state in one sentence', () => {
+    for (const s of [SALE_NEVER, SALE_NOTHING, SHOPS_OFFER]) expect(s.split(/(?<=\.) /)).toHaveLength(1);
+    expect(shopsLine(undefined)).toBe('You have not named any shops you like yet.');
+    expect(shopsLine({ shops: [{ name: 'Example Shop' }, { name: 'shop.example' }] })).toBe('Shops you like: Example Shop · shop.example');
+  });
+
+  it('remembers the view on this device', () => {
+    const kept = new Map<string, string>();
+    const kv = { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => void kept.set(k, v) };
+    expect(savedView(kv)).toBe('taste');
+    saveView('sale', kv);
+    expect(savedView(kv)).toBe('sale');
+    expect(savedView(null)).toBe('taste');
   });
 });

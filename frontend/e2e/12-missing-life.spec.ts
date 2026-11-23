@@ -329,6 +329,7 @@ for (const [layout, viewport] of [
     await expect(basis).not.toContainText('exercise');
     const filters = page.getByRole('group', { name: 'Suggestions for' });
     await expect(filters.getByRole('button')).toHaveText(['All', 'Work', 'Everyday', 'Going out', 'Vacation']);
+    await page.getByTestId('gap').first().getByRole('heading', { level: 3 }).getByRole('button').click();   // opens the card
     await expect(page.getByTestId('gap').first().getByRole('list', { name: 'Useful for' })).toHaveText('Work');
     await expect(page.getByText('Your answers are saved', { exact: true })).toHaveCount(0, { timeout: 10_000 });
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -445,6 +446,7 @@ test('saved life answers are read-only offline; old saved answers still render',
   await page.reload();
   await expect(page.getByText(/^Saved earlier/)).toBeVisible();
   await expect(page.getByTestId('gap')).toHaveCount(2);
+  await page.getByTestId('gap').first().getByRole('heading', { level: 3 }).getByRole('button').click();   // opens the card
   await expect(page.getByTestId('gap').first().getByRole('button', { name: "I'll look for this" })).toBeDisabled();
 });
 

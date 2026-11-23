@@ -130,6 +130,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **The closet's search has a row of its own and finds more.** It no longer shrinks to "Sear" or
+  "S" beside the buttons on a narrow phone: Filter sits under it. It finds a piece by its shade
+  ("navy"), brand, material ("linen") or a word of your own notes, as well as by its name, what it
+  is and its colour; every word you type has to match, in any of those, and accents and capitals
+  make no difference.
 - **The closet's Filter asks once what a piece is.** Category, Group and Kind were three lists for
   the same question that could be combined into "Nothing matches". Now there is one list, **What it
   is**: choose a group (Trousers & shorts, say) and it opens to what is in it (Jeans, Trousers,

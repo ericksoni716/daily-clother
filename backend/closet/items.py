@@ -87,7 +87,26 @@ def summary(conn, row) -> dict:
         # how far the work on it has got (`progress.of`): cutting out, describing and drawing, finishing the drawing;
         # null when nothing is being done to it and nothing failed on the way
         "progress": progress.of(row),
+        # what the closet's search looks in besides the above (it searches the list it holds, so it works offline): the
+        # brand, the material, the owner's name for its shade and every note the item page's one notes box shows
+        "brand": row["brand"], "material": row["material"],
+        "shade": shade_of(row, _said(row)),
+        "own_notes": own_notes(row),
     }
+
+
+NOTE_FIELDS = ("wear_notes", "fit_notes", "notes", "rating_reason")
+
+
+def own_notes(row) -> str:
+    """Every note kept about the item, each once, one after the other: what the one notes box on its page shows
+    (`look.ts`, `notesText`)."""
+    seen: list[str] = []
+    for f in NOTE_FIELDS:
+        t = (row[f] or "").strip()
+        if t and t not in seen:
+            seen.append(t)
+    return "\n".join(seen)
 
 
 def detail(conn, row) -> dict:
@@ -162,6 +181,12 @@ def detail(conn, row) -> dict:
             out["source_photo"] = {"id": src["id"], "photo_url": _media(src["original_path"]),
                              "box": json.loads(row["source_box"]) if row["source_box"] else None}
     return out
+
+
+def _said(row) -> dict:
+    """The details in Claude's answer (an empty dict when there is none, or it was stored broken)."""
+    said = (_answer_json(row["tag_answer"]) or {}).get("details")
+    return said if isinstance(said, dict) else {}
 
 
 def _answer_json(text) -> dict | None:

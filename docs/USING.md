@@ -146,7 +146,9 @@ trip says the forecast changed only when it changed for the days still to come.
 
 ## Closet
 
-`/` (and `/archived`). A grid of your clothes with search, one Filter button (what it is, laundry and away,
+`/` (and `/archived`). A grid of your clothes with search on a row of its own (it finds a piece by
+its name, what it is, its colour or shade, brand, material or a word of your notes; every word typed
+has to match), one Filter button under it (what it is, laundry and away,
 and In use or Archived) whose choices stay visible as chips; **What it is** lists the groups your pieces are
 in, and the one you choose opens to what is in it (Jeans, Trousers, Shorts, then the kinds), and a
 switch between Photos and Drawings. The switch starts from Settings' **Show drawings instead of

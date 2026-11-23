@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANY, chooseWhat, columnsFor, emptySentence, isWhat, laundryNotice, laundryPart, whatChoices, whatIn, whatName } from './closet';
+import { ANY, chooseWhat, columnsFor, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, searchWords, whatChoices, whatIn, whatName } from './closet';
 import type { KindGroup } from './kinds';
 
 describe('how many tiles to a row on a computer', () => {
@@ -130,5 +130,52 @@ describe('what a piece is: one list that opens level by level', () => {
     expect(whatName(items, groups, chooseWhat(trousers, 'kind', 'chinos'))).toBe('Chinos');
     expect(whatIn(items, groups, { group: 'shoes', category: null, kind: null })).toEqual(ANY);
     expect(whatIn(items, groups, { group: 'trousers', category: 'jeans', kind: 'chinos' })).toEqual({ group: 'trousers', category: 'jeans', kind: null });
+  });
+});
+
+describe('what the closet search finds', () => {
+  const groups: KindGroup[] = [{ id: 'shirts', title: 'Shirts' }, { id: 'trousers', title: 'Trousers & shorts' }];
+  const shirt = {
+    name: 'Summer shirt', category: 'shirt', color: 'blue', pattern: 'solid', kind_name: 'Camp collar shirt', group: 'shirts',
+    brand: 'Example Mill', material: 'Linen', shade: 'navy', own_notes: 'For the wedding in June\nRuns large',
+  };
+  const chinos = {
+    name: 'Écru chinos', category: 'trousers', color: 'cream', pattern: null, kind_name: null, group: 'trousers',
+    brand: null, material: 'Cotton twill', shade: 'off_white', own_notes: '',
+  };
+  const finds = (item: typeof shirt | typeof chinos, q: string) => matchesSearch(searchedText(item, groups), q);
+
+  it.each([
+    ['navy', true],            // the shade
+    ['linen', true],           // the material
+    ['example', true],         // the brand
+    ['wedding', true],         // a word of the owner's note
+    ['camp', true],            // the kind
+    ['blue', true],            // the colour
+    ['shirts', true],          // the group
+    ['tweed', false],
+  ])('finds the shirt by "%s": %s', (q, found) => {
+    expect(finds(shirt, q)).toBe(found);
+  });
+
+  it('takes no notice of accents or capitals, either way round', () => {
+    expect(finds(chinos, 'ecru')).toBe(true);
+    expect(finds(chinos, 'ÉCRU')).toBe(true);
+    expect(finds(shirt, 'NAVY Linen')).toBe(true);
+    expect(searchWords('Écru, off-white')).toEqual(['ecru', 'off', 'white']);
+  });
+
+  it('needs every word typed, each found in any part of the piece', () => {
+    expect(finds(shirt, 'navy linen')).toBe(true);          // the shade and the material
+    expect(finds(shirt, 'linen wedding large')).toBe(true); // the material and two notes
+    expect(finds(shirt, 'navy wool')).toBe(false);
+    expect(finds(chinos, 'off white')).toBe(true);          // the shade in words
+    expect(finds(chinos, 'off-white chinos')).toBe(true);
+  });
+
+  it('finds a word inside a longer one, and everything when nothing is typed', () => {
+    expect(matchesSearch('Flannel overshirt', 'shirt')).toBe(true);
+    expect(matchesSearch('Flannel overshirt', '  ')).toBe(true);
+    expect(matchesSearch('Flannel overshirt', '')).toBe(true);
   });
 });

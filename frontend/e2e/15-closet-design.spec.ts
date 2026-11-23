@@ -22,13 +22,11 @@ test.describe('phone', () => {
       const tile = (await page.getByTestId('tile').nth(i).boundingBox())!;
       expect(tile.y + tile.height).toBeLessThanOrEqual(bar.y);
     }
-    // one toolbar: search, Filter and the Photos / Drawings switch on one row
+    // one toolbar: the search on a row of its own, Filter under it
     const toolbar = page.locator('.closet-toolbar');
     const search = (await toolbar.getByRole('searchbox').boundingBox())!;
     const filter = (await toolbar.getByRole('button', { name: /^Filter/ }).boundingBox())!;
-    const show = (await toolbar.getByRole('group', { name: 'Show' }).boundingBox())!;
-    expect(Math.abs(search.y + search.height / 2 - (filter.y + filter.height / 2))).toBeLessThan(4);
-    expect(Math.abs(show.y + show.height / 2 - (filter.y + filter.height / 2))).toBeLessThan(4);
+    expect(filter.y).toBeGreaterThanOrEqual(search.y + search.height);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await page.screenshot({ path: test.info().outputPath(`closet-phone.png`) });
 
@@ -78,6 +76,38 @@ test.describe('phone', () => {
     await page.keyboard.press('Escape');
     await expect(season).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+
+  test('the search box keeps a row of its own and its whole word, at 320px wide with filters on', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    await page.goto('/');
+    await expect(page.getByTestId('tile').first()).toBeVisible();
+    await page.getByTestId('in-laundry').click();
+    const toolbar = page.locator('.closet-toolbar');
+    await expect(toolbar.getByRole('button', { name: /^Filter\W+1 on$/ })).toBeVisible();
+    const box = page.getByRole('searchbox');
+    const search = (await box.boundingBox())!;
+    const row = (await toolbar.evaluate((el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+      return { left: r.left + parseFloat(s.paddingLeft), width: r.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) }; }));
+    // the whole row is the search's, and nothing beside it
+    expect(search.width).toBeGreaterThanOrEqual(row.width - 1);
+    for (const other of await toolbar.locator('button, [role="group"], li').all()) {
+      const b = await other.boundingBox();
+      if (b) expect(b.y >= search.y + search.height || b.y + b.height <= search.y).toBe(true);
+    }
+    // its word is shown whole
+    const fits = await box.evaluate((input: HTMLInputElement) => {
+      const s = getComputedStyle(input);
+      const ctx = document.createElement('canvas').getContext('2d')!;
+      ctx.font = `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+      return ctx.measureText(input.placeholder).width <= input.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+    });
+    expect(fits).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+    await page.screenshot({ path: test.info().outputPath('closet-320-search.png') });
+    await page.getByRole('button', { name: 'Remove filter: In the laundry' }).click();
   });
 
   test('an item opens at its top, and the closet keeps its search when you come back', async ({ page }) => {

@@ -1,7 +1,7 @@
-/** The closet grid's rules, with no React in them: what a piece is (the filter's one list), how many tiles to a row on
- * a computer, and what the laundry's line and an empty grid say. */
+/** The closet grid's rules, with no React in them: what the search finds, what a piece is (the filter's one list), how
+ * many tiles to a row on a computer, and what the laundry's line and an empty grid say. */
 import { groupsIn, kindsOf, type KindGroup } from './kinds';
-import { categoryPlural } from './labels';
+import { categoryPlural, label } from './labels';
 import type { ItemSummary } from './types';
 
 /**
@@ -93,4 +93,32 @@ export function whatName(items: WhatItem[], groups: KindGroup[] | undefined, wha
   if (what.kind) return items.find((it) => it.kind === what.kind)?.kind_name ?? '';
   if (what.category) return categoryPlural(what.category);
   return groups?.find((g) => g.id === what.group)?.title ?? '';
+}
+
+/** Words as the search compares them: small letters, accents taken off ("Écru" is "ecru"), split at anything that is
+ * not a letter or a digit ("off-white" is "off white"). */
+export function searchWords(text: string): string[] {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+}
+
+type Searched = Pick<ItemSummary, 'name' | 'category' | 'color' | 'pattern' | 'kind_name' | 'group' | 'brand' | 'material' | 'shade' | 'own_notes'>;
+
+/** Everything a piece is found by: its name, what it is (category, kind, group), its colour and shade, pattern, brand,
+ * material, and every note the owner kept on it. */
+export function searchedText(item: Searched, groups: KindGroup[] | undefined): string {
+  return [item.name, label('category', item.category), categoryPlural(item.category ?? ''), item.kind_name,
+    groups?.find((g) => g.id === item.group)?.title, label('color', item.color), item.shade ? label('shade', item.shade) : null,
+    label('pattern', item.pattern), item.brand, item.material, item.own_notes].filter(Boolean).join(' ');
+}
+
+/**
+ * Whether a piece answers a search: every word typed is found in what the piece is found by, each in any part of it
+ * ("navy linen" finds the navy shirt whose material is linen) and anywhere in a word ("shirt" finds an overshirt).
+ * Nothing typed finds everything.
+ */
+export function matchesSearch(text: string, query: string): boolean {
+  const typed = searchWords(query);
+  if (!typed.length) return true;
+  const hay = searchWords(text).join(' ');
+  return typed.every((t) => hay.includes(t));
 }

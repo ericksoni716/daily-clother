@@ -9,7 +9,7 @@ import { cleanAll, putBack, type Cleaned } from '../laundry';
 import { groupTitle, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { goBack, itemPath, Link, navigate } from '../router';
-import { ANY, chooseWhat, columnsFor, emptySentence, isWhat, laundryNotice, laundryPart, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
+import { ANY, chooseWhat, columnsFor, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
 import { progressOf } from '../progress';
 import { itemSaved, itemsQuery, progressQuery, reviewQuery, useVocab } from '../queries';
 import { useApp } from '../store';
@@ -82,17 +82,12 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const activeAway = status === 'active' && away;
 
   const shown = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return (list ?? []).filter((it) => {
       if (!isWhat(it, activeWhat)) return false;
       if (activeLaundry && (it.laundry ?? 'clean') !== activeLaundry) return false;
       if (activeCheck && !toCheck.has(it.id)) return false;
       if (activeAway && !it.away && !returned.has(it.id)) return false;
-      if (!q) return true;
-      const hay = [it.name, label('category', it.category), label('color', it.color), label('pattern', it.pattern), it.category, it.color,
-        it.kind_name, groupTitle(vocab?.kind_groups, it.group)]
-        .filter(Boolean).join(' ').toLowerCase();
-      return hay.includes(q);
+      return matchesSearch(searchedText(it, vocab?.kind_groups), query);
     });
   }, [list, activeWhat, activeLaundry, activeCheck, activeAway, returned, toCheck, query, vocab]);
 
@@ -227,6 +222,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
                 <input type="search" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
               </label>
             )}
+            <div className="closet-toolbar-row">
             <div className="filter-wrap">
               <button ref={filterButton} type="button" className={`btn filter-button${filters ? ' has-filters' : ''}`} aria-expanded={filtering}
                 aria-haspopup="dialog" onClick={() => setFiltering((f) => !f)}>
@@ -249,6 +245,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
                 ]}
                 onChange={(value) => { gridMoment = { view: value, setting: showDrawings }; setMoment(gridMoment); }} />
             )}
+            </div>
           </div>
           {filters > 0 && (
             <ul className="active-filters" aria-label="Filters on">

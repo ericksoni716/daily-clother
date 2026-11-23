@@ -72,6 +72,12 @@ export interface ItemSummary {
   drawn_version?: string | null;
   /** how far the work on it has got (see Progress); null when nothing is being done to it and nothing failed */
   progress?: Progress | null;
+  /** what the closet's search looks in besides the above: the brand, the material, the owner's name for its shade (one of
+   * the vocabulary's `shades`), and every note the item page's one notes box shows, each once ('' for none) */
+  brand?: string | null;
+  material?: string | null;
+  shade?: string | null;
+  own_notes?: string;
 }
 
 /** How far the work on an item has got, worked out by the server (`backend/closet/progress.py`), in its words. */

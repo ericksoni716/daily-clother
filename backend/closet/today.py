@@ -31,6 +31,7 @@ from . import (
     kinds,
     look,
     outfits,
+    outing,
     plans,
     stylejobs,
     styleprofile,
@@ -380,6 +381,19 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         # the accessories planned with it go with it, as the owner chose them (those still in the closet and wearable)
         usable = {r["id"] for r in rows if outfits._unavailable(r, ctx) in (None, *outfits.ASKED_FOR_ONLY)}
         answer["outfits"][0]["pieces"]["accessories"] = [a for a in plan["pieces"].get("accessories") or [] if a in usable]
+    # Give it an outing: today only, and never over the owner's own start (a piece built around, an outfit worn again,
+    # the day's plan), on a trip or away from home (the piece may not be there)
+    found_outing = None
+    if (other is None and not ctx.build_around and again is None and planned is None and answer["outfits"]
+            and not (on and on.get("place")) and not plans.trip_on(conn, today_)):
+        outing.turn_down(conn, today_, set(request.get("leave_out") or []))
+        found_outing = outing.choose(rows, ctx, shown=answer["outfits"], today=today_,
+                                     last_worn=outing.last_worn(conn, today_), dressed=outing.dressed(conn, today_),
+                                     history=outing.history(conn, today_), feedback=feedback)
+        if found_outing is not None:
+            answer["outfits"] = outing.place(answer["outfits"], found_outing)
+            if found_outing["new"]:
+                outing.record(conn, today_, found_outing)
     if say is not None and (stylist is None or not answer["outfits"]):
         raise outfits.ContextError("Claude isn't choosing your outfits here, so the message wasn't sent.")
     if ahead and (source != "forecast" or old):
@@ -398,10 +412,12 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
                 ctx=ctx, ids=set(styling.listed(rows, ctx).ids),
                 worn_today=any(o.get("worn_on") == wears.today().isoformat() for o in recent),
                 again=bool(body.get("ask_again")), brief=told, not_again=feedback.not_again,
-                say=say, engine=answer["outfits"], count=count, looking_at=looking_at)
+                say=say, engine=answer["outfits"], count=count, looking_at=looking_at, outing=found_outing)
         except stylejobs.Refused as e:
             raise outfits.ContextError(str(e)) from None
         if found["state"] == stylejobs.READY:
             answer["outfits"] = stylejobs.merged(found["outfits"], answer["outfits"], count)
+            if found_outing is not None:   # the rules' outing keeps the last place under Claude's outfits too
+                answer["outfits"] = outing.place(answer["outfits"], found_outing)
         context["stylist"] = stylejobs.public(found)
     return {**answer, "context": context}

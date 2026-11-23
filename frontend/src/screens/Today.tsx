@@ -19,7 +19,7 @@ import { settingsQuery } from '../settings';
 import { useApp } from '../store';
 import {
   canDress, chosenBy, closetKey, dayName, dayParts, daysAhead, joinWords, longDate, weekdayOf, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
-  OCCASIONS, outfitIds, parseTemp, placeLabel, readFor, sameOutfit, sameOutfits, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
+  OCCASIONS, outfitIds, outingLine, parseTemp, placeLabel, readFor, sameOutfit, sameOutfits, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
   timeOf, waitingLine, whatToAddFirst, withThing, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place, type RememberHow,
   type StylistState, type TodayAnswer, type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
@@ -1323,6 +1323,10 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
         </div>
         {planNote?.swapped && <p className="today-plan-note" data-testid="plan-swapped">{planNote.swapped}</p>}
         {planNote?.countsOn && <p className="today-plan-note" data-testid="counts-on">{planNote.countsOn}</p>}
+        {/* Give it an outing: one sentence, under the button where the day's other lines about an outfit go */}
+        {outfit.outing && (
+          <p className="today-plan-note" data-testid="outing-line">{outingLine(outfit.outing, itemName(byId.get(outfit.outing.item_id)), today)}</p>
+        )}
       </div>
 
       <div className="today-card-why">

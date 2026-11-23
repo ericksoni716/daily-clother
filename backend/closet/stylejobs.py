@@ -55,6 +55,7 @@ from datetime import date
 from pathlib import Path
 
 from . import db, items, outfits, styleprofile, styling
+from . import outing as outing_rules
 from .tagger.tagging import CapReached, RouteUnavailable, TaggingError, Unreachable
 
 log = logging.getLogger("closet.stylejobs")
@@ -241,7 +242,8 @@ class Stylist:
     def for_today(self, conn, path: Path, *, day: date, key: str, ctx: outfits.Context, ids: set[str], worn_today: bool,
                   again: bool, brief: Callable[[], tuple[dict, styling.Listed]],
                   not_again: Mapping[tuple[str, ...], str] | None = None, say: str | None = None,
-                  engine: list[dict] | None = None, count: int = 3, looking_at: int | None = None) -> dict:
+                  engine: list[dict] | None = None, count: int = 3, looking_at: int | None = None,
+                  outing: dict | None = None) -> dict:
         """Claude's answer for today as it stands: {state, id, outfits, read, message, talk, answering}. `state` is
         "ready" (with `outfits` and `read`), "working", or "failed" (with `message`; `outfits` empty). Starts a
         question when one is due (see the module's words). `ids`: the pieces that can be worn now; `brief`: makes
@@ -250,10 +252,11 @@ class Stylist:
         `talk` is the day's conversation (`talk_of`) and `answering` the id of the message Claude is answering now.
         `say` sends a message about the outfits on the page (`engine` and `count`: the rules' outfits and how many
         the page shows, to tell Claude what the owner is looking at, and `looking_at`: which of them was in front of
-        the owner, 0 the first); raises `Refused` when it cannot be sent."""
+        the owner, 0 the first; `outing`: the day's outing, which takes the last place on the page,
+        `closet/outing.py`); raises `Refused` when it cannot be sent."""
         found = self._for_today(conn, path, day=day, key=key, ctx=ctx, ids=ids, worn_today=worn_today, again=again,
                                 brief=brief, not_again=not_again, say=say, engine=engine or [], count=count,
-                                looking_at=looking_at)
+                                looking_at=looking_at, outing=outing)
         with self._lock:
             answering = self._answering(conn, day.isoformat())
         return {**found, "talk": talk_of(conn, day.isoformat()), "answering": answering["id"] if answering else None}
@@ -261,13 +264,13 @@ class Stylist:
     def _for_today(self, conn, path: Path, *, day: date, key: str, ctx: outfits.Context, ids: set[str],
                    worn_today: bool, again: bool, brief: Callable[[], tuple[dict, styling.Listed]],
                    not_again: Mapping[tuple[str, ...], str] | None, say: str | None, engine: list[dict],
-                   count: int, looking_at: int | None) -> dict:
+                   count: int, looking_at: int | None, outing: dict | None = None) -> dict:
         with self._lock:
             row = self._newest(conn, day.isoformat(), key)
             lost = False
             if say is not None:
                 return self._say(conn, path, row, day=day, key=key, ctx=ctx, ids=ids, brief=brief, not_again=not_again,
-                                 say=say, engine=engine, count=count, looking_at=looking_at)
+                                 say=say, engine=engine, count=count, looking_at=looking_at, outing=outing)
             if row is not None and row["state"] == WORKING:
                 if self._age(row) <= STALE_S:
                     return self._shape(row, [])
@@ -315,7 +318,7 @@ class Stylist:
 
     def _say(self, conn, path: Path, row, *, day: date, key: str, ctx: outfits.Context, ids: set[str],
              brief: Callable[[], tuple[dict, styling.Listed]], not_again: Mapping | None, say: str,
-             engine: list[dict], count: int, looking_at: int | None) -> dict:
+             engine: list[dict], count: int, looking_at: int | None, outing: dict | None = None) -> dict:
         """Send the owner's message about the outfits on the page (called with the lock held). The outfits stay as
         they are while Claude answers."""
         kept = wearable(json.loads(row["outfits"] or "[]"), ids) if row is not None and row["state"] == READY else []
@@ -329,9 +332,11 @@ class Stylist:
         if conn.execute("SELECT COUNT(*) FROM style_answers WHERE day = ?", (day.isoformat(),)).fetchone()[0] >= MAX_PER_DAY:
             raise Refused(REFUSED["day_limit"])
         told, listing = brief()
+        on_page = merged(kept, engine, count)
+        if outing is not None:   # the rules' outing in the last place, as the page shows it (nothing more is told)
+            on_page = outing_rules.place(on_page, outing)
         told = {**told, "say": say,
-                "talk": styling.talk_words(talk_of(conn, day.isoformat()), listing, merged(kept, engine, count), say,
-                                           looking_at)}
+                "talk": styling.talk_words(talk_of(conn, day.isoformat()), listing, on_page, say, looking_at)}
         answer_id = self._insert(conn, day, key, ctx, said=say)
         self.start(lambda: self._run(path, answer_id, told, listing, ctx, dict(not_again or {}), usable,
                                      shown=kept, read=row["read"]))

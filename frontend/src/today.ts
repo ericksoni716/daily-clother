@@ -1,6 +1,7 @@
 /** Today's outfits: the shapes the server sends, plain words for them, and what this device keeps. */
 import { label } from './labels';
 import type { ItemSummary } from './types';
+import { sinceDay } from './wears';
 
 export type Place = 'outer' | 'mid' | 'base' | 'bottom' | 'shoes' | 'accessory';
 
@@ -21,6 +22,19 @@ export interface Outfit {
   warnings: string[];
   /** 'claude' when Claude chose it; absent when Nines' own rules did. */
   by?: 'claude';
+  /** Give it an outing: this outfit, the last of the day's, is built around a piece you like and have not worn in a
+   * while (the server's `closet/outing.py`); absent on every other outfit. */
+  outing?: Outing;
+}
+
+/** The piece an outing is built around: how you rated it, and the day it was last worn (or added, when never worn). */
+export interface Outing {
+  item_id: string;
+  rating: 'love' | 'like';
+  since: string;
+  never_worn: boolean;
+  /** Its name is plural ("dark jeans"): "them", not "it". */
+  plural: boolean;
 }
 
 /** Claude choosing the day's outfits (the server's `closet/stylejobs.py`). */
@@ -296,6 +310,20 @@ export { clock as timeOf, longDate, shortDate } from './wears';
 
 // days ahead (Dress for another day): written by the family too
 export { addDays, dayName, daysAhead, onDay, weekdayOf } from './wears';
+
+/** A piece's name inside a sentence: its first letter small, unless the name starts with a short form ("TV jacket"). */
+export function midName(n: string): string {
+  return n.length > 1 && n[1] === n[1].toLowerCase() ? n[0].toLowerCase() + n.slice(1) : n;
+}
+
+/** The one sentence under an outing's button: "An outing for your tweed jacket: you love it and have not worn it since
+ * 2 Oct." (or "since you added it on 2 Oct" for a piece never worn). */
+export function outingLine(o: Outing, name: string, today: string): string {
+  const it = o.plural ? 'them' : 'it';
+  const when = sinceDay(o.since, today);
+  return `An outing for your ${midName(name)}: you ${o.rating} ${it} and have not worn ${it} `
+    + `${o.never_worn ? `since you added ${it} on ${when}` : `since ${when}`}.`;
+}
 
 /** A temperature typed by hand ("5", "-3", "12.5", "12°"); null if it is not a number this app plans for. */
 export function parseTemp(text: string): number | null {

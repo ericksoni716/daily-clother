@@ -14,6 +14,11 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Give it an outing** (23 November; DECISIONS, "Give it an outing"). The numbers (28 days, one
+  outing in five days, three weeks' rest) are guesses with no setting yet; "offered" counts from when the
+  outing was on the page, whether or not you swiped to it. The demo closet shows none as it ships (its
+  pieces were all worn lately). Claude is not told there is a candidate; the rules' outing simply keeps the
+  last place under Claude's outfits.
 - **Dress for another day, and Outfits you keep** (23 November; DECISIONS, "Dress for another
   day"). Claude does not choose the outfits for a day ahead: they are the rules' (Claude chooses for
   today only, and that morning starts from the plan). A day ahead cannot take typed temperatures, and
@@ -505,7 +510,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 - [x] **Dress for another day**: on Today, tomorrow or a date you choose, with that day's forecast and a word about the day ("dinner at eight"). "Wear this on Saturday" keeps the outfit; that morning Today opens on it, and its pieces are kept out of the laundry's way.
 - [x] **Outfits you keep**: save an outfit you like without wearing it; find them under Worn; wear one again in a tap.
 - [ ] **From a piece to an outfit**: on a piece's page, "Build an outfit around it" and the outfits you have worn it in.
-- [ ] **Give it an outing**: Today may offer one outfit built around a piece you like and have not worn in a while, and says so.
+- [x] **Give it an outing**: Today may offer one outfit built around a piece you like and have not worn in a while, and says so.
 
 **The closet**
 - [x] **Where a piece is**: at the cleaner's, at the tailor's, lent out, needs mending. Left out of outfits and trips like the laundry, with one line on the closet and a tap to bring it back.

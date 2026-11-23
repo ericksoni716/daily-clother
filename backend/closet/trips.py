@@ -881,6 +881,27 @@ def plan(items: Iterable[object], days: list[Mapping], options: Options | Mappin
                     under_way=under_way).run()
 
 
+def free_on(items: Iterable[object], days: list[Mapping], options: Options | Mapping | None, rewear: Mapping | None,
+            day: str, kept: Mapping[str, Mapping] | None = None, carried: Iterable[str] = ()) -> frozenset[str]:
+    """On a trip under way, the pieces in the bag that can be worn on `day` (one of the trip's dates), by the rules the
+    days still to come are dressed by (`plan` with `under_way`): only what is in the bag (`carried`) or pinned, worn
+    whatever the laundry at home says, and each no more often than the owner allows for its kind between the trip's
+    washes, the days in `kept` counting as worn. Today's outfits on a day the trip covers are chosen from these
+    (`closet/tripday.py`). Swim trunks, shoes for a sport and what you wear at home are not among them."""
+    dates = [str(d.get("date")) for d in days]
+    if day not in dates:
+        return frozenset()
+    opts = options if isinstance(options, Options) else parse_options(options or {}, dates)
+    trip = [_Day(str(d["date"]), dict(d), opts.day_occasions.get(str(d["date"]), opts.occasion), i)
+            for i, d in enumerate(days)]
+    planner = _Planner(list(items), trip, opts, check_rewear(rewear), kept=kept, carried=carried, under_way=True)
+    for d in trip:
+        if d.date in planner.kept and d.date != day:
+            planner.wear_kept(d)
+    target = trip[dates.index(day)]
+    return frozenset(p.id for p in planner.pool if planner.can_wear(p, target))
+
+
 def lines(result: Mapping) -> list[str]:
     """Every line of a plan that can be ticked as packed: the pieces, then the basics."""
     return [f"item:{p['id']}" for p in result.get("packed", [])] + [f"basic:{b['key']}" for b in result.get("basics", [])]

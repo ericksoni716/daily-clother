@@ -23,7 +23,7 @@ import json
 import uuid
 from datetime import date
 
-from . import db, trips, tripweather, wears, weather
+from . import db, plans, trips, tripweather, wears, weather, worn
 from .state import State
 from .today import closet_rows
 
@@ -78,15 +78,39 @@ def _plan(conn, state: State, days: list[dict], opts: trips.Options, before: dic
     are dressed from."""
     kept, carried, under_way = None, [], False
     if before is not None:
-        # what the owner ticked is in the bag; once the trip is under way, everything it packed is
-        carried = [line.removeprefix("item:") for line in before["packed"] if line.startswith("item:")]
-        if _under_way(before):
-            under_way = True
-            today = _today().isoformat()
-            kept = {d["date"]: d for d in before["plan"].get("days", []) if isinstance(d, dict) and str(d.get("date")) < today}
-            carried += [p["id"] for p in before["plan"].get("packed", []) if isinstance(p, dict) and p.get("id")]
+        under_way = _under_way(before)
+        carried = in_bag(before, under_way)
+        if under_way:
+            kept = kept_days(conn, before, _today())
     return trips.plan(closet_rows(conn), days, opts, rewear(state), today=wears.today(), kept=kept, carried=carried,
                       under_way=under_way)
+
+
+def in_bag(trip: dict, under_way: bool) -> list[str]:
+    """What is in the bag: what the owner ticked as packed, and once the trip is under way, everything it packed."""
+    carried = [line.removeprefix("item:") for line in trip["packed"] if line.startswith("item:")]
+    if under_way:
+        carried += [p["id"] for p in trip["plan"].get("packed", []) if isinstance(p, dict) and p.get("id")]
+    return carried
+
+
+def kept_days(conn, trip: dict, today: date) -> dict[str, dict]:
+    """The days of a trip under way that stay as they are, by date: each day gone as the saved plan has it, and each
+    day up to today on which you recorded an outfit, with what you wore when it was not the plan's outfit. Their pieces
+    count as worn: planning again does not dress them again, and Today on the days after does not offer a piece worn as
+    often as its kind allows (`closet/tripday.py`)."""
+    iso = today.isoformat()
+    days = {str(d.get("date")): d for d in trip["plan"].get("days", []) if isinstance(d, dict)}
+    out = {k: v for k, v in days.items() if k < iso}
+    for day, wore in worn.by_day(conn, trip["first_day"], min(trip["last_day"], iso)).items():
+        planned = days.get(day) or {"date": day}
+        outfit = planned.get("outfit") if isinstance(planned.get("outfit"), dict) else {}
+        if set(plans.ids_of(wore["pieces"])) == set(plans.ids_of(outfit.get("pieces") or {})):
+            out[day] = planned   # worn as planned: the day stays exactly as the plan had it
+        else:
+            out[day] = {**planned, "problem": None, "warning": None, "outfit": {
+                "pieces": wore["pieces"], "score": wore["score"], "reasons": wore["reasons"], "warnings": wore["warnings"]}}
+    return out
 
 
 def _under_way(trip: dict) -> bool:

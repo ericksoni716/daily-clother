@@ -248,6 +248,13 @@ def of_item(conn, item_id: str, limit: int = WORN_IN_READ) -> list[dict]:
     return group_wears(days, outfit_on)
 
 
+def by_day(conn, first: str, last: str) -> dict[str, dict]:
+    """The outfit worn on each day from `first` to `last` (YYYY-MM-DD, both included): the newest recorded that day."""
+    rows = conn.execute("SELECT * FROM worn_outfits WHERE worn_on BETWEEN ? AND ? ORDER BY worn_on, created_at, id",
+                        (first, last)).fetchall()
+    return {o["worn_on"]: o for o in _shape_all(conn, rows)}
+
+
 # ------------------------------------------------------------------ recording
 def wear(conn, item_ids: object, worn_on: str | None, outfit: object) -> dict:
     """Record the wears of an outfit and the outfit itself, all or nothing. `POST /api/wears` with `outfit`."""

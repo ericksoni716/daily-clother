@@ -414,6 +414,9 @@ export const api = {
   patchTrip: (id: string, changes: TripPatch) =>
     request<Trip>(`/api/trips/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
   removeTrip: (id: string) => request<void>(`/api/trips/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  /** "Not on this trip today" (`on`), or its Undo: the trip that holds today set aside for the rest of the day. */
+  tripAside: (id: string, on: boolean) =>
+    request<{ aside: boolean; day: string }>(`/api/trips/${encodeURIComponent(id)}/aside`, { method: on ? 'PUT' : 'DELETE' }),
   insights: () => request<Insights>('/api/insights'),
   // What's missing and the wishlist
   gaps: () => request<GapsAnswer>('/api/gaps'),

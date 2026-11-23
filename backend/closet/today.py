@@ -9,7 +9,13 @@ The forecast is read hour by hour for the hours the owner is out (`closet/day.py
 those hours feel like and whether it rains in them. A day note that holds today (`closet/daynote.py`: "in Lisbon
 until Friday, outside from noon") moves the weather to its place, the hours to its hours, and offers its occasion.
 Items in the laundry are left out by the engine itself. `again` starts from an
-outfit worn before: its pieces that can be worn today keep their places.
+outfit worn before (or one kept, `closet/kept.py`): its pieces that can be worn today keep their places.
+
+Another day (`day` in the choices, Dress for another day, `closet/plans.py`): the same rules for a day ahead, with
+that day's weather (the forecast where it reaches, otherwise what the date is usually like, as a trip's days:
+`closet/tripweather.py`), the word about that day, and what is in the laundry today counted clean by then only when a
+trip starting that day would count it so (`trips.CLEAN_BY_DAYS`). A day with a plan opens on it, the morning of the
+day included; planned pieces are kept out of the laundry's way on the days before (`plans.held`).
 """
 from __future__ import annotations
 
@@ -18,12 +24,30 @@ import json
 from datetime import date
 
 from . import day as dayparts
-from . import daynote, items, kinds, look, outfits, stylejobs, styleprofile, styling, vocab, wears, weather, worn
+from . import (
+    daynote,
+    items,
+    kept,
+    kinds,
+    look,
+    outfits,
+    plans,
+    stylejobs,
+    styleprofile,
+    styling,
+    trips,
+    tripweather,
+    vocab,
+    wears,
+    weather,
+    worn,
+)
 from .state import State
 from .tagger.taxonomy import FOOTWEAR, GARMENTS
 
-CHOICES = ("occasion", "mood", "build_around", "leave_out", "count", "again", "ask_again", "say", "looking_at")
-TALK = ("again", "ask_again", "say", "looking_at")   # choices that are not the engine's
+CHOICES = ("occasion", "mood", "build_around", "leave_out", "count", "again", "ask_again", "say", "looking_at", "day",
+           "planned")
+TALK = ("again", "ask_again", "say", "looking_at", "day", "planned")   # choices that are not the engine's
 WEATHER_FIELDS = ("low_c", "high_c", "rain")
 # The day dressed for when no forecast can be had and no temperatures were given (DECISIONS "Today's outfits by themselves")
 MILD = {"low_c": 14.0, "high_c": 20.0, "rain": False}
@@ -117,9 +141,10 @@ def closet_rows(conn) -> list[dict]:
             for r in conn.execute("SELECT * FROM items ORDER BY id")]
 
 
-def worn_days_ago(conn) -> dict[str, int]:
-    """Days since each item was last worn, from the wear log (0 is today, the computer's local date)."""
-    today = wears.today()
+def worn_days_ago(conn, on: date | None = None) -> dict[str, int]:
+    """Days since each item was last worn, from the wear log (0 is today, the computer's local date; `on`: counted
+    from a day ahead instead)."""
+    today = on or wears.today()
     out = {}
     for item_id, last in conn.execute("SELECT item_id, MAX(worn_on) FROM wears GROUP BY item_id"):
         try:
@@ -127,6 +152,28 @@ def worn_days_ago(conn) -> dict[str, int]:
         except (TypeError, ValueError):
             continue
     return out
+
+
+def clean_by(rows: list[dict], today: date, day: date) -> list[dict]:
+    """The closet as it will be on a day ahead: what is in the laundry today is clean by then when a trip starting
+    that day would count it so (`trips.CLEAN_BY_DAYS`), with its count of wears started again."""
+    if (day - today).days < trips.CLEAN_BY_DAYS:
+        return rows
+    return [{**r, "laundry": "clean", "wears_since_wash": 0} if outfits._in_laundry(r) else r for r in rows]
+
+
+def ahead_weather(state: State, place: dict | None, day: date, today: date, lookup=None) -> dict:
+    """The weather for a day ahead at `place`: {weather, message}. `weather` is the day as a trip's days have it
+    ({date, low_c, high_c, rain, rain_chance, summary, source}, `source` "forecast" or "usual"), or None when neither
+    can be had, and `message` then says why."""
+    if not place:
+        return {"weather": None, "message": "Choose where you are in Settings, and Nines can look up the weather for that day."}
+    found = (lookup or tripweather.lookup)(state, place, day, day, today)
+    got = found["days"][0] if found.get("days") else None
+    if not got or got.get("source") not in ("forecast", "usual"):
+        why = found.get("message") or "The weather service has nothing for that day."
+        return {"weather": None, "message": why.split(" Days without weather")[0]}
+    return {"weather": got, "message": None}
 
 
 def again_of(outfit: dict, rows: list[dict], leave_out: set[str]) -> dict:
@@ -169,11 +216,38 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
     if unknown:
         raise outfits.ContextError(f"These are not part of today's choices: {', '.join(unknown)}.")
     given = {k: body[k] for k in WEATHER_FIELDS if body.get(k) is not None}
-    note = daynote.current(state, wears.today())
-    on = note if daynote.active(note, wears.today()) else None   # a note for days still ahead changes nothing yet
+    today_ = wears.today()
+    other = None   # another day, dressed ahead
+    if body.get("day") is not None:
+        try:
+            other = plans.check_day(body["day"], today_)
+        except items.ItemError as e:
+            raise outfits.ContextError(str(e)) from None
+    if body.get("planned") is not None and not isinstance(body["planned"], bool):
+        raise outfits.ContextError("planned must be true or false.")
+    on_day = other or today_
+    if other is not None:
+        trip = plans.trip_on(conn, other)
+        if trip:   # the trip has that day's outfit: no second plan
+            return {"outfits": [], "missing": [], "context": {
+                "date": other.isoformat(), "ahead": True, "trip": trip, "low_c": None, "high_c": None, "rain": None,
+                "source": "trip", "old": False, "place": None, "rain_chance": None, "summary": None, "message": None,
+                "detail": None, "note": None}}
+        note = daynote.for_day(state, other)
+        on = note
+    else:
+        note = daynote.shown(state, today_)
+        on = note if daynote.active(note, today_) else None   # a note for days still ahead changes nothing yet
 
     forecast, place, old, message, mild, reading = None, None, False, None, False, None
-    if len(given) < len(WEATHER_FIELDS):
+    if other is not None and len(given) < len(WEATHER_FIELDS):
+        place = (on.get("place") if on else None) or state.get("place")
+        found = ahead_weather(state, place, other, today_)
+        forecast = found["weather"]
+        if forecast is None and ("low_c" not in given or "high_c" not in given):
+            mild = True
+            message = f"Nines can't tell what the weather will be that day, so these are for a mild day. {found['message']}"
+    elif len(given) < len(WEATHER_FIELDS):
         found = weather.lookup(state, on.get("place") if on else None)
         place = found["place"]
         if found["weather"] and found["is_today"]:
@@ -217,8 +291,10 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
     request = {k: body[k] for k in CHOICES if body.get(k) is not None and k not in TALK}
     if on and on.get("occasion") and "occasion" not in request:
         request["occasion"] = on["occasion"]
-    ctx, count = outfits.parse_request({**request, **day, "worn_days_ago": worn_days_ago(conn)})
+    ctx, count = outfits.parse_request({**request, **day, "worn_days_ago": worn_days_ago(conn, on_day)})
     rows = closet_rows(conn)
+    if other is not None:
+        rows = clean_by(rows, today_, other)
     if ctx.build_around and not any(r["id"] == ctx.build_around for r in rows):
         raise outfits.ContextError("The item to build around is not in this closet.")
     again = None
@@ -228,15 +304,36 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         try:
             before = worn.get(conn, body["again"])
         except items.ItemError:
-            raise outfits.ContextError("That outfit is no longer in your list of worn outfits.") from None
+            try:   # or one of the outfits kept
+                before = {**kept.get(conn, body["again"]), "worn_on": None}
+            except items.ItemError:
+                raise outfits.ContextError("That outfit is no longer in your list of worn outfits.") from None
         again = again_of(before, rows, set(ctx.leave_out))
         ctx = dataclasses.replace(ctx, keep=tuple(again["kept"]))
+    # the day's plan: the outfits start from it, unless the owner asked for another start or for other outfits
+    upcoming = plans.upcoming(conn, today_)
+    planned = None
+    plan = next((p for p in upcoming if p["day"] == on_day.isoformat()), None)
+    if plan and again is None and not ctx.build_around and body.get("planned") is not False:
+        planned = {**again_of({"id": None, "worn_on": None, "pieces": plan["pieces"]}, rows, set(ctx.leave_out)),
+                   "day": plan["day"]}
+        del planned["id"], planned["worn_on"]
+        word = daynote.dated(state, on_day)
+        planned["note"] = word.get("text") if word else None
+        ctx = dataclasses.replace(ctx, keep=tuple(planned["kept"]))
+    # planned pieces kept out of the laundry's way: not offered when wearing them now leaves them in the laundry then
+    held = plans.held(rows, upcoming, on_day, wears.policy())
+    asked = {ctx.build_around, *ctx.keep}
+    if set(held) - asked:
+        ctx = dataclasses.replace(ctx, leave_out=(*ctx.leave_out, *sorted(set(held) - asked)))
     feedback = outfits.feedback_from(worn.rated(conn), rows, ctx)
 
     from_forecast = [k for k in WEATHER_FIELDS if k not in given and forecast]
     source = "mild" if mild else "given" if not from_forecast else ("forecast" if not given else "forecast and given")
+    if forecast and forecast.get("source") == "usual":
+        source = source.replace("forecast", "usual")   # what that date is usually like, beyond the forecast
     context = {
-        "date": forecast["date"] if forecast else wears.today().isoformat(),
+        "date": forecast["date"] if forecast else on_day.isoformat(),
         "low_c": ctx.low_c, "high_c": ctx.high_c, "rain": ctx.rain, "source": source, "old": old,
         "place": place["name"] if place and forecast else None,
         "rain_chance": forecast["rain_chance"] if forecast and "rain" not in given else None,
@@ -244,10 +341,17 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         "message": message,
         # the hours dressed for, read from the forecast (None when it has no hours, or every number was typed)
         "detail": reading if from_forecast else None,
-        "note": daynote.describe(note, wears.today()),
+        "note": daynote.describe(note, on_day, ahead=other is not None),
     }
     if again is not None:
         context["again"] = again
+    if planned is not None:
+        context["plan"] = planned
+    if held:
+        context["held"] = held
+    if other is not None:
+        context["ahead"] = True
+        stylist = None   # another day is dressed by the rules: Claude chooses for today only
     answer = outfits.suggest(rows, ctx, count, feedback)
     if say is not None and (stylist is None or not answer["outfits"]):
         raise outfits.ContextError("Claude isn't choosing your outfits here, so the message wasn't sent.")

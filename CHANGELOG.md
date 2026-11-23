@@ -266,6 +266,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   as before and the piece you chose stays where it was on the screen, instead of the grid folding to
   three across and showing other clothes. The panel has **Close**, Escape closes it, and Back closes
   it too; focus goes into the panel as it opens and back to the piece when it closes.
+- **Would this work? remembers.** A reload, or your phone closing the app, no longer forgets what you
+  described and the answer: they are kept on this device for the rest of the day, until you tap
+  **Check another piece**.
 - **Choosing a colour no longer chooses a shade for you.** On a piece's page, Colour → Blue used to
   light up "French blue" by itself. Now a colour chosen alone is just that colour: no shade is lit,
   the row says "Blue", and the piece is drawn in plain blue until you choose a shade. What Claude

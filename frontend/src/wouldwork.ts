@@ -1,7 +1,7 @@
 /** Would this work?: the shapes the server sends for a check, and plain words for them. */
 import type { LookFor, Wish } from './gaps';
 import { formalityLabel, label } from './labels';
-import type { OutfitPieces } from './today';
+import { SAVED_PREFIX, type OutfitPieces } from './today';
 
 /** The piece being checked, as typed by hand or as Claude described it from a photo. */
 export interface WouldPiece {
@@ -288,4 +288,54 @@ export function fillNote(fill: { situations?: string[]; low?: boolean }): string
 export function fillWords(fill: { gone: boolean; filled: boolean }): string {
   if (fill.gone) return 'no longer missing';
   return fill.filled ? 'mostly filled' : 'a little less of a gap';
+}
+
+// --------------------------------------------------------------------- kept on this device
+
+/** What the screen keeps on this device for the rest of the day, as Today keeps its changes: what was typed, the
+ * description last sent by hand, and the last answer, for the closet and the wish it was started from. */
+export interface KeptCheck {
+  day: string;
+  wish_id: string | null;
+  draft: Partial<WouldPiece>;
+  checked: string | null;
+  shown: Check | null;
+}
+
+type KV = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+function local(): KV | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Under the saved copies' prefix, so it is forgotten with them (on leaving a closet, `forgetSaved`). */
+const keptKey = (profile: string) => `${SAVED_PREFIX}:would:${profile}`;
+
+/** The check kept for a closet: given back only on the day it was kept and for the same wish (or none); `set(null)`
+ * forgets it, as starting a new one does. */
+export function keptCheck(profile: string, kv: KV | null = local()) {
+  return {
+    get(today: string, wishId: string | null): KeptCheck | null {
+      try {
+        const raw = kv?.getItem(keptKey(profile));
+        const v = raw ? JSON.parse(raw) as KeptCheck : null;
+        if (!v || v.day !== today || (v.wish_id ?? null) !== wishId || typeof v.draft !== 'object' || !v.draft) return null;
+        return v;
+      } catch {
+        return null;
+      }
+    },
+    set(value: KeptCheck | null) {
+      try {
+        if (value) kv?.setItem(keptKey(profile), JSON.stringify(value));
+        else kv?.removeItem(keptKey(profile));
+      } catch {
+        /* private mode or full: not kept, nothing else breaks */
+      }
+    },
+  };
 }

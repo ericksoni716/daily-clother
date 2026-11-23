@@ -237,6 +237,40 @@ test('would this work? by hand on a small phone: the answer as soon as the kind 
   expect(await axeViolations(page)).toEqual([]);
 });
 
+test('would this work?: a reload keeps what was typed and the answer; checking another piece forgets them', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  await page.goto('/wardrobe/check');
+  const panel = page.getByTestId('would-work');
+  const form = panel.getByRole('form', { name: 'Describe it by hand' });
+  await form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Jeans', exact: true }).click();
+  await form.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Navy', exact: true }).click();
+  await expect(panel.getByTestId('would-work-answer')).toBeVisible({ timeout: 30_000 });
+  await form.getByRole('button', { name: 'More about it' }).click();
+  await page.getByRole('dialog', { name: 'More about it' }).getByLabel('Name (optional)').fill('Made-up selvedge jeans');
+  await page.getByRole('dialog', { name: 'More about it' }).getByRole('button', { name: 'Done' }).click();
+  await expect(panel.getByTestId('would-work-answer')).toContainText('Made-up selvedge jeans', { timeout: 30_000 });
+  await expect(panel.locator('.wouldwork-shown.is-stale')).toHaveCount(0, { timeout: 30_000 });
+  const verdict = await panel.getByTestId('verdict').textContent();
+
+  // a reload (or iOS closing the app) used to forget all of it (the review of 23 November, P12)
+  let asked = 0;
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().endsWith('/api/would-this-work')) asked++; });
+  await page.reload();
+  await expect(panel.getByTestId('would-work-piece')).toContainText('Made-up selvedge jeans, navy jeans');
+  await expect(panel.getByTestId('verdict')).toHaveText(verdict!);
+  expect(asked).toBe(0);   // shown as it was, not worked out again
+
+  // a new one starts empty, and stays empty after a reload
+  await panel.getByRole('button', { name: 'Check another piece' }).click();
+  await expect(form.getByRole('group', { name: 'Main colour' }).getByRole('button', { pressed: true })).toHaveCount(0);
+  await page.reload();
+  await expect(form.getByRole('group', { name: 'What kind of piece' })).toBeVisible();
+  await expect(form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(panel.getByTestId('would-work-answer')).toHaveCount(0);
+});
+
 test('would this work? is off while offline, with the same words as the other buttons', async ({ page, context }) => {
   await openMissing(page);
   await serviceWorkerInCharge(page);

@@ -484,7 +484,9 @@ colour, and answers as soon as both are chosen, with no button to press; the pie
 ("Light blue shirt") with **Change what it is** and **More about it** (formality, season, how heavy,
 pattern, keeps the rain off, a name), each a sheet over the page. Closing one works the answer out
 again, the last answer staying in place, dimmed, until the new one is ready; until you say more, a
-line under the piece says what it was checked as ("smart casual, for any time of year and plain").
+line under the piece says what it was checked as ("smart casual, for any time of year and plain"). What you
+described and the answer stay on this device for the rest of the day, after a reload too, until
+**Check another piece**.
 The answer says what it goes with, what it repeats, what it would fill, what
 would hold it back, when you would wear it, and example outfits. The example outfits have the
 **Pieces / As worn** switch of Today and Trips (the same remembered choice): As worn draws each one

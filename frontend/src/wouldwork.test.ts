@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { LookFor, Wish } from './gaps';
 import {
   type Check, checkKinds, checkPoll, drawnFromWords, outfitStep, wornError, POLL_MS, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceFromWish, PIECE_NAME_MAX, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
-  wishFrom, wornWords, nextCheck, pieceLine, untoldWords,
+  wishFrom, wornWords, nextCheck, pieceLine, untoldWords, keptCheck, type KeptCheck,
 } from './wouldwork';
+import { forgetSaved } from './today';
 
 const look = (over: Partial<LookFor> = {}): LookFor => ({
   category: 'coat', formality: 'smart_casual', season: 'all', weight_class: 'midweight', colors: [], pattern: 'solid',
@@ -92,6 +93,46 @@ describe('by hand: the kind and the colour first, the answer at once (23 Novembe
     expect(untoldWords({ category: 'coat', color: 'tan', formality: 'smart_casual', season: 'cool', pattern: 'plaid' },
       { ...piece, season: 'cool', pattern: 'plaid' }, levels)).toBeNull();
     expect(untoldWords({ category: 'coat', color: 'tan' }, null, levels)).toBeNull();
+  });
+});
+
+describe('kept on this device for the day (the review of 23 November, P12)', () => {
+  const store = () => {
+    const m = new Map<string, string>();
+    return {
+      getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k),
+      get length() { return m.size; }, key: (i: number) => [...m.keys()][i] ?? null,
+    };
+  };
+  const kept: KeptCheck = {
+    day: '2026-11-23', wish_id: null, draft: { category: 'coat', color: 'tan', formality: 'business' },
+    checked: '{"category":"coat","color":"tan","formality":"business"}', shown: check({ id: 'c9' }),
+  };
+
+  it('gives back what was typed and the answer after a reload, the same day, for the same closet and wish', () => {
+    const kv = store();
+    keptCheck('main', kv).set(kept);
+    expect(keptCheck('main', kv).get('2026-11-23', null)).toEqual(kept);
+    expect(keptCheck('demo', kv).get('2026-11-23', null)).toBeNull();
+    expect(keptCheck('main', kv).get('2026-11-23', 'w1')).toBeNull();
+    expect(keptCheck('main', kv).get('2026-11-24', null)).toBeNull();
+  });
+
+  it('forgets it when a new one is started, and with the other saved copies', () => {
+    const kv = store();
+    keptCheck('main', kv).set(kept);
+    keptCheck('main', kv).set(null);
+    expect(keptCheck('main', kv).get('2026-11-23', null)).toBeNull();
+    keptCheck('main', kv).set(kept);
+    forgetSaved(kv);
+    expect(keptCheck('main', kv).get('2026-11-23', null)).toBeNull();
+  });
+
+  it('gives back nothing from a copy it cannot read', () => {
+    const kv = store();
+    kv.setItem('closet-today-saved:would:main', '{"day":"2026-11-23"');
+    expect(keptCheck('main', kv).get('2026-11-23', null)).toBeNull();
+    expect(keptCheck('main', null).get('2026-11-23', null)).toBeNull();
   });
 });
 

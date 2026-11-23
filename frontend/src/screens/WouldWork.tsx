@@ -13,10 +13,11 @@ import { vocabQuery } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
 import { placeLabel, wornOrder } from '../today';
+import { localDay } from '../wears';
 import type { ItemSummary, Vocab } from '../types';
 import {
   CANDIDATE_ID, type Check, checkKey, checkKinds, checkPoll, drawnFromWords, fillNote, fillWords, isDone, nextCheck, noteFor, pieceFromWish, pieceLine,
-  pieceToSend, stillToChoose, untoldWords, verdictTone, waitingWords, WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
+  keptCheck, pieceToSend, stillToChoose, untoldWords, verdictTone, waitingWords, WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
 } from '../wouldwork';
 import './WouldWork.css';
 
@@ -76,13 +77,16 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   const vocabRead = useQuery(vocabQuery());
   const vocab = vocabRead.data ?? null;
   const remembered = memory && memory.profile === profile && memory.wishId === wishId ? memory : null;
-  const [draft, setDraft] = useState<Partial<WouldPiece>>(remembered?.draft ?? pieceFromWish(wish));
-  const [held, setStage] = useState<Stage>(() => openingStage(remembered));
+  // after a reload (or iOS closing the app), what this device kept today: what was typed and the last answer
+  const [kept] = useState(() => (remembered ? null : keptCheck(profile).get(localDay(), wishId)));
+  const [draft, setDraft] = useState<Partial<WouldPiece>>(remembered?.draft ?? kept?.draft ?? pieceFromWish(wish));
+  const [held, setStage] = useState<Stage>(() => (kept?.shown ? { kind: 'check', check: kept.shown } : openingStage(remembered)));
   const [wished, setWished] = useState(() => held.kind === 'check' && wishedChecks.has(held.check.id));
   // by hand: the description last sent, the last answer to one, and whether a sheet of choices is open
-  const [checked, setChecked] = useState<string | null>(remembered?.checked ?? null);
-  const [lastReady, setLastReady] = useState<Check | null>(remembered?.lastReady ?? null);
+  const [checked, setChecked] = useState<string | null>(remembered?.checked ?? kept?.checked ?? null);
+  const [lastReady, setLastReady] = useState<Check | null>(remembered?.lastReady ?? (kept?.shown?.way === 'by_hand' ? kept.shown : null));
   const [choosing, setChoosing] = useState(false);
+  const [answered, setAnswered] = useState<string | null>(kept?.checked ?? null);
 
   // How the check is getting on: asked every moment until it is answered (more slowly while Nines cannot be reached
   // for a moment), never while the page is hidden, and never again once answered. The check the server sent back
@@ -107,7 +111,7 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   const demo = profile === 'demo';
 
   // a wish loaded after the panel opened fills in the form, unless the owner has started on it
-  const filledFrom = useRef<string | null>(remembered || !wish ? wishId : null);
+  const filledFrom = useRef<string | null>(remembered || kept || !wish ? wishId : null);
   useEffect(() => {
     if (wish && filledFrom.current !== wish.id) {
       filledFrom.current = wish.id;
@@ -119,10 +123,22 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
     memory = { profile, wishId, draft, stage, checked, lastReady };
   }, [profile, wishId, draft, stage, checked, lastReady]);
 
+  // kept on this device for the rest of the day too, as Today keeps its changes: a reload shows the same
+  const keptReady = stage.kind === 'check' && stage.check.state === 'ready' ? stage.check : lastReady;
+  useEffect(() => {
+    if (!Object.keys(pieceToSend(draft)).length && !keptReady) return;
+    // the description the kept answer is for: a newer one still on its way is sent again after a reload
+    keptCheck(profile).set({ day: localDay(), wish_id: wishId, draft, checked: answered, shown: keptReady });
+  }, [profile, wishId, draft, answered, keptReady]);
+
   // the last answer to a description by hand, kept on screen while a newer one is worked out
   const readyByHand = stage.kind === 'check' && stage.check.state === 'ready' && stage.check.way === 'by_hand' ? stage.check : null;
+  // and the description that answer is for (one check runs at a time, so it is the one sent last)
   useEffect(() => {
-    if (readyByHand) setLastReady(readyByHand);
+    if (!readyByHand) return;
+    setLastReady(readyByHand);
+    setAnswered(checked);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per answer
   }, [readyByHand]);
 
   // came back while a check was being sent: pick it up when the server answers
@@ -171,9 +187,11 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   }
 
   function again(keep: boolean) {
-    if (!keep) {
+    if (!keep) {   // a new one: what was kept of the last is forgotten
+      keptCheck(profile).set(null);
       setDraft(pieceFromWish(wish));
       setLastReady(null);
+      setAnswered(null);
     }
     setChecked(null);
     setStage({ kind: 'form', error: null });

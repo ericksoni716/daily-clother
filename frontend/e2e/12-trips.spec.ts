@@ -369,6 +369,30 @@ test('swimming or the beach: on by itself for a hot trip, kept off when turned o
     await options.getByRole('button', { name: 'Plan again' }).click();
     await again;
     await expect(swim).not.toBeChecked();
+    // and given back to the forecast, it is on again for the hot days
+    const back = patched();
+    await options.getByRole('button', { name: 'Follow the forecast again' }).click();
+    await back;
+    await expect(swim).toBeChecked();
+    await expect(options).toContainText('It is on because 3 days reach 27°C.');
+    await expect(options.getByRole('button', { name: 'Follow the forecast again' })).toHaveCount(0);
+
+    // tennis on the trip: the demo's sneakers said to be tennis shoes are packed beside the days, worn on none
+    const sneakers = closet.find((i) => i.category === 'sneakers')!;
+    const kindBefore = ((await (await page.request.get(`/api/items/${sneakers.id}`)).json()) as { kind: string | null }).kind;
+    expect((await page.request.put(`/api/items/${sneakers.id}/kind`, { data: { kind: 'tennis_shoe' } })).ok()).toBe(true);
+    try {
+      const tennis = patched();
+      await options.getByRole('group', { name: 'Playing on the trip' }).getByRole('button', { name: 'Tennis' }).click();
+      await tennis;
+      await expect(options.getByRole('button', { name: 'Tennis' })).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByRole('list', { name: 'Shoes' })).toContainText(sneakers.name);
+      await expect(page.getByTestId('trip-day').filter({ hasText: sneakers.name })).toHaveCount(0);
+    } finally {
+      if (kindBefore) await page.request.put(`/api/items/${sneakers.id}/kind`, { data: { kind: kindBefore } });
+      else await page.request.patch(`/api/items/${sneakers.id}`, { data: { category: 'boots' } }).then(() =>
+        page.request.patch(`/api/items/${sneakers.id}`, { data: { category: 'sneakers' } }));   // drops the kind
+    }
 
     // a new trip on cool days: off until turned on, and turning it on packs them
     await stubTripWeather(page);

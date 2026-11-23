@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { forgetSaved } from './today';
 import {
   addDays, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, laundryDays, laundryEvery, laundryMode,
-  laundryWords, progress, REWEAR_KINDS, rewearWords, shortDay, sourceLabel, sourceRuns, startLaundry, swimHint, swimOn,
+  laundryWords, progress, REWEAR_KINDS, rewearWords, shortDay, sourceLabel, sourceRuns, startLaundry, swimHint, swimOn, toggleSport,
   loadSavedTrips, sameReasons, saveTrips, tripProblems,
   tripComingUp, tripDays, tripTitle, upcomingFirst, wornWords, type TripDay, type TripSummary,
 } from './trips';
@@ -92,6 +92,12 @@ describe('trips', () => {
       { id: 'a', group: 'bottoms', days: 2, pinned: false },
     ] as never);
     expect(groups.map((g) => g.label)).toEqual(['Trousers and shorts', 'For swimming']);
+  });
+
+  it('turns a sport on and off, keeping the order they are offered in', () => {
+    expect(toggleSport(undefined, 'golf')).toEqual(['golf']);
+    expect(toggleSport(['golf'], 'tennis')).toEqual(['tennis', 'golf']);
+    expect(toggleSport(['tennis', 'golf'], 'tennis')).toEqual(['golf']);
   });
 
   it('says whether swimming is on, and who decided', () => {

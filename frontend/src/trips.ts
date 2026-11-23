@@ -102,6 +102,8 @@ export interface TripChoices {
   pin: string[];
   /** "Swimming or the beach": the owner's word, or null to follow the forecast (trips saved before it have none). */
   swim?: boolean | null;
+  /** The sports played on the trip: their shoes are packed beside the days (trips saved before it have none). */
+  sport?: TripSport[];
 }
 
 /** A plan worked out but not saved. */
@@ -148,6 +150,7 @@ export interface TripPatch {
   leave_out?: string[];
   pin?: string[];
   swim?: boolean | null;
+  sport?: TripSport[];
   replan?: boolean;
 }
 
@@ -412,6 +415,18 @@ export function swimHint(choice: boolean | null | undefined, plan?: SwimPlan | n
   if (choice === false) return 'You turned it off. It stays off whatever the forecast.';
   if (plan?.on) return `It is on because ${plan.hot_days === 1 ? 'a day reaches' : `${plan.hot_days} days reach`} ${plan.hot_c}°C.`;
   return `It turns on by itself when ${plan ? `a day reaches ${plan.hot_c}°C` : 'the trip will be hot'}.`;
+}
+
+/** The sports a trip can include, as the trip's choice and as the owner reads them. */
+export type TripSport = 'tennis' | 'golf';
+export const TRIP_SPORTS: { value: TripSport; label: string }[] = [{ value: 'tennis', label: 'Tennis' }, { value: 'golf', label: 'Golf' }];
+
+/** The sports with one turned on or off, in the order they are offered. */
+export function toggleSport(chosen: TripSport[] | undefined, sport: TripSport): TripSport[] {
+  const on = new Set(chosen ?? []);
+  if (on.has(sport)) on.delete(sport);
+  else on.add(sport);
+  return TRIP_SPORTS.map((s) => s.value).filter((s) => on.has(s));
 }
 
 /** "Worn once", "Worn up to 3 times", "The whole trip": a choice of the setting. */

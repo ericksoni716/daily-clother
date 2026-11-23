@@ -43,6 +43,9 @@
 .trip-laundry .field { margin-bottom: 0; }
 .trip-laundry .hint { margin: 0; }
 .trip-swim { margin: 0 0 14px; max-width: 30rem; }
+.trip-swim-auto { margin-top: 2px; }
+.trip-sport { margin: 0 0 14px; max-width: 30rem; }
+.trip-sport .hint { margin: 4px 0 0; }
 .trip-big-button { min-height: 52px; font-size: var(--text-md); }
 .trip-save { max-width: 30rem; margin: 18px 0 8px; }
 
@@ -56,7 +59,7 @@
 .trip-progress strong { flex: none; }
 .trip-progress .progress { max-width: none; }
 .trip-options { margin: 24px 0 10px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 10px; max-width: 46rem; }
-.trip-options .trip-laundry, .trip-options .trip-swim { margin: 0; }
+.trip-options .trip-laundry, .trip-options .trip-swim, .trip-options .trip-sport { margin: 0; }
 /* a grid item widens to its content unless told otherwise: without these the occasion chips (Today's `flex: none`
    row) made the saved trip wider than a phone instead of scrolling sideways inside their row */
 .trip-options > *, .trip-options .today-choice > .chips-scroll { min-width: 0; }

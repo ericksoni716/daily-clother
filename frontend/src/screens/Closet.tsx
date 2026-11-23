@@ -233,7 +233,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
                   {filters > 0 && <><span className="visually-hidden">, </span><span className="filter-count">{filters}</span><span className="visually-hidden"> on</span></>}
                 </button>
                 {filtering && (
-                  <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" onClose={() => setFiltering(false)}>
+                  <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" testId="filter-sheet" onClose={() => setFiltering(false)}>
                     <FilterChoices status={status} laundry={activeLaundry} away={activeAway} onAway={setAway} onLaundry={setLaundry}
                       view={list && !empty ? gridView : null} size={size} onSize={setSize}
                       onView={(value) => { gridMoment = { view: value, setting: showDrawings }; setMoment(gridMoment); }}

@@ -50,6 +50,7 @@ const LONG = {
 const SHEETS = [
   { route: '/settings', button: 'Talk to Claude about your style', sheet: 'style-talk-sheet', name: 'settings-style-talk' },
   { route: '/settings', button: /^(See all lines|Change the lines)$/, sheet: 'style-lines-sheet', name: 'settings-style-lines' },
+  { route: '/settings', button: 'Change your sizes', sheet: 'sizes-sheet', name: 'settings-sizes' },
   { route: ({ itemId }) => `/item/${encodeURIComponent(itemId)}`, fold: 'Details', button: /^Colour:/,
     sheet: 'detail-editor-color', name: 'item-colour' },
   { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: "Set the most you'd pay",
@@ -176,6 +177,12 @@ async function setUp(base) {
     await call('/api/style/lines', 'POST', { text: LONG.line });
     await call('/api/style/talk', 'POST', { say: 'I always feel warm on the bus, even in winter' });
     for (let i = 0; i < 40 && (await call('/api/style/talk')).answering; i++) await new Promise((r) => setTimeout(r, 250));
+    // Your sizes: each kind's as long as a size may be but one (the rest is offered from the closet's own), and a brand
+    // with a long name that fits differently
+    await call('/api/sizes/tops', 'PUT', { size: 'XL Tall (EU 54/56)' });
+    await call('/api/sizes/trousers', 'PUT', { size: '34W x 32L, relaxed' });
+    await call('/api/sizes/shoes', 'PUT', { size: '10.5 US / 44 EU wide' });
+    await call('/api/sizes/tops/brand', 'PUT', { brand: 'Example Brand of Long-Named Outerwear', size: 'XXL Tall (EU 58)' });
     return { state: await api.storageState(), itemId: item.id, shoeId: shoe.id, tripId: trip.id, wishId: wish.id, linkedId: linked.id };
   } finally {
     await api.dispose();

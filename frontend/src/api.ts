@@ -1,4 +1,4 @@
-import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, PlainBox, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk } from './types';
+import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, PlainBox, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk, SizeKind, Sizes } from './types';
 import { forgetSaved, type DayAnswer, type RememberHow, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -325,6 +325,10 @@ export const api = {
   styleProfile: () => request<StyleProfile>('/api/style/profile'),
   /** Keep a new version of the style profile; an empty text goes back to the starting one. */
   saveStyleProfile: (text: string) => request<StyleProfile>('/api/style/profile', { method: 'PUT', body: { text } }),
+  /** Your sizes: the usual one for a kind (empty clears it), or a brand's own (an empty size takes the brand off). */
+  putSize: (kind: SizeKind, size: string) => request<Sizes>(`/api/sizes/${kind}`, { method: 'PUT', body: { size } }),
+  putBrandSize: (kind: SizeKind, brand: string, size: string) =>
+    request<Sizes>(`/api/sizes/${kind}/brand`, { method: 'PUT', body: { brand, size } }),
   storage: () => request<Storage>('/api/storage'),
   /** Windows keeping Nines running: read from anywhere, changed only on the computer (Windows asks there). */
   background: () => request<BackgroundState>('/api/background'),

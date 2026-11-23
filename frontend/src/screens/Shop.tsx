@@ -11,6 +11,7 @@ import {
   lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll, type ShopRun,
   typedCode, typedPrice, watchWords, webLink,
 } from '../shop';
+import { SEARCH_SENDS } from '../shop';
 import { aboutUsd } from '../spend';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
@@ -179,6 +180,7 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
               }
             }} />
         )}
+        {!demo && <p className="muted wish-shop-line" data-testid="search-sends">{SEARCH_SENDS}</p>}
         {demo && <p className="muted wish-shop-line">The demo closet never searches shops. Open your own closet to look for this.</p>}
         {answer && !demo && answer.estimate.api && (
           <p className="muted wish-shop-line">

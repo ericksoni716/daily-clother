@@ -10,7 +10,7 @@ import { useCallback } from 'react';
 import { api } from './api';
 import { touch } from './queries';
 import { queryKeys, type KeyName } from './queryKeys';
-import type { ModelInfo, RouteOrder, Settings, StyleProfile, TaggingRoute } from './types';
+import type { ModelInfo, RouteOrder, Settings, Sizes, StyleProfile, TaggingRoute } from './types';
 import { updates } from './updates';
 
 /** How often Settings asks again, on the computer, while the phone has no address yet (a share just set up in the
@@ -64,10 +64,11 @@ export function writeSettings(qc: QueryClient, s: Settings): void {
   writeParts(qc, s);
 }
 
-/** A part saved through its own endpoint (the model's address, Your style): under its own key and in the settings. */
-export function writePart(qc: QueryClient, part: { model: ModelInfo } | { style_profile: StyleProfile }): void {
+/** A part saved through its own endpoint (the model's address, Your style, your sizes): under its own key, when it has
+ * one, and in the settings. */
+export function writePart(qc: QueryClient, part: { model: ModelInfo } | { style_profile: StyleProfile } | { sizes: Sizes }): void {
   if ('model' in part) qc.setQueryData(queryKeys.model(), part.model);
-  else qc.setQueryData(queryKeys.styleProfile(), part.style_profile);
+  else if ('style_profile' in part) qc.setQueryData(queryKeys.styleProfile(), part.style_profile);
   qc.setQueryData<Settings>(queryKeys.settings(), (s) => (s ? { ...s, ...part } : s));
 }
 

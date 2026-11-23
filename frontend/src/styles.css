@@ -864,7 +864,24 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .settings-rewear { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0 12px; }
 .settings-rewear .field { margin-bottom: 8px; }
 .settings-laundry .field { margin: 8px 0 0; max-width: 22rem; }
-.settings-rewear select, .settings-laundry select {
+/* Your sizes: the row's line wraps; in the sheet, a short box beside each kind's name, saved as you leave it */
+.sizes-line { overflow-wrap: anywhere; }
+.sizes { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sizes > .hint { margin: 0; }
+.sizes-kind { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sizes-kind > p { margin: 0; overflow-wrap: anywhere; }
+.sizes-box { display: flex; align-items: center; gap: 12px; }
+.sizes-name { flex: 0 0 9.5rem; display: flex; flex-direction: column; min-width: 0; }
+.sizes-name label { font-weight: var(--weight-label); }
+.sizes-box input {
+  flex: 1 1 6rem; min-width: 0; min-height: var(--tap); padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.sizes-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.sizes-box input:disabled { color: var(--ink-3); border-style: dashed; }
+.sizes-add { align-self: flex-start; }
+.sizes-brand-form { display: flex; flex-direction: column; padding-top: 12px; border-top: 1px solid var(--line); }
+.sizes-brand-form .field { margin-bottom: 10px; max-width: 22rem; }
+.settings-rewear select, .settings-laundry select, .sizes-brand-form select {
   min-height: var(--tap); padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
 }
 /* Your style: the owner's own words, a full-width box with its count and the buttons under it */

@@ -401,3 +401,7 @@ export function typedPrice(text: string): number | null | undefined {
   const n = Number(t);
   return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
+
+/** What a search sends to Claude, said under "Find some" (DECISIONS, "What the search is told about you"); the demo
+ * closet searches nothing, so it is not said there. */
+export const SEARCH_SENDS = 'A search sends Claude the wish, your style, what you tend to wear, the brands you own and your size, never a photo or a note.';

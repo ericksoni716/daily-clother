@@ -1,0 +1,9 @@
+/* A find's checkout code (Shop.tsx, FindCode and CodeSheet): the price after it under the find's price, who saw it,
+   and the code in a popover under its button on a computer (a sheet from the bottom on a phone). The rest of the find
+   card is in Missing.css. */
+.find-code-line { position: relative; }
+.find-code { margin: 0 0 2px; font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--accent); overflow-wrap: anywhere; }
+.find-code-from { overflow-wrap: anywhere; }
+.find-code-sheet .hint { margin: 0 0 var(--space-3); }
+.find-code-sheet .find-code-kind { margin: 0 0 var(--space-3); }
+.find-code-sheet .form-error { margin: 0 0 var(--space-2); }

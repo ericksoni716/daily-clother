@@ -398,6 +398,11 @@ export const api = {
     request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/link`, { method: 'POST', body: { url } }),
   removeFind: (id: string, findId: string) =>
     request<void>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}`, { method: 'DELETE' }),
+  /** A checkout code you typed for a find, with its percent or its amount off (it marks the wish's news seen). */
+  setFindCode: (id: string, findId: string, code: { code: string; percent?: number; amount?: number }) =>
+    request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}/code`, { method: 'PUT', body: code }),
+  removeFindCode: (id: string, findId: string) =>
+    request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}/code`, { method: 'DELETE' }),
   /** The prices that came down since you last looked at their wish; never in the demo closet. */
   wishNews: () => request<{ news: PriceNews[] }>('/api/wishlist/news').then((r) => r.news),
   /** These wishes' news has been seen (their page opened, or the banner dismissed); answers with what news is left. */

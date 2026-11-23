@@ -121,6 +121,8 @@ export const TOUCHES = {
   gap: ['gaps'],
   /** The wishlist: a wish added, changed, bought or removed, and its finds. */
   wish: ['wishlist', 'gaps', 'finds', 'news'],
+  /** A find's checkout code saved or removed: the wish's finds, its row's price, and its news (saving marks it seen). */
+  findCode: ['finds', 'wishlist', 'news'],
   /** The note about the day. */
   day: ['day'],
   /** Any of the settings (the place, the laundry and rewear rules, how Claude is reached, its monthly limit…). */

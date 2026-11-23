@@ -11,6 +11,9 @@ export interface PricePoint {
   price: number | null;
   currency: string;
   available: boolean;
+  /** The price after the checkout code it was seen with, and that code; null with no code. */
+  with_code?: number | null;
+  code?: string | null;
 }
 
 export interface PriceDrop {
@@ -18,6 +21,18 @@ export interface PriceDrop {
   to: number;
   currency: string;
   percent: number;
+  /** The checkout code the price it is down to is after, when it is. */
+  code?: string;
+}
+
+/** A find's checkout code: a percent or an amount off, read from its page by Nines, seen there by Claude, or typed by
+ * you. */
+export interface FindCode {
+  code: string;
+  percent: number | null;
+  amount: number | null;
+  by: 'page' | 'claude' | 'you';
+  seen_at: string;
 }
 
 export interface Find {
@@ -47,6 +62,10 @@ export interface Find {
   updated_at: string;
   history: PricePoint[];
   drop: PriceDrop | null;
+  /** Its checkout code, and the price after it (worked out by Nines; null when it has no price, or an amount off is
+   * no longer less than it). */
+  code: FindCode | null;
+  with_code: number | null;
 }
 
 export interface ShopRun {
@@ -78,24 +97,63 @@ export function shopPoll(answer: Pick<FindsAnswer, 'run'> | null | undefined): n
   return answer?.run?.state === 'running' ? SHOP_POLL_MS : false;
 }
 
-/** "$120.00", "€89.50"; the currency's code when the browser does not know it. */
-export function priceWords(price: number | null | undefined, currency: string): string {
+/** "$120.00", "€89.50"; the currency's code when the browser does not know it. With the checkout code the price is
+ * after: "$106.20 with code SAVE40". */
+export function priceWords(price: number | null | undefined, currency: string, code?: string | null): string {
   if (price === null || price === undefined || !Number.isFinite(price)) return 'Price not shown';
+  let said: string;
   try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(price);
+    said = new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(price);
   } catch {
-    return `${price.toFixed(2)} ${currency}`;
+    said = `${price.toFixed(2)} ${currency}`;
   }
+  return code ? `${said} with code ${code}` : said;
 }
 
-/** "Was $120.00, now $96.00 (20% less)". */
+/** "Was $120.00, now $96.00 (20% less)"; "Was $177.00, now $106.20 with code SAVE40 (40% less)". */
 export function dropWords(d: PriceDrop): string {
-  return `Was ${priceWords(d.from, d.currency)}, now ${priceWords(d.to, d.currency)} (${d.percent}% less)`;
+  return `Was ${priceWords(d.from, d.currency)}, now ${priceWords(d.to, d.currency, d.code)} (${d.percent}% less)`;
 }
 
-/** "Down from $68.00 to $54.40", in the find's currency: the news on a wish's row in the wishlist. */
-export function downWords(d: Pick<PriceDrop, 'from' | 'to' | 'currency'>): string {
-  return `Down from ${priceWords(d.from, d.currency)} to ${priceWords(d.to, d.currency)}`;
+/** "Down from $68.00 to $54.40", in the find's currency: the news on a wish's row in the wishlist; "Down from $177.00
+ * to $106.20 with code SAVE40" when the price is after a checkout code. */
+export function downWords(d: Pick<PriceDrop, 'from' | 'to' | 'currency' | 'code'>): string {
+  return `Down from ${priceWords(d.from, d.currency)} to ${priceWords(d.to, d.currency, d.code)}`;
+}
+
+/** What a checkout code takes off: "40% off", "$20.00 off". */
+export function offWords(c: Pick<FindCode, 'percent' | 'amount'>, currency: string): string {
+  return c.percent !== null ? `${Number(c.percent.toFixed(2))}% off` : `${priceWords(c.amount, currency)} off`;
+}
+
+/** The line under a find's price when it has a checkout code: "$106.20 with code SAVE40 at checkout (40% off)"; with
+ * no price to take it from, "Code SAVE40 takes 40% off at checkout." Null with no code. */
+export function codeWords(f: Pick<Find, 'code' | 'with_code' | 'currency'>): string | null {
+  if (!f.code) return null;
+  const off = offWords(f.code, f.currency);
+  if (f.with_code === null) return `Code ${f.code.code} takes ${off} at checkout.`;
+  return `${priceWords(f.with_code, f.currency, f.code.code)} at checkout (${off})`;
+}
+
+/** Who saw a find's checkout code: Nines or Claude, on the page; nothing when you typed it. */
+export function codeFromWords(c: Pick<FindCode, 'by'> | null): string | null {
+  if (c?.by === 'page') return 'Nines saw this code on the page.';
+  if (c?.by === 'claude') return 'Claude saw this code on the page.';
+  return null;
+}
+
+/** What is sent to save a code you typed (`PUT /api/wishlist/{id}/finds/{find}/code`), or the sentence to show when
+ * the boxes cannot be sent. The rest (the code's form, the percent's range, an amount less than the price) is checked
+ * by Nines, which says what is wrong. */
+export function typedCode(code: string, kind: 'percent' | 'amount', value: string):
+  { code: string; percent?: number; amount?: number } | string {
+  const c = code.trim().toUpperCase();
+  if (!c) return 'Type the code as the shop shows it.';
+  const n = typedPrice(value.trim().replace(/%$/, ''));
+  if (n === null || n === undefined) {
+    return kind === 'percent' ? 'Type the percent off as a number, like 40.' : 'Type the amount off as a number, like 20.';
+  }
+  return kind === 'percent' ? { code: c, percent: n } : { code: c, amount: n };
 }
 
 /** A wish's newest page sent as a link, as its row in the wishlist shows it. */
@@ -106,12 +164,17 @@ export interface WishLink {
   price: number | null;
   currency: string;
   available: boolean;
+  /** Its checkout code and the price after it, when it has one that applies. */
+  code?: string;
+  with_code?: number;
 }
 
-/** "$68.00 at Example Shop"; "Sold out at Example Shop"; "From Example Shop" until a price is read. */
+/** "$68.00 at Example Shop"; "$106.20 with code SAVE40 at Example Shop"; "Sold out at Example Shop"; "From Example
+ * Shop" until a price is read. */
 export function linkWords(l: WishLink): string {
   if (!l.available) return `Sold out at ${l.shop}`;
-  return l.price === null ? `From ${l.shop}` : `${priceWords(l.price, l.currency)} at ${l.shop}`;
+  if (l.price === null) return `From ${l.shop}`;
+  return l.with_code != null ? `${priceWords(l.with_code, l.currency, l.code)} at ${l.shop}` : `${priceWords(l.price, l.currency)} at ${l.shop}`;
 }
 
 /** What a find sent as a link says under its price: that it was sent, and how its price was read when that is worth
@@ -267,18 +330,20 @@ export interface PriceNews {
   at: string;
   /** No more than the most you'd pay, when you set it in this currency. */
   at_price: boolean;
+  /** The checkout code `to` is after, when it is. */
+  code?: string;
 }
 
 /** How often the news is asked for again while the page is open and shown (and when it comes back into view). */
 export const NEWS_POLL_MS = 30 * 60 * 1000;
 
-/** The banner's sentence: "A tan rain coat is down to $150.00 at Example Shop, from $177.00." for one wish; for several,
- * how many. */
-export function newsWords(news: Pick<PriceNews, 'name' | 'shop' | 'from' | 'to' | 'currency' | 'at_price'>[]): string {
+/** The banner's sentence: "A tan rain coat is down to $150.00 at Example Shop, from $177.00." for one wish ("…down to
+ * $106.20 with code SAVE40 at Example Shop…" when the price is after a checkout code); for several, how many. */
+export function newsWords(news: Pick<PriceNews, 'name' | 'shop' | 'from' | 'to' | 'currency' | 'at_price' | 'code'>[]): string {
   if (news.length !== 1) return `Prices went down for ${news.length} things on your wishlist.`;
   const [n] = news;
   const price = n.at_price ? " That's within your price." : '';
-  return `${n.name} is down to ${priceWords(n.to, n.currency)} at ${n.shop}, from ${priceWords(n.from, n.currency)}.${price}`;
+  return `${n.name} is down to ${priceWords(n.to, n.currency, n.code)} at ${n.shop}, from ${priceWords(n.from, n.currency)}.${price}`;
 }
 
 /** Only a web address may be opened or shown: anything else gives null (the server checks too). */

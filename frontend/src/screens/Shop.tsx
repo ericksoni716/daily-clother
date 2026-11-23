@@ -3,14 +3,17 @@ import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } fr
 import { api } from '../api';
 import { LinkIcon, SearchIcon } from '../components/Icons';
 import { useNewsSeen } from '../components/PriceNews';
-import { Button, buttonClass, Card, Notice, Sheet } from '../components/ui';
+import { Button, buttonClass, Card, Notice, SegmentedControl, Sheet } from '../components/ui';
 import type { Wish } from '../gaps';
+import { touch } from '../queries';
 import {
-  checkedWords, dropWords, type Find, findsInOrder, historyWords, lastChecked, LINK_PROBLEM, linkIn, linkLine, priceWords,
-  runDoneWords, runWords, searchWords, shopPoll, type ShopRun, typedPrice, watchWords, webLink,
+  checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, historyWords, lastChecked,
+  LINK_PROBLEM, linkIn, linkLine, priceWords, runDoneWords, runWords, searchWords, shopPoll, type ShopRun, typedCode, typedPrice,
+  watchWords, webLink,
 } from '../shop';
 import { aboutUsd } from '../spend';
 import { queryKeys } from '../queryKeys';
+import './Shop.css';
 import { useApp } from '../store';
 import { verdictTone } from '../wouldwork';
 
@@ -218,6 +221,7 @@ function FindCard({ find, locked, onStop }: { find: Find; locked: boolean; onSto
           {find.shop} · <strong>{priceWords(find.price, find.currency)}</strong>
           {!find.available && <span className="find-sold"> · Sold out</span>}
         </p>
+        <FindCode find={find} locked={locked} />
         {find.drop && <p className="find-drop" data-testid="find-drop">{dropWords(find.drop)}</p>}
         {went && <p className="muted find-piece" data-testid="find-history">{went}</p>}
         {find.verdict_words && <p className={`find-verdict is-${tone}`} data-testid="find-verdict">{find.verdict_words}</p>}
@@ -235,6 +239,90 @@ function FindCard({ find, locked, onStop }: { find: Find; locked: boolean; onSto
         </div>
       </div>
     </Card>
+  );
+}
+
+/** Under a find's price: its checkout code and the price after it ("$106.20 with code SAVE40 at checkout (40% off)"),
+ * who saw it, and the button that opens the code in a sheet (a popover under it on a computer): "Add a code", or
+ * "Change the code" when there is one. */
+function FindCode({ find, locked }: { find: Find; locked: boolean }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const said = codeWords(find);
+  const from = codeFromWords(find.code);
+  return (
+    <div className="find-code-line">
+      {said && <p className="find-code" data-testid="find-code">{said}</p>}
+      <p className="muted find-piece find-code-from">
+        {from && <span data-testid="find-code-from">{from} </span>}
+        <button ref={button} type="button" className="btn btn-link btn-small wish-inline-button" aria-haspopup="dialog"
+          aria-expanded={open} disabled={locked} onClick={() => setOpen(!open)}>
+          {find.code ? 'Change the code' : 'Add a code'}
+        </button>
+      </p>
+      {open && <CodeSheet find={find} keep={button} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+/** A find's checkout code: the code, and either its percent or its amount off in the find's currency; Save, Remove the
+ * code (when there is one), and Cancel beside the title. The price after it is worked out by Nines, never typed. */
+function CodeSheet({ find, keep, onClose }: { find: Find; keep: RefObject<HTMLButtonElement | null>; onClose(): void }) {
+  const qc = useQueryClient();
+  const [code, setCode] = useState(find.code?.code ?? '');
+  const [kind, setKind] = useState<'percent' | 'amount'>(find.code?.amount != null ? 'amount' : 'percent');
+  const [value, setValue] = useState(find.code ? String(find.code.percent ?? find.code.amount ?? '') : '');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const hint = useId();
+
+  async function send(call: () => Promise<FindsAnswer>) {
+    setSaving(true);
+    try {
+      qc.setQueryData(queryKeys.finds(find.wish_id), await call());
+      void touch(qc, 'findCode', ['finds']);
+      onClose();
+    } catch (e) {
+      setProblem((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function save(e: FormEvent) {
+    e.preventDefault();
+    const typed = typedCode(code, kind, value);
+    if (typeof typed === 'string') return setProblem(typed);
+    setProblem(null);
+    void send(() => api.setFindCode(find.wish_id, find.id, typed));
+  }
+
+  return (
+    <Sheet title="A code at checkout" popover keep={keep} closeLabel="Cancel" className="find-code-sheet" testId="code-sheet" onClose={onClose}>
+      <form onSubmit={save} noValidate aria-label="A code at checkout" aria-describedby={hint}>
+        <p className="hint" id={hint}>Nines works out the price with the code, and tells you when that price goes down.</p>
+        <label className="field">
+          <span>Code</span>
+          <input value={code} onChange={(e) => setCode(e.target.value)} maxLength={30} autoCapitalize="characters"
+            autoComplete="off" spellCheck={false} autoFocus />
+        </label>
+        <SegmentedControl label="What the code takes off" className="find-code-kind" value={kind} onChange={setKind}
+          options={[{ value: 'percent', label: '% off' }, { value: 'amount', label: 'Amount off' }]} />
+        <label className="field">
+          <span>{kind === 'percent' ? 'Percent off' : `Amount off, in ${find.currency}`}</span>
+          <input inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)}
+            placeholder={kind === 'percent' ? 'e.g. 40' : 'e.g. 20'} />
+        </label>
+        {problem && <p className="form-error" role="alert">{problem}</p>}
+        <div className="row">
+          <Button variant="primary" small type="submit" disabled={saving}>Save</Button>
+          {find.code && (
+            <Button variant="ghost" small disabled={saving}
+              onClick={() => void send(() => api.removeFindCode(find.wish_id, find.id))}>Remove the code</Button>
+          )}
+        </div>
+      </form>
+    </Sheet>
   );
 }
 

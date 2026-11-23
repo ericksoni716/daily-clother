@@ -5,6 +5,7 @@ import {
   keptPieces, KEEP_DAYS, makeupHero, money, perWear, plural, shortDate, spreadHero, unwornCaption, unwornHero, wears, windowLabel,
   wornMostHero, type CategorySpread,
 } from './insights';
+import { earnedCaption, ninesWindow, spentWords, wishlistCostWords, yearWords, type NinesWindow, type Spending } from './insights';
 
 class MemoryStorage {
   data = new Map<string, string>();
@@ -163,5 +164,70 @@ describe('the saved answer', () => {
     expect(loadSavedInsights('main', kv)).toBeNull();
     expect(loadSavedInsights('main', null)).toBeNull();
     saveInsights('main', answer('x'), null);
+  });
+});
+
+// --------------------------------------------------------------------- Your nines and what your clothes cost you
+
+const win = (days: number | null, n: number): NinesWindow =>
+  ({ days, pieces: n, sentence: null, items: Array.from({ length: Math.min(n, 9) }, (_, i) => ({ id: `p${i}`, wears: 9 - i })) });
+
+describe('Your nines', () => {
+  it('opens on the first time with nine pieces, else the one with the most', () => {
+    expect(ninesWindow([win(30, 12), win(90, 20), win(null, 30)])).toBe(0);
+    expect(ninesWindow([win(30, 4), win(90, 9), win(null, 30)])).toBe(1);
+    expect(ninesWindow([win(30, 2), win(90, 5), win(null, 5)])).toBe(1);
+    expect(ninesWindow([win(30, 0), win(90, 0), win(null, 0)])).toBe(0);
+  });
+});
+
+const spending = (over: Partial<Spending> = {}): Spending => ({
+  currency: '$', year: 2026, pieces: 40, priced: 9, dated: 9, unpriced: 31, first_missing: 'a', enough: true,
+  by_year: [{ year: 2026, spent_cents: 124000, pieces: 9 }, { year: 2025, spent_cents: 31050, pieces: 2 }],
+  earned: [], not_earned: [], wishlist: { wishes: 0, unpriced: 0, totals: [] }, ...over,
+});
+
+describe('what your clothes cost you', () => {
+  it('says what was spent this year once a few pieces have a price and a date', () => {
+    expect(spentWords(spending())).toEqual({ text: 'You spent $1,240 on 9 pieces this year.', fill: null });
+    expect(spentWords(spending({ by_year: [{ year: 2026, spent_cents: 4550, pieces: 1 }] }))!.text).toBe('You spent $45.50 on 1 piece this year.');
+    // nothing bought this year: the last year there was
+    expect(spentWords(spending({ by_year: [{ year: 2025, spent_cents: 31050, pieces: 2 }] }))!.text)
+      .toBe('Nothing with a price was bought this year. In 2025 you spent $310.50 on 2 pieces.');
+  });
+
+  it('says plainly how many pieces have no price yet, and asks for one', () => {
+    expect(spentWords(spending({ enough: false, priced: 2, dated: 1, unpriced: 38 }))).toEqual({ text: '38 of your 40 pieces have no price yet.', fill: 'price' });
+    expect(spentWords(spending({ enough: false, priced: 39, dated: 1, unpriced: 1 }))!.text).toBe('1 of your 40 pieces has no price yet.');
+    expect(spentWords(spending({ enough: false, priced: 0, dated: 0, unpriced: 40 }))!.text).toBe('None of your 40 pieces has a price yet.');
+    expect(spentWords(spending({ pieces: 1, enough: false, priced: 0, dated: 0, unpriced: 1 }))!.text).toBe('Your one piece has no price yet.');
+    // every piece has a price, but too few have a date bought
+    expect(spentWords(spending({ pieces: 5, enough: false, priced: 5, dated: 1, unpriced: 0 })))
+      .toEqual({ text: '4 of your pieces have a price but no date bought.', fill: 'date' });
+    expect(spentWords(spending({ pieces: 0, priced: 0, dated: 0, unpriced: 0, enough: false }))).toBeNull();
+  });
+
+  it('says each year, newest first', () => {
+    expect(yearWords(spending())).toEqual(['In 2026 you spent $1,240 on 9 pieces.', 'In 2025 you spent $310.50 on 2 pieces.']);
+    expect(yearWords(spending({ by_year: [] }))).toEqual([]);
+  });
+
+  it('puts what a wear cost under a piece that earned its price, and its price under one that has not', () => {
+    expect(earnedCaption({ id: 'a', price_cents: 9000, wears: 30, per_wear_cents: 300 }, '$')).toBe('$3.00 a wear · 30 wears');
+    expect(earnedCaption({ id: 'a', price_cents: 35000, wears: 0 }, '$')).toBe('$350 · Not worn yet');
+    expect(earnedCaption({ id: 'a', price_cents: 6050, wears: 2 }, '$')).toBe('$60.50 · 2 wears');
+  });
+
+  it('says what the wishlist would cost at today’s prices, never adding up two currencies', () => {
+    expect(wishlistCostWords({ wishes: 0, unpriced: 0, totals: [] })).toBeNull();
+    expect(wishlistCostWords({ wishes: 3, unpriced: 3, totals: [] })).toBe('Nothing on your wishlist has a price yet.');
+    expect(wishlistCostWords({ wishes: 1, unpriced: 1, totals: [] })).toBe('The one thing on your wishlist has no price yet.');
+    expect(wishlistCostWords({ wishes: 2, unpriced: 0, totals: [{ currency: 'USD', cents: 42000, wishes: 2 }] }))
+      .toBe("At today's prices, your wishlist would cost $420.");
+    expect(wishlistCostWords({ wishes: 4, unpriced: 1, totals: [{ currency: 'USD', cents: 15440, wishes: 3 }] }))
+      .toBe("At today's prices, the 3 things on your wishlist with a price would cost $154.40. 1 thing has no price yet.");
+    const mixed = wishlistCostWords({ wishes: 5, unpriced: 2, totals: [{ currency: 'USD', cents: 42000, wishes: 2 }, { currency: 'EUR', cents: 8000, wishes: 1 }] });
+    expect(mixed).toBe("Your wishlist is priced in 2 currencies, so it is not added up. At today's prices it is $420 for 2 things and €80 for 1 thing. 2 things have no price yet.");
+    expect(mixed).not.toMatch(/\$500|500/);
   });
 });

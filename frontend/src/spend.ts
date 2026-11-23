@@ -8,6 +8,21 @@ export function formatUsd(amount: number | null | undefined): string {
   return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** What something cost, from cents: "$1,240", "$45.50", "€80"; whole amounts without cents. `currency` is a three-letter
+ * code (or "$", the closet's own prices), never converted; a code the browser does not know is written after the
+ * amount ("80 XYZ"). `exact` keeps the cents even when there are none ("$3.00 a wear"). */
+export function amount(cents: number, currency = 'USD', exact = false): string {
+  const code = currency === '$' ? 'USD' : currency;
+  const whole = !exact && cents % 100 === 0;
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: code, minimumFractionDigits: whole ? 0 : 2, maximumFractionDigits: whole ? 0 : 2,
+    }).format(cents / 100);
+  } catch {
+    return `${(cents / 100).toFixed(whole ? 0 : 2)} ${code}`;
+  }
+}
+
 /** "about $0.03": an estimate, never shown as less than a cent. */
 export function aboutUsd(amount: number): string {
   return amount > 0 && amount < 0.01 ? 'under 1¢' : `about ${formatUsd(amount)}`;

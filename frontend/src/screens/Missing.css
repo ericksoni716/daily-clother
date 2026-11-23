@@ -27,7 +27,7 @@
 .life-basis-open { flex: none; display: inline-flex; align-items: center; gap: 2px; color: var(--accent); font-weight: var(--weight-label); }
 .life-basis-open svg { width: 18px; height: 18px; }
 .life-invitation { background: var(--accent-soft); border-radius: var(--radius-md); padding: 16px; margin-top: 12px; display: grid; gap: 12px; }
-.life-invitation h2 { font-size: var(--text-md); margin: 0 0 4px; }
+.life-invitation h2 { font-size: var(--text-md); margin: 0; }
 .life-invitation h2 span { color: var(--ink-3); font-weight: var(--weight-body); white-space: nowrap; font-size: var(--text-sm); }
 .life-invitation p { margin: 0; font-size: var(--text-sm); }
 .life-about { margin-top: 16px; padding-top: 4px; border-top: 1px solid var(--line); }
@@ -59,9 +59,34 @@
 .gap-card {
   display: grid; gap: 14px; padding: 16px;
 }
-.gap-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; }
+/* The head is what shows of a closed card: its name (the button), how much it helps, a chevron, and one line of why.
+   The name's button covers the whole head, so a tap anywhere on it opens the card in place. */
+.gap-head {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px 10px;
+  min-height: var(--tap);
+}
 /* Drawn as tight as the page titles so a usual name ("A pair of smart leather shoes") stays on one line on a phone. */
-.gap-head h3 { margin: 0; font-size: var(--text-lg); line-height: 1.25; letter-spacing: -0.015em; }
+.gap-head h3 { margin: 0; font-size: var(--text-lg); line-height: 1.25; letter-spacing: -0.015em; min-width: 0; overflow-wrap: anywhere; }
+.gap-toggle {
+  margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left;
+  cursor: pointer;
+}
+.gap-toggle::after { content: ''; position: absolute; inset: 0; border-radius: var(--radius-sm); }
+.gap-toggle:focus-visible { outline: none; }
+.gap-toggle:focus-visible::after { outline: 2px solid var(--focus); outline-offset: 4px; }
+.gap-chevron { width: 20px; height: 20px; margin-top: 2px; color: var(--ink-3); transform: rotate(90deg); transition: transform var(--dur-quick) var(--ease-out); }
+.gap-card.is-open .gap-chevron { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) { .gap-chevron { transition: none; } }
+/* how much it helps, then one line of why (or "On your wishlist") beside it on a closed card: two lines at most */
+.gap-line {
+  grid-column: 1 / -1; margin: 0; color: var(--ink-2); font-size: var(--text-sm); line-height: 1.6; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+}
+.gap-line .help-pill { min-height: 0; margin-right: var(--space-2); vertical-align: 1px; }
+.gap-line .gap-summary { font-size: var(--text-sm); line-height: inherit; }
+.gap-line .gap-wished { display: inline-flex; vertical-align: -3px; }
+.gap-open { display: grid; gap: 14px; min-width: 0; }
+.gap-open[hidden] { display: none; }
 .gap-label { margin: 0 0 6px; font-family: var(--font-label); font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--label-ink); text-transform: uppercase; letter-spacing: 0.08em; }
 
 /* How much it would help: a pill with the words, stronger the more it helps. */
@@ -121,8 +146,8 @@
 .gap-reasons input { position: absolute; opacity: 0; pointer-events: none; }
 .gap-reasons .chip:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-.gap-card.is-wished { padding: 12px 16px; gap: 6px; box-shadow: none; background: transparent; border-style: dashed; }
-.gap-card.is-wished h3 { font-size: var(--text-md); }
+/* "On your wishlist", in place of the line of why on a closed card and of the two buttons on an open one, with Undo */
+.gap-wished-row { align-items: center; justify-content: space-between; min-height: var(--tap); }
 .gap-wished { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--accent); font-weight: var(--weight-label); font-size: var(--text-sm); }
 .gap-wished svg { width: 18px; height: 18px; }
 

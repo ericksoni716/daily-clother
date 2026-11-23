@@ -158,6 +158,15 @@ async function setUp(base) {
     await call(`/api/items/${encodeURIComponent(item.id)}`, 'PATCH', { name: LONG.item });
     // a shoe's page as well: its photos and drawings make it the longest item page
     const shoe = items.find((i) => ['sneakers', 'boots', 'dress_shoes', 'sandals'].includes(i.category)) ?? item;
+    // Made-up prices and dates bought on a few pieces (the demo closet has prices and no dates), so the Wardrobe's line
+    // on what your clothes cost has a year to tell
+    const year = new Date().getFullYear();
+    const bought = [[18900, `${year}-02-14`], [6500, `${year}-05-03`], [12000, `${year}-09-21`], [24500, `${year - 1}-10-30`],
+      [4500, `${year - 1}-04-12`]];
+    for (const [i, [cents, day]] of bought.entries()) {
+      const piece = items[i + 1];
+      if (piece) await call(`/api/items/${encodeURIComponent(piece.id)}`, 'PATCH', { price_cents: cents, acquired_on: day });
+    }
     // A trip asks the weather service for its forecast unless the weather is given, so it is given: mild and dry.
     const first = localDay(10), last = localDay(13);
     const weather = [];

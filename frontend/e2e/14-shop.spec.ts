@@ -25,6 +25,8 @@ test.describe('shopping for a wish', () => {
 
     await page.goto(backend.url + '/wardrobe');
     // each thing worth buying can be looked for on Google Shopping, in your browser, with only what to look for
+    // (inside the card, once it is opened)
+    await page.getByTestId('gap').first().getByRole('heading', { level: 3 }).getByRole('button').click({ timeout: 30_000 });
     const search = page.getByTestId('gap').first().getByRole('link', { name: 'Search Google Shopping' });
     await expect(search).toHaveAttribute('href', /^https:\/\/www\.google\.com\/search\?tbm=shop&q=men's%20/, { timeout: 30_000 });
     await expect(search).toHaveAttribute('target', '_blank');

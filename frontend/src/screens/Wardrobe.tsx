@@ -130,7 +130,9 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
   const actions: Actions = {
     locked,
     busy,
-    wish: (g) => wishChange(g.id, () => api.addWish({ gap_id: g.id }), 'On your wishlist'),
+    // the card says it in place ("On your wishlist", with Undo), so no toast says it again
+    wish: (g) => change(g.id, 'wish', () => api.addWish({ gap_id: g.id }), undefined, NOT_FINDS),
+    unwish: (g) => change(g.id, 'wish', async () => { if (g.wish_id) await api.removeWish(g.wish_id); }, undefined, NOT_FINDS),
     hide: (g, reason) => change(g.id, 'gap', () => api.hideGap(g.id, reason), 'Hidden. You can bring it back below.'),
     unhide: (id) => change(id, 'gap', () => api.unhideGap(id), 'Brought back'),
     undoHolds: (g) => change(g.id, 'gap', async () => {

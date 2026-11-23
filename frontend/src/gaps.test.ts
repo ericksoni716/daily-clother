@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   colorWords, type Gap, groupReasons, HELP_LEVELS, helpOf, HIDE_REASONS, loadSavedGaps, lookForLines, type LookFor,
-  orWords, reasonLabel, savedWhen, saveGaps, whatWords,
+  orWords, reasonLabel, savedWhen, saveGaps, shortWhy, whatWords,
 } from './gaps';
 import { forgetSaved } from './today';
 
@@ -185,5 +185,17 @@ describe('savedWhen', () => {
     expect(savedWhen(new Date(2026, 10, 22, 9, 5).toISOString(), now)).toBe(', yesterday');
     expect(savedWhen(new Date(2026, 10, 3, 9, 5).toISOString(), now)).toBe(', on 3 Nov');
     expect(savedWhen('not a time', now)).toBe('');
+  });
+});
+
+describe('the one line of why on a closed card', () => {
+  it('is the first reason’s first sentence, up to its colon or semicolon', () => {
+    expect(shortWhy(['Every outfit for hot business days rests on your stone pleated chinos: they are the only bottoms that suit. If they are in the wash, there is nothing to change to.']))
+      .toBe('Every outfit for hot business days rests on your stone pleated chinos.');
+    expect(shortWhy(["Nothing you own keeps the rain off; on cold days all Today can say is 'take an umbrella'."])).toBe('Nothing you own keeps the rain off.');
+    expect(shortWhy(['A mac, trench or waxed jacket keeps the rain off without an umbrella. You have none.']))
+      .toBe('A mac, trench or waxed jacket keeps the rain off without an umbrella.');
+    expect(shortWhy([])).toBe('');
+    expect(shortWhy(null)).toBe('');
   });
 });

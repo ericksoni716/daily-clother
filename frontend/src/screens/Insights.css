@@ -76,3 +76,26 @@ a.insights-bar-row:hover { background: var(--surface-2); }
 .insights-tag { flex: none; font-size: var(--text-xs); font-weight: var(--weight-label); padding: 3px 10px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink-3); }
 .insights-tag.is-few { background: var(--accent-soft); color: var(--ink); }
 .insights-spread .insights-bars { margin-bottom: 8px; }
+
+/* Your nines: a three-by-three square of the pieces worn most, each with its number of wears. A square on a phone, never
+   a wall on a computer: its width is held to about a phone's. */
+.nines-grid {
+  list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2);
+  max-width: 26rem;
+}
+.nines-grid > li { min-width: 0; }
+.nines-tile { position: relative; display: block; border-radius: var(--radius-md); text-decoration: none; color: var(--ink); }
+.nines-pic { aspect-ratio: 1; border-radius: var(--radius-md); }
+.nines-tile:hover .nines-pic { box-shadow: inset 0 0 0 1px var(--card-edge), var(--shadow-hover); }
+.nines-count {
+  position: absolute; right: var(--space-1); bottom: var(--space-1); min-width: 28px; padding: 2px 8px; border-radius: var(--radius-pill);
+  background: var(--surface-raised); color: var(--ink); font-size: var(--text-xs); font-weight: var(--weight-label); text-align: center;
+  font-variant-numeric: tabular-nums; box-shadow: inset 0 0 0 1px var(--line);
+}
+.nines-line { margin: var(--space-3) 0 0; }
+
+/* What your clothes cost you: the one line in view, and the years in More numbers */
+.wardrobe-spent { margin: 0 0 var(--space-3); color: var(--ink-2); line-height: 1.45; }
+.wardrobe-spent-link { color: var(--accent); font-weight: var(--weight-label); }
+.insights-years { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: grid; gap: var(--space-1); font-size: var(--text-sm); }
+.nines-hint { margin: calc(-1 * var(--space-2)) 0 var(--space-3); }

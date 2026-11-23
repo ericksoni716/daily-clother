@@ -88,6 +88,11 @@ describe('checking a new item', () => {
   });
 
   it('sends nothing and says so when the price is not a price', () => {
-    expect(checkBody(item, { ...typed, price: 'about forty' }, null, [], {})).toEqual({ error: 'Enter a price like 45 or 45.50.' });
+    expect(checkBody(item, { ...typed, price: 'about forty' }, null, [], {})).toEqual({ error: 'Type the price as a number, like 45 or 45.50.' });
+  });
+
+  it('reads a price written with a decimal comma as the same price, not a hundred times more', () => {
+    const sent = checkBody(item, { ...typed, price: '45,50' }, null, [], {});
+    expect('body' in sent && sent.body.changes.price_cents).toBe(4550);
   });
 });

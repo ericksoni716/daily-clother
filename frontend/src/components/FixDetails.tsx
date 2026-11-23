@@ -290,6 +290,17 @@ function SayIt({ item, drawing, autofocus, onSaved, onDrawInstead }: {
   // what Claude understood is for the item as it was; once the item changes it is no longer offered
   const answer = stillFor(asked?.answer ?? null, asked?.stamp ?? null, stamp);
   const stale = asked !== null && answer === null;
+  // The box and its button are off while Claude reads, which drops focus: once it answers, focus goes to what to do
+  // next (Make these changes when it understood, else the box again to say it another way), not to the page.
+  const make = useRef<HTMLButtonElement>(null);
+  const wasAsking = useRef(false);
+  useEffect(() => {
+    if (wasAsking.current && !asking) {
+      const lost = !document.activeElement || document.activeElement === document.body;
+      if (lost) (answer?.state === 'understood' ? make.current : box.current)?.focus({ preventScroll: true });
+    }
+    wasAsking.current = asking;
+  }, [asking, answer]);
 
   const ask = async () => {
     setAsking(true);
@@ -355,8 +366,8 @@ function SayIt({ item, drawing, autofocus, onSaved, onDrawInstead }: {
           )}
           {answer.sent && <p className="muted fix-note">{answer.sent}</p>}
           <div className="row">
-            <button type="button" className="btn btn-primary btn-small" disabled={asking} onClick={() => void confirm()}>Make these changes</button>
-            <button type="button" className="btn btn-small" disabled={asking} onClick={() => setAsked(null)}>Cancel</button>
+            <button ref={make} type="button" className="btn btn-primary btn-small" disabled={asking} onClick={() => void confirm()}>Make these changes</button>
+            <button type="button" className="btn btn-small" disabled={asking} onClick={() => { setAsked(null); box.current?.focus(); }}>Cancel</button>
           </div>
         </div>
       )}

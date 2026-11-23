@@ -31,6 +31,7 @@ test('price news (stand-in): a banner tells you, and See it opens the wish, whic
   const seen = await standIn(page, [news(wish.id, { at_price: true })]);
   await goToCloset(page);
   const banner = page.getByTestId('price-news');
+  await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
   await expect(banner).toContainText("A tan rain coat is down to $150.00 at Example Shop, from $177.00. That's within your price.");
   expect(await axeViolations(page, '[data-testid="price-news"]')).toEqual([]);
   expect(seen).toEqual([]);   // reading the news changes nothing
@@ -52,6 +53,7 @@ test('price news (stand-in) for several wishes: one sentence, See them opens the
   const seen = await standIn(page, [news('w1'), news('w2', { name: 'Brown suede loafers with a long name', to: 54.4, from: 68 })]);
   await goToCloset(page);
   const banner = page.getByTestId('price-news');
+  await page.locator('nav.tabbar').getByRole('link', { name: 'Settings' }).click();
   await expect(banner).toContainText('Prices went down for 2 things on your wishlist.');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 
@@ -78,4 +80,36 @@ test('price news is never asked for in the demo closet', async ({ page }) => {
   await expect(page.getByTestId('price-news')).toHaveCount(0);
   expect(asked).toBe(0);
   await useProfile(page, 'main');
+});
+
+test('price news (stand-in) that arrives after the page is drawn waits for the next screen, so nothing moves', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((r) => { release = r; });
+  let answered = false;
+  await page.route('**/api/wishlist/news', async (route) => {
+    await held;
+    answered = true;
+    return route.fulfill({ json: { news: [news('w1', { name: 'Tan suede chukka boots', from: 210, to: 179 })] } });
+  });
+  await goToCloset(page);
+  const title = page.locator('#closet-title');
+  const before = (await title.boundingBox())!.y;
+  release();
+  await expect.poll(() => answered).toBe(true);
+  await page.waitForTimeout(300);
+  const banner = page.getByTestId('price-news');
+  await expect(banner).toHaveCount(0);
+  expect((await title.boundingBox())!.y).toBe(before);
+
+  // the next screen opens with it, from its first drawing; a name that is a pair takes "are"
+  await page.locator('nav.tabbar').getByRole('link', { name: 'Settings' }).click();
+  await expect(banner).toContainText('Tan suede chukka boots are down to $179.00 at Example Shop, from $210.00.');
+  await page.screenshot({ path: test.info().outputPath('price-news-next-screen.png') });
+  // and, kept on this device, it is drawn with the page when Nines is opened again
+  await page.unroute('**/api/wishlist/news');
+  await page.route('**/api/wishlist/news', () => undefined);   // never answered this time
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await expect(banner).toBeVisible();
 });

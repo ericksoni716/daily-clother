@@ -15,7 +15,7 @@ from typing import get_args
 from . import kinds, vocab
 from .drawing.item import BOTTOMS, SHOES, TOPS
 from .tagger.schema import PHOTO_FIELDS, Color, Details, Feature, ItemTags, Pattern, Silhouette
-from .tagger.taxonomy import kinds_for
+from .tagger.taxonomy import SHADES, kinds_for, nearest_shade
 
 FEATURES: tuple[str, ...] = get_args(Feature)
 # lists (features, the tagger's own words, a trouser's pockets and wear) are shown, not picked one by one
@@ -86,7 +86,7 @@ TITLES = {
     "v_insert": "V insert under the neck", "pleats": "pleats", "pressed_crease": "pressed crease",
     "contrast_stitching": "contrast stitching", "toe_cap": "toe cap", "side_stripe": "side stripe",
     "contrast_heel_tab": "contrast heel tab", "chunky_sole": "chunky sole", "garment": "kind",
-    "category": "kind of garment", "color": "colour", "color_hex": "colour shade", "pattern": "pattern",
+    "category": "kind of garment", "color": "colour", "color_hex": "shade", "pattern": "pattern",
     "formality": "formality", "formality_also": "second level of formality", "season": "season", "silhouette": "shape",
     "name": "name", "material": "material",
     "silhouette.sleeve": "sleeves", "silhouette.neck": "neck", "silhouette.top_length": "length", "silhouette.fit": "fit",
@@ -200,7 +200,11 @@ def words(name: str, value) -> str:
     if isinstance(value, int):
         return ("none" if name in ("placket_buttons", "eyelets") else "not known") if value == 0 and name in NUMBERS \
             else str(value)
-    if name in ("color_hex", "name", "material"):   # the owner's or Claude's own words
+    if name == "color_hex":   # never a colour code: the owner's shade of that colour, or the one nearest it
+        shade = next((s for s, (hex_, _) in SHADES.items() if hex_.lower() == str(value).lower()), None) \
+            or nearest_shade(str(value))
+        return shade.replace("_", " ") if shade else "another shade"
+    if name in ("name", "material"):   # the owner's or Claude's own words
         return str(value)
     return _WORDS.get(name, {}).get(value) or _ANY.get(value) or str(value).replace("_", " ")
 

@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { queryKeys } from '../queryKeys';
+import { useAsOpened } from '../steady';
 import { NinesMark } from './NinesMark';
 import { Button, Markdown, Notice, SegmentedControl } from './ui';
 import { formatSize } from '../labels';
@@ -22,10 +23,14 @@ export function useUpdateStatus(offline: boolean) {
 }
 
 /** "Nines 0.3.0 is ready · Install", on every screen in "Ask me first" mode. */
-export function UpdateBanner({ offline, toast }: { offline: boolean; toast: Toast }) {
-  const { status, installing } = useUpdates();
+export function UpdateBanner({ offline, toast, screen }: { offline: boolean; toast: Toast; screen: string }) {
+  const { status: now, installing } = useUpdates();
   const [busy, setBusy] = useState(false);
-  if (offline || installing || !showBanner(status) || !status?.available) return null;
+  // a version that becomes ready while you read waits for the next screen (`useAsOpened`); one that goes away
+  // (installed, or no longer offered) goes at once
+  const [opened] = useAsOpened(showBanner(now) ? now : null, screen);
+  const status = showBanner(now) ? opened : null;
+  if (offline || installing || !status?.available) return null;
   return (
     <Notice role="status" testId="update-banner" className="update-notice"
       action={<Button variant="primary" small disabled={busy} onClick={async () => {

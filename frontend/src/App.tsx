@@ -8,6 +8,10 @@ import { ClosedScreen, RefusedScreen, UnreachableScreen, LoadingScreen } from '.
 
 type Toast = { id: number; message: string; kind: 'ok' | 'error' };
 
+/** How long a toast stays: long enough to read a fault's sentence; a short "Saved". */
+export const TOAST_MS = 1800;
+export const TOAST_ERROR_MS = 5000;
+
 /** Whether an error is the door turning this device away (backend/closet/gate.py), not the computer being out of reach. */
 export function refusedBy(e: unknown): string | null {
   return e instanceof ApiError && (e.status === 401 || e.status === 403) ? e.message : null;
@@ -50,10 +54,12 @@ export function App() {
   // word): say what the server said, instead of a page whose every call fails.
   useEffect(() => connection.onUnauthorized((message) => setRefused(message)), []);
 
+  // At most one toast of each kind: a new one takes the place of the last, so several faults in a row are one toast
+  // (the latest), not a pile. Where it sits, covering nothing you are about to tap: styles.css, "toasts".
   const toast = useCallback((message: string, kind: 'ok' | 'error' = 'ok') => {
     const id = ++toastSeq.current;
-    setToasts((t) => [...t.filter((x) => x.message !== message), { id, message, kind }].slice(-3));
-    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === 'error' ? 6000 : 1800);
+    setToasts((t) => [...t.filter((x) => x.kind !== kind), { id, message, kind }]);
+    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === 'error' ? TOAST_ERROR_MS : TOAST_MS);
   }, []);
 
   const onProfile = useCallback((profile: Profile) => {

@@ -222,6 +222,39 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   home, the jacket is "the warmest you can wear today". Would this work? and a trip's notes speak of
   jeans and shoes as "they".
 - Opening a new piece, or one of category Other, no longer writes an error to the log each time.
+- **A price typed with a decimal comma is the price you meant.** "45,50" was saved as 4,550 (and a
+  wish's most you'd pay "99,50" as 9,950.00) while the page said Saved. Every box that takes a
+  price (an item's price, the review card, a wish's most you'd pay, a code's amount off and the
+  monthly limit) now reads 45.50, 45,50, 1,234.50, 1.234,50, $45 and spaces alike, and says
+  "Type the price as a number, like 45 or 45.50." under the box for what it cannot read, saving
+  nothing. On the item page what you typed stays in the box.
+- **When Nines on your computer doesn't answer, the screen says so in plain words.** Closet, a
+  piece, Worn, Trips, a trip, the wishlist, a wish, Review, Settings and Would this work? used to
+  show only "Internal Server Error" (or shimmer for ever). Each now says what couldn't be loaded and
+  why (the computer can't be reached, or it answered with a fault), with **Try again**; a screen
+  that already showed something keeps it, with one line saying it is from earlier.
+- **The banners at the top no longer push the page down.** Price news, an update ready to install
+  and what a restore did, when they arrive after a screen has opened, wait for the next screen you
+  open. Price news you were already told shows as the page opens. On Add, the two buttons come
+  first, the explanation is folded under **What to photograph**, and the notice about cutting the
+  clothes out of photos comes after them, so nothing moves the buttons.
+- **Dates and times read the same everywhere**: a day as "Mon 23 Nov", a moment as "today at
+  04:49" or "yesterday at 21:00", a list's time as "Today, 04:40". History says a shade's name
+  ("the shade from navy to hunter green"), never a colour code.
+- **Toasts cover less.** They sit at the top of the screen, clear of a sheet's choices and the row
+  above the tab bar, and several faults in a row are one toast, not a pile.
+- **Keys and sheets.** Escape closes an in-place editor and Today's sheets wherever focus is; in
+  Your style it drops only the line you were changing. After Ask Claude in Fix the details, and
+  after That's right or Skip for now in the review, focus goes to what comes next. Dragging on the
+  dimmed part behind a phone sheet no longer scrolls the page. **How you live** opens as the same
+  sheet as everything else, with Cancel beside its title.
+- **Smaller things.** The price banner says "Tan suede chukka boots are down…"; Add says "3 photos
+  are going into your closet" under "Going into your closet"; Advanced no longer says "model" (the
+  files for cutting the clothes out) or "this Mac's keychain" on the phone; a long size in Your sizes
+  shows whole on a phone; a trip's weather strip can be scrolled from the keyboard; a screen reader
+  hears the Filter button as "Filter, 1 on" and a left-out piece as "Without …, put it back".
+- **Text size.** The app's type follows the browser's text size setting (it was fixed in pixels);
+  at the default size nothing looks different.
 - **Wearing an outfit built around a piece** no longer leaves Today saying "No outfit today yet"
   and offering Add clothes when the piece went in the laundry. Wearing it ends building around the
   piece, and Today shows what you are wearing. When your own changes are why no outfit can be made,

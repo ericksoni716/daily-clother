@@ -151,25 +151,6 @@ export function formatPrice(cents: number | null | undefined): string {
   return Number.isInteger(dollars) ? String(dollars) : dollars.toFixed(2);
 }
 
-/** What to say when a price box holds something that is not a price. */
-export const PRICE_HINT = 'Enter a price like 45 or 45.50.';
-
-/** Cents from what the owner typed ("12", "$12.50", "1,200"). undefined if it is not a price. */
-export function parsePrice(text: string): number | null | undefined {
-  const cleaned = text.replace(/[$,\s]/g, '');
-  if (!cleaned) return null;
-  if (!/^\d+(\.\d{0,2})?$/.test(cleaned)) return undefined;
-  return Math.round(parseFloat(cleaned) * 100);
-}
-
-/** "12 Nov 2026, 14:05" in the viewer's locale. */
-export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
 const SIZE_UNITS = ['KB', 'MB', 'GB', 'TB'];
 
 /** A size in words: "512 bytes", "4.2 KB", "38 MB", "1.5 GB" (1 KB = 1000 bytes). */

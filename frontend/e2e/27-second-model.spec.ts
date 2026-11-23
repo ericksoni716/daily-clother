@@ -41,10 +41,10 @@ test('a second model that did not download is shown on Add and can be tried agai
   await page.goto('/add');
 
   const banner = page.getByTestId('model-banner');
-  await expect(banner).toContainText("the second model didn't download");
+  await expect(banner).toContainText("The second set of files for cutting the clothes out didn't download");
   await expect(banner).toContainText('Could not reach the download server');
   await banner.getByRole('button', { name: 'Try again' }).click();
-  await expect(page.getByText('Downloading the background-removal model')).toBeVisible();
+  await expect(page.getByText('Downloading the files for cutting the clothes out')).toBeVisible();
   await expect(banner).toHaveCount(0);   // downloading again: nothing to do
   expect(asked).toBe(1);
 
@@ -54,7 +54,7 @@ test('a second model that did not download is shown on Add and can be tried agai
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Updates', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Background removal', exact: true })).toHaveCount(0);
-  for (const name of ['Download the model', 'Download the second model', 'Try the download again']) {
+  for (const name of ['Download the model', 'Download the second set', 'Try the download again']) {
     await expect(page.getByRole('button', { name })).toHaveCount(0);
   }
   await page.getByRole('link', { name: 'Advanced settings' }).click();
@@ -83,7 +83,7 @@ test('a first model that did not download says why on Add, and Try again starts 
   await goToCloset(page);
   await page.goto('/add');
   const banner = page.getByTestId('model-banner');
-  await expect(banner).toContainText("the model download didn't work");
+  await expect(banner).toContainText("The files for cutting the clothes out of photos didn't download");
   await expect(banner).toContainText('Could not reach the download server');
   // its link goes where the model's address and files are: the Advanced settings
   await expect(banner.getByRole('link', { name: 'Background removal settings' })).toHaveAttribute('href', '/settings/advanced');
@@ -105,16 +105,16 @@ test('Advanced says what each model is for and how it stands, and tries a failed
   await goToCloset(page);
   await page.goto('/settings/advanced');
   const section = page.getByRole('region', { name: 'Background removal' });
-  await expect(section.getByTestId('model-main')).toHaveText('The main model cuts out every photo. It is ready.');
+  await expect(section.getByTestId('model-main')).toHaveText('The first set of files cuts the clothes out of every photo. It is ready.');
   const secondLine = section.getByTestId('model-second');
-  await expect(secondLine).toHaveText("The second model is asked as well for stripes and checks. It didn't download. "
+  await expect(secondLine).toHaveText("The second set is asked as well, for stripes and checks. It didn't download. "
     + 'Could not reach the download server. Check the internet connection and try again. Try again');
-  await expect(section.getByRole('button', { name: 'Download the main model' })).toHaveCount(0);
-  await secondLine.getByRole('button', { name: 'Try downloading the second model again' }).click();
-  await expect(page.getByText('Downloading the background-removal model')).toBeVisible();
-  await expect(secondLine).toHaveText('The second model is asked as well for stripes and checks. It is downloading: 44 MB of 176 MB.');
+  await expect(section.getByRole('button', { name: 'Download the first set' })).toHaveCount(0);
+  await secondLine.getByRole('button', { name: 'Try downloading the second set again' }).click();
+  await expect(page.getByText('Downloading the files for cutting the clothes out')).toBeVisible();
+  await expect(secondLine).toHaveText('The second set is asked as well, for stripes and checks. It is downloading: 44 MB of 176 MB.');
   expect(asked).toBe(1);
 
   now = model({ second: READY });   // polled while it downloads: the line follows by itself
-  await expect(secondLine).toHaveText('The second model is asked as well for stripes and checks. It is ready.');
+  await expect(secondLine).toHaveText('The second set is asked as well, for stripes and checks. It is ready.');
 });

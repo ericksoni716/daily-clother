@@ -1,5 +1,6 @@
 /** Correcting an item's details: by picking, by saying, and the history that can be undone. */
 import type { AwayPlace } from './types';
+import { dayAndTime } from './wears';
 
 export interface DetailOption {
   name: string;
@@ -181,11 +182,9 @@ export function awayHistoryLine(a: NonNullable<HistoryEntry['away']>): string {
   return `It came back from ${CAME[a.place]}${a.by === 'wear' ? ' when you wore it' : ''}`;
 }
 
-/** When a change was made, short: "13 Nov, 09:41". */
-export function historyWhen(at: string, locale?: string): string {
-  const d = new Date(at);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+/** When a change was made, at the head of its line: "Today, 14:05", "13 Nov, 09:41" (the one family of dates). */
+export function historyWhen(at: string): string {
+  return dayAndTime(at);
 }
 
 /** A confirmed change in words: "Number of buttons: 3 → 2". */

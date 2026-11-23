@@ -41,7 +41,7 @@ export function ModelBanner() {
     setBusy(true);
     try {
       qc.setQueryData(queryKeys.model(), await edit(() => api.downloadModel()));
-      toast('Downloading the background-removal model');
+      toast('Downloading the files for cutting the clothes out');
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {
@@ -71,10 +71,9 @@ export function ModelBanner() {
           </Button>
         </>
       }>
-      <strong>Background removal: </strong>
-      {state === 'missing' ? 'not set up yet. New photos keep their background for now.'
-        : state === 'failed' ? `the model download didn't work.${model.error ? ` ${model.error}` : ''}`
-          : `the second model didn't download, so stripes or checks can be taken for background.${second?.error ? ` ${second.error}` : ''}`}
+      {state === 'missing' ? "Nines can't cut the clothes out of new photos yet (background removal isn't set up), so they keep their background for now."
+        : state === 'failed' ? `The files for cutting the clothes out of photos didn't download.${model.error ? ` ${model.error}` : ''}`
+          : `The second set of files for cutting the clothes out didn't download, so stripes or checks can be taken for background.${second?.error ? ` ${second.error}` : ''}`}
     </Notice>
   );
 }

@@ -51,14 +51,15 @@
   --shadow: 0 0 0 1px var(--line-soft), 0 1px 2px rgba(38, 35, 31, 0.06), 0 4px 14px rgba(38, 35, 31, 0.05);
   --shadow-hover: 0 2px 6px rgba(38, 35, 31, 0.08), 0 10px 24px rgba(38, 35, 31, 0.08);
   --shadow-pop: 0 8px 28px rgba(38, 35, 31, 0.18);
-  /* type scale: ratio 1.25 from 16px */
-  --text-xs: 12px;
-  --text-sm: 14px;
-  --text-md: 16px;
-  --text-lg: 20px;
-  --text-xl: 25px;
-  --text-2xl: 31px;
-  --text-3xl: 39px;   /* page titles on a wider screen */
+  /* type scale: ratio 1.25 from 16px, in rem so the browser's text size setting scales it (16px at the default:
+     12 / 14 / 16 / 20 / 25 / 31 / 39 px) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5625rem;
+  --text-2xl: 1.9375rem;
+  --text-3xl: 2.4375rem;   /* page titles on a wider screen */
   --weight-body: 400;
   --weight-label: 560;
   --weight-heading: 650;
@@ -548,6 +549,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .empty-big .muted { margin-bottom: 22px; }
 .empty-art { width: 84px; height: 84px; margin: 0 auto 18px; border-radius: var(--radius-lg); background: var(--card); color: var(--card-accent); display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--card-edge); }
 .empty-art svg { width: 48px; height: 48px; }
+/* what a screen shows when a read failed (components/ui/Failed.tsx): in place of the content, or one line above an
+   earlier answer */
+.failed .empty { max-width: 30rem; margin: 0 auto; }
+.failed .empty .muted { margin-bottom: var(--space-4); }
+.failed .empty-art { color: var(--warn); }
 
 /* ---------------------------------------------------------------- model notice, progress & notices */
 .model-notice .notice-action { align-items: center; gap: var(--space-1); margin-left: auto; }
@@ -604,7 +610,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .sheet:focus { outline: none; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
 .sheet-title { font-size: var(--text-lg); }
-.sheet-scrim { position: fixed; inset: 0; z-index: 40; background: var(--scrim); }
+.sheet-scrim { position: fixed; inset: 0; z-index: 40; background: var(--scrim); touch-action: none; }
+/* the page behind an open phone sheet holds still (Sheet.tsx) */
+html.sheet-open, html.sheet-open body { overflow: hidden; overscroll-behavior: none; }
 .sheet-phone {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-height: 85dvh; overflow-y: auto; overscroll-behavior: contain;
   padding: var(--space-4) max(var(--space-4), env(safe-area-inset-right)) calc(var(--space-6) + env(safe-area-inset-bottom)) max(var(--space-4), env(safe-area-inset-left));
@@ -878,6 +886,12 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .sizes-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .sizes-box input:disabled { color: var(--ink-3); border-style: dashed; }
+/* on a phone the box takes the whole width under its name, so a long size ("10.5 US / 44 EU wide") shows whole */
+@media (max-width: 699px) {
+  .sizes-box { flex-direction: column; align-items: stretch; gap: 4px; }
+  .sizes-name { flex: none; flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--space-2); }
+  .sizes-box input { flex: none; width: 100%; }
+}
 .sizes-add { align-self: flex-start; }
 /* Shops you like: the list, a remove beside each, then the box to add one */
 .shops-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -1002,14 +1016,16 @@ p.style-more { margin: 0; font-size: var(--text-sm); }
 .toggle input:disabled + .toggle-track { opacity: 0.5; }
 
 /* ---------------------------------------------------------------- toasts */
+/* At the top of the screen, over the title: what you are about to tap is lower down (a sheet's choices, the row above
+   the tab bar, the chips a sheet has just opened), and a phone's sheet leaves the top dimmed. At most one of each kind
+   (App.tsx). */
 .toasts {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 50; display: flex; flex-direction: column; align-items: center; gap: 8px;
-  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px); pointer-events: none; width: max-content; max-width: calc(100vw - 32px);
+  top: calc(env(safe-area-inset-top) + 12px); pointer-events: none; width: max-content; max-width: calc(100vw - 32px);
 }
-@media (min-width: 1000px) { .toasts { bottom: 24px; } }
 .toast { padding: 9px 16px; border-radius: var(--radius-pill); background: var(--ink); color: var(--bg); font-size: var(--text-sm); font-weight: var(--weight-label); box-shadow: var(--shadow-pop); animation: toast-in var(--dur-move) var(--ease-out); }
 .toast-error { background: var(--danger); color: var(--on-danger); border-radius: var(--radius-md); }
-@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } }
 
 /* the colours measured from a pattern, beside the pattern word on the item page */
 .measured-colours { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 40px; }

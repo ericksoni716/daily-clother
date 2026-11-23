@@ -55,8 +55,9 @@ test.describe('shopping for a wish', () => {
     await expect(sheet.getByLabel('Currency')).toHaveValue('USD');
     await sheet.getByLabel('Amount').fill('cheap');
     await sheet.getByRole('button', { name: 'Save' }).click();
-    await expect(sheet.getByRole('alert')).toHaveText('Type a price as a number, like 80 or 120.50.');
-    await sheet.getByLabel('Amount').fill('200');
+    await expect(sheet.getByRole('alert')).toHaveText('Type the price as a number, like 45 or 45.50.');
+    // a decimal comma is the same price (it was read a hundred times too high: 20,000.00)
+    await sheet.getByLabel('Amount').fill('200,00');
     await sheet.getByRole('button', { name: 'Save' }).click();
     await expect(sheet).toHaveCount(0);
     await expect(price).toContainText('Claude looks for ones up to $200.00.');

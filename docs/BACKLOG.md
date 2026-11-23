@@ -14,6 +14,16 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The review of the shared parts** (23 November; DECISIONS, "The failed state", "Banners wait for the next screen",
+  "One way to write a date"). Left: Today's own failed state ("Couldn't choose today's outfits: …") still words
+  itself and was left to the Today batch; the item page still says "Saved" in a toast for each change rather than a
+  `SaveStatus` beside the row (its layout is a later batch); a trip's date range is still written in `trips.ts` from
+  the family's month names; on iPhone the system Text Size does not reach Safari's rem (only the browser's own text
+  size does); price news never asked for on a screen you never leave shows only on the next screen or the next open.
+  Brought onto the newer base, the newer screens had no failed read of their own to move onto `Failed`; You might like
+  still shows nothing at all when its read fails with no copy kept on this device, and a few older lines still word a
+  failed read themselves (Advanced's space used, Today's weather lookup, the style conversation, Several, the
+  details' choices in Fix the details).
 - **Where a piece is** (23 November; DECISIONS, "Where a piece is"). Left undone: recording an
   outfit by hand that brings an away piece back says so in the toast, but its Undo is on the piece's
   page, not beside the toast (the toast has no button); the away view keeps the pieces brought back
@@ -462,11 +472,8 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 
 **First, what is already there made right**
 - [ ] **The review's findings** (`docs/assessment/` gets a short report of the two reviews of 23 November, the screens and the rules; the fixes go in small batches, each fault shown with a failing test first).
-- [ ] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
-- [x] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
-- [ ] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
 - [x] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
-- [ ] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
+- [x] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
 - [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
 - [ ] **The closet at a glance**: three across as a choice, a search box that takes the row, the Photos or Drawings switch in words, and search that finds a shade, a brand, a material or a note.
 - [ ] **Would this work? by hand**: kind and colour first, the rest behind "More about it".

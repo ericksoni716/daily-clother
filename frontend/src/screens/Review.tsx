@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
-import { Button, EmptyState, PageHeader } from '../components/ui';
+import { Button, EmptyState, Failed, PageHeader } from '../components/ui';
 import { CloudOffIcon, HangerIcon } from '../components/Icons';
 import { FIELD_TITLES, label } from '../labels';
 import { checkBody, notReadyText, progressText, reviewRows, skippedText, sureText, typedOf, type ReviewRow, type Typed } from '../review';
@@ -68,7 +68,7 @@ export function ReviewScreen() {
   const [skipped, setSkipped] = useState(0);
   if (offline && queue) setQueue(null);   // back online, it is taken afresh
   else if (!offline && !queue && review.data && !review.isFetching) setQueue(review.data);
-  const error = review.error ? review.error.message : null;
+  const error = !!review.error;
 
   const load = useCallback(async () => {
     const r = await refetch();
@@ -89,6 +89,14 @@ export function ReviewScreen() {
   const total = queue?.items.length ?? 0;
   const current = queue && index < total ? queue.items[index] : null;
 
+  // After "That's right" or "Skip for now" the card you acted on is gone: focus goes to what comes next (the next
+  // piece's card, whose keys then work, or the end's button), not to the page.
+  const screen = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (index === 0) return;
+    screen.current?.querySelector<HTMLElement>('[data-testid="review-card"], [data-testid="review-end"] button')?.focus({ preventScroll: true });
+  }, [index]);
+
   let body;
   if (offline) {
     body = (
@@ -98,7 +106,7 @@ export function ReviewScreen() {
   } else if (current) {
     body = <ReviewCard key={current.id} item={current} onDone={() => next(false)} onSkip={() => next(true)} />;
   } else if (!queue || (total > 0 && skipped === 0)) {
-    body = error ? <p className="form-error" role="alert">{error}</p> : <div className="detail-picture tile-skeleton review-skeleton" aria-busy="true" />;
+    body = error ? <Failed query={review} what="the pieces to check" /> : <div className="detail-picture tile-skeleton review-skeleton" aria-busy="true" />;
   } else if (total > 0) {
     body = (
       <EmptyState big testId="review-end" title="That's all for now" body={skippedText(skipped)}
@@ -109,7 +117,7 @@ export function ReviewScreen() {
   }
 
   return (
-    <section className="review" aria-labelledby="review-title">
+    <section ref={screen} className="review" aria-labelledby="review-title">
       <PageHeader title="Review" titleId="review-title" countTestId="review-progress" back={{ to: '/', label: 'Closet' }}
         count={!offline && current && progressText(index + 1, total)} />
       {body}
@@ -226,7 +234,7 @@ function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void
   const shownKind = kind ? { ...item, kind: kind.id, kind_name: kind.name, group: kind.group, kind_by: 'owner' as const, kind_confidence: null } : item;
 
   return (
-    <article className="review-card" aria-label={name} data-testid="review-card">
+    <article className="review-card" aria-label={name} data-testid="review-card" tabIndex={-1}>
       <div className={`detail-picture review-picture view-${item.picture_kind ?? 'none'}`}>
         {item.picture_url
           ? <img className={pictureClass} src={item.picture_url} alt={name} />

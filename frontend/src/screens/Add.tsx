@@ -6,7 +6,7 @@ import { AddedPicture, AddedRow } from '../components/AddedItem';
 import { CameraIcon, CheckIcon, CloseIcon, CloudOffIcon, ImagesIcon, WarnIcon } from '../components/Icons';
 import { sendShoePhotos } from '../components/ShoePhotos';
 import { ModelBanner } from '../components/ModelBanner';
-import { Card, Notice, PageHeader } from '../components/ui';
+import { Card, HowItWorks, Notice, PageHeader } from '../components/ui';
 import {
   applySort, batches, choicesFor, choose, missingLine, NEEDED_DEFAULT, pairs, shoeCheck, shoes, SHOE_PHOTOS, SORT_EDGE,
   SORT_MAX, tooManyForAShoe, trayLine, valueOf, VIEW_LABEL, viewsWords, type SortAnswer, type TrayPhoto,
@@ -52,7 +52,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 /** What happened to the files just chosen or dropped, in plain words. */
 function describeAdded(queued: number, alreadyListed: number, skipped: File[]): string {
   const parts: string[] = [];
-  if (queued) parts.push(`${plural(queued, 'photo')} added to the import.`);
+  if (queued) parts.push(`${plural(queued, 'photo is', 'photos are')} going into your closet.`);
   if (alreadyListed) parts.push(`${plural(alreadyListed, 'photo was', 'photos were')} already waiting to go in, so ${alreadyListed === 1 ? 'it was' : 'they were'} left out.`);
   if (skipped.length) {
     const names = skipped.slice(0, 3).map((f) => f.name).join(', ');
@@ -409,8 +409,6 @@ export function AddScreen() {
   return (
     <section className="add" aria-labelledby="add-title">
       <PageHeader title="Add clothes" titleId="add-title" />
-      {/* said once, here, where it matters: new photos keep their background until the cutting-out files are in */}
-      <ModelBanner />
       {profile === 'demo' && <Notice as="p">You're in the demo closet, so new photos are added to the demo. Use "Back to my closet" above to add to your own.</Notice>}
 
       {offline ? (
@@ -423,12 +421,6 @@ export function AddScreen() {
         </div>
       ) : (
         <>
-          <p className="muted add-intro" data-testid="add-intro">Add any photos: one piece of clothing per photo, several pieces laid out together on the bed or the floor, or a shoe from a few sides (all its photos at once). Nines sorts them; one piece per photo goes straight in, anything else waits for you to check it. Photos already in your closet are recognised and not added twice.</p>
-          <p className="muted small" data-testid="shoe-tips">For a shoe: one shoe on its own, not the pair, photographed from {viewsWords(needed)}, against a plain floor or wall in even light. Those are the photos its drawing needs; up to {SHOE_PHOTOS} are kept.</p>
-          {profile !== 'demo' && perFindUsd !== null && (
-            <p className="muted small" data-testid="several-cost">With the API key, if your plan can't be used: sorting is a fraction of a cent, finding the pieces in a photo of several {aboutUsd(perFindUsd)} at most, and describing each piece{perPhotoUsd !== null ? ` ${aboutUsd(perPhotoUsd)} at most` : ' a little'}.</p>
-          )}
-
           {counts.missing > 0 && (
             <div className="notice notice-warn resume" data-testid="resume">
               <WarnIcon />
@@ -473,6 +465,17 @@ export function AddScreen() {
           )}
 
           {pickers}
+
+          {/* the buttons come first, then the explanation, closed; what may arrive late (the notice about cutting the
+              clothes out of the photo) comes after both, so it moves nothing you are reading (DESIGN, "The page holds still") */}
+          <HowItWorks title="What to photograph" className="add-how" testId="add-how">
+            <p className="muted add-intro" data-testid="add-intro">Add any photos: one piece of clothing per photo, several pieces laid out together on the bed or the floor, or a shoe from a few sides (all its photos at once). Nines sorts them; one piece per photo goes straight in, anything else waits for you to check it. Photos already in your closet are recognised and not added twice.</p>
+            <p className="muted small" data-testid="shoe-tips">For a shoe: one shoe on its own, not the pair, photographed from {viewsWords(needed)}, against a plain floor or wall in even light. Those are the photos its drawing needs; up to {SHOE_PHOTOS} are kept.</p>
+            {profile !== 'demo' && perFindUsd !== null && (
+              <p className="muted small" data-testid="several-cost">With the API key, if your plan can't be used: sorting is a fraction of a cent, finding the pieces in a photo of several {aboutUsd(perFindUsd)} at most, and describing each piece{perPhotoUsd !== null ? ` ${aboutUsd(perPhotoUsd)} at most` : ' a little'}.</p>
+            )}
+          </HowItWorks>
+          <ModelBanner />
 
           {live && (
             <div className="shoe-add" data-testid="add-camera">
@@ -608,7 +611,7 @@ export function AddScreen() {
       {queue.length > 0 && (
         <div className="queue">
           <div className="queue-head">
-            <h2>Import</h2>
+            <h2>Going into your closet</h2>
             <span className="muted small" data-testid="queue-summary" aria-live="polite">
               {paused && pending ? 'Paused · ' : ''}{summaryText(counts)}
             </span>

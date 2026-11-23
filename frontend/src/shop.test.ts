@@ -6,7 +6,7 @@ import { parseRoute } from './router';
 import {
   atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, googleShoppingLink,
   historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
-  runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, typedPrice, watchWords,
+  runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, watchWords,
   webLink, wishlistAgain, wishlistWords, withinWords,
 } from './shop';
 import { timeOf } from './today';
@@ -39,13 +39,6 @@ describe('shopping words', () => {
     expect(webLink(null)).toBeNull();
   });
 
-  it('reads a typed price', () => {
-    expect(typedPrice('')).toBeNull();
-    expect(typedPrice(' 120.50 ')).toBe(120.5);
-    expect(typedPrice('$1,200')).toBe(1200);
-    expect(typedPrice('-5')).toBeUndefined();
-    expect(typedPrice('cheap')).toBeUndefined();
-  });
 });
 
 describe('asking for the finds again', () => {
@@ -225,6 +218,9 @@ describe('the wish page and price news', () => {
     expect(newsWords([n])).toBe('A tan rain coat is down to $150.00 at Example Shop, from $177.00.');
     expect(newsWords([{ ...n, at_price: true }])).toBe("A tan rain coat is down to $150.00 at Example Shop, from $177.00. That's within your price.");
     expect(newsWords([n, { ...n, name: 'A belt' }, n])).toBe('Prices went down for 3 things on your wishlist.');
+    // a name that is a pair takes "are", as the server's sentences do
+    expect(newsWords([{ ...n, name: 'Tan suede chukka boots', to: 179, from: 210 }])).toBe('Tan suede chukka boots are down to $179.00 at Example Shop, from $210.00.');
+    expect(newsWords([{ ...n, name: 'A pair of black jeans' }])).toMatch(/^A pair of black jeans is down/);
   });
 });
 

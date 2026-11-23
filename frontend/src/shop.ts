@@ -1,9 +1,10 @@
 /** Shopping for a wish: the products Claude found and the pages the owner sent, their prices, the news when one went
  * down, and plain words for them. */
-import { kindWords, type Wish } from './gaps';
+import { beFor, kindWords, type Wish } from './gaps';
 import { plural } from './insights';
 import { label } from './labels';
-import { timeOf } from './today';
+import { readAmount } from './spend';
+import { SAVED_PREFIX, timeOf } from './today';
 import { localDay, whenWorn } from './wears';
 import type { Verdict, WouldExample, WouldPiece } from './wouldwork';
 
@@ -169,7 +170,7 @@ export function typedCode(code: string, kind: 'percent' | 'amount', value: strin
   { code: string; percent?: number; amount?: number } | string {
   const c = code.trim().toUpperCase();
   if (!c) return 'Type the code as the shop shows it.';
-  const n = typedPrice(value.trim().replace(/%$/, ''));
+  const n = readAmount(value.trim().replace(/\s*%$/, ''));
   if (n === null || n === undefined) {
     return kind === 'percent' ? 'Type the percent off as a number, like 40.' : 'Type the amount off as a number, like 20.';
   }
@@ -386,6 +387,37 @@ export interface PriceNews {
   code?: string;
 }
 
+type KV = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+const newsKey = (profile: string) => `${SAVED_PREFIX}:news:${profile}`;
+function local(): KV | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** The last price news this device was told (kept with its other saved copies, and forgotten with them), so the
+ * banner is drawn with the page when it opens rather than arriving after it. Null when none was kept. */
+export function keptNews(profile: string, kv: KV | null = local()): PriceNews[] | null {
+  try {
+    const raw = kv?.getItem(newsKey(profile));
+    const news = raw ? JSON.parse(raw) as unknown : null;
+    return Array.isArray(news) ? news as PriceNews[] : null;
+  } catch {
+    return null;
+  }
+}
+
+export function keepNews(profile: string, news: PriceNews[], kv: KV | null = local()) {
+  try {
+    if (news.length) kv?.setItem(newsKey(profile), JSON.stringify(news));
+    else kv?.removeItem(newsKey(profile));
+  } catch {
+    /* private mode or full: the banner waits for the next screen instead */
+  }
+}
+
 /** How often the news is asked for again while the page is open and shown (and when it comes back into view). */
 export const NEWS_POLL_MS = 30 * 60 * 1000;
 
@@ -395,7 +427,7 @@ export function newsWords(news: Pick<PriceNews, 'name' | 'shop' | 'from' | 'to' 
   if (news.length !== 1) return `Prices went down for ${news.length} things on your wishlist.`;
   const [n] = news;
   const price = n.at_price ? " That's within your price." : '';
-  return `${n.name} is down to ${priceWords(n.to, n.currency, n.code)} at ${n.shop}, from ${priceWords(n.from, n.currency)}.${price}`;
+  return `${n.name} ${beFor(n.name)} down to ${priceWords(n.to, n.currency, n.code)} at ${n.shop}, from ${priceWords(n.from, n.currency)}.${price}`;
 }
 
 /** The words a Google Shopping search is made of: "men's", the first colour to look for and the kind of piece in plain
@@ -426,14 +458,6 @@ export function webLink(url: string | null | undefined): string | null {
   } catch {
     return null;
   }
-}
-
-/** A price typed by the owner: a number from 0, null for an empty box, undefined when it is not a price. */
-export function typedPrice(text: string): number | null | undefined {
-  const t = text.trim().replace(/^[$€£]/, '').replace(/,/g, '');
-  if (!t) return null;
-  const n = Number(t);
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
 /** What the closet tells Claude about you when it looks for something, never more (DECISIONS, "What the search is told

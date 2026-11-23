@@ -4,16 +4,16 @@ import { api } from '../api';
 import { LinkIcon, SearchIcon } from '../components/Icons';
 import { useNewsSeen } from '../components/PriceNews';
 import { SeeItWorn } from '../components/WornWith';
-import { Button, buttonClass, Card, Notice, SegmentedControl, Sheet } from '../components/ui';
+import { Button, buttonClass, Card, Failed, Notice, SegmentedControl, Sheet } from '../components/ui';
 import type { Wish } from '../gaps';
 import { touch, useItems } from '../queries';
 import {
   canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, googleShoppingLink,
   historyWords, lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll,
-  type ShopRun, typedCode, typedPrice, watchWords, webLink, wishlistAgain,
+  type ShopRun, typedCode, watchWords, webLink, wishlistAgain,
 } from '../shop';
 import { SEARCH_SENDS } from '../shop';
-import { aboutUsd } from '../spend';
+import { aboutUsd, PRICE_HINT, readAmount } from '../spend';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
 import type { ItemSummary } from '../types';
@@ -76,10 +76,11 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   const byId = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);
   // Asked again every few seconds while a search, a price check or a link's reading runs, and not at all otherwise;
   // never while the page is hidden. Reading never starts one: only the owner does, below.
-  const answer = useQuery({
+  const read = useQuery({
     queryKey: key, queryFn: () => api.finds(wish.id), enabled: !locked,
     refetchInterval: (q) => shopPoll(q.state.data),
-  }).data ?? null;
+  });
+  const answer = read.data ?? null;
   // Starting a search or a price check asks Claude (it costs money): only ever by the owner's tap.
   const begin = useMutation({
     mutationFn: (kind: 'find' | 'prices') => (kind === 'find' ? api.findSome(wish.id) : api.checkPrices(wish.id)),
@@ -139,9 +140,13 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   // the currency the most you'd pay starts in when none is set: the newest find's
   const currency = answer?.finds[0]?.currency;
   // what is watched comes first, so the page waits for it (a moment: Nines is on this computer) before laying out the rest
-  if (!answer && !locked) return <div className="missing-skeleton missing-skeleton-small" aria-hidden="true" />;
+  if (!answer && !locked) {
+    return read.error ? <Failed query={read} what="what is watched for this wish" />
+      : <div className="missing-skeleton missing-skeleton-small" aria-hidden="true" />;
+  }
   return (
     <>
+      <Failed query={read} what="what is watched for this wish" />
       {finds.length > 0 && (
         <section className="wish-watch" aria-label={`Watching for ${wish.name}`}>
           <ul className="find-list" aria-label="Found in shops">
@@ -229,7 +234,7 @@ function FindCard({ find, demo, locked, byId, onStop }: {
     <Card as="article" className="find-card" data-testid="find" aria-label={find.name} data-verdict={find.verdict ?? ''}>
       {image && <img className="find-image" src={image} alt="" loading="lazy" referrerPolicy="no-referrer" />}
       <div className="find-body">
-        <h4>{find.name}</h4>
+        <h2 className="find-name">{find.name}</h2>
         <p className="find-shop">
           {find.shop} · <strong>{priceWords(find.price, find.currency)}</strong>
           {!find.available && <span className="find-sold"> · Sold out</span>}
@@ -410,9 +415,9 @@ function PriceSheet({ wish, currency: newest, keep, onPrice, onClose }: {
 
   function save(e: FormEvent) {
     e.preventDefault();
-    const most = typedPrice(amount);
+    const most = readAmount(amount);
     const cur = currency.trim().toUpperCase();
-    if (most === undefined) return setProblem('Type a price as a number, like 80 or 120.50.');
+    if (most === undefined) return setProblem(PRICE_HINT);
     if (!/^[A-Z]{3}$/.test(cur)) return setProblem('The currency is three letters, like USD, EUR or GBP.');
     setProblem(null);
     void send({ price_min: null, price_max: most, price_currency: most === null ? null : cur });

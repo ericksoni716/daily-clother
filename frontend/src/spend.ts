@@ -1,5 +1,6 @@
 /** Plain words for what the API key costs: amounts, months, the limit and the estimates. */
 import type { ApiKeyInfo, RouteOrder, TaggingRoute, TaggingSpend } from './types';
+import { dayOf, fullDate } from './wears';
 
 /** "$1.20", "$1,000.00"; "$0.00" for nothing, and "under 1¢" for a sum too small to show in cents. */
 export function formatUsd(amount: number | null | undefined): string {
@@ -23,24 +24,73 @@ export function amount(cents: number, currency = 'USD', exact = false): string {
   }
 }
 
+/** What to say when a price box holds something that is not a price: nothing is saved. */
+export const PRICE_HINT = 'Type the price as a number, like 45 or 45.50.';
+
+const CURRENCY = /^([$€£])?\s*(.*?)\s*([$€£])?$/;
+
+/**
+ * The one reader for a price you typed, in every box that takes one (an item's price, the review card, a wish's most
+ * you'd pay, a code's amount off, the monthly limit). It reads `45.50` and `45,50` alike (a phone set to a region
+ * that writes 45,50 has a comma on its decimal keypad), `1,234.50` and `1.234,50`, a space between thousands, and a
+ * currency sign before or after. A number from 0; null for an empty box; undefined for anything it cannot read for
+ * sure (a word, a minus, three decimals, `1.234`), so nothing is saved and the box says `PRICE_HINT`.
+ */
+export function readAmount(text: string): number | null | undefined {
+  const sign = CURRENCY.exec(text.trim());
+  if (!sign || (sign[1] && sign[3])) return undefined;
+  // a space (or the narrow ones a phone may type) between groups of three digits, as in "1 234,50"
+  const body = sign[2].replace(/[\u00a0\u202f\u2009]/g, ' ').replace(/(\d) (?=\d{3}(?!\d))/g, '$1');
+  if (!body) return null;
+  if (!/^[\d.,]+$/.test(body)) return undefined;
+  const lastDot = body.lastIndexOf('.');
+  const lastComma = body.lastIndexOf(',');
+  let whole = body;
+  let cents = '';
+  if (lastDot >= 0 && lastComma >= 0) {
+    // both: the one written last is the decimal point, the other separates thousands
+    const point = Math.max(lastDot, lastComma);
+    const group = point === lastDot ? ',' : '.';
+    whole = body.slice(0, point);
+    cents = body.slice(point + 1);
+    if (!grouped(whole, group)) return undefined;
+    whole = whole.split(group).join('');
+  } else if (lastDot >= 0 || lastComma >= 0) {
+    const mark = lastDot >= 0 ? '.' : ',';
+    const pieces = body.split(mark);
+    if (pieces.length > 2) {
+      if (!grouped(body, mark)) return undefined;
+      whole = pieces.join('');
+    } else if (pieces[1].length <= 2) {
+      [whole, cents] = pieces;
+    } else if (pieces[1].length === 3 && mark === ',' && grouped(body, ',')) {
+      // "1,234": a thousand. "1.234" could be a thousand or one and a bit, so it is not guessed.
+      whole = pieces.join('');
+    } else return undefined;
+  }
+  if (!/^\d*$/.test(whole) || !/^\d{0,2}$/.test(cents) || (!whole && !cents)) return undefined;
+  return Math.round(Number(`${whole || '0'}.${cents || '0'}`) * 100) / 100;
+}
+
+/** Thousands written with `mark` between them: "1,234,567". */
+function grouped(digits: string, mark: string): boolean {
+  const [first, ...rest] = digits.split(mark);
+  return /^[1-9]\d{0,2}$/.test(first) && rest.every((g) => /^\d{3}$/.test(g));
+}
+
+/** `readAmount` in cents, for what is stored in cents (an item's price). */
+export function readCents(text: string): number | null | undefined {
+  const amount = readAmount(text);
+  return amount === null || amount === undefined ? amount : Math.round(amount * 100);
+}
+
 /** "about $0.03": an estimate, never shown as less than a cent. */
 export function aboutUsd(amount: number): string {
   return amount > 0 && amount < 0.01 ? 'under 1¢' : `about ${formatUsd(amount)}`;
 }
 
-/** "November 2026" from "2026-11". */
-export function monthName(month: string): string {
-  const [y, m] = month.split('-').map(Number);
-  if (!y || !m) return month;
-  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-}
-
-/** "3 Nov 2026" from "2026-11-03". */
-export function dayName(day: string): string {
-  const [y, m, d] = day.split('-').map(Number);
-  if (!y || !m || !d) return day;
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
+/** "November 2026" from "2026-11", and "3 Nov 2026" from "2026-11-03": the one family of dates (wears.ts). */
+export { monthYear as monthName, fullDate as dayName } from './wears';
 
 function count(n: number, one: string, many: string): string {
   return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
@@ -71,7 +121,7 @@ export function importLine(photos: number, perPhotoUsd: number): string {
 /** Why the suggested limit, with the date the prices were written down. */
 export function suggestionLine(suggested: number, perPhotoUsd: number, pricesChecked: string): string {
   const photos = perPhotoUsd > 0 ? Math.floor(suggested / perPhotoUsd) : 0;
-  return `We suggest ${formatUsd(suggested)} a month. At the prices written down on ${dayName(pricesChecked)}, that pays for at least ` +
+  return `We suggest ${formatUsd(suggested)} a month. At the prices written down on ${fullDate(pricesChecked)}, that pays for at least ` +
     `${photos.toLocaleString('en-US')} photos even if your plan can't be used at all — a whole wardrobe several times over — ` +
     'while keeping any mistake small.';
 }
@@ -79,16 +129,18 @@ export function suggestionLine(suggested: number, perPhotoUsd: number, pricesChe
 /** Why Nines stopped using the API key by itself, or empty. */
 export function turnedOffLine(off: TaggingSpend['turned_off']): string {
   if (!off) return '';
-  const when = new Date(off.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const when = fullDate(dayOf(off.at) ?? off.at);
   return off.reason === 'credit'
     ? `Nines stopped using the API key on ${when} because Anthropic said your account has no credit left. Add credit in your Anthropic account, then turn the key on again.`
     : `Nines stopped using the API key on ${when} because Anthropic didn't accept the key. Check the key, then turn it on again.`;
 }
 
-/** Where the API key comes from, in a sentence; never the key itself. */
-export function apiKeyLine(info: ApiKeyInfo): string {
-  if (info.source === 'keychain') return `Your API key is saved in ${info.where ?? 'this computer\'s keychain'}.`;
-  if (info.source === 'environment') return 'Your API key comes from ANTHROPIC_API_KEY, set on this computer.';
+/** Where the API key comes from, in a sentence; never the key itself. Read on the phone (`onComputer` false), "this
+ * Mac's keychain" is the computer's, so it says "your Mac's keychain". */
+export function apiKeyLine(info: ApiKeyInfo, onComputer = true): string {
+  const where = info.where ?? "this computer's keychain";
+  if (info.source === 'keychain') return `Your API key is saved in ${onComputer ? where : where.replace(/^this /, 'your ')}.`;
+  if (info.source === 'environment') return `Your API key comes from ANTHROPIC_API_KEY, set on ${onComputer ? 'this computer' : 'your computer'}.`;
   return 'No API key yet.';
 }
 

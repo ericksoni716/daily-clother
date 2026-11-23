@@ -17,16 +17,16 @@
 .life-questions .field { margin-bottom: 10px; }
 .life-questions .hint { margin: 0; }
 .life-actions { margin-top: 16px; }
-.life-dialog { position: fixed; inset: 0; width: 100%; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0; background: var(--surface); color: var(--ink); overflow-y: auto; }
-.life-dialog::backdrop { background: var(--surface); }
-@media (max-width: 680px) {
-  .life-dialog .life-questions { border: 0; border-radius: 0; margin: 0; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
-  .life-dialog .life-frequencies { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
-  .life-dialog .life-frequency { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 0; border: 0; font-size: var(--text-sm); }
-  .life-dialog .life-frequency select { width: 100%; font-size: var(--text-md); }
-  .life-dialog .life-intro { margin: 8px 0 14px; font-size: var(--text-sm); }
-  .life-dialog .life-details { margin-top: 12px; }
-  .life-dialog .life-vacation .field > span { min-height: 2.5em; }
-  .life-dialog .life-questions .hint { font-size: var(--text-xs); }
-  .life-dialog .life-actions { margin-top: 12px; }
+/* on a phone, in its sheet: the sheet is the surface, and the questions fit one screen */
+@media (max-width: 699px) {
+  .life-sheet .life-questions { border: 0; border-radius: 0; margin: 0; padding: 0; background: none; }
+  .life-sheet .life-heading { margin-top: calc(-1 * var(--space-2)); }
+  .life-sheet .life-frequencies { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+  .life-sheet .life-frequency { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 0; border: 0; font-size: var(--text-sm); }
+  .life-sheet .life-frequency select { width: 100%; font-size: var(--text-md); }
+  .life-sheet .life-intro { margin: 8px 0 14px; font-size: var(--text-sm); }
+  .life-sheet .life-details { margin-top: 12px; }
+  .life-sheet .life-vacation .field > span { min-height: 2.5em; }
+  .life-sheet .life-questions .hint { font-size: var(--text-xs); }
+  .life-sheet .life-actions { margin-top: 12px; }
 }

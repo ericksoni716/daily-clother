@@ -20,6 +20,9 @@ swipe, home-screen mode, the notch) were reasoned from code, not observed. Scree
 reports mention were not kept. The clone was shallow (234 commits, 15 to 19 November), so
 history findings cover only that window.
 
+*Added 23 November:* two later reviews, of the rules and of the screens, and what was done about
+each finding, are in `review-23-november.md`. They are not part of the order of work below.
+
 ## The short version
 
 - The code is not full of dead files. Every module is reachable and the dependency lists are

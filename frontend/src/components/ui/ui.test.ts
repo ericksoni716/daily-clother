@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 // router is loaded with a window that only listens.
 vi.stubGlobal('window', { addEventListener: () => undefined });
 const { Fold } = await import('./Fold');
+const { Failed, FAILED, failedReason } = await import('./Failed');
 const { HowItWorks } = await import('./HowItWorks');
 const { SAVE_WORDS, SaveStatus } = await import('./SaveStatus');
 const { seeAllWords, ShowMore } = await import('./ShowMore');
@@ -100,5 +101,44 @@ describe('SaveStatus', () => {
 
   it('words its lines in the app\'s voice: no exclamation marks', () => {
     for (const words of Object.values(SAVE_WORDS)) expect(words).not.toContain('!');
+  });
+});
+
+describe('Failed', () => {
+  const fault = Object.assign(new Error('Something went wrong on the computer running Nines. Try again in a moment.'), { status: 500 });
+  const away = Object.assign(new Error("Can't reach Nines."), { status: 0 });
+  const read = (over: Record<string, unknown>) => ({ error: null, refetch: () => undefined, ...over });
+
+  it('says why in plain words: out of reach, a fault, or the sentence Nines answered with', () => {
+    expect(failedReason(away)).toBe(FAILED.unreachable);
+    expect(failedReason(fault)).toBe(FAILED.fault);
+    expect(failedReason(Object.assign(new Error('That trip is no longer in your closet.'), { status: 404 }))).toBe('That trip is no longer in your closet.');
+    // a status text that got through is never shown, nor an answer the page could not read
+    expect(failedReason(Object.assign(new Error('Not Found'), { status: 404 }))).toBe(FAILED.fault);
+    expect(failedReason(new TypeError('x.map is not a function'))).toBe(FAILED.unreadable);
+  });
+
+  it('draws nothing while the read has not failed', () => {
+    expect(draw(h(Failed, { query: read({}), what: 'your closet' }))).toBe('');
+  });
+
+  it('with nothing read before: says what could not be loaded and why, with Try again, and no status code', () => {
+    const html = draw(h(Failed, { query: read({ error: fault }), what: 'your closet' }));
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('Couldn&#x27;t load your closet.');
+    expect(html).toContain('answered with a fault');
+    expect(html).toContain('>Try again</button>');
+    expect(html).not.toMatch(/500|Internal Server Error/);
+  });
+
+  it('with an earlier answer: the line above it says it is from earlier; offline, the banner says it instead', () => {
+    const html = draw(h(Failed, { query: read({ error: fault, data: [] }), what: 'your closet' }));
+    expect(html).toContain('This is your closet as it was earlier. Nines on your computer answered with a fault.');
+    expect(html).toContain('>Try again</button>');
+    expect(draw(h(Failed, { query: read({ error: away, data: [] }), what: 'your closet' }))).toBe('');
+  });
+
+  it('says it is trying again while it does', () => {
+    expect(draw(h(Failed, { query: read({ error: fault, isFetching: true }), what: 'this trip' }))).toContain('Trying again…');
   });
 });

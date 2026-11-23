@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../api';
-import { formatDateTime } from '../labels';
+import { whenAt } from '../wears';
 import { locate } from '../location';
 import { settingsSaved, weatherQuery } from '../settings';
 import type { Place, Settings } from '../types';
@@ -158,7 +158,7 @@ function TodaysWeather({ place, offline }: { place: Place; offline: boolean }) {
       <p data-testid="weather-today">{lookup.is_today ? 'Today' : `Forecast for ${w.date}`}: {weatherLine(w)}</p>
       {lookup.old && (
         <>
-          <p className="hint">{lookup.message} Looked up {formatDateTime(w.fetched_at)}.</p>
+          <p className="hint">{lookup.message} Looked up {whenAt(w.fetched_at)}.</p>
           {again}
         </>
       )}

@@ -8,7 +8,7 @@ test('upload a photo: it shows up waiting for background removal', async ({ page
   await page.getByRole('link', { name: 'Add' }).first().click();
   await expect(page.getByTestId('dropzone')).toBeVisible();
   // the cutting-out files are not set up here, and Add says so (once: the closet does not repeat it)
-  await expect(page.getByTestId('model-banner')).toContainText('not set up yet');
+  await expect(page.getByTestId('model-banner')).toContainText("Nines can't cut the clothes out of new photos yet");
   // one column, at most 720px wide, beside the sidebar
   const sidebar = (await page.locator('nav.sidebar').boundingBox())!;
   const add = (await page.locator('section.add').boundingBox())!;

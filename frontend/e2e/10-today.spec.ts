@@ -126,7 +126,7 @@ test('today: "Not this piece" leaves it out, "Build around this piece" builds ar
   expect(outfits.length).toBeGreaterThan(0);
   for (const o of outfits) expect(JSON.stringify(o.pieces)).not.toContain(first);
   await expect.poll(() => pieceIds(page)).not.toContain(first);
-  const putBack = page.getByRole('button', { name: `Put back ${name}` });
+  const putBack = page.getByRole('button', { name: `Without ${name}, put it back` });
   await expect(putBack).toBeVisible();
 
   // build around another piece

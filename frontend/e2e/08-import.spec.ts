@@ -54,7 +54,7 @@ test('importing several photos: each goes in once, and a photo already in the cl
 
   const three = ['plaid-flannel.jpg', 'plaid-madras.jpg', 'sneakers-pair.jpg'];
   await page.getByTestId('library-input').setInputFiles(three.map((f) => `${PHOTOS}${f}`));
-  await expect(page.getByTestId('import-note')).toHaveText('3 photos added to the import.');
+  await expect(page.getByTestId('import-note')).toHaveText('3 photos are going into your closet.');
   const rows = page.getByTestId('queue-row');
   await expect(rows).toHaveCount(3);
   for (const f of three) {

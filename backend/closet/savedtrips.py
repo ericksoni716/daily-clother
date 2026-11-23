@@ -2,12 +2,17 @@
 
 `work_out` checks what the owner asked for (place, first and last day,
 occasion, the days that differ, laundry on the trip, pieces swapped out and
-pinned in, swimming or the beach), looks up the weather
+pinned in, swimming or the beach, tennis or golf), looks up the weather
 (closet/tripweather.py) and makes the plan (closet/trips.py). `create` does
 the same and saves it. A saved trip keeps the
 weather its plan was made for, so opening it never changes the plan:
 `check_weather` looks the weather up again and only says whether it changed;
 the plan is made again when the owner asks (`patch` with "replan").
+
+A trip under way (its first day has come) is looked up and planned again
+around what has happened: the days already gone keep their weather and their
+outfits, and the days still to come are dressed from what the saved plan
+packed, which is in the suitcase whatever the laundry at home says.
 
 Every function raises TripError with a sentence the owner can read when the
 request is wrong, and TripNotFound when the trip is not in this closet.
@@ -22,8 +27,9 @@ from . import db, trips, tripweather, wears, weather
 from .state import State
 from .today import closet_rows
 
-FIELDS = ("place", "first_day", "last_day", "occasion", "day_occasions", "laundry", "leave_out", "pin", "swim", "weather")
-CHOICES = ("occasion", "day_occasions", "laundry", "leave_out", "pin", "swim")
+FIELDS = ("place", "first_day", "last_day", "occasion", "day_occasions", "laundry", "leave_out", "pin", "swim", "sport",
+          "weather")
+CHOICES = ("occasion", "day_occasions", "laundry", "leave_out", "pin", "swim", "sport")
 PATCH_FIELDS = ("ticks", *CHOICES, "replan")
 
 
@@ -66,8 +72,38 @@ def rewear(state: State) -> dict:
         return dict(trips.REWEAR_DEFAULTS)
 
 
-def _plan(conn, state: State, days: list[dict], opts: trips.Options) -> dict:
-    return trips.plan(closet_rows(conn), days, opts, rewear(state), today=wears.today())
+def _plan(conn, state: State, days: list[dict], opts: trips.Options, before: dict | None = None) -> dict:
+    """The plan for these days; `before`, the saved trip, when it is planned again: what the owner ticked is in the bag
+    and stays on the list; once it is under way, its days gone are kept and what it packed is what the days to come
+    are dressed from."""
+    kept, carried, under_way = None, [], False
+    if before is not None:
+        # what the owner ticked is in the bag; once the trip is under way, everything it packed is
+        carried = [line.removeprefix("item:") for line in before["packed"] if line.startswith("item:")]
+        if _under_way(before):
+            under_way = True
+            today = _today().isoformat()
+            kept = {d["date"]: d for d in before["plan"].get("days", []) if isinstance(d, dict) and str(d.get("date")) < today}
+            carried += [p["id"] for p in before["plan"].get("packed", []) if isinstance(p, dict) and p.get("id")]
+    return trips.plan(closet_rows(conn), days, opts, rewear(state), today=wears.today(), kept=kept, carried=carried,
+                      under_way=under_way)
+
+
+def _under_way(trip: dict) -> bool:
+    """The trip's first day has come (it may be over)."""
+    return trip["first_day"] <= _today().isoformat()
+
+
+def _look_up(state: State, trip: dict) -> dict:
+    """The weather looked up again for the days of a saved trip still to come (today included); the days already gone
+    keep the weather the trip has for them, which is what they were planned and dressed for."""
+    today = _today()
+    first, last = _first_last(trip)
+    past = [d for d in trip["weather"] if str(d.get("date")) < today.isoformat()]
+    if last < today:
+        return {"days": past, "message": trip["weather_message"]}
+    found = tripweather.lookup(state, trip["place"], max(first, today), last, today)
+    return {"days": past + found["days"], "message": found["message"]}
 
 
 def _all_given(days: list[dict]) -> bool:
@@ -120,7 +156,7 @@ def work_out(conn, state: State, body: object) -> dict:
 
 def _choices(opts: trips.Options) -> dict:
     return {"occasion": opts.occasion, "day_occasions": dict(opts.day_occasions), "laundry": trips.laundry_json(opts.laundry),
-            "leave_out": list(opts.leave_out), "pin": list(opts.pin), "swim": opts.swim}
+            "leave_out": list(opts.leave_out), "pin": list(opts.pin), "swim": opts.swim, "sport": list(opts.sport)}
 
 
 def _swim_column(swim: bool | None) -> int | None:
@@ -135,7 +171,8 @@ def _row(r) -> dict:
             "occasion": r["occasion"], "day_occasions": json.loads(r["day_occasions"]),
             "laundry": json.loads(r["laundry"]) if r["laundry"] else None,
             "leave_out": json.loads(r["leave_out"]), "pin": json.loads(r["pinned"]),
-            "swim": None if r["swim"] is None else bool(r["swim"]), "weather": json.loads(r["weather"]),
+            "swim": None if r["swim"] is None else bool(r["swim"]), "sport": json.loads(r["sport"]) if r["sport"] else [],
+            "weather": json.loads(r["weather"]),
             "weather_message": r["weather_message"], "plan": plan, "lines": lines,
             "packed": [x for x in json.loads(r["packed"]) if x in lines], "planned_at": r["planned_at"],
             "created_at": r["created_at"], "updated_at": r["updated_at"]}
@@ -153,13 +190,17 @@ def create(conn, state: State, body: object) -> dict:
     trip = work_out(conn, state, body)
     trip_id, now = uuid.uuid4().hex, db.now()
     conn.execute(
-        "INSERT INTO trips (id, place, first_day, last_day, occasion, day_occasions, laundry, leave_out, pinned, swim, weather,"
-        " weather_message, plan, packed, planned_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO trips (id, place, first_day, last_day, occasion, day_occasions, laundry, leave_out, pinned, swim, sport,"
+        " weather, weather_message, plan, packed, planned_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (trip_id, json.dumps(trip["place"]), trip["first_day"], trip["last_day"], trip["occasion"],
          json.dumps(trip["day_occasions"]), _laundry_column(trip["laundry"]), json.dumps(trip["leave_out"]),
-         json.dumps(trip["pin"]), _swim_column(trip["swim"]),
+         json.dumps(trip["pin"]), _swim_column(trip["swim"]), _sport_column(trip["sport"]),
          json.dumps(trip["weather"]), trip["weather_message"], json.dumps(trip["plan"]), "[]", now, now, now))
     return get(conn, trip_id)
+
+
+def _sport_column(sport: list[str]) -> str | None:
+    return json.dumps(sport) if sport else None
 
 
 def _laundry_column(laundry: dict | None) -> str | None:
@@ -195,16 +236,16 @@ def _first_last(trip: dict) -> tuple[date, date]:
 
 
 def check_weather(conn, state: State, trip_id: str) -> dict:
-    """The weather for a saved trip looked up again, when its days have come into the forecast.
+    """The weather for a saved trip looked up again, when its days still to come are in the forecast.
 
-    Returns {"checked": bool, "changed": bool, "days": [day] or None, "message": sentence or None}. The trip and its
-    plan are not changed.
+    Returns {"checked": bool, "changed": bool, "days": [day] or None, "message": sentence or None}. The days already
+    gone keep their weather, so only a change to the days still to come is a change. The trip and its plan are not
+    changed.
     """
     trip = get(conn, trip_id)
     if _all_given(trip["weather"]) or not tripweather.in_forecast(trip["weather"], _today()):
         return {"checked": False, "changed": False, "days": None, "message": None}
-    first, last = _first_last(trip)
-    found = tripweather.lookup(state, trip["place"], first, last, _today())
+    found = _look_up(state, trip)
     return {"checked": True, "changed": tripweather.changed(trip["weather"], found["days"]), "days": found["days"],
             "message": found["message"]}
 
@@ -223,8 +264,7 @@ def patch(conn, state: State, trip_id: str, body: object) -> dict:
     trip = get(conn, trip_id)
     if replan and not _all_given(trip["weather"]):
         # asked before the trip is locked for writing: the weather service can take a few seconds
-        first, last = _first_last(trip)
-        fresh = tripweather.lookup(state, trip["place"], first, last, _today())
+        fresh = _look_up(state, trip)
     changes = {k: body[k] for k in CHOICES if k in body}
     conn.execute("BEGIN IMMEDIATE")  # two ticks sent at once must both be kept
     try:
@@ -236,12 +276,13 @@ def patch(conn, state: State, trip_id: str, body: object) -> dict:
             dates = [d["date"] for d in trip["weather"]]
             opts = _options({**_choices_of(trip), **changes}, dates)
             days, message = _retain_weather(trip["weather"], fresh) if fresh else (trip["weather"], trip["weather_message"])
-            plan = _plan(conn, state, days, opts)
+            plan = _plan(conn, state, days, opts, before=trip)
             lines = trips.lines(plan)
             packed = [x for x in packed if x in lines]
             sets.update(occasion=opts.occasion, day_occasions=json.dumps(dict(opts.day_occasions)),
                         laundry=_laundry_column(trips.laundry_json(opts.laundry)), leave_out=json.dumps(list(opts.leave_out)),
-                        pinned=json.dumps(list(opts.pin)), swim=_swim_column(opts.swim), weather=json.dumps(days),
+                        pinned=json.dumps(list(opts.pin)), swim=_swim_column(opts.swim),
+                        sport=_sport_column(list(opts.sport)), weather=json.dumps(days),
                         weather_message=message,
                         plan=json.dumps(plan), planned_at=db.now())
         for line, on in ticks.items():

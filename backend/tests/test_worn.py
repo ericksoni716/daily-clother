@@ -307,6 +307,67 @@ def test_rating_an_outfit_and_changing_it(client):
     assert client.put("/api/outfits/worn/nope/rating", json={"rating": "fine"}).status_code == 404
 
 
+def tapped(days: int, at: str = "08:15:00") -> str:
+    return f"{days_ago(days)}T{at}Z"
+
+
+def test_an_outfit_kept_on_the_phone_is_recorded_for_the_day_tapped_and_once_when_sent_again(client):
+    # tapped yesterday while Nines could not be reached, sent today, and sent again after the answer was lost
+    ids = small(client)
+    sent = {"item_ids": all_ids(ids), "worn_on": days_ago(1), "outfit": offered(ids), "tapped_at": tapped(1)}
+    first = client.post("/api/wears", json=sent)
+    assert first.status_code == 201, first.text
+    assert first.json()["worn_on"] == days_ago(1) and first.json()["outfit"]["worn_on"] == days_ago(1)
+    again = client.post("/api/wears", json=sent)
+    assert again.status_code == 201 and again.json()["recorded"] == []
+    assert again.json()["outfit"]["id"] == first.json()["outfit"]["id"]
+    assert [o["id"] for o in client.get("/api/outfits/worn").json()["outfits"]] == [first.json()["outfit"]["id"]]
+    for i in all_ids(ids):
+        assert client.get(f"/api/items/{i}/wears").json()["wears"] == [{"worn_on": days_ago(1), "created_at": first.json()["outfit"]["created_at"]}]
+
+
+def test_an_outfit_sent_later_is_refused_when_the_day_or_its_pieces_changed_meanwhile(client):
+    ids = small(client)
+    other = client.post("/api/outfits/worn", json={"item_ids": [ids["jacket"], ids["jeans"]], "worn_on": days_ago(1)}).json()
+    late = {"item_ids": all_ids(ids), "worn_on": days_ago(1), "outfit": offered(ids), "tapped_at": tapped(1)}
+    r = client.post("/api/wears", json=late)
+    assert r.status_code == 409 and "Another outfit was recorded for that day" in r.json()["detail"]
+    assert [o["id"] for o in client.get("/api/outfits/worn").json()["outfits"]] == [other["id"]]
+    assert client.get(f"/api/items/{ids['tee']}").json()["wear_count"] == 0   # nothing kept from it
+    # sent at once, a second outfit on a day is still recorded beside the first, as before
+    assert client.post("/api/wears", json={**late, "tapped_at": None}).status_code == 201
+
+    assert client.patch(f"/api/items/{ids['tee']}", json={"status": "archived", "name": "Plain tee"}).status_code == 200
+    r = client.post("/api/wears", json={**late, "worn_on": days_ago(2), "tapped_at": tapped(2)})
+    assert r.status_code == 409 and r.json()["detail"] == "Plain tee has been archived since."
+    assert client.patch(f"/api/items/{ids['tee']}", json={"status": "active"}).status_code == 200
+    assert client.delete(f"/api/items/{ids['jacket']}").status_code in (200, 204)
+    r = client.post("/api/wears", json={**late, "worn_on": days_ago(3), "tapped_at": tapped(3)})
+    assert r.status_code == 409 and "deleted since" in r.json()["detail"]
+    for when in ("yesterday", "2026-11-11T08:15:00", "2999-01-01T00:00:00Z"):
+        r = client.post("/api/wears", json={**late, "worn_on": days_ago(4), "tapped_at": when})
+        assert r.status_code == 422, when
+    r = client.post("/api/wears", json={"item_ids": all_ids(ids), "tapped_at": tapped(1)})
+    assert r.status_code == 422 and "Only an outfit" in r.json()["detail"]
+
+
+def test_a_rating_kept_on_the_phone_is_rated_as_of_the_tap_and_once_when_sent_again(client):
+    ids = small(client)
+    o = client.post("/api/outfits/worn", json={"item_ids": all_ids(ids), "worn_on": days_ago(2)}).json()
+    url = f"/api/outfits/worn/{o['id']}/rating"
+    sent = {"rating": "loved", "reasons": ["compliments"], "tapped_at": "2026-11-11T09:30:00+01:00"}
+    for _ in range(2):
+        r = client.put(url, json=sent)
+        assert r.status_code == 200, r.text
+        assert (r.json()["rating"], r.json()["rating_reasons"], r.json()["rated_at"]) == ("loved", ["compliments"], "2026-11-11T08:30:00.000000Z")
+    # changed on the computer after the tap: the phone's older word is refused, the newer one stays
+    assert client.put(url, json={"rating": "not_again"}).status_code == 200
+    r = client.put(url, json=sent)
+    assert r.status_code == 409 and "somewhere else since" in r.json()["detail"]
+    assert client.get("/api/outfits/worn").json()["outfits"][0]["rating"] == "not_again"
+    assert client.put("/api/outfits/worn/nope/rating", json=sent).status_code == 404
+
+
 def test_the_list_is_newest_first_and_comes_in_pages(client):
     ids = small(client)
     made = []

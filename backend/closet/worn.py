@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import math
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from . import db, items, outfits, wears
 
@@ -83,6 +84,33 @@ def _check_sentences(value: object, what: str) -> list[str]:
     if not isinstance(value, list) or not all(isinstance(s, str) for s in value):
         raise _err(f"The {what} must be a list of sentences.")
     return [_shorten(s) for s in value[:MAX_REASONS_TEXT]]
+
+
+def _check_tapped(value: object) -> str | None:
+    """When the owner tapped, for an action kept on the phone while Nines could not be reached and sent later: an ISO
+    time with its offset, given back in the database's own form. Up to a day ahead is a phone's clock, not the future."""
+    if value is None:
+        return None
+    try:
+        when = datetime.fromisoformat(value.replace("Z", "+00:00")) if isinstance(value, str) else None
+    except ValueError:
+        when = None
+    if when is None or when.tzinfo is None:
+        raise _err("Give the time it was tapped as an ISO time with its offset, like 2026-11-23T08:15:00Z.")
+    when = when.astimezone(UTC)
+    if when > datetime.now(UTC) + timedelta(days=1):
+        raise _err("That time is in the future.")
+    return when.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def _still_in_closet(conn, ids: list[str]) -> None:
+    """An outfit sent later is refused when one of its pieces left the closet after it was tapped."""
+    for item_id in ids:
+        row = conn.execute("SELECT status, name FROM items WHERE id = ?", (item_id,)).fetchone()
+        if row is None:
+            raise _err("One of its pieces has been deleted since.", 409)
+        if row["status"] != "active":
+            raise _err(f"{row['name'] or 'One of its pieces'} has been archived since.", 409)
 
 
 def _check_score(value: object) -> int | None:
@@ -256,8 +284,13 @@ def by_day(conn, first: str, last: str) -> dict[str, dict]:
 
 
 # ------------------------------------------------------------------ recording
-def wear(conn, item_ids: object, worn_on: str | None, outfit: object) -> dict:
-    """Record the wears of an outfit and the outfit itself, all or nothing. `POST /api/wears` with `outfit`."""
+def wear(conn, item_ids: object, worn_on: str | None, outfit: object, tapped_at: object = None) -> dict:
+    """Record the wears of an outfit and the outfit itself, all or nothing. `POST /api/wears` with `outfit`.
+
+    Sent again (an answer lost on the way), the same pieces on the same day give back the outfit already there and
+    add no wear, so a phone may repeat it safely. With `tapped_at` it was kept on the phone while Nines could not be
+    reached and is sent later: it is refused (409) when a piece has left the closet since, or when another outfit was
+    recorded for that day in the meantime, rather than added beside it."""
     if not isinstance(outfit, dict) or set(outfit) - {"pieces", "context", "score", "reasons", "warnings"}:
         raise _err("Give the outfit as {pieces, context, score, reasons, warnings}.")
     ids = wears._ids(item_ids)
@@ -266,9 +299,15 @@ def wear(conn, item_ids: object, worn_on: str | None, outfit: object) -> dict:
     score = _check_score(outfit.get("score"))
     reasons = _check_sentences(outfit.get("reasons"), "reasons")
     warnings = _check_sentences(outfit.get("warnings"), "warnings")
+    late = _check_tapped(tapped_at) is not None
+    if late:
+        _still_in_closet(conn, ids)
     made: list[str] = []
 
     def store(day: str, recorded: list[str], t: str) -> None:
+        if late and _same_day_outfit(conn, day, ids) is None \
+                and conn.execute("SELECT 1 FROM worn_outfits WHERE worn_on = ?", (day,)).fetchone():
+            raise _err("Another outfit was recorded for that day in the meantime.", 409)
         made.append(_store(conn, day, "today", pieces, context, score, reasons, warnings, recorded, t))
 
     result = wears.add_many(conn, ids, worn_on, also=store)
@@ -323,9 +362,11 @@ def record_by_hand(conn, item_ids: object, worn_on: str | None) -> dict:
 
 
 # ------------------------------------------------------------------ rating
-def rate(conn, outfit_id: str, rating: object, reasons: object = None, note: object = None) -> dict:
-    """Set, change or (with rating None) clear the rating of a worn outfit."""
-    get(conn, outfit_id)
+def rate(conn, outfit_id: str, rating: object, reasons: object = None, note: object = None, tapped_at: object = None) -> dict:
+    """Set, change or (with rating None) clear the rating of a worn outfit. The same rating sent again changes
+    nothing, so a phone may repeat it safely. With `tapped_at` it was kept on the phone and is sent later: it is
+    rated as of then, and refused (409) when the rating was changed after that, somewhere else."""
+    before = get(conn, outfit_id)
     if rating is not None and rating not in outfits.OUTFIT_RATINGS:
         raise _err(f"A rating is one of: {', '.join(outfits.OUTFIT_RATINGS)}.")
     reasons = reasons or []
@@ -339,9 +380,12 @@ def rate(conn, outfit_id: str, rating: object, reasons: object = None, note: obj
     note = (note or "").strip() or None
     if note and "other" not in reasons:
         raise _err("A note goes with the reason \"other\".")
+    tapped = _check_tapped(tapped_at)
+    if tapped and before["rated_at"] and before["rated_at"] > tapped:
+        raise _err("You changed how it went somewhere else since.", 409)
     t = db.now()
     conn.execute("UPDATE worn_outfits SET rating = ?, rating_reasons = ?, rating_note = ?, rated_at = ?, updated_at = ? WHERE id = ?",
-                 (rating, json.dumps(reasons), note, t if rating else None, t, outfit_id))
+                 (rating, json.dumps(reasons), note, (tapped or t) if rating else None, t, outfit_id))
     return get(conn, outfit_id)
 
 

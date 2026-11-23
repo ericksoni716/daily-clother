@@ -276,8 +276,9 @@ opens every screen at 375, 393, 402, 430 and 440px wide, light and once dark, an
 full-page picture of each into `frontend/phone-shots/`, then opens the sheets of Settings → Your
 style (the conversation, every line), an item's Colour row (its colours and the shades of its
 colour), a wish's most you'd pay and its find's checkout code, Today's sheets (a piece's choices, and where you are behind
-Change), Worn's (an outfit's choices and Record an outfit) and a packed piece's choices on a trip, and pictures
-those. It fails when a screen is wider than
+Change), Worn's (an outfit's choices and Record an outfit) and a packed piece's choices on a trip, and How you live, and pictures
+those. It also pictures two screens whose read fails (the closet, a trip) and fails if one shows a status text or
+code. `PHONE_CHECK_TEXT=125` checks every screen with the text at 125% (pictures named `t125-…`). It fails when a screen is wider than
 the phone or throws an error. `CLOSET_PYTHON` names the Python with the backend's
 requirements, as for the browser tests. A new screen is added to its list of routes.
 
@@ -321,7 +322,9 @@ The page reads through TanStack Query. Why, and the numbers: [DECISIONS.md](DECI
   first, and the edits that change it list its name in `TOUCHES`.
 - **Reading.** `useQuery({ queryKey: queryKeys.x(), queryFn: api.x })` in the screen; a query more than one screen
   reads goes in `src/queries.ts` as an options function or a hook. Gate the screen once on its main query
-  (`if (!data) return <Loading />`), then draw everything together. What was read stays fresh for a minute, so
+  (`if (!data) return <Loading />`), then draw everything together. Its failed read is `<Failed query={q} what="your
+  trips" />` (`components/ui/`): it says what couldn't be loaded and why, with Try again, or marks an earlier answer as
+  from earlier; never print `error.message` yourself. What was read stays fresh for a minute, so
   coming back to the screen shows it at once. Data that changes behind the owner's back (an item while work runs)
   can ask for `staleTime: 0` or `refetchOnMount: 'always'`: what is kept still shows first.
 - **The open closet.** `useApp()` gives the closet (real or demo), offline, the toast and the actions on the closet

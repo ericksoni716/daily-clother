@@ -229,7 +229,7 @@
 .wish-shop-notice { margin: var(--space-1) 0; }
 .find-image { flex: none; width: 76px; height: 96px; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface); }
 .find-body { min-width: 0; flex: 1; }
-.find-body h4 { margin: 0 0 2px; font-size: var(--text-md); overflow-wrap: anywhere; }
+.find-body .find-name { margin: 0 0 2px; font-size: var(--text-md); font-weight: var(--weight-heading); overflow-wrap: anywhere; }
 .find-shop { margin: 0 0 4px; font-size: var(--text-sm); }
 .find-sold { color: var(--warn); }
 /* a price that went down: on a find, and on its wish's row in the wishlist */

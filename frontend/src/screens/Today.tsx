@@ -525,7 +525,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
           )}
           {leaveOut.map((id) => (
             <button key={id} className="chip chip-change" disabled={locked} title={locked ? OFFLINE_TITLE : undefined}
-              aria-label={`Put back ${nameOf(id)}`} onClick={() => setLeaveOut((l) => l.filter((x) => x !== id))}>
+              aria-label={`Without ${nameOf(id)}, put it back`} onClick={() => setLeaveOut((l) => l.filter((x) => x !== id))}>
               Without {nameOf(id)} <span aria-hidden="true">×</span>
             </button>
           ))}

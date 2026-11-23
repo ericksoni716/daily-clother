@@ -14,6 +14,12 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The review of the shared parts** (23 November; DECISIONS, "The failed state", "Banners wait for the next screen",
+  "One way to write a date"). Left: Today's own failed state ("Couldn't choose today's outfits: …") still words
+  itself and was left to the Today batch; the item page still says "Saved" in a toast for each change rather than a
+  `SaveStatus` beside the row (its layout is a later batch); a trip's date range is still written in `trips.ts` from
+  the family's month names; on iPhone the system Text Size does not reach Safari's rem (only the browser's own text
+  size does); price news never asked for on a screen you never leave shows only on the next screen or the next open.
 - **Where a piece is** (23 November; DECISIONS, "Where a piece is"). Left undone: recording an
   outfit by hand that brings an away piece back says so in the toast, but its Undo is on the piece's
   page, not beside the toast (the toast has no button); the away view keeps the pieces brought back

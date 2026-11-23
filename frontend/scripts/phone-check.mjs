@@ -33,6 +33,10 @@ const ALL_PHONES = [
 // PHONE_CHECK_SIZES=393 (a comma list) pictures only those widths, for a quicker look while working.
 const ONLY = (process.env.PHONE_CHECK_SIZES || '').split(',').map((s) => s.trim()).filter(Boolean);
 const PHONES = ONLY.length ? ALL_PHONES.filter(([size]) => ONLY.includes(size)) : ALL_PHONES;
+// PHONE_CHECK_TEXT=125 sets the page's text size to 125% (as a larger text size in the browser does), to check that
+// the type scale, which is in rem, still fits every screen; its pictures are named t125-….
+const TEXT = Number(process.env.PHONE_CHECK_TEXT || 100);
+const PREFIX = TEXT === 100 ? '' : `t${TEXT}-`;
 // The reading budget in docs/DESIGN.md ("Reading load is a budget"): about 150 words in the first phone screen, about
 // 350 on the whole screen. Counted at 393px in light; a screen over either is listed, but does not fail the check yet.
 const BUDGET = { screen: 150, page: 350 };
@@ -69,6 +73,13 @@ const SHEETS = [
   { route: '/today/worn', button: 'More for this outfit', sheet: 'worn-menu', name: 'worn-menu' },
   { route: '/today/worn', button: 'Record an outfit', sheet: 'record-sheet', name: 'worn-record' },
   { route: ({ tripId }) => `/trips/${encodeURIComponent(tripId)}`, button: /^Choices for/, sheet: 'trip-menu', name: 'trip-piece' },
+  { route: '/settings', button: /^(Tell it how you live|Edit my answers|See example answers)$/, sheet: 'life-sheet', name: 'settings-life' },
+];
+// Screens whose read fails (Nines answers with a fault), pictured with what they say: the closet with nothing read
+// before, and a trip, which has the copy kept on this device to show as from earlier.
+const FAILED = [
+  { route: '/', fail: '**/api/items?*', name: 'failed-closet' },
+  { route: ({ tripId }) => `/trips/${encodeURIComponent(tripId)}`, fail: '**/api/trips/*', name: 'failed-trip' },
 ];
 // Views switched on a screen, pictured as the part that changes: You might like's On sale.
 const VIEWS = [
@@ -317,6 +328,7 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
         const context = await browser.newContext({ ...device, colorScheme: scheme, storageState: state, serviceWorkers: 'block' });
         // A closet with enough clothes opens on Today the first time a tab opens / (src/landing.ts); this check wants the closet there.
         await context.addInitScript(() => sessionStorage.setItem('closet-landed', '1'));
+        if (TEXT !== 100) await context.addInitScript((pct) => { document.documentElement.style.fontSize = `${pct}%`; }, TEXT);
         for (const route of pages) {
           const page = await context.newPage();
           const errors = [];
@@ -328,7 +340,7 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           }
           if (size === COUNTED_AT && scheme === 'light') reading.push({ route, ...(await page.evaluate(measure)) });
           await scrollThrough(page);
-          const name = `${size}-${scheme}-${route.replace(/[/?=]/g, '_').replace(/^_/, '').slice(0, 40) || 'closet'}`;
+          const name = `${PREFIX}${size}-${scheme}-${route.replace(/[/?=]/g, '_').replace(/^_/, '').slice(0, 40) || 'closet'}`;
           await page.screenshot({ path: join(OUT, `${name}.png`), fullPage: true });
           const { extra, culprits } = await page.evaluate(overflow);
           if (extra > 1) failures.push(`${route} at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
@@ -346,7 +358,7 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           await page.getByTestId(sheet).waitFor({ state: 'visible', timeout: 10_000 }).catch(() => failures.push(`${name} at ${size}px did not open`));
           if (wait) await page.getByTestId(sheet).locator(wait).first().waitFor({ timeout: 20_000 }).catch(() => failures.push(`${name} at ${size}px showed no ${wait}`));
           await page.waitForTimeout(600);
-          await page.screenshot({ path: join(OUT, `${size}-${scheme}-${name}.png`) });
+          await page.screenshot({ path: join(OUT, `${PREFIX}${size}-${scheme}-${name}.png`) });
           const { extra, culprits } = await page.evaluate(overflow);
           if (extra > 1) failures.push(`${name} at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
           if (errors.length) failures.push(`${name} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
@@ -361,10 +373,24 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           await page.locator(part).getByRole('button', { name: button }).click();
           await page.locator(part).locator(wait).first().waitFor({ timeout: 10_000 }).catch(() => failures.push(`${name} at ${size}px showed no ${wait}`));
           await page.waitForTimeout(300);
-          await page.locator(part).screenshot({ path: join(OUT, `${size}-${scheme}-${name}.png`) });
+          await page.locator(part).screenshot({ path: join(OUT, `${PREFIX}${size}-${scheme}-${name}.png`) });
           const { extra, culprits } = await page.evaluate(overflow);
           if (extra > 1) failures.push(`${name} at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
           if (errors.length) failures.push(`${name} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
+          await page.close();
+        }
+        for (const { route, fail, name } of FAILED) {
+          const page = await context.newPage();
+          await page.route(fail, (r) => r.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }));
+          await page.goto(base + (typeof route === 'function' ? route({ itemId, shoeId, tripId, wishId, linkedId }) : route));
+          await settle(page);
+          await page.locator('[data-testid="failed"], [data-testid="failed-earlier"]').first()
+            .waitFor({ timeout: 10_000 }).catch(() => failures.push(`${name} at ${size}px said nothing about the failed read`));
+          const said = await page.locator('main').innerText();
+          if (/Internal Server Error|\b500\b/.test(said)) failures.push(`${name} at ${size}px shows a status text or code`);
+          await page.screenshot({ path: join(OUT, `${PREFIX}${size}-${scheme}-${name}.png`) });
+          const { extra, culprits } = await page.evaluate(overflow);
+          if (extra > 1) failures.push(`${name} at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
           await page.close();
         }
         await context.close();

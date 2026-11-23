@@ -35,7 +35,8 @@ function block(selector: string): string {
 describe('design tokens', () => {
   it('has the type scale, 1.25 from 16px', () => {
     // 39px is the page titles' on a wider screen (16 November)
-    const sizes = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl'].map((k) => Number(new RegExp(`--text-${k}: (\\d+)px`).exec(tokens)?.[1]));
+    // in rem, so the browser's text size setting scales the words (P17); 16px to the rem at the default size
+    const sizes = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl'].map((k) => 16 * Number(new RegExp(`--text-${k}: ([\\d.]+)rem`).exec(tokens)?.[1]));
     expect(sizes).toEqual([12, 14, 16, 20, 25, 31, 39]);
   });
 

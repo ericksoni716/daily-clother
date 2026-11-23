@@ -173,7 +173,7 @@ test.describe('outfits chosen by Claude', () => {
     expect(Math.abs((await trip.boundingBox())!.y - recentAt)).toBeLessThan(200);
     await claudes(page);
     expect(Math.abs(await page.evaluate(() => window.scrollY) - at)).toBeLessThan(200);
-    await page.getByRole('button', { name: `Put back ${pieceName}` }).click();
+    await page.getByRole('button', { name: `Without ${pieceName}, put it back` }).click();
     await claudes(page);
 
     // another occasion is asked once: Claude chooses for it, and going back is at once

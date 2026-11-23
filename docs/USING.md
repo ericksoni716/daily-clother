@@ -543,7 +543,18 @@ back. Its code loads only when it is opened. In order:
 
 ## Things that work the same everywhere
 
-- **Saving.** Changes save as you make them; a toast says so or says what went wrong, or,
+- **When Nines doesn't answer.** A screen whose read fails says what it couldn't load and why, in
+  plain words: Nines on your computer can't be reached, or it answered with a fault. **Try again**
+  asks once more. A screen that was already showing something keeps it, under one line saying it
+  is from earlier; while the computer can't be reached at all, the offline banner says it once.
+- **Dates.** Every date reads the same way: a day as "Thursday 12 Nov" (or "Thu 12 Nov" where room
+  is short), a moment as "today at 14:05", "yesterday at 09:41" or "on 3 Nov at 08:00", a line in a
+  list as "Today, 14:05", a date on its own as "3 Nov 2026". Times are on the 24-hour clock. The
+  date picker's own words are your phone's.
+- **Banners.** What is said at the top of every screen (price news, an update ready, what a restore
+  did) holds still: when it arrives after a screen has opened, it shows from the next screen on.
+- **Saving.** Changes save as you make them; a toast at the top of the screen says so or says what
+  went wrong (one of each at a time), or,
   beside a rating or a wish's note, a line saying "Saving…", "Saved" or "Didn't save" with
   Try again. A save
   still waiting when the page closes is sent as it closes.
@@ -553,7 +564,8 @@ back. Its code loads only when it is opened. In order:
   set one), a banner at the top of every screen says so once: "A tan rain coat is down to $150.00
   at Example Shop, from $177.00." with See it and Got it, or for several "Prices went down for 3
   things on your wishlist." with See them (the Wardrobe) and Got it. Opening the wish or Got it ends
-  it, on every device. It is asked for when the page opens, every half hour and when you come back
+  it, on every device. News that comes in while you read a screen shows from the next one, and the
+  news last told on this device shows as the page opens. It is asked for when the page opens, every half hour and when you come back
   to it; never offline or in the demo closet. The update banner and the offline line sit beside it.
 - **The demo closet.** About 50 sample pieces in a closet of its own, opened and left from
   Advanced settings, with a strip at the top while it is open. It is never backed up and never sent

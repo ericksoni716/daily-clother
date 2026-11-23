@@ -88,6 +88,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   never puts them in an outfit, not even on an athletic day, and What's missing does not count
   them as everyday sneakers. On a trip they are packed only when you choose to take them, and are
   worn on no day.
+- **Tennis or golf on a trip.** Beside "Swimming or the beach", **Playing on the trip** has Tennis
+  and Golf. Choose one and a pair of your tennis or golf shoes is packed with the shoes, worn on no
+  day, without "I want to take this"; with none that can go, the trip says why.
+- **Follow the forecast again.** Once you have turned "Swimming or the beach" on or off, a link
+  under it gives the choice back to the forecast.
 
 ### Changed
 
@@ -140,6 +145,27 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **A trip under way stays as it is.** Opening a trip on its third day no longer says the forecast
+  changed when only the days already gone have left the forecast, and "Plan again" no longer dresses
+  those days again for "usual" weather they never had. The days gone keep their outfits, the days
+  to come are dressed from what you packed, and what you have ticked stays on the list: a tee worn
+  yesterday that went in the laundry by itself is still in your suitcase, not swapped for one at
+  home.
+- **Filling in an outfit from last week leaves the closet alone.** An outfit recorded for a day the
+  pieces have been washed since (before Sunday's laundry, or before you marked them clean) goes in
+  the log, but no longer sends clean clothes to the laundry as if worn today.
+- **Record an outfit takes a tie, a watch, gloves or socks.** Pieces of category Other go with the
+  outfit's accessories instead of being refused for having "no category an outfit can use".
+- **Record an outfit works from a phone in a later time zone.** When your phone's today is already
+  the computer's tomorrow, it is taken as today instead of "That date is in the future".
+- **A month away with one wash takes enough sleepwear**: one set for every week of the longest
+  stretch between washes, not one set as soon as there is any laundry.
+- **Lounge pants you take on a trip stay for the evenings.** "I want to take this" on loungewear
+  packs it beside the days, as for tennis shoes, instead of wearing it as the trousers of a day out.
+- **A trip day says "the warmest you have" only when it is.** With a warmer coat in the wash at
+  home, the jacket is "the warmest you can wear today". Would this work? and a trip's notes speak of
+  jeans and shoes as "they".
+- Opening a new piece, or one of category Other, no longer writes an error to the log each time.
 - **Wearing an outfit built around a piece** no longer leaves Today saying "No outfit today yet"
   and offering Add clothes when the piece went in the laundry. Wearing it ends building around the
   piece, and Today shows what you are wearing. When your own changes are why no outfit can be made,

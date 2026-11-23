@@ -14,6 +14,19 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Wears, laundry and trips after the logic review** (23 November; DECISIONS, Stop C, "What is in
+  the bag", "A trip under way", "Loungewear and sport on a trip"). A wear filled in for a day before
+  a laundry day counts as washed only from the wears of the week before that laundry day; wears
+  carried over from earlier weeks are not followed. A wear may be dated the computer's tomorrow
+  (a phone a time zone ahead); Today and Worn were not checked for how such a wear shows on the
+  computer before its midnight. On a trip under way the days still to come are dressed only from
+  the bag: swim trunks or sport shoes turned on mid-trip and left at home are said "1 at home".
+  Would this work? still calls the piece being checked "it" when it is a pair of jeans ("It does
+  not suit…"); only the sentences about the owner's own pieces were made plural. The demo closet
+  has no tennis or golf shoes, so the phone check does not show Playing on the trip packing one.
+- **Today's rules after the logic review** (23 November; DECISIONS, "The owner's outfit rules"). The
+  wide-day layer is chosen from the owner's bands at the low; a day read with no hours (typed
+  temperatures) uses the typed low the same way.
 - **The review of Today, Worn and Trips** (23 November; DECISIONS, "Today's first screen, and a piece's choices in a
   sheet"). Left: a trip cannot have its temperatures typed when the forecast fails, as Today's can; the rules' and
   Claude's reasons still write "14°C to 20°C" (the server's sentences, `outfits.py`); with nine or more pieces Today's
@@ -88,8 +101,7 @@ only here); take a line out when it is done.
   is always one level, even for "another like your loafers". Not yet tried with Claude's real answers:
   how often it gives a second level, and for which pieces.
 - **Tennis and golf shoes** (22 November; DECISIONS, "Tennis and golf shoes"). The demo closet has
-  none, so the demo and the phone check show them only once a shoe is said to be one. A trip has
-  no "Tennis" or "Golf" choice to pack them by itself (only "I want to take this"). The rules build
+  none, so the demo and the phone check show them only once a shoe is said to be one. The rules build
   an outfit around a pair when asked (`build_around`), but Today's screen offers building around
   only a piece already in one of its outfits, so a pair it leaves out (like swim trunks or
   loungewear) cannot be built around from the page; a "Build today's outfit around it" on the
@@ -109,9 +121,7 @@ only here); take a line out when it is done.
 
 - **Swim trunks** (22 November; DECISIONS, "Swim trunks"). The demo closet has no swim trunks, so
   the demo and the phone check show a trip packing them only when a piece is said to be swim trunks
-  (a demo item needs a full `tools/make_demo.py` run with the cutout model). Once the owner has
-  turned "Swimming or the beach" on or off, the screen offers no way back to following the weather
-  (the API takes `swim: null`). Board shorts and other swimwear are not kinds; the picker's search
+  (a demo item needs a full `tools/make_demo.py` run with the cutout model). Board shorts and other swimwear are not kinds; the picker's search
   finds swim trunks for them.
 
 - **Claude adds to a garment's drawing** (22 November; DECISIONS, "Claude adds to a garment's
@@ -458,7 +468,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 - [ ] **A find's pattern is drawn**, so a striped shirt in "See it with your clothes" is striped.
 
 **Trips**
-- [ ] **A trip for tennis or golf**, and a way back to "follow the weather" for swimming.
+- [x] **A trip for tennis or golf**, and a way back to "follow the weather" for swimming.
 - [ ] **A trip covers today**: Today dresses for where you are without a note.
 
 **Later, and only if the owner wants it** (each needs a decision that is theirs): reading a calendar for the day's events (what would be sent to Claude); the colours reworked; a year in clothes.

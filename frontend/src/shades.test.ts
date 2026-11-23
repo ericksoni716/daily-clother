@@ -23,8 +23,10 @@ describe('the shades of a colour', () => {
 });
 
 describe('what a choice saves', () => {
-  it('saves a colour word drawn in its swatch, and nothing for multicolour or no colour', () => {
-    expect(colourPatch('red')).toEqual({ color: 'red', color_hex: '#b8322e' });
+  it('saves the colour word alone, with no colour of its own that would name a shade nobody chose (P15)', () => {
+    // the server draws it in the word's own colour and names no shade until one is chosen
+    expect(colourPatch('red')).toEqual({ color: 'red', color_hex: null });
+    expect(colourPatch('blue')).toEqual({ color: 'blue', color_hex: null });
     expect(colourPatch('multi')).toEqual({ color: 'multi', color_hex: null });
     expect(colourPatch(null)).toEqual({ color: null, color_hex: null });
   });

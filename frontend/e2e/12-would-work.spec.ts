@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { axeViolations } from './a11y';
 import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 /** Takes every wish off the demo closet's list, its own two examples too, so each test starts from an empty list. */
@@ -33,14 +34,22 @@ async function openMissing(page: Page) {
 async function checkCoat(page: Page) {
   const panel = page.getByTestId('would-work');
   const form = panel.getByRole('form', { name: 'Describe it by hand' });
-  await form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true }).click();
+  // the kind and the colour first: the answer comes as soon as both are chosen, with no button to press
+  const coat = form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true });
+  if ((await coat.getAttribute('aria-pressed')) !== 'true') await coat.click();
   await form.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Tan', exact: true }).click();
-  await form.getByRole('group', { name: 'Formality' }).getByRole('button', { name: 'Smart casual', exact: true }).click();
-  await form.getByRole('group', { name: 'How heavy the cloth is' }).getByRole('button', { name: 'Heavy', exact: true }).click();
-  await form.getByRole('switch', { name: /keeps the rain off/ }).check({ force: true });
-  await form.getByRole('button', { name: 'Would it work?' }).click();
   const answer = panel.getByTestId('would-work-answer');
   await expect(answer).toBeVisible({ timeout: 30_000 });
+  // the rest is in "More about it", and the answer is worked out again once it is closed
+  await panel.getByRole('button', { name: 'More about it' }).click();
+  const more = page.getByRole('dialog', { name: 'More about it' });
+  await more.getByRole('group', { name: 'Formality' }).getByRole('button', { name: 'Smart casual', exact: true }).click();
+  await more.getByRole('group', { name: 'How heavy the cloth is' }).getByRole('button', { name: 'Heavy', exact: true }).click();
+  await more.getByRole('switch', { name: /keeps the rain off/ }).check({ force: true });
+  await more.getByRole('button', { name: 'Done' }).click();
+  await expect(more).toHaveCount(0);
+  await expect(answer).toHaveAttribute('data-piece', /keeps the rain off/, { timeout: 30_000 });
+  await expect(panel.locator('.wouldwork-shown.is-stale')).toHaveCount(0, { timeout: 30_000 });
   return answer;
 }
 
@@ -63,10 +72,21 @@ test('would this work?, described by hand in the demo closet on a computer, on a
   await expect(panel.getByRole('button', { name: 'Take a photo' })).toBeDisabled();
   await expect(panel.getByRole('button', { name: 'Choose a photo' })).toBeDisabled();
   await expect(panel).toContainText('The demo closet never sends anything to Claude');
-  // nothing to check until the kind and colour are chosen
-  await expect(panel.getByRole('button', { name: 'Would it work?' })).toBeDisabled();
+  // nothing to check until the kind and the colour are chosen, and no long form before the answer: the rest waits
+  // behind "More about it"
+  const form = panel.getByRole('form', { name: 'Describe it by hand' });
+  await expect(form.getByRole('group', { name: 'Formality' })).toHaveCount(0);
+  await expect(form.getByRole('button', { name: 'Would it work?' })).toHaveCount(0);
+  await form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true }).click();
+  await expect(form).toContainText('Choose its main colour.');
+  await expect(panel.getByRole('region', { name: 'The answer' })).toContainText('The answer shows here');
 
   const answer = await checkCoat(page);
+  // the piece is one line, saying what it is; what it was not told is no longer said as taken for granted
+  await expect(panel.getByTestId('would-work-piece')).toContainText('Tan coat');
+  await expect(panel.getByTestId('would-work-untold')).toHaveText('Until you say more, it is checked as a plain piece for any time of year.');
+  // the piece is said once: its line names it, and the verdict does not repeat it
+  await expect(answer.locator('.wouldwork-piece')).toHaveCount(0);
   // the description stays on the left beside the answer
   await expect(panel.getByRole('form', { name: 'Describe it by hand' })).toBeVisible();
   await expect(panel.getByRole('region', { name: 'The answer' }).getByTestId('would-work-answer')).toBeVisible();
@@ -117,7 +137,6 @@ test('would this work?: leaving while the check is being sent and coming back pi
   const form = panel.getByRole('form', { name: 'Describe it by hand' });
   await form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true }).click();
   await form.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Tan', exact: true }).click();
-  await form.getByRole('button', { name: 'Would it work?' }).click();
   await expect(panel.getByTestId('would-work-waiting')).toContainText('Sending');
   await expect.poll(() => held !== null).toBe(true);
   // away to the closet, then back while the request is still on its way
@@ -141,7 +160,6 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   const form = panel.getByRole('form', { name: 'Describe it by hand' });
   await form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Jeans', exact: true }).click();
   await form.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Navy', exact: true }).click();
-  await form.getByRole('button', { name: 'Would it work?' }).click();
   const answer = panel.getByTestId('would-work-answer');
   await expect(answer).toBeVisible({ timeout: 30_000 });
   await expect(answer).toHaveAttribute('data-verdict', 'have_it');
@@ -169,16 +187,18 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
   const fromWish = page.getByTestId('would-work');
   await expect(fromWish).toContainText(`Checking a find for ${rain.name}`);
-  await expect(fromWish.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(fromWish.getByRole('switch', { name: /keeps the rain off/ })).toBeChecked();
-
-  // the answer goes into that wish's note, not into a second wish
   const kind = fromWish.getByRole('form', { name: 'Describe it by hand' });
-  if (await kind.getByRole('button', { name: 'Would it work?' }).isDisabled()) {
+  if (await kind.getByRole('group', { name: 'Main colour' }).count()) {   // the wish names no one colour: choose it
+    await expect(kind.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await kind.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Tan', exact: true }).click();
   }
-  await kind.getByRole('button', { name: 'Would it work?' }).click();
   await expect(fromWish.getByTestId('would-work-answer')).toBeVisible({ timeout: 30_000 });
+  await expect(fromWish.getByTestId('would-work-piece')).toContainText('coat');
+  await fromWish.getByRole('button', { name: 'More about it' }).click();
+  await expect(page.getByRole('dialog', { name: 'More about it' }).getByRole('switch', { name: /keeps the rain off/ })).toBeChecked();
+  await page.getByRole('dialog', { name: 'More about it' }).getByRole('button', { name: 'Done' }).click();
+
+  // the answer goes into that wish's note, not into a second wish
   await fromWish.getByRole('button', { name: "Add it to the wish's note" }).click();
   await expect(fromWish.getByRole('button', { name: "In the wish's note" })).toBeDisabled();
   const { wishes } = await (await page.request.get('/api/wishlist')).json();
@@ -188,6 +208,79 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   await page.getByTestId('wishlist-open').click();
   await page.getByTestId('wish-row').first().click();
   await expect(page.getByTestId('wish').getByRole('textbox', { name: 'Note' })).toHaveValue(/keeps the rain off/);
+});
+
+test('would this work? by hand on a small phone: the answer as soon as the kind and colour are chosen, in view, the rest in a sheet', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  await page.goto('/wardrobe/check');
+  const panel = page.getByTestId('would-work');
+  const form = panel.getByRole('form', { name: 'Describe it by hand' });
+  await form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Shirt', exact: true }).click();
+  await form.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Light blue', exact: true }).click();
+  // no button to press: the verdict comes, and it is on the screen without scrolling to it
+  const verdict = panel.getByTestId('verdict');
+  await expect(verdict).toBeVisible({ timeout: 30_000 });
+  await expect(verdict).toBeInViewport();
+  await expect(panel.getByTestId('would-work-piece')).toBeInViewport();
+  // led by the answer: the piece's name, then the verdict, then what was assumed and the two buttons, and the first
+  // reason still on the first screen (23 November)
+  const top = async (l: import('@playwright/test').Locator) => (await l.boundingBox())!.y;
+  const untold = panel.getByTestId('would-work-untold');
+  const firstReason = panel.getByRole('list', { name: 'Why' }).getByRole('listitem').first();
+  expect(await top(panel.getByTestId('would-work-piece'))).toBeLessThan(await top(verdict));
+  expect(await top(verdict)).toBeLessThan(await top(untold));
+  expect(await top(untold)).toBeLessThan(await top(panel.getByRole('button', { name: 'More about it' })));
+  await expect(firstReason).toBeInViewport();
+  await expect(panel.getByTestId('would-work-answer').locator('.wouldwork-piece')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('by-hand-answer.png') });
+  // "More about it" opens over the page; the answer stays where it was
+  const before = (await verdict.boundingBox())!.y;
+  await panel.getByRole('button', { name: 'More about it' }).click();
+  const more = page.getByRole('dialog', { name: 'More about it' });
+  await more.getByRole('group', { name: 'Pattern' }).getByRole('button', { name: 'Stripe', exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath('by-hand-more.png') });
+  await more.getByRole('button', { name: 'Done' }).click();
+  await expect(panel.getByTestId('would-work-answer')).toHaveAttribute('data-piece', /stripe/, { timeout: 30_000 });
+  await expect(panel.locator('.wouldwork-shown.is-stale')).toHaveCount(0, { timeout: 30_000 });
+  expect(Math.abs((await verdict.boundingBox())!.y - before)).toBeLessThan(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  expect(await axeViolations(page)).toEqual([]);
+});
+
+test('would this work?: a reload keeps what was typed and the answer; checking another piece forgets them', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  await page.goto('/wardrobe/check');
+  const panel = page.getByTestId('would-work');
+  const form = panel.getByRole('form', { name: 'Describe it by hand' });
+  await form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Jeans', exact: true }).click();
+  await form.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Navy', exact: true }).click();
+  await expect(panel.getByTestId('would-work-answer')).toBeVisible({ timeout: 30_000 });
+  await panel.getByRole('button', { name: 'More about it' }).click();
+  await page.getByRole('dialog', { name: 'More about it' }).getByLabel('Name (optional)').fill('Made-up selvedge jeans');
+  await page.getByRole('dialog', { name: 'More about it' }).getByRole('button', { name: 'Done' }).click();
+  await expect(panel.getByTestId('would-work-answer')).toHaveAttribute('data-piece', /Made-up selvedge jeans/, { timeout: 30_000 });
+  await expect(panel.locator('.wouldwork-shown.is-stale')).toHaveCount(0, { timeout: 30_000 });
+  const verdict = await panel.getByTestId('verdict').textContent();
+
+  // a reload (or iOS closing the app) used to forget all of it (the review of 23 November, P12)
+  let asked = 0;
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().endsWith('/api/would-this-work')) asked++; });
+  await page.reload();
+  await expect(panel.getByTestId('would-work-piece')).toContainText('Made-up selvedge jeans, navy jeans');
+  await expect(panel.getByTestId('verdict')).toHaveText(verdict!);
+  expect(asked).toBe(0);   // shown as it was, not worked out again
+
+  // a new one starts empty, and stays empty after a reload
+  await panel.getByRole('button', { name: 'Check another piece' }).click();
+  await expect(form.getByRole('group', { name: 'Main colour' }).getByRole('button', { pressed: true })).toHaveCount(0);
+  await page.reload();
+  await expect(form.getByRole('group', { name: 'What kind of piece' })).toBeVisible();
+  await expect(form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(panel.getByTestId('would-work-answer')).toHaveCount(0);
 });
 
 test('would this work? is off while offline, with the same words as the other buttons', async ({ page, context }) => {

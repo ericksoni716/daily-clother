@@ -138,6 +138,98 @@ test.describe('the item page in the demo closet', () => {
     await expect(essentials.getByTestId('what-is-it')).toContainText('Henley');
   });
 
+  test('"What is it?" gives its words the width on a 320px phone: the longest kind in two lines, Claude named once', async ({ page }) => {
+    // the review of the item page's pictures (23 November): five lines for the kind, three for who said it
+    await page.setViewportSize({ width: 320, height: 640 });
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    const lines = async (el: Locator) => el.evaluate((e) => {
+      const r = e.getClientRects();   // one box per line of an inline run of text
+      return new Set(Array.from(r).map((b) => Math.round(b.top))).size;
+    });
+    // Claude's guess, as sure as can be: who said it is one line, and says Claude once
+    await page.goto(`/item/${demoId('White leather sneakers')}`);
+    const row = page.getByTestId('essentials').getByTestId('what-is-it');
+    await expect(row.locator('.kind-row-sure')).toHaveText("Claude's guess · 100% sure");
+    expect(await lines(row.locator('.kind-row-sure'))).toBe(1);
+    expect(await lines(row.locator('.detail-row-text'))).toBeLessThanOrEqual(2);
+    // the longest kind and group in the taxonomy
+    const id = demoId('Grey hoodie');
+    expect((await page.request.put(`/api/items/${id}/kind`, { data: { kind: 'crewneck_sweatshirt' } })).ok()).toBe(true);
+    await page.goto(`/item/${id}`);
+    await expect(row).toContainText('Crewneck sweatshirt · Knitwear & mid layers');
+    expect(await lines(row.locator('.detail-row-text'))).toBeLessThanOrEqual(2);
+    expect(await sideways(page)).toEqual([]);
+    // Fix the details lists the details, not this row: nothing to squeeze there
+    await page.getByRole('button', { name: 'Something wrong? Change the details' }).click();
+    await expect(page.getByRole('dialog').getByTestId('what-is-it')).toHaveCount(0);
+  });
+
+  test('a change is said to be kept beside it, quietly, and no toast covers what you tap next', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    const id = demoId('Grey hoodie');
+    await page.goto(`/item/${id}`);
+    const essentials = page.getByTestId('essentials');
+    const brand = essentials.getByRole('textbox', { name: 'Brand' });
+    await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('Grey hoodie');
+
+    // the brand: "Saved" beside its box, and no toast (the review of 23 November: every change raised its own)
+    await brand.fill('Made-up Knits');
+    await brand.press('Enter');
+    await expect(page.getByTestId('kept-brand')).toHaveText('Saved');
+    await expect(page.locator('.toast')).toHaveCount(0);
+    // a row of Details: the word sits in the row that changed
+    const fold = await openFold(page, 'Details');
+    await fold.getByRole('button', { name: /^Season:/ }).click();
+    await page.getByRole('dialog', { name: 'Season' }).getByRole('button', { name: 'All year' }).click();
+    await expect(page.getByTestId('kept-season')).toHaveText('Saved');
+    await expect(page.locator('.toast')).toHaveCount(0);
+    // it goes quiet again by itself, keeping its place
+    await expect(page.getByTestId('kept-brand')).toHaveText('', { timeout: 6000 });
+    expect(await sideways(page)).toEqual([]);
+
+    // what went wrong is still a toast: offline the page says it cannot change, and a refused save says why
+    await page.route(`**/api/items/${id}`, (route) => route.request().method() === 'PATCH'
+      ? route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ detail: 'That brand cannot be kept.' }) })
+      : route.fallback());
+    await brand.fill('Another made-up brand');
+    await brand.press('Enter');
+    await expect(page.locator('.toast', { hasText: 'That brand cannot be kept.' })).toBeVisible();
+    await expect(page.getByTestId('kept-brand')).toHaveText("Didn't save");
+    await page.unroute(`**/api/items/${id}`);
+  });
+
+  test("Fix the details says a failed read of its details in the app's words, with Try again", async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    const id = demoId('Grey hoodie');
+    let fail = true;
+    await page.route(`**/api/items/${id}/details**`, (route) => (fail && route.request().method() === 'GET'
+      ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"detail":"Internal Server Error"}' })
+      : route.fallback()));
+    await page.goto(`/item/${id}`);
+    await page.getByRole('button', { name: 'Something wrong? Change the details' }).click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet.getByTestId('details-failed')).toContainText("Couldn't load the details.", { timeout: 30_000 });
+    await expect(sheet).not.toContainText('Internal Server Error');
+    fail = false;
+    await sheet.getByRole('button', { name: 'Try again' }).click();
+    await expect(sheet.getByTestId('details-failed')).toHaveCount(0);
+    // a detail's own choices: the same, under the detail, not a toast
+    fail = true;
+    await sheet.locator('.fix-detail').first().click();
+    await expect(sheet.getByTestId('choices-failed')).toContainText("Couldn't load the choices", { timeout: 30_000 });
+    await expect(page.locator('.toast')).toHaveCount(0);
+    fail = false;
+    await sheet.getByTestId('choices-failed').getByRole('button', { name: 'Try again' }).click();
+    await expect(sheet.getByTestId('choices-failed')).toHaveCount(0);
+    await expect(sheet.locator('.fix-choices')).toBeVisible();
+    await page.unroute(`**/api/items/${id}/details**`);
+  });
+
   test("a colour's shades are offered under it, and the shade chosen is kept with its colour", async ({ page }) => {
     await page.setViewportSize(PHONE);
     await goToCloset(page);
@@ -161,6 +253,9 @@ test.describe('the item page in the demo closet', () => {
     const greens = sheet.getByRole('group', { name: 'Shades of green' });
     await expect(greens.getByRole('button', { name: 'Sage' })).toBeVisible();
     await expect(burgundies).toHaveCount(0);
+    // the colour alone claims no shade: none of green's is lit, and the row says the colour only (P15)
+    await expect(greens.getByRole('button', { pressed: true })).toHaveCount(0);
+    await expect(row).toHaveAttribute('aria-label', 'Colour: Green');
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
 

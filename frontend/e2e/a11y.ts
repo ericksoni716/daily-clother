@@ -7,14 +7,55 @@ import type { Page } from '@playwright/test';
  * `include` (a CSS selector) checks only that part of the page.
  */
 export async function axeViolations(page: Page, include?: string): Promise<string[]> {
-  // a sheet fading in would be measured half-transparent
-  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
   const builder = new AxeBuilder({ page });
   if (include) builder.include(include);
-  const result = await builder
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  return result.violations.flatMap((v) => v.nodes.map((n) => `${v.id}: ${n.target.join(' ')} — ${n.failureSummary?.split('\n').slice(1).join(' ').trim()}`));
+  builder.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']);
+  // Something fading in (a sheet, a toast) is measured half-transparent, so the page is settled first; and when an
+  // animation started while axe was reading (a toast arriving from a save just made), it is read again once settled.
+  let result = null;
+  for (let tries = 0; tries < 3; tries++) {
+    await settled(page);
+    await watchStarts(page);
+    result = await builder.analyze();
+    if (!(await startedMeanwhile(page))) break;
+  }
+  return result!.violations.flatMap((v) => v.nodes.map((n) => `${v.id}: ${n.target.join(' ')} — ${n.failureSummary?.split('\n').slice(1).join(' ').trim()}`));
+}
+
+/** Waits until no animation or transition that ends is running, looking again a few frames later for ones that began
+ * meanwhile (a toast mounted just after a save answers). Never waits for time alone, nor for one that never ends. */
+async function settled(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const frames = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    for (let round = 0; round < 20; round++) {
+      const running = document.getAnimations().filter((a) => a.playState === 'running'
+        && a.effect?.getComputedTiming().iterations !== Infinity);
+      if (!running.length) {
+        await frames();
+        if (!document.getAnimations().some((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity)) return;
+        continue;
+      }
+      await Promise.all(running.map((a) => a.finished.catch(() => undefined)));
+    }
+  });
+}
+
+/** Notes any animation or transition that starts from now on (one that ends before axe finishes is caught too). */
+function watchStarts(page: Page): Promise<void> {
+  return page.evaluate(() => {
+    const w = window as unknown as { axeMoved?: boolean; axeWatching?: boolean };
+    w.axeMoved = false;
+    if (w.axeWatching) return;
+    w.axeWatching = true;
+    const moved = () => { w.axeMoved = true; };
+    document.addEventListener('animationstart', moved, true);
+    document.addEventListener('transitionstart', moved, true);
+  });
+}
+
+/** Whether something started moving while axe was reading the page: what it read may have been mid-fade. */
+function startedMeanwhile(page: Page): Promise<boolean> {
+  return page.evaluate(() => !!(window as unknown as { axeMoved?: boolean }).axeMoved);
 }
 
 /** Anything visible that reaches past the right edge of the screen without being inside something that scrolls sideways. */

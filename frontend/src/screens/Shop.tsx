@@ -8,7 +8,7 @@ import { Button, buttonClass, Card, Failed, Notice, SegmentedControl, Sheet } fr
 import type { Wish } from '../gaps';
 import { touch, useItems } from '../queries';
 import {
-  canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, googleShoppingLink,
+  canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, withStopped, googleShoppingLink,
   historyWords, lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll,
   type ShopRun, typedCode, watchWords, webLink, wishlistAgain,
 } from '../shop';
@@ -115,17 +115,30 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
     lastRun.current = run ? { state: run.state, step: run.step } : null;
   }, [answer, toast, wish.name, wish.id, qc, watching, seen]);
 
-  async function stop(f: Find) {
+  // the finds you stopped watching on this visit: each stays in its place, with Undo, until you leave the page
+  const [stopped, setStopped] = useState<{ find: Find; at: number }[]>([]);
+  async function stop(f: Find, at: number) {
     try {
       await api.removeFind(wish.id, f.id);
+      setStopped((was) => [...was.filter((s) => s.find.id !== f.id), { find: f, at }]);
       // only this wish's finds changed
       await qc.invalidateQueries({ queryKey: key, exact: true });
     } catch (e) {
       toast((e as Error).message, 'error');
     }
   }
+  async function undoStop(f: Find) {
+    try {
+      qc.setQueryData(key, await api.restoreFind(wish.id, f.id));
+      setStopped((was) => was.filter((s) => s.find.id !== f.id));
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  }
 
-  const finds = findsInOrder(answer?.finds ?? []);
+  const listed = findsInOrder(answer?.finds ?? []);
+  const finds = withStopped(listed, stopped);
+  const isStopped = (f: Find) => stopped.some((s) => s.find.id === f.id) && !listed.some((l) => l.id === f.id);
   const demo = answer?.demo ?? false;
   const busy = locked || starting || running || !answer;
   const disabled = busy || demo;
@@ -150,11 +163,16 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
       {finds.length > 0 && (
         <section className="wish-watch" aria-label={`Watching for ${wish.name}`}>
           <ul className="find-list" aria-label="Found in shops">
-            {finds.map((f) => <li key={f.id}><FindCard find={f} demo={demo} locked={locked} byId={byId} onStop={() => void stop(f)} /></li>)}
+            {finds.map((f, i) => (
+              <li key={f.id}>
+                <FindCard find={f} demo={demo} locked={locked} byId={byId} stopped={isStopped(f)}
+                  onStop={() => void stop(f, i)} onUndo={() => void undoStop(f)} />
+              </li>
+            ))}
           </ul>
           <PriceLine wish={wish} currency={currency} locked={locked} onPrice={onPrice}>{watchWords(wish)}</PriceLine>
           <p className="muted wish-shop-line" data-testid="prices-checked">
-            {checkedWords(lastChecked({ ...answer!, finds }))}{' '}
+            {checkedWords(lastChecked({ ...answer!, finds: listed }))}{' '}
             <Button variant="link" small className="wish-inline-button" data-testid="check-prices" disabled={pricesOff}
               title={pricesOff ? title : undefined} onClick={() => begin.mutate('prices')}>Check now</Button>
           </p>
@@ -221,8 +239,12 @@ function RunSaid({ run, error }: { run: ShopRun | null; error: string | null }) 
   );
 }
 
-function FindCard({ find, demo, locked, byId, onStop }: {
-  find: Find; demo: boolean; locked: boolean; byId: Map<string, ItemSummary>; onStop(): void;
+function FindCard({ find, demo, locked, byId, stopped, onStop, onUndo }: {
+  find: Find; demo: boolean; locked: boolean; byId: Map<string, ItemSummary>;
+  /** you stopped watching it on this visit: it stays, saying so, with Undo where its buttons were */
+  stopped: boolean;
+  onStop(): void;
+  onUndo(): void;
 }) {
   const link = webLink(find.url);
   const image = webLink(find.image_url);
@@ -252,11 +274,18 @@ function FindCard({ find, demo, locked, byId, onStop }: {
         {sent && <p className="muted find-piece" data-testid="find-link">{sent}</p>}
         {unjudged && <p className="muted find-piece" data-testid="find-not-judged">{unjudged}</p>}
         {canSeeWorn(find) && <SeeWorn find={find} image={image} locked={locked} byId={byId} />}
-        <div className="row">
-          {link && <a className={buttonClass({ small: true })} href={link} target="_blank" rel="noopener noreferrer">Open in shop</a>}
-          {/* the find goes, and with it its daily check */}
-          <Button variant="ghost" small disabled={locked} onClick={onStop}>Stop watching</Button>
-        </div>
+        {stopped ? (
+          <p className="find-stopped" role="status" data-testid="find-stopped">
+            You stopped watching it, and its daily check.{' '}
+            <Button variant="link" small autoFocus disabled={locked} onClick={onUndo}>Undo</Button>
+          </p>
+        ) : (
+          <div className="row">
+            {link && <a className={buttonClass({ small: true })} href={link} target="_blank" rel="noopener noreferrer">Open in shop</a>}
+            {/* the find goes, and with it its daily check; Undo puts it back as it was */}
+            <Button variant="ghost" small disabled={locked} onClick={onStop}>Stop watching</Button>
+          </div>
+        )}
       </div>
     </Card>
   );

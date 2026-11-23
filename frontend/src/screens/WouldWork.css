@@ -50,3 +50,15 @@
 .wouldwork-example-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
 .wouldwork-example-head .gap-label { margin: 0; }
 .wouldwork-part p.wouldwork-drawn { margin: 0 0 var(--space-3); }
+/* By hand: the kind and the colour first, then one line for the piece with what it is and the rest in sheets */
+.wouldwork-hand-end { align-items: center; margin-top: var(--space-2); }
+.wouldwork-line { display: grid; gap: var(--space-2); }
+.wouldwork-line p { margin: 0; }
+.wouldwork-line-what { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); font-size: var(--text-md); line-height: 1.35; }
+.wouldwork-again { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--ink-3); }
+.wouldwork-sheet .chip-group + .chip-group, .wouldwork-sheet .formality-also + .chip-group { margin-top: var(--space-4); }
+/* the last answer, dimmed while the newer one is worked out: it stays where it is, so nothing moves */
+.wouldwork-shown.is-stale { opacity: 0.55; transition: opacity var(--dur-quick) var(--ease-out); }
+/* under the verdict: what was taken as usual, and Change what it is and More about it */
+.wouldwork-said { display: grid; gap: var(--space-2); }
+.wouldwork-said p { margin: 0; }

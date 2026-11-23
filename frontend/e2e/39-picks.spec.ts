@@ -15,6 +15,24 @@ test.describe('you might like', () => {
     await backend?.stop();
   });
 
+  test('a read that fails with nothing kept says so in the card, with Try again', async ({ page }) => {
+    // it showed nothing at all (the review of 23 November): the card was simply missing
+    await page.setViewportSize({ width: 393, height: 852 });
+    let fail = true;
+    await page.route('**/api/picks', (route) => (fail && route.request().method() === 'GET'
+      ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"detail":"Internal Server Error"}' })
+      : route.fallback()));
+    await page.goto(backend.url + '/wardrobe');
+    const card = page.locator('section.picks');
+    await expect(card.getByTestId('picks-failed')).toContainText("Couldn't load what you might like.", { timeout: 30_000 });
+    await expect(card).not.toContainText('Internal Server Error');
+    fail = false;
+    await card.getByRole('button', { name: 'Try again' }).click();
+    await expect(card.getByTestId('picks-failed')).toHaveCount(0);
+    await expect(card.getByTestId('picks-look')).toBeVisible();
+    await page.unroute('**/api/picks');
+  });
+
   test('look now, save one onto the wishlist, and turn one down with Undo', async ({ page }) => {
     test.setTimeout(300_000);
     await page.setViewportSize({ width: 393, height: 852 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { lookLine } from './look';
 import { alsoThought, groupsIn, kindDrawing, kindLine, kindsIn, kindsOf, searchKinds, type KindCatalogue } from './kinds';
 
 // a slice of the catalogue GET /api/kinds answers (backend/closet/kinds.py), words as it writes them
@@ -52,9 +53,15 @@ describe('the groups', () => {
   });
 
   it('say an item as its kind and group', () => {
-    expect(kindLine({ kind_name: 'Fleece pullover', group: 'activewear' }, catalogue.groups)).toBe('Fleece pullover · Activewear');
-    expect(kindLine({ kind_name: null, group: 'tees' }, catalogue.groups)).toBe('Tees & polos');
-    expect(kindLine({ kind_name: null, group: null }, catalogue.groups)).toBe('');
+    expect(kindLine({ kind_name: 'Fleece pullover', category: 'sweater', group: 'activewear' }, catalogue.groups)).toBe('Fleece pullover · Activewear');
+    expect(kindLine({ kind_name: null, category: null, group: null }, catalogue.groups)).toBe('');
+  });
+
+  it('say an item with no kind yet as what the summary line calls it, never as its group alone', () => {
+    // the review of 23 November (P2): "What is it? Tees & polos · Kind not said yet" over "Polo · Navy"
+    const polo = { kind_name: null, category: 'polo', group: 'tees' };
+    expect(kindLine(polo, catalogue.groups)).toBe('Polo · Tees & polos');
+    expect(kindLine(polo, catalogue.groups).split(' · ')[0]).toBe(lookLine({ ...polo, color: 'navy', pattern: 'solid' })[0].text);
   });
 
   it("offer the closet's groups and kinds as filters", () => {

@@ -174,6 +174,18 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   the same question that could be combined into "Nothing matches". Now there is one list, **What it
   is**: choose a group (Trousers & shorts, say) and it opens to what is in it (Jeans, Trousers,
   Shorts, and the kinds your pieces are said to be). One chip says what you chose.
+- **Would this work? by hand answers at once.** Choose what kind of piece it is and its main colour,
+  and the answer comes straight away, with no long form first and no button to press. Everything else
+  (formality, season, how heavy, pattern, rain, a name) is under **More about it**, which opens over
+  the page; the answer is worked out again when you close it, and the last one stays on screen,
+  dimmed, meanwhile. The answer comes straight under the piece's name, which is said once; under the
+  verdict, a line says what it took as usual until you say more ("checked as a plain smart casual
+  piece for any time of year").
+- **A piece's page says "Saved" beside what you changed.** Changing a piece's name, what it is, its
+  brand, price, rating, notes, a detail or its size used to raise a "Saved" message for every change,
+  over what you tapped next. Now "Saved" shows for a moment beside the box or row you changed, and
+  nothing moves. A message at the top is kept for what went wrong (with "Didn't save" beside the
+  box too) and for archiving.
 - **A striped or plaid find is drawn striped or plaid.** In **See it with your clothes** and in
   **Would this work?**'s outfits drawn **As worn**, a piece described as striped or plaid is now
   drawn with a plain, typical stripe or plaid in its colour and a quieter shade of it, instead of
@@ -255,6 +267,26 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   as before and the piece you chose stays where it was on the screen, instead of the grid folding to
   three across and showing other clothes. The panel has **Close**, Escape closes it, and Back closes
   it too; focus goes into the panel as it opens and back to the piece when it closes.
+- **"You might like" and Fix the details say when they could not be read.** In the Wardrobe, "You
+  might like" no longer disappears when Nines cannot read it and nothing is kept on this device: it
+  says why, with Try again. Fix the details says the same, in the same words, when its details or a
+  detail's choices could not be read, instead of a message of its own.
+- **Stop watching can be undone.** On a wish's page, a find you stop watching no longer vanishes at
+  once: it stays in its place saying so, with **Undo**, which puts it back with its price history and
+  its code.
+- **Would this work? remembers.** A reload, or your phone closing the app, no longer forgets what you
+  described and the answer: they are kept on this device for the rest of the day, until you tap
+  **Check another piece**.
+- **Choosing a colour no longer chooses a shade for you.** On a piece's page, Colour → Blue used to
+  light up "French blue" by itself. Now a colour chosen alone is just that colour: no shade is lit,
+  the row says "Blue", and the piece is drawn in plain blue until you choose a shade. What Claude
+  described keeps its shade until you change the colour. The swatch on the chosen colour now shows
+  on its dark chip.
+- **A piece is called one thing on its page.** Until you choose its exact kind, "What is it?" says
+  what the line under its name says ("Polo · Tees & polos"), on the piece's page and in the review,
+  instead of "Kind not said yet" beside a piece the page calls a polo. On a phone the row's label
+  sits above, so the kind and its group have the width (two lines at most), and who said it names
+  Claude once ("Claude's guess · 100% sure").
 - **A wish made from a link is named at once.** It shows the product's name as soon as Nines has read
   its page, not only when Claude has finished describing it.
 - **A trip under way stays as it is.** Opening a trip on its third day no longer says the forecast

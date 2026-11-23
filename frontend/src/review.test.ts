@@ -47,7 +47,8 @@ describe('review choices', () => {
     const rows = reviewRows(FIELDS);
     expect(reviewChanges(rows, {})).toEqual({ changes: {}, confirm: ['color', 'silhouette'] });
     expect(reviewChanges(rows, { color: 'grey' })).toEqual({ changes: {}, confirm: ['color', 'silhouette'] });
-    expect(reviewChanges(rows, { color: 'tan' })).toEqual({ changes: { color: 'tan', color_hex: '#c9a97c' }, confirm: ['silhouette'] });
+    // a colour chosen here is the colour word alone, as on the item page: no shade claimed for it (P15)
+    expect(reviewChanges(rows, { color: 'tan' })).toEqual({ changes: { color: 'tan', color_hex: null }, confirm: ['silhouette'] });
     expect(reviewChanges(rows, { 'silhouette.neck': 'crew' })).toEqual({ changes: { silhouette: { neck: 'crew' } }, confirm: ['color'] });
   });
 });
@@ -58,9 +59,10 @@ describe('checking a new item', () => {
 
   it("says who said what it is", () => {
     expect(kindWho({ kind: 'polo', kind_by: 'owner', kind_confidence: null })).toBe('Set by you');
-    expect(kindWho({ kind: 'polo', kind_by: 'claude', kind_confidence: 0.8 })).toBe("Claude's guess · Claude was 80% sure");
+    expect(kindWho({ kind: 'polo', kind_by: 'claude', kind_confidence: 0.8 })).toBe("Claude's guess · 80% sure");   // Claude said once
     expect(kindWho({ kind: 'polo', kind_by: 'claude', kind_confidence: null })).toBe("Claude's guess");
-    expect(kindWho({ kind: null, kind_by: null, kind_confidence: null })).toBe('Kind not said yet');
+    // with no kind the row says what the piece is (from its category, as the summary line does), and nothing contradicts it
+    expect(kindWho({ kind: null, kind_by: null, kind_confidence: null })).toBe('');
   });
 
   it('starts the boxes from what the item has', () => {
@@ -84,7 +86,7 @@ describe('checking a new item', () => {
   it('takes the doubtful fields along: changed ones as changes, the rest to confirm', () => {
     const rows = reviewRows(FIELDS);
     const got = checkBody(item, typed, null, rows, { color: 'black' });
-    expect(got).toEqual({ body: { kind: 'polo', changes: { color: 'black', color_hex: expect.anything() }, fields: ['silhouette'] } });
+    expect(got).toEqual({ body: { kind: 'polo', changes: { color: 'black', color_hex: null }, fields: ['silhouette'] } });
   });
 
   it('sends nothing and says so when the price is not a price', () => {

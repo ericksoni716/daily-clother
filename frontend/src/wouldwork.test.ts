@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { LookFor, Wish } from './gaps';
 import {
   type Check, checkKinds, checkPoll, drawnFromWords, outfitStep, wornError, POLL_MS, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceFromWish, PIECE_NAME_MAX, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
-  wishFrom, wornWords,
+  wishFrom, wornWords, nextCheck, pieceLine, untoldWords, keptCheck, type KeptCheck,
 } from './wouldwork';
+import { forgetSaved } from './today';
 
 const look = (over: Partial<LookFor> = {}): LookFor => ({
   category: 'coat', formality: 'smart_casual', season: 'all', weight_class: 'midweight', colors: [], pattern: 'solid',
@@ -54,6 +55,89 @@ describe('describing the piece', () => {
   it('offers every kind but "other", and plain words for weights', () => {
     expect(checkKinds(['tee', 'coat', 'other'])).toEqual(['tee', 'coat']);
     expect(WEIGHTS.map(weightLabel)).toEqual(['Light', 'Medium', 'Heavy', 'Very heavy']);
+  });
+});
+
+describe('by hand: the kind and the colour first, the answer at once (23 November)', () => {
+  const quiet = { checked: null, busy: false, choosing: false, locked: false };
+
+  it('asks for the answer as soon as the kind and the colour are known, with no button to press', () => {
+    expect(nextCheck({}, quiet)).toBeNull();
+    expect(nextCheck({ category: 'coat' }, quiet)).toBeNull();
+    expect(nextCheck({ category: 'coat', color: 'tan' }, quiet)).toEqual({ category: 'coat', color: 'tan' });
+  });
+
+  it('asks again only when more has been said, never twice for the same description', () => {
+    const tan = { category: 'coat', color: 'tan' };
+    const checked = JSON.stringify(pieceToSend(tan));
+    expect(nextCheck(tan, { ...quiet, checked })).toBeNull();
+    expect(nextCheck({ ...tan, formality: 'business', name: '  ' }, { ...quiet, checked })).toEqual({ ...tan, formality: 'business' });
+  });
+
+  it('waits while a check is on its way, while a sheet of choices is open, and offline', () => {
+    const tan = { category: 'coat', color: 'tan' };
+    expect(nextCheck(tan, { ...quiet, busy: true })).toBeNull();
+    expect(nextCheck(tan, { ...quiet, choosing: true })).toBeNull();
+    expect(nextCheck(tan, { ...quiet, locked: true })).toBeNull();
+  });
+
+  it('says the piece in a few words, and what the answer took as usual until it is told', () => {
+    expect(pieceLine({ category: 'coat', color: 'tan' })).toBe('Tan coat');
+    expect(pieceLine({ category: 'dress_shoes', color: 'brown', name: ' Brogues ' })).toBe('Brogues, brown dress shoes');
+    const levels = ['casual', 'smart_casual', 'business', 'formal'];
+    const piece = { category: 'coat', color: 'tan', formality: 'smart_casual', season: 'all', pattern: 'solid' };
+    // one natural sentence (23 November: "checked as business, for any time of year and plain" read oddly)
+    expect(untoldWords({ category: 'coat', color: 'tan' }, piece, levels))
+      .toBe('Until you say more, it is checked as a plain smart casual piece for any time of year.');
+    expect(untoldWords({ category: 'coat', color: 'tan', season: 'all' }, piece, levels))
+      .toBe('Until you say more, it is checked as a plain smart casual piece.');
+    expect(untoldWords({ category: 'coat', color: 'tan', formality: 'smart_casual', pattern: 'solid' }, { ...piece, season: 'warm' }, levels))
+      .toBe('Until you say more, it is checked as a piece for warm weather.');
+    expect(untoldWords({ category: 'coat', color: 'tan', season: 'all', pattern: 'solid' }, { ...piece, formality: 'athletic' }, [...levels, 'athletic']))
+      .toBe('Until you say more, it is checked as an athletic piece.');
+    expect(untoldWords({ category: 'coat', color: 'tan', formality: 'smart_casual', season: 'cool', pattern: 'plaid' },
+      { ...piece, season: 'cool', pattern: 'plaid' }, levels)).toBeNull();
+    expect(untoldWords({ category: 'coat', color: 'tan' }, null, levels)).toBeNull();
+  });
+});
+
+describe('kept on this device for the day (the review of 23 November, P12)', () => {
+  const store = () => {
+    const m = new Map<string, string>();
+    return {
+      getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k),
+      get length() { return m.size; }, key: (i: number) => [...m.keys()][i] ?? null,
+    };
+  };
+  const kept: KeptCheck = {
+    day: '2026-11-23', wish_id: null, draft: { category: 'coat', color: 'tan', formality: 'business' },
+    checked: '{"category":"coat","color":"tan","formality":"business"}', shown: check({ id: 'c9' }),
+  };
+
+  it('gives back what was typed and the answer after a reload, the same day, for the same closet and wish', () => {
+    const kv = store();
+    keptCheck('main', kv).set(kept);
+    expect(keptCheck('main', kv).get('2026-11-23', null)).toEqual(kept);
+    expect(keptCheck('demo', kv).get('2026-11-23', null)).toBeNull();
+    expect(keptCheck('main', kv).get('2026-11-23', 'w1')).toBeNull();
+    expect(keptCheck('main', kv).get('2026-11-24', null)).toBeNull();
+  });
+
+  it('forgets it when a new one is started, and with the other saved copies', () => {
+    const kv = store();
+    keptCheck('main', kv).set(kept);
+    keptCheck('main', kv).set(null);
+    expect(keptCheck('main', kv).get('2026-11-23', null)).toBeNull();
+    keptCheck('main', kv).set(kept);
+    forgetSaved(kv);
+    expect(keptCheck('main', kv).get('2026-11-23', null)).toBeNull();
+  });
+
+  it('gives back nothing from a copy it cannot read', () => {
+    const kv = store();
+    kv.setItem('closet-today-saved:would:main', '{"day":"2026-11-23"');
+    expect(keptCheck('main', kv).get('2026-11-23', null)).toBeNull();
+    expect(keptCheck('main', null).get('2026-11-23', null)).toBeNull();
   });
 });
 

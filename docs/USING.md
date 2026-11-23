@@ -221,7 +221,10 @@ panel. On a phone it opens as its own page.
 or drawing, and for some pieces the back), with a small mark on the drawing that lists what it
 leaves out, and the name, which you type over in place. Straight under the name: **What is it?**
 (the kind, with who said it, a sheet of kinds on a phone; for a shoe, the kind of shoe set in
-Fix the details counts too), the brand and the price, each saved as you leave it. Changing any of these counts as having checked the piece, so it leaves the review.
+Fix the details counts too; until a kind is chosen, what its category says, the same word as the
+line under About it), the brand and the price, each saved as you leave it. Every change on the page
+says "Saving…" and then "Saved" for a moment beside the box or row it changed, or "Didn't save" with
+why in a message at the top; archiving is said in a message too. Changing any of these counts as having checked the piece, so it leaves the review.
 
 Then "Wearing and washing": Wore it today, put in the laundry or mark clean, where the piece is,
 and recent wears. Where it is is one sentence ("In your closet", "At the cleaner's until Friday 27
@@ -271,7 +274,8 @@ levels when it describes a photo; a formality you chose is never changed by desc
 
 The colour's choices end with the shades of the piece's colour, each with its swatch ("Shades of
 green": Sage, Mint, Forest green, Hunter green, Teal). Choosing a colour keeps the choices open on its
-shades; choosing a shade saves it with its colour and draws the piece in it. A shade you choose
+shades and saves the colour alone: no shade is lit and the piece is drawn in the colour's own tone
+until you choose one. Choosing a shade saves it with its colour and draws the piece in it. A shade you choose
 stays yours when Claude describes the piece again, and choosing another colour puts it aside. It
 is chosen only there: Fix the details does not list it.
 
@@ -434,7 +438,8 @@ page with up to three outfits of your own pieces and the find, each drawn as wor
 shop's picture beside the drawing; the names of your pieces, each opening the piece; and one line saying the find is
 drawn from the shop's description, so it shows roughly its shape and colour, not how it really looks, or its shape,
 colour and pattern when it is striped or plaid, which is drawn as a plain, typical stripe or plaid; nothing is sent
-to Claude), "Open in shop", "Stop watching" (it goes, and with it its daily check) and, when its
+to Claude), "Open in shop", "Stop watching" (it goes, and with it its daily check; the find stays in its place
+saying so, with **Undo**, which puts it back with its price history, until you leave the page) and, when its
 price changed from one day to another, "The price was … on 3 Nov and … yesterday.". A find with a
 code at checkout says the price after it under its price ("$106.20 with code TEST40 at checkout (40%
 off)") and who saw it ("Nines saw this code on the page." or "Claude saw this code on the page.";
@@ -475,7 +480,16 @@ When what was shared holds no link, it says so and the box is empty.
 
 `/wardrobe/check` (and `/wardrobe/check/wish/<id>` from a wish), from the Wardrobe;
 "‹ Wardrobe" goes back. A piece you might buy, from a photo or described by hand, checked
-against the closet by rule: what it goes with, what it repeats, what it would fill, what
+against the closet by rule. By hand it asks two things first, what kind of piece it is and its main
+colour, and answers as soon as both are chosen, with no button to press. The piece is then one line
+("Light blue shirt") and the verdict comes straight under it; under the verdict one line says what
+was taken as usual until you say more ("checked as a plain smart casual piece for any time of
+year"), with **Change what it is** and **More about it** (formality, season, how heavy, pattern,
+keeps the rain off, a name), each a sheet over the page. Closing one works the answer out again,
+the last answer staying in place, dimmed, until the new one is ready. What you
+described and the answer stay on this device for the rest of the day, after a reload too, until
+**Check another piece**.
+The answer says what it goes with, what it repeats, what it would fill, what
 would hold it back, when you would wear it, and example outfits. The example outfits have the
 **Pieces / As worn** switch of Today and Trips (the same remembered choice): As worn draws each one
 on the figure with the new piece among your own, its pieces named under it, and one line saying the

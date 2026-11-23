@@ -10,7 +10,7 @@ import { describedBy } from '../tagging';
 import { queryKeys } from '../queryKeys';
 import { useMediaQuery } from '../router';
 import type { Item } from '../types';
-import { buttonClass, PHONE, Sheet } from './ui';
+import { buttonClass, Failed, PHONE, Sheet } from './ui';
 import { AddToDrawing } from './AddToDrawing';
 import { ShoeDrawingFix } from './ShoeTrace';
 import './FixDetails.css';
@@ -109,23 +109,17 @@ function FixBody({ item, focus, demo, disabled, onSaved, onError, onDone }: Prop
   // a sentence no detail could show, handed from the box to "Add to the drawing"
   const [handed, setHanded] = useState<{ text: string; at: number } | null>(null);
   const id = item.id;
-  const report = useLatest(onError);
 
   // Kept in the cache by item: asked again only after a save that touches them (`TOUCHES.item`) or when the item is
   // described again, not each time the item is read while work runs.
   const optionsQuery = useQuery({ ...detailOptionsQuery(id), enabled: !disabled });
   const options: DetailOptions | null = optionsQuery.data ?? null;
-  const loadError = optionsQuery.error && !options ? optionsQuery.error.message : null;
   const choicesQuery = useQuery({
     queryKey: queryKeys.itemDetails(id, picking ?? ''),
     queryFn: () => api.detailChoices(id, picking as string),
     enabled: !!picking && !disabled,
   });
   const choices: DetailChoices | null = choicesQuery.data ?? null;
-  const choicesError = choicesQuery.error?.message;
-  useEffect(() => {
-    if (choicesError) report.current(choicesError);
-  }, [choicesError, report]);
 
   useEffect(() => {   // ...and bring it into view once the details are there
     if (!focus || !options) return;
@@ -182,7 +176,8 @@ function FixBody({ item, focus, demo, disabled, onSaved, onError, onDone }: Prop
           </div>
           {describedBy(item.tag_route, item.tagged_at) && <p className="muted fix-note" data-testid="described-by">{describedBy(item.tag_route, item.tagged_at)}</p>}
           {item.trace && <ShoeDrawingFix item={item} disabled={disabled} onSaved={onSaved} onError={onError} />}
-          {loadError && <p className="notice notice-warn" role="alert">{loadError}</p>}
+          {/* a failed read is said in the app's words, with Try again (as every screen's, `Failed`) */}
+          <Failed query={optionsQuery} what="the details" testId="details-failed" />
           {options?.message && <p className="notice">{options.message}</p>}
           {fixable(options).map((g) => (
             <section key={g.id} className="fix-group" aria-label={g.title}>
@@ -197,6 +192,7 @@ function FixBody({ item, focus, demo, disabled, onSaved, onError, onDone }: Prop
                         <span className="fix-detail-title">{capitalise(d.title)}</span>
                         <span className="fix-detail-value">{d.words}{d.own && <span className="fix-own"> · set by you</span>}</span>
                       </button>
+                      {on && !choicesQuery.data && <Failed query={choicesQuery} what={`the choices for the ${d.title}`} testId="choices-failed" />}
                       {on && choices?.name === d.name && (
                         <Choices item={item} choices={choices} busy={busy} hasAnswer={!!item.details}
                           onPick={(v, words) => pick(d.name, v, `${capitalise(d.title)}: ${words}`)}

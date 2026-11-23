@@ -207,11 +207,17 @@ def shade_of(row, said: dict) -> str | None:
     """The owner's name for the item's shade (docs/menswear-taxonomy.json, colors.shades): the one the owner chose,
     else the one the tagger named, when it is a shade of the item's colour; else the nearest to its measured colour.
     The owner's is read from their details as well as from `said`, since an item with nothing to draw has no
-    details as drawn."""
+    details as drawn. A colour the owner gave without a shade (the colour word alone, or with its own colour) names
+    no shade: only the colour is known, and the page does not claim a shade nobody chose."""
     color = row["color"]
-    for name in (details.own(row).get("shade"), said.get("shade")):
-        if name in SHADES and SHADES[name][1] == color:
-            return name
+    own = details.own(row).get("shade")
+    if own in SHADES and SHADES[own][1] == color:
+        return own
+    source = json.loads((row["source"] if "source" in row.keys() else None) or "{}")
+    if source.get("color_hex") == "user":
+        return None
+    if said.get("shade") in SHADES and SHADES[said["shade"]][1] == color:
+        return said["shade"]
     return nearest_shade(row["color_hex"], color) if row["color_hex"] and color in {c for _, c in SHADES.values()} else None
 
 

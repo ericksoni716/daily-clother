@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseRoute } from './router';
 import {
-  atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, googleShoppingLink,
+  atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, withStopped, googleShoppingLink,
   historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
   runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, watchWords,
   webLink, wishlistAgain, wishlistWords, withinWords,
@@ -185,6 +185,16 @@ describe('the wish page and price news', () => {
   it('puts the pages you sent before Claude’s finds', () => {
     const f = (id: string, link: boolean) => ({ id, link });
     expect(findsInOrder([f('a', false), f('b', true), f('c', false), f('d', true)]).map((x) => x.id)).toEqual(['b', 'd', 'a', 'c']);
+  });
+
+  it('keeps a find you stopped watching in its place until you leave, so Undo is where it was (A8)', () => {
+    const f = (id: string) => ({ id, link: false });
+    const shown = [f('a'), f('c')];   // what the server lists once b has gone
+    expect(withStopped(shown, [{ find: f('b'), at: 1 }]).map((x) => x.id)).toEqual(['a', 'b', 'c']);
+    expect(withStopped(shown, [{ find: f('d'), at: 9 }]).map((x) => x.id)).toEqual(['a', 'c', 'd']);
+    // put back: listed by the server again, it is not shown twice
+    expect(withStopped([f('a'), f('b'), f('c')], [{ find: f('b'), at: 1 }]).map((x) => x.id)).toEqual(['a', 'b', 'c']);
+    expect(withStopped(shown, [])).toBe(shown);
   });
 
   it('says how a price went only when it changed, a price for each change', () => {

@@ -1,7 +1,7 @@
 /** Would this work?: the shapes the server sends for a check, and plain words for them. */
 import type { LookFor, Wish } from './gaps';
-import { label } from './labels';
-import type { OutfitPieces } from './today';
+import { formalityLabel, label } from './labels';
+import { SAVED_PREFIX, type OutfitPieces } from './today';
 
 /** The piece being checked, as typed by hand or as Claude described it from a photo. */
 export interface WouldPiece {
@@ -198,6 +198,47 @@ export function pieceToSend(p: Partial<WouldPiece>): Partial<WouldPiece> {
   return out;
 }
 
+/** The key of a description as sent: two descriptions that send the same are the same check. */
+export const checkKey = (p: Partial<WouldPiece>): string => JSON.stringify(pieceToSend(p));
+
+/**
+ * The description to check now, or null. By hand, the answer comes as soon as the kind and the colour are known, with
+ * no button to press, and again each time more is said (`checked` is the key last sent). It waits while a check is
+ * on its way (the next one follows it), while a sheet of choices is open (it asks once it is closed), and offline.
+ */
+export function nextCheck(draft: Partial<WouldPiece>, { checked, busy, choosing, locked }: {
+  checked: string | null; busy: boolean; choosing: boolean; locked: boolean;
+}): Partial<WouldPiece> | null {
+  if (stillToChoose(draft) || busy || choosing || locked) return null;
+  return checkKey(draft) === checked ? null : pieceToSend(draft);
+}
+
+/** The piece in a few words, as it is being checked: "Tan coat", or with a name, "Brogues, brown dress shoes". */
+export function pieceLine(p: Partial<WouldPiece>): string {
+  const what = [label('color', p.color), label('category', p.category)].filter(Boolean).join(' ').toLowerCase();
+  const name = p.name?.trim();
+  return name ? `${name}, ${what}` : what.charAt(0).toUpperCase() + what.slice(1);
+}
+
+const SEASON_SAID: Record<string, string> = { all: 'for any time of year', warm: 'for warm weather', cool: 'for cold weather' };
+
+/**
+ * What the answer took as usual because it was not told (the server fills in the formality usual for the kind, any
+ * time of year and plain), in one sentence: "Until you say more, it is checked as a plain smart casual piece for any
+ * time of year.", or null when everything it uses was said. `levels` are the formality levels in order.
+ */
+export function untoldWords(sent: Partial<WouldPiece>, piece: Partial<WouldPiece> | null, levels: string[]): string | null {
+  if (!piece) return null;
+  const words: string[] = [];
+  if (!sent.pattern && piece.pattern) words.push(piece.pattern === 'solid' ? 'plain' : label('pattern', piece.pattern).toLowerCase());
+  if (!sent.formality && piece.formality) words.push(formalityLabel(piece.formality, piece.formality_also, levels).toLowerCase());
+  const season = !sent.season && piece.season ? SEASON_SAID[piece.season] ?? `for ${label('season', piece.season).toLowerCase()}` : '';
+  if (!words.length && !season) return null;
+  const what = [...words, 'piece'].join(' ');
+  const article = /^[aeiou]/.test(what) ? 'an' : 'a';
+  return `Until you say more, it is checked as ${article} ${what}${season ? ` ${season}` : ''}.`;
+}
+
 /** What is still to choose before a description can be checked, in words; null when it can be. */
 export function stillToChoose(p: Partial<WouldPiece>): string | null {
   if (!p.category && !p.color) return 'Choose what kind of piece it is and its colour.';
@@ -248,4 +289,54 @@ export function fillNote(fill: { situations?: string[]; low?: boolean }): string
 export function fillWords(fill: { gone: boolean; filled: boolean }): string {
   if (fill.gone) return 'no longer missing';
   return fill.filled ? 'mostly filled' : 'a little less of a gap';
+}
+
+// --------------------------------------------------------------------- kept on this device
+
+/** What the screen keeps on this device for the rest of the day, as Today keeps its changes: what was typed, the
+ * description last sent by hand, and the last answer, for the closet and the wish it was started from. */
+export interface KeptCheck {
+  day: string;
+  wish_id: string | null;
+  draft: Partial<WouldPiece>;
+  checked: string | null;
+  shown: Check | null;
+}
+
+type KV = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+function local(): KV | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Under the saved copies' prefix, so it is forgotten with them (on leaving a closet, `forgetSaved`). */
+const keptKey = (profile: string) => `${SAVED_PREFIX}:would:${profile}`;
+
+/** The check kept for a closet: given back only on the day it was kept and for the same wish (or none); `set(null)`
+ * forgets it, as starting a new one does. */
+export function keptCheck(profile: string, kv: KV | null = local()) {
+  return {
+    get(today: string, wishId: string | null): KeptCheck | null {
+      try {
+        const raw = kv?.getItem(keptKey(profile));
+        const v = raw ? JSON.parse(raw) as KeptCheck : null;
+        if (!v || v.day !== today || (v.wish_id ?? null) !== wishId || typeof v.draft !== 'object' || !v.draft) return null;
+        return v;
+      } catch {
+        return null;
+      }
+    },
+    set(value: KeptCheck | null) {
+      try {
+        if (value) kv?.setItem(keptKey(profile), JSON.stringify(value));
+        else kv?.removeItem(keptKey(profile));
+      } catch {
+        /* private mode or full: not kept, nothing else breaks */
+      }
+    },
+  };
 }

@@ -65,7 +65,8 @@ test('in the demo closet: say what it is with the kind picker, see the drawing c
   await openFold(detail, 'Details');
   const row = detail.getByTestId('what-is-it');
   const was = (await row.getAttribute('aria-label'))!;
-  await expect(row).toHaveAccessibleName(/^What is it\?: .*Kind not said yet$/);
+  // with no kind chosen the row says what the summary line says (its category), not "Kind not said yet" (P2)
+  await expect(row).toHaveAccessibleName(/^What is it\?: Hoodie · [^.]+$/);
 
   await row.click();
   const picker = page.getByRole('dialog', { name: 'What is it?' });

@@ -191,6 +191,8 @@ def words(name: str, value) -> str:
                 return value
         return {"cloth": surfaceform.surface_words, "lettering": surfaceform.lettering_words,
                 "own_cloth": surfaceform.own_cloth_words}[name](value)
+    if name == "color_hex" and value is None:   # a colour chosen alone: no shade of it chosen
+        return "none chosen"
     if value is None or value == "" or value == {}:
         return "nothing"
     if isinstance(value, dict):   # a shape: "short sleeves, collar"

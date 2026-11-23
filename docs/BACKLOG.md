@@ -35,16 +35,19 @@ only here); take a line out when it is done.
   "…" (the small tile's whole-word cut is not used there). A category whose pieces sit in two groups is found by the
   search, not by the list: "Sweaters" under Knitwear leaves out a fleece pullover, which is Activewear by its kind.
   The Filter button keeps its word "Filter" while its sheet is titled "Show and filter".
+- **A piece's page, Would this work? and a wish's page** (23 November; DECISIONS, rows of 23 November under "Would
+  this work?" and "Shopping for a wish", and beside "Toasts"). Left: on a piece's page, wearing, the laundry, where it
+  is, Fix the details and History still say what they did in a toast (only the changes that save as they are made say
+  "Saved" beside them); "Remove from the list" on a wish was not checked for Undo (A8 asked); a find stopped watching can be put back
+  only while Nines keeps running (an hour, at most 20), not after a restart.
 - **The review of the shared parts** (23 November; DECISIONS, "The failed state", "Banners wait for the next screen",
   "One way to write a date"). Left: Today's own failed state ("Couldn't choose today's outfits: …") still words
-  itself and was left to the Today batch; the item page still says "Saved" in a toast for each change rather than a
-  `SaveStatus` beside the row (its layout is a later batch); a trip's date range is still written in `trips.ts` from
+  itself and was left to the Today batch; a trip's date range is still written in `trips.ts` from
   the family's month names; on iPhone the system Text Size does not reach Safari's rem (only the browser's own text
   size does); price news never asked for on a screen you never leave shows only on the next screen or the next open.
-  Brought onto the newer base, the newer screens had no failed read of their own to move onto `Failed`; You might like
-  still shows nothing at all when its read fails with no copy kept on this device, and a few older lines still word a
-  failed read themselves (Advanced's space used, Today's weather lookup, the style conversation, Several, the
-  details' choices in Fix the details).
+  Brought onto the newer base, the newer screens had no failed read of their own to move onto `Failed`; a few older
+  lines still word a failed read themselves (Advanced's space used, Today's weather lookup, the style conversation,
+  Several, the History fold on a piece's page, which says it in a toast).
 - **Where a piece is** (23 November; DECISIONS, "Where a piece is"). Left undone: recording an
   outfit by hand that brings an away piece back says so in the toast, but its Undo is on the piece's
   page, not beside the toast (the toast has no button); the away view keeps the pieces brought back
@@ -306,9 +309,7 @@ only here); take a line out when it is done.
   - The details one by one are still a view in the sheet, not a route (`/item/<id>/details`),
     and the old notes boxes are only emptied once you edit the one box; a closet keeps them
     until then.
-  - "What is it?" still says "Kind not said yet" and shows the group in place of a kind the
-    assessment called jargon; the Details rows for formality and season are rarely changed and
-    could go further down.
+  - The Details rows for formality and season are rarely changed and could go further down.
   - The phone check shows the item page with its folds closed; there is no picture of them
     open except from a browser test run by hand.
 - **Settings regrouped** (step 6 of the order of work, done 20 November). Left:
@@ -492,12 +493,12 @@ Patterns from the photo (owner's request; it had fallen out of the app):
 The owner asked this session to work by itself: bring the discovery steps in, review the app for bugs and UI errors, and build what would make Nines the closet app to have, "without sacrificing the core functionality". Each line is its own pull request. The order is by how often the owner would feel it (DESIGN, "The jobs"). Nothing here adds a place to the tab bar, a door, or a phone notification (the owner said no to those). What a line left undone goes under "Left over from finished work" as always.
 
 **First, what is already there made right**
-- [ ] **The review's findings** (`docs/assessment/` gets a short report of the two reviews of 23 November, the screens and the rules; the fixes go in small batches, each fault shown with a failing test first).
+- [x] **The review's findings** (`docs/assessment/review-23-november.md` is the short report of the two reviews of 23 November, the screens and the rules, with what was done about each finding; the fixes went in as #316 to #319, #322, #324 and #326. Left: a few words under P3 in that report).
 - [x] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
 - [x] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
 - [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
 - [x] **The closet at a glance**: three across as a choice, a search box that takes the row, the Photos or Drawings switch in words, and search that finds a shade, a brand, a material or a note.
-- [ ] **Would this work? by hand**: kind and colour first, the rest behind "More about it".
+- [x] **Would this work? by hand**: kind and colour first, the rest behind "More about it".
 - [x] **The figure: an open layer under an open jacket** shows its fronts, not a thin strip (changes "The outfit as worn" in DECISIONS; say so).
 
 **Every day**

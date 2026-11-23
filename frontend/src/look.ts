@@ -14,11 +14,16 @@ export interface LookPart {
   part: string;
 }
 
+/** What a piece is, in one word for every place that says it: its kind, else its category ("Polo"). The summary line
+ * and the "What is it?" row both read it, so the page never calls a piece two things. */
+export const whatName = (item: Pick<ItemSummary, 'kind_name' | 'category'>): string =>
+  item.kind_name || label('category', item.category);
+
 /** The one line under the name: "Oxford shirt · Light blue (oxford blue) · Regular fit · Long sleeves". From the
  * closet's summary alone (while the item is read) it says what it is and its colour. */
 export function lookLine(item: Pick<ItemSummary, 'kind_name' | 'category' | 'color' | 'pattern'> & Partial<Pick<Item, 'shade' | 'as_worn'>>): LookPart[] {
   const out: LookPart[] = [];
-  const what = item.kind_name || label('category', item.category);
+  const what = whatName(item);
   if (what) out.push({ text: what, part: 'kind' });
   const colour = shadeLabel(label('color', item.color), item.shade);
   const pattern = item.pattern && item.pattern !== 'solid' ? label('pattern', item.pattern) : '';

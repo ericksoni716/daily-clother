@@ -111,8 +111,14 @@ test.describe('shopping for a wish', () => {
     await sheet.getByRole('button', { name: 'Clear' }).click();
     await expect(wish.getByTestId('wish-price')).toContainText('tells you when it goes down. ');
 
-    // watching a find can be stopped
+    // watching a find can be stopped: it stays in its place, saying so with Undo, until you leave the page (A8: it
+    // went at once), and then it is gone
     await polo.getByRole('button', { name: 'Stop watching' }).click();
+    await expect(polo.getByTestId('find-stopped')).toContainText('You stopped watching it');
+    await expect(finds).toHaveCount(2);
+    const wishPath = new URL(page.url()).pathname;
+    await page.goto(backend.url + '/wardrobe');
+    await page.goto(backend.url + wishPath);
     await expect(finds).toHaveCount(1);
 
     // the demo closet never searches, and says why
@@ -167,10 +173,27 @@ test.describe('shopping for a wish', () => {
     await wish.getByRole('button', { name: 'Check now' }).click();
     await expect(find.getByTestId('find-drop')).toHaveText('Was $68.00, now $54.40 (20% less)', { timeout: 30_000 });
 
+    // Stop watching can be undone (the review of 23 November, A8): the find stays in its place saying so, Undo has the
+    // focus, and Undo puts it back as it was, its price history and its drop with it
+    const top = (await find.boundingBox())!.y;
+    await find.getByRole('button', { name: 'Stop watching' }).click();
+    await expect(find.getByTestId('find-stopped')).toContainText('You stopped watching it');
+    await expect(find.getByRole('button', { name: 'Undo' })).toBeFocused();
+    expect((await find.boundingBox())!.y).toBe(top);
+    const wishId = page.url().split('/wardrobe/wish/')[1];
+    await expect.poll(async () => (await (await page.request.get(`${backend.url}/api/wishlist/${wishId}/finds`)).json()).finds.length).toBe(0);
+    await find.getByRole('button', { name: 'Undo' }).click();
+    await expect(find.getByTestId('find-stopped')).toHaveCount(0);
+    await expect(find.getByRole('button', { name: 'Stop watching' })).toBeVisible();
+    await expect(find.getByTestId('find-drop')).toHaveText('Was $68.00, now $54.40 (20% less)');
+
     // Would it go with my clothes? starts from the product's name on the page that was sent
     await wish.getByRole('button', { name: 'Would it go with my clothes?' }).click();
     await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
-    await expect(page.getByTestId('would-work').getByLabel('Name (optional)')).toHaveValue('Linen camp-collar shirt');
+    // (the name is among the rest, in "More about it")
+    await page.getByTestId('would-work').getByRole('button', { name: 'More about it' }).click();
+    await expect(page.getByRole('dialog', { name: 'More about it' }).getByLabel('Name (optional)')).toHaveValue('Linen camp-collar shirt');
+    await page.getByRole('dialog', { name: 'More about it' }).getByRole('button', { name: 'Done' }).click();
     // on the Wardrobe, the row to the wishlist counts the things on it and the prices that went down, as the list does
     const { wishes } = await (await page.request.get(backend.url + '/api/wishlist')).json();
     const down = wishes.filter((w: { drop: unknown }) => w.drop).length;

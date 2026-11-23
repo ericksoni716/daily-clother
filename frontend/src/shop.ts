@@ -329,6 +329,17 @@ export function findsInOrder<T extends Pick<Find, 'link'>>(finds: T[]): T[] {
   return [...finds.filter((f) => f.link), ...finds.filter((f) => !f.link)];
 }
 
+/** The finds to show: the wish's, with each find you stopped watching on this visit back in the place it had (`at`),
+ * so its Undo is where the find was and nothing below it moves. One the server lists again is not shown twice. */
+export function withStopped<T extends { id: string }>(finds: T[], stopped: { find: T; at: number }[]): T[] {
+  if (!stopped.length) return finds;
+  const out = [...finds];
+  for (const s of [...stopped].sort((a, b) => a.at - b.at)) {
+    if (!out.some((f) => f.id === s.find.id)) out.splice(Math.min(s.at, out.length), 0, s.find);
+  }
+  return out;
+}
+
 /** How a find's price went, when it changed from one day to another: "The price was $177.00 on 3 Nov, $160.00 on
  * Tuesday and $150.00 yesterday.", the last three prices it changed to, each from the day it was first seen at it (a
  * day's last price stands for the day). Null when it never did. */

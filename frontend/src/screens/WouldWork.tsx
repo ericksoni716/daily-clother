@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type ReactNode, type Ref, type RefObject } from 'react';
 import { api, type ApiError } from '../api';
-import { Card, ChipGroup, EmptyState, Failed, ItemThumb, PageHeader, SegmentedControl, type FailedRead } from '../components/ui';
+import { Card, ChipGroup, EmptyState, Failed, ItemThumb, PageHeader, SegmentedControl, Sheet, type FailedRead } from '../components/ui';
 import { CameraIcon, CheckIcon, HangerIcon, ImagesIcon, PlusIcon, WarnIcon } from '../components/Icons';
 import { FormalityChips } from '../components/FormalityChips';
 import { itemName, Pieces } from '../components/ItemPic';
@@ -13,10 +13,11 @@ import { vocabQuery } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
 import { placeLabel, wornOrder } from '../today';
+import { localDay } from '../wears';
 import type { ItemSummary, Vocab } from '../types';
 import {
-  CANDIDATE_ID, type Check, checkKinds, checkPoll, drawnFromWords, fillNote, fillWords, isDone, noteFor, pieceFromWish, pieceToSend, stillToChoose, verdictTone, waitingWords,
-  WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
+  CANDIDATE_ID, type Check, checkKey, checkKinds, checkPoll, drawnFromWords, fillNote, fillWords, isDone, nextCheck, noteFor, pieceFromWish, pieceLine,
+  keptCheck, pieceToSend, stillToChoose, untoldWords, verdictTone, waitingWords, WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
 } from '../wouldwork';
 import './WouldWork.css';
 
@@ -28,8 +29,12 @@ type Stage =
   | { kind: 'sending' }
   | { kind: 'check'; check: Check };
 
+/** What the screen holds: the description, where the check is, the description last sent by hand (`checked`) and the
+ * last answer to one (shown, dimmed, while the next one is worked out). */
+interface Held { profile: string; wishId: string | null; draft: Partial<WouldPiece>; stage: Stage; checked: string | null; lastReady: Check | null }
+
 /** Kept while the app is open, so opening an item from the answer and coming back shows the answer again. */
-let memory: { profile: string; wishId: string | null; draft: Partial<WouldPiece>; stage: Stage } | null = null;
+let memory: Held | null = null;
 /** A check being sent: leaving the screen does not lose it, and coming back picks it up when the server answers. */
 let sending: { profile: string; wishId: string | null; result: Promise<Stage> } | null = null;
 /** The checks whose answer was already put on the wishlist (or into the wish's note), by check id. */
@@ -72,9 +77,20 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   const vocabRead = useQuery(vocabQuery());
   const vocab = vocabRead.data ?? null;
   const remembered = memory && memory.profile === profile && memory.wishId === wishId ? memory : null;
-  const [draft, setDraft] = useState<Partial<WouldPiece>>(remembered?.draft ?? pieceFromWish(wish));
-  const [held, setStage] = useState<Stage>(() => openingStage(remembered));
+  // after a reload (or iOS closing the app), what this device kept today: what was typed and the last answer
+  const [kept] = useState(() => (remembered ? null : keptCheck(profile).get(localDay(), wishId)));
+  const [draft, setDraft] = useState<Partial<WouldPiece>>(remembered?.draft ?? kept?.draft ?? pieceFromWish(wish));
+  const [held, setStage] = useState<Stage>(() => (kept?.shown ? { kind: 'check', check: kept.shown } : openingStage(remembered)));
   const [wished, setWished] = useState(() => held.kind === 'check' && wishedChecks.has(held.check.id));
+  // by hand: the description last sent, the last answer to one, and whether a sheet of choices is open
+  const [checked, setChecked] = useState<string | null>(remembered?.checked ?? kept?.checked ?? null);
+  const [lastReady, setLastReady] = useState<Check | null>(remembered?.lastReady ?? (kept?.shown?.way === 'by_hand' ? kept.shown : null));
+  // the sheet of choices open (what it is, or more about it): the next answer is asked for once it is closed
+  const [sheet, setSheet] = useState<Choosing>(null);
+  const choosing = sheet !== null;
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const changeButton = useRef<HTMLButtonElement>(null);
+  const [answered, setAnswered] = useState<string | null>(kept?.checked ?? null);
 
   // How the check is getting on: asked every moment until it is answered (more slowly while Nines cannot be reached
   // for a moment), never while the page is hidden, and never again once answered. The check the server sent back
@@ -99,7 +115,7 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   const demo = profile === 'demo';
 
   // a wish loaded after the panel opened fills in the form, unless the owner has started on it
-  const filledFrom = useRef<string | null>(remembered || !wish ? wishId : null);
+  const filledFrom = useRef<string | null>(remembered || kept || !wish ? wishId : null);
   useEffect(() => {
     if (wish && filledFrom.current !== wish.id) {
       filledFrom.current = wish.id;
@@ -108,8 +124,26 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   }, [wish]);
 
   useEffect(() => {
-    memory = { profile, wishId, draft, stage };
-  }, [profile, wishId, draft, stage]);
+    memory = { profile, wishId, draft, stage, checked, lastReady };
+  }, [profile, wishId, draft, stage, checked, lastReady]);
+
+  // kept on this device for the rest of the day too, as Today keeps its changes: a reload shows the same
+  const keptReady = stage.kind === 'check' && stage.check.state === 'ready' ? stage.check : lastReady;
+  useEffect(() => {
+    if (!Object.keys(pieceToSend(draft)).length && !keptReady) return;
+    // the description the kept answer is for: a newer one still on its way is sent again after a reload
+    keptCheck(profile).set({ day: localDay(), wish_id: wishId, draft, checked: answered, shown: keptReady });
+  }, [profile, wishId, draft, answered, keptReady]);
+
+  // the last answer to a description by hand, kept on screen while a newer one is worked out
+  const readyByHand = stage.kind === 'check' && stage.check.state === 'ready' && stage.check.way === 'by_hand' ? stage.check : null;
+  // and the description that answer is for (one check runs at a time, so it is the one sent last)
+  useEffect(() => {
+    if (!readyByHand) return;
+    setLastReady(readyByHand);
+    setAnswered(checked);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per answer
+  }, [readyByHand]);
 
   // came back while a check was being sent: pick it up when the server answers
   useEffect(() => {
@@ -132,16 +166,23 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
     void result.then(() => {
       if (sending?.result === result) sending = null;
     });
-    memory = { profile, wishId, draft, stage: { kind: 'sending' } };
+    memory = { profile, wishId, draft, stage: { kind: 'sending' }, checked, lastReady };
     setStage({ kind: 'sending' });
     setWished(false);
   }
 
-  function byHand(e: FormEvent) {
-    e.preventDefault();
-    if (stillToChoose(draft)) return;
-    start(() => api.checkByHand(pieceToSend(draft)));
-  }
+  // By hand, the answer comes as soon as the kind and the colour are known, and again each time more is said: no
+  // button to press. One check at a time; the next follows once it is answered.
+  const running = stage.kind === 'sending' || (stage.kind === 'check' && !isDone(stage.check.state));
+  const next = nextCheck(draft, { checked, busy: running, choosing, locked });
+  const nextKeyed = next ? checkKey(next) : null;
+  useEffect(() => {
+    if (!nextKeyed) return;
+    const piece = JSON.parse(nextKeyed) as Partial<WouldPiece>;
+    setChecked(nextKeyed);
+    start(() => api.checkByHand(piece));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once for each new description, as `start` reads the rest
+  }, [nextKeyed]);
 
   function photo(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -150,7 +191,13 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   }
 
   function again(keep: boolean) {
-    if (!keep) setDraft(pieceFromWish(wish));
+    if (!keep) {   // a new one: what was kept of the last is forgotten
+      keptCheck(profile).set(null);
+      setDraft(pieceFromWish(wish));
+      setLastReady(null);
+      setAnswered(null);
+    }
+    setChecked(null);
     setStage({ kind: 'form', error: null });
     setWished(false);
   }
@@ -173,21 +220,47 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
     navigate('/add');
   }
 
-  const describe = (stage.kind === 'form' || wide) && (
+  // described by hand and sent: the description is one line, with the rest in sheets, and the answer under it
+  const compact = checked !== null && !stillToChoose(draft);
+  const readyCheck = stage.kind === 'check' && stage.check.state === 'ready' && stage.check.answer ? stage.check : null;
+  const shown = readyCheck ?? (compact ? lastReady : null);
+  const refreshing = shown !== null && shown !== readyCheck;
+  const untold = compact && shown ? untoldWords(JSON.parse(checked ?? '{}') as Partial<WouldPiece>, shown.answer?.piece ?? null, vocab?.formality ?? []) : null;
+
+  const describe = (stage.kind === 'form' || wide || compact) && (
     <Describe draft={draft} setDraft={setDraft} error={stage.kind === 'form' ? stage.error : null} demo={demo} locked={locked}
-      kinds={checkKinds(vocab?.category ?? [])} vocab={vocab} vocabRead={vocabRead} onPhoto={photo} onSubmit={byHand} />
+      kinds={checkKinds(vocab?.category ?? [])} vocab={vocab} vocabRead={vocabRead} onPhoto={photo}
+      compact={compact} again={compact && running && shown !== null} sheet={sheet} onSheet={setSheet}
+      moreButton={moreButton} changeButton={changeButton} />
+  );
+
+  // Led by the answer: under the verdict, what was taken as usual and the two ways to say more (before it while it is
+  // still on its way)
+  const controls = compact && vocab && (
+    <div className="wouldwork-said" data-testid="would-work-said">
+      {untold && <p className="muted wouldwork-small" data-testid="would-work-untold">{untold}</p>}
+      <div className="row">
+        <button ref={changeButton} type="button" className="btn btn-small" aria-haspopup="dialog" aria-expanded={sheet === 'what'}
+          disabled={locked} title={locked ? OFFLINE_TITLE : undefined} onClick={() => setSheet(sheet === 'what' ? null : 'what')}>
+          Change what it is
+        </button>
+        <MoreButton ref={moreButton} open={sheet === 'more'} disabled={locked} onClick={() => setSheet(sheet === 'more' ? null : 'more')} />
+      </div>
+    </div>
   );
 
   const answer = (
     <>
-      {stage.kind === 'form' && wide && (
+      {!shown && stage.kind === 'form' && wide && (
         <EmptyState className="wouldwork-empty" icon={<HangerIcon />} title="The answer shows here"
           body="Whether it fills a gap, what it goes with in your closet, and what you have like it already." />
       )}
 
-      {stage.kind === 'sending' && <Waiting words="Sending…" />}
+      {!shown && stage.kind === 'sending' && <Waiting words="Sending…" />}
 
-      {stage.kind === 'check' && !isDone(stage.check.state) && <Waiting words={waitingWords(stage.check)} />}
+      {!shown && stage.kind === 'check' && !isDone(stage.check.state) && <Waiting words={waitingWords(stage.check)} />}
+
+      {!shown && controls}
 
       {stage.kind === 'check' && stage.check.state === 'failed' && (
         <div className="form-error wouldwork-failed" role="alert">
@@ -203,21 +276,21 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
         </div>
       )}
 
-      {stage.kind === 'check' && stage.check.state === 'ready' && stage.check.answer && (
-        <>
-          <Answer check={stage.check} answer={stage.check.answer} byId={byId} />
+      {shown && shown.answer && (
+        <div className={refreshing ? 'wouldwork-shown is-stale' : 'wouldwork-shown'} aria-busy={refreshing || undefined}>
+          <Answer check={shown} answer={shown.answer} byId={byId} afterVerdict={controls} />
           <div className="row wouldwork-actions">
-            <button className="btn btn-primary" disabled={locked || busy || wished} title={locked ? OFFLINE_TITLE : undefined}
-              onClick={() => void putOnWishlist(stage.check)}>
+            <button className="btn btn-primary" disabled={locked || busy || wished || refreshing} title={locked ? OFFLINE_TITLE : undefined}
+              onClick={() => void putOnWishlist(shown)}>
               {wish
                 ? (wished ? <><CheckIcon /> In the wish's note</> : <><PlusIcon /> Add it to the wish's note</>)
                 : (wished ? <><CheckIcon /> On your wishlist</> : <><PlusIcon /> Put it on my wishlist</>)}
             </button>
             <button className="btn" disabled={locked || busy} title={locked ? OFFLINE_TITLE : 'Opens Add, to photograph it'}
-              onClick={() => void bought(stage.check)}>I bought it</button>
+              onClick={() => void bought(shown)}>I bought it</button>
             <button className="btn btn-ghost" onClick={() => again(false)}>Check another piece</button>
           </div>
-        </>
+        </div>
       )}
     </>
   );
@@ -248,90 +321,142 @@ function Waiting({ words }: { words: string }) {
 
 // ------------------------------------------------------------------ describing the piece
 
-function Describe({ draft, setDraft, error, demo, locked, kinds, vocab, vocabRead, onPhoto, onSubmit }: {
+type Choosing = 'more' | 'what' | null;
+
+/** "More about it": the formality, season, weight, pattern, rain and name, in a sheet. */
+function MoreButton({ ref, open, disabled, onClick }: { ref: Ref<HTMLButtonElement>; open: boolean; disabled: boolean; onClick(): void }) {
+  return (
+    <button ref={ref} type="button" className="btn btn-small" aria-haspopup="dialog" aria-expanded={open}
+      disabled={disabled} title={disabled ? OFFLINE_TITLE : undefined} onClick={onClick}>
+      More about it
+    </button>
+  );
+}
+
+function Describe({ draft, setDraft, error, demo, locked, kinds, vocab, vocabRead, onPhoto, compact, again, sheet, onSheet, moreButton, changeButton }: {
   draft: Partial<WouldPiece>; setDraft(d: Partial<WouldPiece>): void; error: string | null; demo: boolean; locked: boolean;
-  kinds: string[]; vocab: Vocab | null; vocabRead: FailedRead; onPhoto(e: ChangeEvent<HTMLInputElement>): void; onSubmit(e: FormEvent): void;
+  kinds: string[]; vocab: Vocab | null; vocabRead: FailedRead; onPhoto(e: ChangeEvent<HTMLInputElement>): void;
+  /** described by hand and sent: one line, with what it is and the rest each in a sheet */
+  compact: boolean;
+  /** a newer answer is being worked out */
+  again: boolean;
+  /** the sheet open, and the buttons that open them (the page puts them under the verdict once there is one) */
+  sheet: Choosing;
+  onSheet(which: Choosing): void;
+  moreButton: RefObject<HTMLButtonElement | null>;
+  changeButton: RefObject<HTMLButtonElement | null>;
 }) {
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);
   const missing = stillToChoose(draft);
   const set = (key: keyof WouldPiece) => (v: string | null) => setDraft({ ...draft, [key]: v });
   const photoOff = demo || locked;
+  const open = onSheet;
+  const what = vocab && (
+    <>
+      <ChipGroup field="category" title="What kind of piece" options={kinds} value={draft.category} disabled={locked} onChange={set('category')} />
+      <ChipGroup field="color" title="Main colour" options={vocab.color} value={draft.color} disabled={locked} swatches onChange={set('color')} />
+    </>
+  );
+  const more = <MoreButton ref={moreButton} open={sheet === 'more'} disabled={locked || !vocab} onClick={() => open(sheet === 'more' ? null : 'more')} />;
   return (
     <div className="wouldwork-describe">
       {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="wouldwork-photo">
-        <h3 className="chip-group-title">From a photo</h3>
-        <div className="row">
-          <button type="button" className="btn" disabled={photoOff} title={locked ? OFFLINE_TITLE : undefined} onClick={() => camera.current?.click()}>
-            <CameraIcon /> Take a photo
-          </button>
-          <button type="button" className="btn" disabled={photoOff} title={locked ? OFFLINE_TITLE : undefined} onClick={() => library.current?.click()}>
-            <ImagesIcon /> Choose a photo
-          </button>
+      {!compact && (
+        <div className="wouldwork-photo">
+          <h3 className="chip-group-title">From a photo</h3>
+          <div className="row">
+            <button type="button" className="btn" disabled={photoOff} title={locked ? OFFLINE_TITLE : undefined} onClick={() => camera.current?.click()}>
+              <CameraIcon /> Take a photo
+            </button>
+            <button type="button" className="btn" disabled={photoOff} title={locked ? OFFLINE_TITLE : undefined} onClick={() => library.current?.click()}>
+              <ImagesIcon /> Choose a photo
+            </button>
+          </div>
+          <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} data-testid="would-work-camera" />
+          <input ref={library} type="file" accept="image/*,.heic,.heif,.avif" hidden onChange={onPhoto} data-testid="would-work-photo" />
+          <p className="muted wouldwork-small">
+            {demo ? DEMO_PHOTO : 'Claude describes it, as it does a new item. The photo is not added to your closet and is deleted once the answer is ready.'}
+          </p>
         </div>
-        <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} data-testid="would-work-camera" />
-        <input ref={library} type="file" accept="image/*,.heic,.heif,.avif" hidden onChange={onPhoto} data-testid="would-work-photo" />
-        <p className="muted wouldwork-small">
-          {demo ? DEMO_PHOTO : 'Claude describes it, as it does a new item. The photo is not added to your closet and is deleted once the answer is ready.'}
-        </p>
-      </div>
+      )}
 
-      <form className="wouldwork-hand" onSubmit={onSubmit} aria-label="Describe it by hand">
-        <h3 className="wouldwork-or">Or describe it by hand</h3>
-        {vocab ? (
-          <>
-            <ChipGroup field="category" title="What kind of piece" options={kinds} value={draft.category} disabled={locked} onChange={set('category')} />
-            <ChipGroup field="color" title="Main colour" options={vocab.color} value={draft.color} disabled={locked} swatches onChange={set('color')} />
-            <FormalityChips levels={vocab.formality} value={draft.formality} also={draft.formality_also} disabled={locked}
-              onLevel={(v) => setDraft({ ...draft, formality: v, formality_also: null })} onAlso={set('formality_also')} />
-            <ChipGroup field="season" options={vocab.season} value={draft.season} disabled={locked} onChange={set('season')} />
-            <ChipGroup field="weight" title="How heavy the cloth is" options={[...WEIGHTS]} value={draft.weight_class} disabled={locked}
-              labelOf={weightLabel} onChange={set('weight_class')} />
-            <ChipGroup field="pattern" options={vocab.pattern} value={draft.pattern} disabled={locked} onChange={set('pattern')} />
-            <label className="toggle wouldwork-rain">
-              <span className="toggle-text">
-                <span className="toggle-label">It keeps the rain off</span>
-                <span className="hint">A mac, a trench, waxed cotton, a shell…</span>
-              </span>
-              <input type="checkbox" role="switch" checked={!!draft.rain_proof} disabled={locked}
-                onChange={(e) => setDraft({ ...draft, rain_proof: e.target.checked })} />
-              <span className="toggle-track" aria-hidden="true"><span className="toggle-thumb" /></span>
-            </label>
-            <label className="field">
-              <span>Name <span className="muted">(optional)</span></span>
-              <input value={draft.name ?? ''} maxLength={120} disabled={locked} placeholder="e.g. Tan trench coat"
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-            </label>
-          </>
-        ) : vocabRead.error ? <Failed query={vocabRead} what="the words to describe a piece" />
-          : <div className="missing-skeleton missing-skeleton-small" aria-hidden="true" />}
-        <div className="row">
-          <button className="btn btn-primary" type="submit" disabled={locked || !!missing || !vocab} title={locked ? OFFLINE_TITLE : undefined}>
-            Would it work?
-          </button>
-          {missing && <span className="muted wouldwork-small">{missing}</span>}
-        </div>
+      <form className="wouldwork-hand" onSubmit={(e) => e.preventDefault()} aria-label="Describe it by hand">
+        {!vocab ? (vocabRead.error ? <Failed query={vocabRead} what="the words to describe a piece" />
+          : <div className="missing-skeleton missing-skeleton-small" aria-hidden="true" />)
+          : compact ? (
+            <div className="wouldwork-line" data-testid="would-work-piece">
+              <p className="wouldwork-line-what">
+                <strong>{pieceLine(draft)}</strong>
+                {again && <span className="wouldwork-again" role="status"><span className="spinner" aria-hidden="true" /> Checking again…</span>}
+              </p>
+            </div>
+          ) : (
+            <>
+              <h3 className="wouldwork-or">Or describe it by hand</h3>
+              {what}
+              <div className="row wouldwork-hand-end">
+                {more}
+                {missing && <span className="muted wouldwork-small">{missing}</span>}
+              </div>
+            </>
+          )}
       </form>
+
+      {sheet === 'what' && vocab && (
+        <Sheet title="What it is" popover keep={changeButton} className="wouldwork-sheet" testId="would-work-what" onClose={() => open(null)}>
+          {what}
+        </Sheet>
+      )}
+      {sheet === 'more' && vocab && (
+        <Sheet title="More about it" popover keep={moreButton} className="wouldwork-sheet" testId="would-work-more" onClose={() => open(null)}>
+          <FormalityChips levels={vocab.formality} value={draft.formality} also={draft.formality_also} disabled={locked}
+            onLevel={(v) => setDraft({ ...draft, formality: v, formality_also: null })} onAlso={set('formality_also')} />
+          <ChipGroup field="season" options={vocab.season} value={draft.season} disabled={locked} onChange={set('season')} />
+          <ChipGroup field="weight" title="How heavy the cloth is" options={[...WEIGHTS]} value={draft.weight_class} disabled={locked}
+            labelOf={weightLabel} onChange={set('weight_class')} />
+          <ChipGroup field="pattern" options={vocab.pattern} value={draft.pattern} disabled={locked} onChange={set('pattern')} />
+          <label className="toggle wouldwork-rain">
+            <span className="toggle-text">
+              <span className="toggle-label">It keeps the rain off</span>
+              <span className="hint">A mac, a trench, waxed cotton, a shell…</span>
+            </span>
+            <input type="checkbox" role="switch" checked={!!draft.rain_proof} disabled={locked}
+              onChange={(e) => setDraft({ ...draft, rain_proof: e.target.checked })} />
+            <span className="toggle-track" aria-hidden="true"><span className="toggle-thumb" /></span>
+          </label>
+          <label className="field">
+            <span>Name <span className="muted">(optional)</span></span>
+            <input value={draft.name ?? ''} maxLength={120} disabled={locked} placeholder="e.g. Tan trench coat"
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          </label>
+        </Sheet>
+      )}
     </div>
   );
 }
 
 // ------------------------------------------------------------------ the answer
 
-function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; byId: Map<string, ItemSummary> }) {
+function Answer({ check, answer, byId, afterVerdict }: {
+  check: Check; answer: WouldAnswer; byId: Map<string, ItemSummary>;
+  /** by hand: what was taken as usual and the ways to say more, straight under the verdict */
+  afterVerdict?: ReactNode;
+}) {
   const tone = verdictTone(answer.verdict);
   const [view, setView] = useTodayView();
   const counted = answer.fills.filter((f) => f.found_by.some((w) => w !== 'worn_most'));
   return (
-    <div className="wouldwork-answer" data-testid="would-work-answer" data-verdict={answer.verdict}>
+    <div className="wouldwork-answer" data-testid="would-work-answer" data-verdict={answer.verdict} data-piece={check.piece_words ?? undefined}>
       <div className={`wouldwork-verdict is-${tone}`}>
         {tone === 'caution' ? <WarnIcon /> : tone === 'good' ? <CheckIcon /> : <HangerIcon />}
         <div>
           <h3 data-testid="verdict">{answer.verdict_words}</h3>
-          {check.piece_words && <p className="wouldwork-piece">{check.way === 'photo' ? 'Claude saw: ' : ''}{check.piece_words}</p>}
+          {/* by hand, the line above already names the piece; from a photo, what Claude saw is said here once */}
+          {check.piece_words && check.way === 'photo' && <p className="wouldwork-piece">Claude saw: {check.piece_words}</p>}
         </div>
       </div>
+      {afterVerdict}
       <ul className="gap-why wouldwork-reasons" aria-label="Why">
         {answer.reasons.map((r) => <li key={r}>{r}</li>)}
       </ul>

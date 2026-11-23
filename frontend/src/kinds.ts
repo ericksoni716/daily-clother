@@ -1,3 +1,4 @@
+import { whatName } from './look';
 import type { ItemSummary } from './types';
 
 /** A kind from the owner's taxonomy: an oxford shirt, a fleece pullover, a chelsea boot. */
@@ -58,9 +59,10 @@ export function groupTitle(groups: KindGroup[] | undefined, id: string | null | 
   return groups?.find((g) => g.id === id)?.title ?? '';
 }
 
-/** "Fleece pullover · Activewear"; an item with no kind yet shows its group alone. */
-export function kindLine(item: Pick<ItemSummary, 'kind_name' | 'group'>, groups: KindGroup[] | undefined): string {
-  return [item.kind_name, groupTitle(groups, item.group)].filter(Boolean).join(' · ');
+/** "Fleece pullover · Activewear"; an item with no kind yet is what its category says ("Polo · Tees & polos"), the
+ * word the summary line under its name uses. */
+export function kindLine(item: Pick<ItemSummary, 'kind_name' | 'category' | 'group'>, groups: KindGroup[] | undefined): string {
+  return [whatName(item), groupTitle(groups, item.group)].filter(Boolean).join(' · ');
 }
 
 /** The small drawing of a kind, in the item's colour when it has one. */

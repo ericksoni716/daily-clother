@@ -14,6 +14,11 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The Wardrobe made short, Your nines, what your clothes cost you** (23 November; DECISIONS, "The Wardrobe made
+  short"). Left: the Not worn pieces are still a row that scrolls sideways with Archive and Keep under each; `worn_most`
+  stays in the insights answer though no screen shows it (old saved copies, and taste reads its own); the unused
+  helpers `unwornHero`, `wornMostHero` and `costCaption` in `insights.ts` are kept with their tests; the price banner
+  and You might like are most of the first screen and the page's words (not touched here).
 - **Wears, laundry and trips after the logic review** (23 November; DECISIONS, Stop C, "What is in
   the bag", "A trip under way", "Loungewear and sport on a trip"). A wear filled in for a day before
   a laundry day counts as washed only from the wears of the week before that laundry day; wears
@@ -213,8 +218,9 @@ only here); take a line out when it is done.
   Left:
   - Reading load (the phone check's count at 393px, demo closet): Today about 500 words on the
     page (its first screen is within budget; the reasons in "Why this works" and the
-    conversation make most of it), the Wardrobe about 470 (from about 720 for What's missing
-    plus 470 for Insights), a saved trip about 370. Settings, Add and the rest are within it.
+    conversation make most of it), the Wardrobe about 265 and 3,000px since 23 November (from
+    about 500 and 4,900px; before Four places, about 720 for What's missing plus 470 for
+    Insights), a saved trip about 370. Settings, Add and the rest are within it.
     The check warns but does not fail yet.
   - Occasion and mood are still two rows of chips above the outfit; the assessment's one
     compact control ("Casual · As usual ▾") is not done. "Tell Claude" is still a box under the
@@ -466,9 +472,9 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 
 **The wardrobe**
 - [x] **On sale now** (step 5 of "Finding clothes you might like").
-- [ ] **Your nines** (the owner's idea): the nine pieces worn most, three by three.
-- [ ] **What your clothes cost you**: what you spent by year from prices and dates, what the wishlist would cost, and the pieces that have earned their price.
-- [ ] **Worth buying, folded**: each card a title, how much it helps and one line, opening on a tap.
+- [x] **Your nines** (the owner's idea): the nine pieces worn most, three by three.
+- [x] **What your clothes cost you**: what you spent by year from prices and dates, what the wishlist would cost, and the pieces that have earned their price.
+- [x] **Worth buying, folded**: each card a title, how much it helps and one line, opening on a tap.
 - [ ] **A find's pattern is drawn**, so a striped shirt in "See it with your clothes" is striped.
 
 **Trips**

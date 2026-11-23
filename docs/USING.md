@@ -277,15 +277,20 @@ again (Undo does not), until the pieces are added.
 
 `/wardrobe`. What to buy and how your clothes are used, on one page. **Worth buying**: what
 the closet lacks, found by rule from the clothes, the wears, where you live and how you live,
-the three most helpful first and "See all N" for the rest; each with why, what to look for,
-your pieces it is based on, "Search Google Shopping" (opens Google Shopping in your browser,
-searching for "men's", the first colour and the kind of piece, nothing else), "I'll look for
-this" (onto the wishlist) and "Not for me" (hide it, and optionally similar ones). "Based on…" opens How you live, the same questions as
-Settings; once the closet has enough to suggest from and they are not answered, "Tell it how
-you live" offers them. What holds suggestions back, the days you ruled out and what you hid
-are folded at the end of the section. Swim trunks, shoes made for one sport (tennis, golf,
-studded boots) and what you wear at home (pyjamas, lounge pants, robes) are not counted there:
-a pair of tennis shoes never stands in for everyday sneakers, nor lounge pants for trousers. **You might like**: three things Claude found on sale from what you wear and love,
+the three most helpful first and "See all N" for the rest. Each is a closed card: its name, how
+much it helps ("Helps a lot") and one line of why. A tap anywhere on its head opens it in place
+(nothing above it moves) to every reason (one sentence, then "Why, day by day"), what to look
+for with its colours, your pieces it is based on, "Search Google Shopping" (opens Google Shopping
+in your browser, searching for "men's", the first colour and the kind of piece, nothing else),
+"I'll look for this" and "Not for me" (hide it, and optionally similar ones). "I'll look for
+this" puts it on the wishlist and leaves the card where it is, saying "On your wishlist" with
+**Undo** (closed, the card says "On your wishlist" instead of its line of why). "Based on…" opens
+How you live, the same questions as Settings; once the closet has enough to suggest from and they
+are not answered, "Tell it how you live · 1 minute" offers them, with Not now. What holds
+suggestions back, the days you ruled out and what you hid are folded at the end of the section.
+Swim trunks, shoes made for one sport (tennis, golf, studded boots) and what you wear at home
+(pyjamas, lounge pants, robes) are not counted there: a pair of tennis shoes never stands in for
+everyday sneakers, nor lounge pants for trousers. **You might like**: three things Claude found on sale from what you wear and love,
 not from a gap, each with the shop's picture (a hanger until there is one), its name (which
 opens the shop's page in your browser), the shop and price, one line from the closet ("Goes
 with 6 of your pieces."), **Save** (onto the wishlist, with the product as its first find, so
@@ -313,13 +318,24 @@ on the wish, so its page shows the drop. Before the first look, with no shops na
 for them too, on another day than the other look, and reads each sale's page again once a day; a
 sale that ended leaves the card. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
 and a **Wishlist** row that opens the wishlist, saying how many things are on it ("3 things", or
-"Nothing on it yet") and, when prices went down, how many ("2 prices went down"). **Not worn**:
-pieces never worn and pieces not worn for a long time in their season, each to Archive or Keep
-(never swim trunks, sport shoes or what you wear at home; after months with nothing recorded it
-says so instead of listing everything).
-**Worn most**: over the last 30 or 90 days or all time.
-**More numbers**, folded: how wears are spread in each kind of clothing, what the closet is
-made of, and cost per wear for pieces with a price. A piece opens in the Wardrobe
+"Nothing on it yet") and, when prices went down, how many ("2 prices went down"). **Your nines**: the
+nine pieces you wore most over the last 30 days, 90 days or all time (it opens on the first with
+nine), as a square of three by three of their pictures (photos or drawings, as Settings says),
+each with how many times you wore it and opening the piece. Everything you wore counts, lounge
+pants and tennis shoes too. With fewer than nine it shows those and says how many; with nothing
+recorded it says so. **Not worn**: pieces never worn, each to Archive or Keep, under one sentence
+that says how many and since when; pieces not worn for a long time in their season are listed
+under it only when there are some (never swim trunks, sport shoes or what you wear at home; after
+months with nothing recorded it says so instead of listing everything). Then one line on what
+your clothes cost you: what you spent this year and on how many pieces, from each piece's price
+and date bought, once at least three pieces have both; until then how many pieces have no price
+yet (or a price and no date bought), with a link to the piece you wear most, where both are
+filled in. **More numbers**, folded: how wears are spread in each kind of clothing, what the
+closet is made of, and **What your clothes cost you**: what you spent each year, the closet's cost
+per wear, the pieces that have earned their price (worn three times or more, the least per wear
+first) and those that have not yet (a price and fewer than three wears), and what the wishlist
+would cost at today's prices, said separately for each currency when shops price in more than
+one. A piece opens in the Wardrobe
 (`/wardrobe/item/<id>`; beside the page on a computer), with "‹ Wardrobe". Offline, it shows
 what it last found, marked as saved earlier.
 

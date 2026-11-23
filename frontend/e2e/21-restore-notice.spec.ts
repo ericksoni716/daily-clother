@@ -18,8 +18,10 @@ test('a restore put right at start-up is told once, on every screen, until OK', 
   });
   await goToCloset(page);
   const banner = page.getByTestId('restore-notice');
-  await expect(banner).toContainText(message);
+  // told after the closet was drawn, it waits for the next screen rather than pushing this one down
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
+  await expect(banner).toContainText(message);
+  await page.locator('nav.sidebar').getByRole('link', { name: 'Closet' }).click();
   await expect(banner).toBeVisible();
   expect(await axeViolations(page)).toEqual([]);
 

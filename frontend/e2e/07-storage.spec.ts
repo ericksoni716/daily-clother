@@ -22,7 +22,7 @@ test('settings show how much space the demo closet takes, on the Advanced screen
   // the breakdown is folded under the one line
   await expect(section.getByText('Photos', { exact: true })).toBeHidden();
   await section.getByText('What takes the space').click();
-  for (const row of ['Photos', 'Cutouts', 'Thumbnails', 'Backups on this computer', 'Background-removal model', 'Everything else']) {
+  for (const row of ['Photos', 'Cutouts', 'Thumbnails', 'Backups on this computer', 'Cutting the clothes out of photos', 'Everything else']) {
     await expect(section.getByText(row, { exact: true })).toBeVisible();
   }
 });

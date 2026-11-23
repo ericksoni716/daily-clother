@@ -196,19 +196,19 @@ describe('the two background-removal models, a line each', () => {
   it('says what each is for and that it is ready', () => {
     const lines = modelLines(m({ second: m({ name: 'u2net' }) }));
     expect(lines.map((l) => [l.id, l.tone, l.text, l.action])).toEqual([
-      ['main', 'ok', 'The main model cuts out every photo. It is ready.', null],
-      ['second', 'ok', 'The second model is asked as well for stripes and checks. It is ready.', null],
+      ['main', 'ok', 'The first set of files cuts the clothes out of every photo. It is ready.', null],
+      ['second', 'ok', 'The second set is asked as well, for stripes and checks. It is ready.', null],
     ]);
   });
 
   it('says how far a download has got', () => {
     const [, second] = modelLines(m({ second: m({ state: 'downloading', downloaded_bytes: 44_000_000, total_bytes: 175_997_641 }) }));
     expect(second).toMatchObject({ tone: 'waiting', action: null,
-      text: 'The second model is asked as well for stripes and checks. It is downloading: 44 MB of 176 MB.' });
+      text: 'The second set is asked as well, for stripes and checks. It is downloading: 44 MB of 176 MB.' });
     const [first] = modelLines(m({ state: 'downloading', downloaded_bytes: 3_000_000, total_bytes: null }));
-    expect(first.text).toBe('The main model cuts out every photo. It is downloading: 3 MB so far.');
+    expect(first.text).toBe('The first set of files cuts the clothes out of every photo. It is downloading: 3 MB so far.');
     expect(modelLines(m({ state: 'downloading', downloaded_bytes: 0, total_bytes: null }))[0].text)
-      .toBe('The main model cuts out every photo. It is downloading.');
+      .toBe('The first set of files cuts the clothes out of every photo. It is downloading.');
   });
 
   it('offers Try again with the reason when a download failed, and Download when it never started', () => {
@@ -216,11 +216,11 @@ describe('the two background-removal models, a line each', () => {
       state: 'failed', downloaded_bytes: 0, total_bytes: null, error: 'Could not reach the download server.',
       second: m({ state: 'missing', downloaded_bytes: 0, total_bytes: null }),
     }));
-    expect(first).toMatchObject({ tone: 'problem', action: 'retry', actionLabel: 'Try downloading the main model again',
-      text: "The main model cuts out every photo. It didn't download. Could not reach the download server." });
-    expect(second).toMatchObject({ tone: 'quiet', action: 'download', actionLabel: 'Download the second model',
-      text: "The second model is asked as well for stripes and checks. It isn't downloaded yet." });
-    expect(modelLines(m({ state: 'failed', error: null }))[0].text).toBe("The main model cuts out every photo. It didn't download.");
+    expect(first).toMatchObject({ tone: 'problem', action: 'retry', actionLabel: 'Try downloading the first set again',
+      text: "The first set of files cuts the clothes out of every photo. It didn't download. Could not reach the download server." });
+    expect(second).toMatchObject({ tone: 'quiet', action: 'download', actionLabel: 'Download the second set',
+      text: "The second set is asked as well, for stripes and checks. It isn't downloaded yet." });
+    expect(modelLines(m({ state: 'failed', error: null }))[0].text).toBe("The first set of files cuts the clothes out of every photo. It didn't download.");
   });
 
   it('shows one line when the server has no second model', () => {

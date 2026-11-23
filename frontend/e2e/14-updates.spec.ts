@@ -96,9 +96,10 @@ test('updates (stand-in): the banner offers the new version, Install restarts Ni
 
   await goToCloset(page);
   const banner = page.getByTestId('update-banner');
+  // what Nines says after a screen opened waits for the next screen (DECISIONS, "Banners wait for the next screen")
+  const section = await openUpdates(page);
   await expect(banner).toContainText('Nines 0.3.0 is ready');
 
-  const section = await openUpdates(page);
   await expect(section.getByTestId('update-available')).toHaveText('Nines 0.3.0 is ready to install.');
   // the notes start folded; opened, their headings, lists and bold are drawn, and HTML in them stays text
   const notes = section.getByTestId('update-notes');

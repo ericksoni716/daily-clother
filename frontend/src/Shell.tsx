@@ -63,7 +63,7 @@ export function Shell({ version }: { version: string }) {
       <a className="skip-link" href="#main">Skip to content</a>
       <Sidebar place={place} offline={offline} toReview={toReview} />
       <div className="shell-main">
-        <TopBanners />
+        <TopBanners screen={path} wishId={route.name === 'wardrobe' ? route.wish ?? null : null} />
         <main id="main" className="shell-content" tabIndex={-1}><ErrorBoundary resetKey={path}>{content}</ErrorBoundary></main>
       </div>
       <TabBar place={place} offline={offline} toReview={toReview} />
@@ -77,16 +77,18 @@ function Landing({ path }: { path: string }) {
   return null;
 }
 
-function TopBanners() {
+/** What is said above every screen. Each holds still while you read: what arrives after a screen opened is shown from
+ * the next screen on (`useAsOpened`; DECISIONS, "Banners wait for the next screen"). */
+function TopBanners({ screen, wishId }: { screen: string; wishId: string | null }) {
   const { offline, profile, switchProfile, toast } = useApp();
   const [busy, setBusy] = useState(false);
   useUpdateStatus(offline);
   return (
     <>
       <Restarting />
-      <UpdateBanner offline={offline} toast={toast} />
-      <PriceNewsBanner offline={offline} toast={toast} />
-      <RestoreNotice offline={offline} toast={toast} />
+      <UpdateBanner offline={offline} toast={toast} screen={screen} />
+      <PriceNewsBanner offline={offline} toast={toast} screen={screen} wishId={wishId} />
+      <RestoreNotice offline={offline} toast={toast} screen={screen} />
       {offline && (
         <div className="banner banner-offline" role="status">
           <CloudOffIcon />

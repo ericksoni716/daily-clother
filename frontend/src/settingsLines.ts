@@ -3,7 +3,8 @@
  * line each, and which groups a phone and a computer are shown. Pure, so each case has a test; the page only lays
  * these out. Everything that changes them is on the Advanced screen (`screens/Advanced.tsx`).
  */
-import { formatDateTime, formatSize } from './labels';
+import { formatSize } from './labels';
+import { whenAt } from './wears';
 import { formatUsd } from './spend';
 import type { ModelInfo, Profile, Settings, TaggingSpend, TaggingStatus } from './types';
 import { availableLine, busyLine, lastInstallLine, type UpdateStatus } from './updates';
@@ -127,9 +128,9 @@ export function backupLine(s: BackupSettings, profile: Profile, device: Device):
   }
   const last = s.last_backup;
   if (last && !last.ok) {
-    return { tone: 'problem', text: `The last backup didn't work (${formatDateTime(last.at)})${last.error ? `: ${last.error}` : '.'}`, action: null };
+    return { tone: 'problem', text: `The last backup didn't work (${whenAt(last.at)})${last.error ? `: ${last.error}` : '.'}`, action: null };
   }
-  const when = s.last_good_backup ? `last good backup ${formatDateTime(s.last_good_backup)}` : 'no backup yet';
+  const when = s.last_good_backup ? `last good backup ${whenAt(s.last_good_backup)}` : 'no backup yet';
   return { tone: 'ok', text: `Backed up every day to ${s.backup_folder} · ${when}.`, action: null };
 }
 
@@ -188,11 +189,11 @@ export interface ModelLine extends Line {
 }
 
 const MODEL_ROLE = {
-  main: 'The main model cuts out every photo.',
-  second: 'The second model is asked as well for stripes and checks.',
+  main: 'The first set of files cuts the clothes out of every photo.',
+  second: 'The second set is asked as well, for stripes and checks.',
 } as const;
 
-const MODEL_NAME = { main: 'the main model', second: 'the second model' } as const;
+const MODEL_NAME = { main: 'the first set', second: 'the second set' } as const;
 
 /**
  * The two background-removal models, one line each (Advanced → Background removal): what each is for and how it

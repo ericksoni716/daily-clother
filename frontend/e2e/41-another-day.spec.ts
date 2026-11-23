@@ -198,6 +198,28 @@ test('the outfit heading never breaks inside its words, and a day ahead\'s weath
   }
 });
 
+test('at 320 the planned mark and Remove the plan never overlap', async ({ page }) => {
+  // in a picture of the demo's planned day at 320, "Planned" once read "Plannec" under the button's edge
+  await openDemo(page);
+  await page.setViewportSize({ width: 320, height: 568 });
+  const day = localDay(2);
+  await page.request.put(`/api/plans/${day}`, { data: { pieces: await firstOutfit(page) } });
+  await page.goto(`/today/day/${day}`);
+  // the word as drawn, not its box: a box can shrink while its word runs on under the button
+  const mark = await current(page).getByTestId('planned-day').evaluate((el) => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const b = r.getBoundingClientRect();
+    return { x: b.x, y: b.y, width: b.width, height: b.height };
+  });
+  const remove = (await current(page).getByRole('button', { name: 'Remove the plan' }).boundingBox())!;
+  const apart = mark.x + mark.width <= remove.x || remove.x + remove.width <= mark.x
+    || mark.y + mark.height <= remove.y || remove.y + remove.height <= mark.y;
+  expect(apart).toBe(true);
+  const card = (await current(page).boundingBox())!;
+  expect(mark.x + mark.width).toBeLessThanOrEqual(card.x + card.width);
+});
+
 test('a planned piece that is away is swapped without moving the outfit, and a piece due back first is counted on in one line', async ({ page }) => {
   await openDemo(page);
   const day = localDay(2);

@@ -128,7 +128,7 @@ test('would this work?: leaving while the check is being sent and coming back pi
   await page.unroute('**/api/would-this-work');
 });
 
-test('would this work? on a phone: a full page, a fourth pair of jeans you have already, and I found one from a wish', async ({ page }) => {
+test('would this work? on a phone: a full page, a fourth pair of jeans you have already, and checking a find from a wish', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openMissing(page);
   await page.getByRole('link', { name: 'Would this work?' }).click();
@@ -161,7 +161,7 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   // back from the check, the lists are asked for again: the wish shows without reloading the page
   await page.locator('.wouldwork-back').click();
   await page.getByTestId('wish-row').first().click();
-  await page.getByTestId('wish').getByRole('button', { name: 'I found one: would it work?' }).click();
+  await page.getByTestId('wish').getByRole('button', { name: 'Would it go with my clothes?' }).click();
   await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
   const fromWish = page.getByTestId('would-work');
   await expect(fromWish).toContainText(`Checking a find for ${rain.name}`);

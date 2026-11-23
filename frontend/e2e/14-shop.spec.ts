@@ -32,12 +32,26 @@ test.describe('shopping for a wish', () => {
     await expect(page.getByRole('heading', { name: 'A tan rain coat', level: 1 })).toBeVisible();
     await expect(wish).toBeVisible();
 
-    // a price range, said to Claude when it searches
-    await wish.getByRole('button', { name: 'Set one' }).click();
-    const range = wish.getByRole('form', { name: 'Price range' });
-    await range.getByLabel('To').fill('200');
-    await range.getByRole('button', { name: 'Save price range' }).click();
-    await expect(wish).toContainText('Price range: Up to $200.00');
+    // nothing watched yet: the price is offered where Claude is asked to look
+    const price = wish.getByTestId('wish-price');
+    await expect(price).toContainText('Claude looks at any price.');
+    // the most you'd pay, in a sheet over the page: one amount and its currency, and no lower limit
+    await price.getByRole('button', { name: "Set the most you'd pay" }).click();
+    const sheet = page.getByTestId('price-sheet');
+    await expect(sheet.getByRole('heading', { name: "The most you'd pay" })).toBeVisible();
+    await expect(sheet.getByLabel('From')).toHaveCount(0);
+    await expect(sheet.getByRole('button', { name: 'Clear' })).toHaveCount(0);   // nothing to clear yet
+    await expect(sheet.getByLabel('Currency')).toHaveValue('USD');
+    await sheet.getByLabel('Amount').fill('cheap');
+    await sheet.getByRole('button', { name: 'Save' }).click();
+    await expect(sheet.getByRole('alert')).toHaveText('Type a price as a number, like 80 or 120.50.');
+    await sheet.getByLabel('Amount').fill('200');
+    await sheet.getByRole('button', { name: 'Save' }).click();
+    await expect(sheet).toHaveCount(0);
+    await expect(price).toContainText('Claude looks for ones up to $200.00.');
+    const saved = (await (await page.request.get(backend.url + '/api/wishlist')).json()).wishes
+      .find((w: { name: string }) => w.name === 'A tan rain coat');
+    expect([saved.price_min, saved.price_max, saved.price_currency]).toEqual([null, 200, 'USD']);
 
     await wish.getByTestId('find-some').click();
     await expect(wish.getByRole('status').filter({ hasText: 'Claude is searching shops' })).toBeVisible();
@@ -60,14 +74,32 @@ test.describe('shopping for a wish', () => {
     expect(page.context().pages()).toHaveLength(1);
     expect(await axeViolations(page)).toEqual([]);
 
-    // a price check sees every price lower: the drop is shown
-    await wish.getByTestId('check-prices').click();
+    // what is watched comes first, then one sentence about watching with the price, then looking for more, the note,
+    // and what to do with the wish
+    await expect(wish.getByTestId('wish-price')).toHaveText(
+      "Nines checks the price once a day while it's running and tells you when it goes down to $200.00 or less. Change");
+    const text = await wish.innerText();
+    const order = ['Tan gabardine rain coat', 'Nines checks the price once a day', 'Last checked today', 'Find more', 'Note',
+      'Would it go with my clothes?', 'I bought it', 'Remove from the list'].map((words) => text.indexOf(words));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    await expect(wish).not.toContainText('Nothing is ever bought for you');
+    await expect(wish.getByRole('button', { name: 'Would it go with my clothes?' })).toHaveAttribute('title', /against your closet/);
+
+    // Check now sees every price lower: the drop is shown
+    await wish.getByRole('button', { name: 'Check now' }).click();
     await expect(coat.getByTestId('find-drop')).toHaveText('Was $180.00, now $144.00 (20% less)', { timeout: 30_000 });
     await expect(coat).toContainText('Example Shop · $144.00');
-    await expect(wish).toContainText('Prices last checked');
+    await expect(wish.getByTestId('prices-checked')).toContainText('Last checked today at');
 
-    // a find can be taken off
-    await polo.getByRole('button', { name: 'Remove' }).click();
+    // the price can be changed in the same sheet, and cleared
+    await wish.getByTestId('wish-price').getByRole('button', { name: 'Change' }).click();
+    await expect(sheet.getByLabel('Amount')).toHaveValue('200');
+    await sheet.getByRole('button', { name: 'Clear' }).click();
+    await expect(wish.getByTestId('wish-price')).toContainText('tells you when it goes down. ');
+
+    // watching a find can be stopped
+    await polo.getByRole('button', { name: 'Stop watching' }).click();
     await expect(finds).toHaveCount(1);
 
     // the demo closet never searches, and says why
@@ -114,8 +146,13 @@ test.describe('shopping for a wish', () => {
     expect(await axeViolations(page)).toEqual([]);
 
     // read again a little cheaper: the drop on the wish, then on its row in the wishlist
-    await wish.getByTestId('check-prices').click();
+    await wish.getByRole('button', { name: 'Check now' }).click();
     await expect(find.getByTestId('find-drop')).toHaveText('Was $68.00, now $54.40 (20% less)', { timeout: 30_000 });
+
+    // Would it go with my clothes? starts from the product's name on the page that was sent
+    await wish.getByRole('button', { name: 'Would it go with my clothes?' }).click();
+    await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
+    await expect(page.getByTestId('would-work').getByLabel('Name (optional)')).toHaveValue('Linen camp-collar shirt');
     await page.goto(backend.url + '/wardrobe');
     const row = page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'Linen camp-collar shirt' });
     await expect(row.getByTestId('wish-drop')).toHaveText('Down from $68.00 to $54.40', { timeout: 30_000 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LookFor, Wish } from './gaps';
 import {
-  type Check, checkKinds, checkPoll, POLL_MS, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
+  type Check, checkKinds, checkPoll, POLL_MS, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceFromWish, PIECE_NAME_MAX, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
   wishFrom, wornWords,
 } from './wouldwork';
 
@@ -23,6 +23,18 @@ describe('describing the piece', () => {
     expect(pieceFromLook(look({ material: null, colors: ['navy'] })).color).toBe('navy');
     expect(pieceFromLook(look({ colors: ['navy', 'grey'] })).color).toBeUndefined();
     expect(pieceFromLook(null)).toEqual({});
+  });
+
+  it('starts from a page you sent for the wish with its product’s name, cut at a word to fit', () => {
+    const link = (name?: string) => ({ name, shop: 'Example Shop', price: 68, currency: 'USD', available: true });
+    expect(pieceFromWish({ look_for: null, link: link('Linen camp-collar shirt') })).toEqual({ name: 'Linen camp-collar shirt' });
+    expect(pieceFromWish({ look_for: look(), link: link('Tan trench') })).toEqual({ ...pieceFromLook(look()), name: 'Tan trench' });
+    expect(pieceFromWish({ look_for: look(), link: null })).toEqual(pieceFromLook(look()));
+    expect(pieceFromWish({ look_for: null, link: link() })).toEqual({});
+    expect(pieceFromWish(null)).toEqual({});
+    const long = pieceFromWish({ look_for: null, link: link('Heavyweight garment-dyed linen shirt '.repeat(5)) }).name!;
+    expect(long.length).toBeLessThanOrEqual(PIECE_NAME_MAX);
+    expect(long).toMatch(/shirt…$/);
   });
 
   it('sends only what was chosen', () => {

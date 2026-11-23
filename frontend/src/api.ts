@@ -5,7 +5,7 @@ import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherChe
 import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
-import type { FindsAnswer } from './shop';
+import type { FindsAnswer, PriceNews } from './shop';
 import type { Life } from './life';
 import type { Check, WouldPiece } from './wouldwork';
 import type { FigurePieces } from './figure';
@@ -398,6 +398,11 @@ export const api = {
     request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/link`, { method: 'POST', body: { url } }),
   removeFind: (id: string, findId: string) =>
     request<void>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}`, { method: 'DELETE' }),
+  /** The prices that came down since you last looked at their wish; never in the demo closet. */
+  wishNews: () => request<{ news: PriceNews[] }>('/api/wishlist/news').then((r) => r.news),
+  /** These wishes' news has been seen (their page opened, or the banner dismissed); answers with what news is left. */
+  newsSeen: (wishIds: string[]) =>
+    request<{ news: PriceNews[] }>('/api/wishlist/news/seen', { method: 'POST', body: { wish_ids: wishIds } }).then((r) => r.news),
   // Would this work?: a check starts and answers later; the photo is not kept
   checkByHand: (piece: Partial<WouldPiece>) => request<Check>('/api/would-this-work', { method: 'POST', body: { piece } }),
   checkPhoto: (photo: Blob, filename: string) => {

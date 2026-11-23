@@ -11,11 +11,11 @@ import {
 } from '../gaps';
 import { Button, Card, Fold, SaveStatus, ShowMore, useSaveStatus } from '../components/ui';
 import { swatchOf } from '../labels';
-import { Link, navigate } from '../router';
+import { Link, navigate, wishPath } from '../router';
 import { timeOf } from '../today';
 import type { ItemSummary } from '../types';
 import { activeSituations, lifeSummary, situationLabel, type SituationId } from '../life';
-import { downWords, linkWords } from '../shop';
+import { downWords, linkWords, withinWords } from '../shop';
 import { LinkForm, WishShop } from './Shop';
 
 export const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
@@ -30,9 +30,6 @@ export function savedLists(profile: string): { data: Lists; savedAt: string } | 
   const saved = loadSavedGaps(profile);
   return saved?.gaps ? { data: { gaps: saved.gaps, wishes: saved.wishes ?? [] }, savedAt: saved.saved_at } : null;
 }
-
-/** The page for a wish: its note, its shop finds and prices, and what to do with it. */
-export const wishPath = (id: string) => `/wardrobe/wish/${encodeURIComponent(id)}`;
 
 function basisWords(context: NonNullable<GapsAnswer['context']>): string {
   const { life, climate, taste } = context;
@@ -430,7 +427,12 @@ function WishRow({ wish }: { wish: Wish }) {
       <span className="wish-row-text">
         <span className="wish-row-name">{wish.name}</span>
         <span className="wish-row-more muted">{more}</span>
-        {wish.drop && <span className="wish-row-drop" data-testid="wish-drop">{downWords(wish.drop)}</span>}
+        {wish.drop && (
+          <span className="wish-row-news">
+            <span className="wish-row-drop" data-testid="wish-drop">{downWords(wish.drop)}</span>
+            {withinWords(wish) && <span className="wish-row-within">{withinWords(wish)}</span>}
+          </span>
+        )}
       </span>
       <ChevronIcon aria-hidden="true" />
     </Link>
@@ -464,8 +466,8 @@ function AddWish({ actions, onClose }: { actions: Actions; onClose(): void }) {
   );
 }
 
-/** A wish on its own page: what to look for, its note (saved as you leave the box), shop finds and prices, and what to
- * do with it. */
+/** A wish on its own page: what to look for, what is watched and its price (`WishShop`), looking for more, its note
+ * (saved as you leave the box), and what to do with it. */
 export function WishCard({ wish, actions, onNote, onRemoved }: {
   wish: Wish; actions: Actions;
   /** Saves the note; throws when it could not. */
@@ -499,6 +501,7 @@ export function WishCard({ wish, actions, onNote, onRemoved }: {
         </p>
       )}
       {!wish.gap_id && !wish.link && <p className="wish-look muted">Added by hand</p>}
+      <WishShop wish={wish} locked={actions.locked} onPrice={(w, changes) => actions.savePrice(w, changes)} />
       <div className="field wish-note">
         <label htmlFor={noteId}>Note</label>
         <textarea id={noteId} value={note} rows={2} maxLength={1000} disabled={actions.locked} placeholder="Size, shop, budget…"
@@ -513,14 +516,13 @@ export function WishCard({ wish, actions, onNote, onRemoved }: {
           <SaveStatus state={status.state} onRetry={status.retry} testId="wish-note-status" />
         </div>
       </div>
-      <WishShop wish={wish} locked={actions.locked} onPrice={(w, changes) => actions.savePrice(w, changes)} />
       <div className="row wish-actions">
-        <button className="btn btn-small" disabled={busy || actions.locked} title={title}
-          onClick={() => navigate(`/wardrobe/check/wish/${encodeURIComponent(wish.id)}`)}>I found one: would it work?</button>
+        <button className="btn btn-small" disabled={busy || actions.locked} title={title ?? 'Checks a piece against your closet before you buy it'}
+          onClick={() => navigate(`/wardrobe/check/wish/${encodeURIComponent(wish.id)}`)}>Would it go with my clothes?</button>
         <button className="btn btn-small btn-primary" disabled={busy || actions.locked} title={title ?? 'Takes it off the list and opens Add, to photograph it'}
           onClick={() => void actions.bought(wish)}>I bought it</button>
         <button className="btn btn-small btn-ghost" disabled={busy || actions.locked} title={title}
-          onClick={async () => { if (await actions.remove(wish)) onRemoved(); }}>Remove</button>
+          onClick={async () => { if (await actions.remove(wish)) onRemoved(); }}>Remove from the list</button>
       </div>
     </Card>
   );

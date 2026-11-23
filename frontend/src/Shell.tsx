@@ -19,6 +19,7 @@ import { ReviewBadge, reviewCountText, ReviewScreen, useReviewCount } from './sc
 import { WardrobeScreen } from './screens/Wardrobe';
 import { Restarting, UpdateBanner, useUpdateStatus } from './components/Updates';
 import { RestoreNotice } from './components/RestoreNotice';
+import { PriceNewsBanner } from './components/PriceNews';
 
 /** The Advanced settings: set once and rarely opened, so its code is fetched only when it is. */
 const AdvancedScreen = lazy(() => import('./screens/Advanced').then((m) => ({ default: m.AdvancedScreen })));
@@ -83,6 +84,7 @@ function TopBanners() {
     <>
       <Restarting />
       <UpdateBanner offline={offline} toast={toast} />
+      <PriceNewsBanner offline={offline} toast={toast} />
       <RestoreNotice offline={offline} toast={toast} />
       {offline && (
         <div className="banner banner-offline" role="status">

@@ -78,6 +78,8 @@ export interface Wish {
   price_currency?: string | null;
   found_at?: string | null;
   prices_checked_at?: string | null;
+  /** When you last saw its price news (opened its page, or dismissed the banner). */
+  news_seen_at?: string | null;
   bought_at: string | null;
   created_at: string;
   updated_at: string;

@@ -52,6 +52,8 @@ const SHEETS = [
   { route: '/settings', button: /^(See all lines|Change the lines)$/, sheet: 'style-lines-sheet', name: 'settings-style-lines' },
   { route: ({ itemId }) => `/item/${encodeURIComponent(itemId)}`, fold: 'Details', button: /^Colour:/,
     sheet: 'detail-editor-color', name: 'item-colour' },
+  { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: "Set the most you'd pay",
+    sheet: 'price-sheet', name: 'wish-price' },
 ];
 // A made-up shop's page with a long product name, which the backend's stand-in serves (never the web).
 const SHOP_PAGE = 'https://shop.example/long-name';
@@ -158,6 +160,11 @@ async function setUp(base) {
       throw new Error('The link was not read.');
     };
     await settled();
+    // The demo closet's own drops are news in a copy of it: marked seen, so the banner tells only the link's drop. It
+    // shows on the first screens pictured until the link's page is opened (which marks it seen), and the reading is
+    // counted without it.
+    const { news } = await call('/api/wishlist/news');
+    await call('/api/wishlist/news/seen', 'POST', { wish_ids: news.map((n) => n.wish_id) });
     await call(`/api/wishlist/${encodeURIComponent(linked.id)}/prices`, 'POST');
     await settled();
     // Your style: an answer to a question, a long line of your own, and a message to Claude (the stand-in answers it in

@@ -129,7 +129,7 @@ export function verdictTone(v: Verdict): 'good' | 'caution' | 'plain' {
 
 const RAIN_WORDS = /\b(waterproof|rain|mac|trench|waxed|shell|parka)\b/i;
 
-/** A wish's "look for" as a starting description, so "I found one" opens with it filled in. */
+/** A wish's "look for" as a starting description, so "Would it go with my clothes?" opens with it filled in. */
 export function pieceFromLook(look: LookFor | null | undefined): Partial<WouldPiece> {
   if (!look) return {};
   const out: Partial<WouldPiece> = { category: look.category };
@@ -139,6 +139,18 @@ export function pieceFromLook(look: LookFor | null | undefined): Partial<WouldPi
   if (look.pattern) out.pattern = look.pattern;
   if (look.colors.length === 1) out.color = look.colors[0];
   if (look.material && RAIN_WORDS.test(look.material)) out.rain_proof = true;
+  return out;
+}
+
+/** The longest name a piece described by hand can have (the server's `wouldwork.NAME_MAX`). */
+export const PIECE_NAME_MAX = 120;
+
+/** A wish as the description "Would it go with my clothes?" starts from: what to look for (`pieceFromLook`) and, when
+ * you sent a product's page for it, the product's name from the newest one, cut at a word to fit. */
+export function pieceFromWish(wish: Pick<Wish, 'look_for' | 'link'> | null | undefined): Partial<WouldPiece> {
+  const out = pieceFromLook(wish?.look_for);
+  const name = wish?.link?.name?.trim();
+  if (name) out.name = name.length <= PIECE_NAME_MAX ? name : `${name.slice(0, PIECE_NAME_MAX - 1).replace(/\s+\S*$/, '')}…`;
   return out;
 }
 

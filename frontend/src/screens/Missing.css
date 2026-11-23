@@ -173,16 +173,27 @@
 .wish-row-name { font-weight: var(--weight-label); overflow-wrap: anywhere; }
 .wish-row-more { font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wish-row-more:empty { display: none; }
-.wish-row-drop { justify-self: start; margin-top: 2px; }
+/* a price that went down, and whether it is within the most you'd pay */
+.wish-row-news { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-top: 2px; }
+.wish-row-within { font-size: var(--text-xs); font-weight: var(--weight-label); color: var(--accent); }
 .wish-page { max-width: var(--content-w); min-width: 0; }
 .more-numbers { margin-top: var(--space-2); }
 .missing-side .wardrobe-section { margin: 0; }
 
 /* ---------------------------------------------------------------- shopping for a wish */
-.wish-shop { margin: 4px 0 12px; padding-top: 10px; border-top: 1px solid var(--line); }
-.wish-price { margin: 0 0 8px; font-size: var(--text-sm); }
-.wish-price-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; align-items: end; margin-bottom: 8px; }
-.wish-price-form .row, .wish-price-form .form-error { grid-column: 1 / -1; margin: 0; }
+/* what is watched, with the sentence about watching under it; then looking for more, below a line */
+.wish-watch { margin: 0 0 var(--space-3); }
+.wish-shop { margin: var(--space-1) 0 var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+/* the sentence about the price, and the most you'd pay as a popover under it on a computer */
+.wish-price-line { position: relative; }
+.wish-price { margin: 0 0 var(--space-1); font-size: var(--text-sm); line-height: 1.45; }
+/* a link-style button at the end of a sentence: the sentence's own height and no padding, so the lines keep their
+   spacing and it lines up when it wraps; still 44px to tap (DESIGN, "Motion and touch") */
+.btn.wish-inline-button { min-height: 0; padding: 0; }
+.btn.wish-inline-button::after { inset: -12px 0; }
+.wish-price-sheet .hint { margin: 0 0 var(--space-3); }
+.wish-price-fields { display: grid; grid-template-columns: minmax(0, 1fr) 6rem; gap: var(--space-2); }
+.wish-price-sheet .form-error { margin: 0 0 var(--space-2); }
 .wish-shop-actions { margin-bottom: 6px; }
 .wish-shop-actions .btn svg { width: 16px; height: 16px; }
 .wish-shop-line { margin: 4px 0; font-size: var(--text-sm); line-height: 1.45; }

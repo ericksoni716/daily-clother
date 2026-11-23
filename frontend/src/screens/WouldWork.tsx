@@ -13,7 +13,7 @@ import { useApp } from '../store';
 import { placeLabel, wornOrder } from '../today';
 import type { ItemSummary, Vocab } from '../types';
 import {
-  CANDIDATE_ID, type Check, checkKinds, checkPoll, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords,
+  CANDIDATE_ID, type Check, checkKinds, checkPoll, fillNote, fillWords, isDone, noteFor, pieceFromWish, pieceToSend, stillToChoose, verdictTone, waitingWords,
   WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
 } from '../wouldwork';
 import './WouldWork.css';
@@ -51,7 +51,7 @@ function openingStage(remembered: typeof memory): Stage {
 }
 
 export interface WouldWorkProps {
-  /** The wish it was started from ("I found one: would it work?"), if any. */
+  /** The wish it was started from ("Would it go with my clothes?"), if any. */
   wish: Wish | null;
   wishId: string | null;
   byId: Map<string, ItemSummary>;
@@ -69,7 +69,7 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   const { profile, toast } = useApp();
   const vocab = useVocab();
   const remembered = memory && memory.profile === profile && memory.wishId === wishId ? memory : null;
-  const [draft, setDraft] = useState<Partial<WouldPiece>>(remembered?.draft ?? pieceFromLook(wish?.look_for));
+  const [draft, setDraft] = useState<Partial<WouldPiece>>(remembered?.draft ?? pieceFromWish(wish));
   const [held, setStage] = useState<Stage>(() => openingStage(remembered));
   const [wished, setWished] = useState(() => held.kind === 'check' && wishedChecks.has(held.check.id));
 
@@ -100,7 +100,7 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   useEffect(() => {
     if (wish && filledFrom.current !== wish.id) {
       filledFrom.current = wish.id;
-      setDraft((d) => (Object.keys(pieceToSend(d)).length ? d : pieceFromLook(wish.look_for)));
+      setDraft((d) => (Object.keys(pieceToSend(d)).length ? d : pieceFromWish(wish)));
     }
   }, [wish]);
 
@@ -147,7 +147,7 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   }
 
   function again(keep: boolean) {
-    if (!keep) setDraft(pieceFromLook(wish?.look_for));
+    if (!keep) setDraft(pieceFromWish(wish));
     setStage({ kind: 'form', error: null });
     setWished(false);
   }

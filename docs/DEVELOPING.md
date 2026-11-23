@@ -259,7 +259,9 @@ tests, with a copy of the demo closet as the owner's closet), gives a few things
 opens every screen at 375, 393, 402, 430 and 440px wide, light and once dark, and takes a
 full-page picture of each into `frontend/phone-shots/`, then opens the sheets of Settings → Your
 style (the conversation, every line), an item's Colour row (its colours and the shades of its
-colour), a wish's most you'd pay and its find's checkout code, and pictures those. It fails when a screen is wider than
+colour), a wish's most you'd pay and its find's checkout code, Today's sheets (a piece's choices, and where you are behind
+Change), Worn's (an outfit's choices and Record an outfit) and a packed piece's choices on a trip, and pictures
+those. It fails when a screen is wider than
 the phone or throws an error. `CLOSET_PYTHON` names the Python with the backend's
 requirements, as for the browser tests. A new screen is added to its list of routes.
 

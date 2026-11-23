@@ -14,6 +14,12 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The review of Today, Worn and Trips** (23 November; DECISIONS, "Today's first screen, and a piece's choices in a
+  sheet"). Left: a trip cannot have its temperatures typed when the forecast fails, as Today's can; the rules' and
+  Claude's reasons still write "14°C to 20°C" (the server's sentences, `outfits.py`); with nine or more pieces Today's
+  pieces take a third row and the button can fall under the tab bar on the smallest phone; while Claude
+  chooses on the first visit of a day the rules' outfits stand in under the card and Claude's may be shorter; the
+  trip's day outfit shows four or five to a row only in Pieces, not As worn. Looked at in headless Chromium only.
 - **What you wear at home, and words and dates** (23 November; DECISIONS, What's missing and Insights). Worn most and
   cost per wear still count lounge pants and swim trunks (they were worn; only Not worn leaves them out). "You might
   like" is still told what you have plenty of by kind, lounge pants included, as a reason not to buy more of them.
@@ -424,6 +430,9 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 
 **First, what is already there made right**
 - [ ] **The review's findings** (`docs/assessment/` gets a short report of the two reviews of 23 November, the screens and the rules; the fixes go in small batches, each fault shown with a failing test first).
+- [ ] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
+- [x] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
+- [ ] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
 - [x] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
 - [ ] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
 - [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.

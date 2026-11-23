@@ -66,22 +66,28 @@ losing the connection shows the offline banner as before.
 
 `/today`. The day's weather for the place saved in Settings, an occasion and a mood to
 choose, and outfits to swipe through (or reach by the dots under them), each drawn as worn (or
-laid out as pieces) with "Why this works", which starts with who chose it and, for Claude's,
-its reading of the day, and, when there is something to watch for, "Be aware". The rules
-choose outfits at once; when Claude may choose, its outfits replace them when they arrive,
-and a card says it is choosing. "I'm wearing this" records the outfit and its wears. "Not
-this piece" swaps a piece out, and a piece can be chosen to build around; how is said once,
-under the outfits, behind "Changing an outfit". Change, beside the weather, opens where you
-are and today's temperatures, with "Somewhere else, or out all day?" folded under them: a
-note about the day ("In Lisbon until Friday") changes what is dressed for. Under the outfits
-you can write to Claude about them; it answers, may change the outfits, and may offer
-something to remember, which is kept only when you tap it, with Undo beside it once kept.
+laid out as pieces, four to a row on a phone) with "I'm wearing this" under it, then "Why this
+works", which starts with who chose it and, for Claude's, its reading of the day, and, when
+there is something to watch for, "Be aware". On the smallest iPhone the first screen holds an
+outfit of five pieces and its button. The rules choose outfits at once; when Claude may choose,
+the outfits on the page stay there, dimmed, under a card saying Claude is choosing, until its
+outfits replace them ("Show Nines' own picks meanwhile" lets you use the rules' outfits). "I'm
+wearing this" records the outfit and its wears, and ends building around a piece. A piece's ⋯
+opens a sheet with "Not this piece", which swaps it out, and "Build around this piece"; both
+are kept for the rest of the day, and how is said once, under the outfits, behind "Changing an
+outfit". When the weather cannot be fetched, one line says so, with Try again and Type
+temperatures. Change, beside the weather, opens a sheet, Where you are, with today's
+temperatures and "Somewhere else, or out all day?" folded under them: a note about the day
+("In Lisbon until Friday") changes what is dressed for. Under the outfits you can write to
+Claude about them; it answers, may change the outfits, and may offer something to remember,
+which is kept only when you tap it, with Undo beside it once kept.
 
 Below that, when a trip starts within two weeks (or is under way), a "Packing for a trip?"
 row opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
-outfit went; then the last outfits you wore (three on a phone, a week's worth on a
-computer), each with its pieces and how it went, rated in place, saying "Saving…" and
-"Saved" as it saves; "See all" opens Worn. The page ends with a link to Trips. Tapping a
+outfit went, with every piece of it under the question; then the last outfits you wore (three
+on a phone, a week's worth on a computer), each with its pieces and how it went, rated in place,
+saying "Saving…" and "Saved" as it saves; the reasons offered follow the rating. "See all" opens
+Worn. The page ends with a link to Trips. Tapping a
 piece opens it (`/today/item/<id>`).
 
 Temperatures can be typed when the forecast cannot be fetched. The demo closet's outfits are
@@ -94,10 +100,12 @@ sport is clean, an athletic day's outfit says which pieces are a makeshift.
 ## Worn
 
 `/today/worn`, from "See all" under Recent outfits; "‹ Today" goes back. The outfits you
-wore, newest first, each with its pieces, how it went (a rating and a note), and, behind ⋯,
-"Wear this again" (Today keeps the pieces you can wear today, and fills the place of one in the
-wash or waiting to be mended), a way to put its pieces in the laundry, and Remove. "Record an outfit"
-adds one by hand from pieces.
+wore, newest first, each with its pieces, how it went (a rating and a note), and, behind ⋯ in
+a sheet, "Wear this again" (Today keeps the pieces you can wear today, and fills the place of one
+in the wash or waiting to be mended), a way to put its pieces in the laundry, and Remove. A piece
+opens at `/today/worn/item/<id>`, and "‹ Worn" goes back to where you were. "Record an outfit"
+opens a sheet with the day, a search, and your pieces in four groups (tops, bottoms, shoes and
+extras), the ones worn most recently first; choose two or more and record them.
 
 ## Trips
 
@@ -112,9 +120,11 @@ and your choice is kept when the trip is planned again. While it is on, your swi
 packed under **For swimming**, one pair for a trip of up to a week and two for a longer one,
 never worn in a day's outfit; with none in your closet the trip says so there. Tennis shoes,
 golf shoes and studded boots are packed only when you choose "I want to take this", with the
-shoes, and are worn on no day. A saved trip is
-a packing list to tick off, on the computer or the phone, with its choices under "Change the
-trip".
+shoes, and are worn on no day. What to pack comes first, under the weather: the days with
+something to watch for are one line that opens, and a forecast that could not be had is said
+once. A packed piece's ⋯ opens a sheet with "Not this one" and "See it". Each day's outfit shows
+up to five pieces in a row. A saved trip is a packing list to tick off, on the computer or the
+phone, with its choices under "Change the trip".
 
 ## Closet
 

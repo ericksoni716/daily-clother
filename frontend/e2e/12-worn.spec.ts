@@ -282,4 +282,25 @@ test('worn on a phone: the choices and Record an outfit open in sheets, and a pi
   await expect(cards(page).first()).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(Math.max(0, y - 80));
   expect(tabbar.y).toBeGreaterThan(0);
+
+  // "How was yesterday's outfit?" on Today shows every piece of the outfit, none cut off at the card's edge (an earlier
+  // test in this file rated yesterday's outfit, so it is shown unrated here)
+  await page.route('**/api/outfits/worn?*', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const response = await route.fetch();
+    const json = await response.json();
+    if (json.outfits?.[0]) Object.assign(json.outfits[0], { rating: null, rating_reasons: [], rating_note: null });
+    await route.fulfill({ response, json });
+  });
+  await page.goto('/today');
+  const asked = question(page);
+  await expect(asked).toBeVisible();
+  const card = (await asked.boundingBox())!;
+  const pics = asked.getByRole('list', { name: 'Pieces' }).getByRole('listitem');
+  expect(await pics.count()).toBeGreaterThan(3);
+  for (const pic of await pics.all()) {
+    const b = (await pic.boundingBox())!;
+    expect(b.x + b.width).toBeLessThanOrEqual(card.x + card.width);
+  }
+  expect((await asked.getByRole('heading').boundingBox())!.height).toBeLessThan(30);
 });

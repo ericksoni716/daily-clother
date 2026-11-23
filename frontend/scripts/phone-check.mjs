@@ -45,8 +45,9 @@ const LONG = {
   line: 'Never anything double-breasted, never anything with a crest or a logo-embroidered-chest-pocket-of-any-kind',
 };
 // Sheets opened by a button on a screen, pictured as well: the style conversation, every line of Your style, an
-// item's colours with the shades of its colour, a wish's most you'd pay, its find's checkout code, and a find seen with
-// your clothes. `route` can be worked out from the ids `setUp` gives; `fold` is opened first when the button is inside
+// item's colours with the shades of its colour, a wish's most you'd pay, its find's checkout code, a find seen with
+// your clothes, and on Today, Worn and a trip: a piece's choices, where you are and today's temperatures, a worn
+// outfit's choices, Record an outfit, and a packed piece's choices. `route` can be worked out from the ids `setUp` gives; `fold` is opened first when the button is inside
 // one; `wait` is what to wait for inside the sheet before its picture is taken.
 const SHEETS = [
   { route: '/settings', button: 'Talk to Claude about your style', sheet: 'style-talk-sheet', name: 'settings-style-talk' },
@@ -60,6 +61,11 @@ const SHEETS = [
     sheet: 'code-sheet', name: 'wish-code' },
   { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: 'See it with your clothes',
     sheet: 'worn-sheet', name: 'wish-worn', wait: '[data-testid="outfit-figure"] img' },
+  { route: '/today', button: /^Choices for/, sheet: 'piece-sheet', name: 'today-piece' },
+  { route: '/today', button: /^Change$/, sheet: 'day-sheet', name: 'today-day' },
+  { route: '/today/worn', button: 'More for this outfit', sheet: 'worn-menu', name: 'worn-menu' },
+  { route: '/today/worn', button: 'Record an outfit', sheet: 'record-sheet', name: 'worn-record' },
+  { route: ({ tripId }) => `/trips/${encodeURIComponent(tripId)}`, button: /^Choices for/, sheet: 'trip-menu', name: 'trip-piece' },
 ];
 // A made-up shop's page with a long product name, which the backend's stand-in serves (never the web).
 const SHOP_PAGE = 'https://shop.example/long-name';

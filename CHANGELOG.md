@@ -91,6 +91,32 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **Today's first screen holds the outfit and its button** on the smallest iPhone, with five
+  pieces: the pieces are four to a row on a phone, the date sits beside "Today", and when the
+  weather cannot be fetched that is one line with **Try again** and **Type temperatures** instead
+  of a box that said it twice.
+- **A piece's choices open in a sheet** over the page, from the bottom on a phone (beside the
+  piece on a computer), on Today, Worn and a trip, instead of under the pieces where the tab bar
+  hid them. On Today the choice is now **Build around this piece** (was Start from this piece),
+  the name the page already used everywhere else.
+- **Change, beside the weather, opens a sheet** titled Where you are, as in Settings, instead of
+  a panel above the outfits. The controls come first; what is sent to look up the weather is one
+  tap away. Escape closes it.
+- **While Claude chooses again, the outfits stay on the page**, dimmed under "Claude is choosing
+  today's outfits…", and keep their space until Claude's are in. Asking again says "Asking
+  again…" over the outfits instead of beside the heading.
+- **Record an outfit opens a sheet** with the day, a search, and your pieces in four groups (tops,
+  bottoms, shoes and extras), the ones worn most recently first, instead of every piece in a long
+  panel above the list.
+- **A trip leads with what to pack.** The days with something to watch for are one line that
+  opens, with days that share a sentence said together, and a forecast that could not be had is
+  said once rather than for every day. A day's outfit fits five pieces in one row on a phone.
+- **"Not this piece" and "Build around" are kept for the rest of the day**, a reload included.
+- **Temperatures are written one way** on Today, Worn and a trip: "9–16°C".
+- **The reasons offered after a rating follow it**: after "Loved it" only Got compliments and
+  Other, after "Not again" no Got compliments.
+- Offline, why rating has to wait is said once above the outfits, not on every one.
+
 - **The wishlist has a page of its own**, one tap from the Wardrobe. Under **Thinking of buying
   something?**, next to **Would this work?**, the **Wishlist** row says how many things are on it
   and how many prices went down, and opens the list with **Add a link** and **Add by hand**. A
@@ -114,6 +140,18 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **Wearing an outfit built around a piece** no longer leaves Today saying "No outfit today yet"
+  and offering Add clothes when the piece went in the laundry. Wearing it ends building around the
+  piece, and Today shows what you are wearing. When your own changes are why no outfit can be made,
+  the button is **Clear your changes**, not Add clothes.
+- **The ⋯ button on each Worn card** is drawn at its size again; it was squeezed to a speck.
+- **A piece opened from Worn goes back to Worn** with **‹ Worn**, where you left it, instead of
+  to Today.
+- **"How was yesterday's outfit?"** shows every piece of the outfit on a phone, under the question,
+  instead of cutting the last ones off.
+- **The outfit card ends with its reasons**: it no longer keeps the height of the tallest outfit,
+  which left a blank band of up to 340px.
+- A trip's **Why this works** rows are a whole tap high.
 - **What you wear at home is no longer a reason to buy.** Worth buying asked for "Another pair of
   trousers like your tartan lounge pants", showed the lounge pants among the pieces a suggestion is
   based on, called a bath robe "your warmest outer layer", let pyjamas stand in for a plain tee, and

@@ -114,6 +114,32 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **Today's reasons are true of the outfit shown.** On a day the card warns is too cold it no longer
+  also says "A single layer on top is enough", nor asks for a middle layer when you own none; suede
+  boots are no longer said to "stand up to the rain" beside a warning that the rain spoils them; the
+  colour sentence now counts the hat and the scarf, so a mustard beanie is no longer "All neutral
+  colours"; and once you set the parka aside, or it is waiting to be mended, the bomber is "the
+  warmest you can wear today", not "the warmest you have".
+- **Jeans, trousers and shoes are spoken of as a pair**: "The dark jeans are more casual than a
+  formal occasion calls for", not "is", on Today and wherever those sentences reach.
+- **Cold and wet days dress like a person would.** On a freezing wet day you get the parka and the
+  fleece and are told to take an umbrella, where before the thin mac replaced both. At -8°C the
+  scarf comes along with the beanie, even when their colours compete, and the card says they are
+  for the cold.
+- **A sport day is not dressed in jeans and called right for sport.** When nothing made for sport is
+  clean, Today says the jeans or the oxford shirt are a makeshift, and puts a tee before a shirt.
+  A leather belt is no longer added to joggers, sweatpants or lounge pants.
+- **Wear this again works when a piece is waiting to be mended**: the rest of the outfit is kept and
+  the place filled, as for a piece in the wash. It also brings back what you wore to tennis, to
+  swim or at home, where before it showed no outfit at all.
+- **A day that starts cold and gets hot carries one light layer.** Out from 5°C to 28°C, Today no
+  longer leaves you in a tee while telling you to take another layer: it adds a light jacket,
+  overshirt or thin sweater "for the cool morning", to take off as it warms up.
+- **A hot day says when the jeans are too warm.** From a high of 30°C, heavy jeans and trousers say
+  so under Be aware and come after the shorts and lighter trousers you have, however much you love
+  them.
+- A slim shirt with tapered trousers no longer "fights a little": a tapered leg counts as a slim
+  one.
 - **Check now** says what it found, under the button on Advanced: "Nines 0.15.0 is out." with
   **Install now** beside it, or "You have the latest version." Before, only "Last checked"
   changed there, so a new version looked as though it had not been found. When it finds one in

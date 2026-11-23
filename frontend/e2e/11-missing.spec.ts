@@ -33,6 +33,13 @@ async function seeAll(page: Page) {
   if (await all.isVisible()) await all.click();
 }
 
+/** Opens the wishlist's own page from its row on the Wardrobe, under "Thinking of buying something?". */
+async function openWishlist(page: Page) {
+  await page.getByTestId('wishlist-open').click();
+  await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
+  await expect(page.getByRole('heading', { name: 'Wishlist', level: 1 })).toBeVisible();
+}
+
 /** Opens a wish's own page from its row in the wishlist. */
 async function openWish(page: Page, name: string) {
   await page.getByTestId('wish-row').filter({ hasText: name }).click();
@@ -74,13 +81,15 @@ test("the wardrobe shows the three most worth buying first, then the rest, with 
   await expect(page.getByRole('heading', { name: 'Not worn yet' })).toHaveCount(1);
   await expect(page.getByRole('heading', { name: 'Worn most', level: 2 })).toBeVisible();
 
-  // one of the owner's own pieces opens the item, and comes back
+  // one of the owner's own pieces opens the item beside the page, and comes back to "Thinking of buying something?"
   const piece = page.getByTestId('gap-piece').first();
   await piece.click();
   await expect(page).toHaveURL(/\/wardrobe\/item\//);
-  await expect(page.getByRole('link', { name: 'Back to the wishlist' })).toBeVisible();
-  await page.getByRole('link', { name: 'Back to the wishlist' }).click();
-  await expect(page.getByTestId('wishlist')).toBeVisible();
+  const back = page.getByRole('complementary', { name: 'Item details' }).getByRole('link', { name: 'Wardrobe' });
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(page).toHaveURL(/\/wardrobe$/);
+  await expect(page.getByRole('complementary', { name: 'Thinking of buying something?' }).getByTestId('wishlist-open')).toBeVisible();
 });
 
 test('a reason given for several kinds of day is said once, with the days listed under it', async ({ page }) => {
@@ -98,13 +107,18 @@ test('a reason given for several kinds of day is said once, with the days listed
 
 test("\"I'll look for this\" puts a gap on the wishlist; the note is kept; it can be removed", async ({ page }) => {
   await openMissing(page);
+  await expect(page.getByTestId('wishlist-open')).toContainText('Nothing on it yet');
   const [name] = await gapNames(page);
   await gap(page, name).getByRole('button', { name: "I'll look for this" }).click();
-  const wishlist = page.getByTestId('wishlist');
-  await expect(wishlist.getByTestId('wish-row').filter({ hasText: name })).toBeVisible();
+  // the Wardrobe's row to the wishlist counts it
+  await expect(page.getByTestId('wishlist-open')).toContainText('1 thing');
   // the gap stays in its place, marked, instead of being offered again
   await expect(gap(page, name)).toContainText('On your wishlist');
   await expect(gap(page, name).getByRole('button', { name: "I'll look for this" })).toHaveCount(0);
+
+  // the wishlist is a page of its own, one tap from the Wardrobe
+  await openWishlist(page);
+  await expect(page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: name })).toBeVisible();
 
   // the wish has a page of its own, where its note is kept and it says it saved
   const wish = await openWish(page, name);
@@ -114,10 +128,15 @@ test("\"I'll look for this\" puts a gap on the wishlist; the note is kept; it ca
   await page.reload();
   await expect(page.getByTestId('wish').getByLabel('Note')).toHaveValue('Size 42, under 150');
 
-  // removed from its page, it goes back to the wardrobe, and the gap is offered again
+  // removed from its page, it goes back to the wishlist, now empty, and on the Wardrobe the gap is offered again
   await page.getByTestId('wish').getByRole('button', { name: 'Remove' }).click();
-  await expect(page).toHaveURL(/\/wardrobe$/);
+  await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
   await expect(page.getByTestId('wish-row')).toHaveCount(0);
+  const empty = page.getByTestId('wishlist-empty');
+  await expect(empty).toContainText('Your wishlist is empty');
+  await expect(empty.getByRole('link', { name: "See what's worth buying" })).toHaveAttribute('href', '/wardrobe');
+  await page.locator('.page-back').click();   // "‹ Wardrobe"
+  await expect(page).toHaveURL(/\/wardrobe$/);
   await seeAll(page);
   await expect(gap(page, name).getByRole('button', { name: "I'll look for this" })).toBeVisible();
 });
@@ -152,6 +171,7 @@ test('"Not for me" hides a gap with a reason, and it can be brought back', async
 
 test('a wish added by hand; "I bought it" takes it off the list and opens Add', async ({ page }) => {
   await openMissing(page);
+  await openWishlist(page);
   const wishlist = page.getByTestId('wishlist');
   await wishlist.getByRole('button', { name: 'Add by hand' }).click();
   await wishlist.getByLabel('What are you looking for?').fill('Brown suede loafers');
@@ -170,7 +190,7 @@ test('a wish added by hand; "I bought it" takes it off the list and opens Add', 
   expect(wishes).toEqual([]);
 });
 
-test('on a phone: the Wardrobe is in the tab bar, and the wishlist follows the things worth buying on the same page', async ({ page }) => {
+test('on a phone: the Wardrobe is in the tab bar, and its row to the wishlist, after the things worth buying, opens the list', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await goToCloset(page);
   await useProfile(page, 'demo');
@@ -179,12 +199,16 @@ test('on a phone: the Wardrobe is in the tab bar, and the wishlist follows the t
   await expect(page.getByTestId('gap')).toHaveCount(3);
   const [name] = await gapNames(page);
   await gap(page, name).getByRole('button', { name: "I'll look for this" }).click();
-  const wishlist = page.getByTestId('wishlist');
-  await expect(wishlist.getByRole('heading', { name: 'Your wishlist · 1' })).toBeVisible();
-  await expect(wishlist.getByTestId('wish-row').filter({ hasText: name })).toBeVisible();
-  // nothing is wider than the screen
-  const width = await page.evaluate(() => document.documentElement.scrollWidth);
-  expect(width).toBeLessThanOrEqual(390);
+  const row = page.getByTestId('wishlist-open');
+  await expect(row).toHaveText(/^Wishlist\s*1 thing$/);
+  // below the things worth buying, on the same page
+  const lastGap = await page.getByTestId('gap').last().boundingBox();
+  expect((await row.boundingBox())!.y).toBeGreaterThan(lastGap!.y);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  // the list itself is on its own page; nothing is wider than the screen there either
+  await openWishlist(page);
+  await expect(page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: name })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
 test("what's missing offline: the answer fetched earlier is shown as saved, and the buttons say why they are off", async ({ page, context }) => {
@@ -204,5 +228,9 @@ test("what's missing offline: the answer fetched earlier is shown as saved, and 
   const wish = page.getByTestId('gap').first().getByRole('button', { name: "I'll look for this" });
   await expect(wish).toBeDisabled();
   await expect(wish).toHaveAttribute('title', /needs Nines on your computer/i);
+  // the wishlist opens offline too, from the copy saved on this device, and its buttons say why they are off
+  await openWishlist(page);
+  await expect(page.getByText(/^Saved earlier today/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add by hand' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add a link' })).toHaveAttribute('title', /needs Nines on your computer/i);
 });

@@ -116,6 +116,10 @@ for (const [layout, use] of LAYOUTS) {
         await visit(page, '/wardrobe/check', 'h1');
         await check(page, 'would this work', phone, shot);
 
+        // the wishlist's own page, with the demo closet's wishes on it
+        await visit(page, '/wardrobe/wishlist', '[data-testid="wish-row"]');
+        await check(page, 'wishlist', phone, shot);
+
         // the page a shared link opens, with the link in its box (nothing is added until the button is pressed)
         await visit(page, `/wardrobe/link?url=${encodeURIComponent('https://shop.example/linen-shirt')}`, 'h1');
         await check(page, 'add a link', phone, shot);

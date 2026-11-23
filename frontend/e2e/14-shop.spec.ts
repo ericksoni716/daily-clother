@@ -111,8 +111,14 @@ test.describe('shopping for a wish', () => {
     await sheet.getByRole('button', { name: 'Clear' }).click();
     await expect(wish.getByTestId('wish-price')).toContainText('tells you when it goes down. ');
 
-    // watching a find can be stopped
+    // watching a find can be stopped: it stays in its place, saying so with Undo, until you leave the page (A8: it
+    // went at once), and then it is gone
     await polo.getByRole('button', { name: 'Stop watching' }).click();
+    await expect(polo.getByTestId('find-stopped')).toContainText('You stopped watching it');
+    await expect(finds).toHaveCount(2);
+    const wishPath = new URL(page.url()).pathname;
+    await page.goto(backend.url + '/wardrobe');
+    await page.goto(backend.url + wishPath);
     await expect(finds).toHaveCount(1);
 
     // the demo closet never searches, and says why

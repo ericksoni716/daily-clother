@@ -23,6 +23,11 @@ test.describe('shopping for a wish', () => {
     // first: either means the page is up (fixtures.ts's goToCloset waits the same way)
     await expect(page.locator('#closet-title').or(page.locator('#today-title'))).toBeVisible();
 
+    await page.goto(backend.url + '/wardrobe');
+    // each thing worth buying can be looked for on Google Shopping, in your browser, with only what to look for
+    const search = page.getByTestId('gap').first().getByRole('link', { name: 'Search Google Shopping' });
+    await expect(search).toHaveAttribute('href', /^https:\/\/www\.google\.com\/search\?tbm=shop&q=men's%20/, { timeout: 30_000 });
+    await expect(search).toHaveAttribute('target', '_blank');
     await page.goto(backend.url + '/wardrobe/wishlist');
     const wishlist = page.getByTestId('wishlist');
     await wishlist.getByRole('button', { name: 'Add by hand' }).click({ timeout: 30_000 });
@@ -37,6 +42,8 @@ test.describe('shopping for a wish', () => {
     // nothing watched yet: the price is offered where Claude is asked to look
     const price = wish.getByTestId('wish-price');
     await expect(price).toContainText('Claude looks at any price.');
+    await expect(wish.getByRole('link', { name: 'Search Google Shopping' }))
+      .toHaveAttribute('href', "https://www.google.com/search?tbm=shop&q=men's%20tan%20rain%20coat");
     // the most you'd pay, in a sheet over the page: one amount and its currency, and no lower limit
     await price.getByRole('button', { name: "Set the most you'd pay" }).click();
     const sheet = page.getByTestId('price-sheet');
@@ -145,6 +152,11 @@ test.describe('shopping for a wish', () => {
     await expect(find.getByTestId('find-link')).toHaveText('You sent this link.');
     await expect(page.getByRole('heading', { name: 'Linen camp-collar shirt', level: 1 })).toBeVisible();
     await expect(find.getByRole('link', { name: 'Open in shop' })).toHaveAttribute('href', 'https://shop.example/linen-shirt');
+    // Claude's stand-in describes it from the page's words, and it is checked against the closet as a search's finds are
+    await expect(find.getByTestId('find-verdict')).not.toBeEmpty({ timeout: 30_000 });
+    await expect(find.getByRole('list', { name: 'Why' }).getByRole('listitem').first()).toBeVisible();
+    await expect(find).toContainText('Claude saw: Linen camp-collar shirt, white shirt');
+    await expect(find.getByTestId('find-not-judged')).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);
 
     // read again a little cheaper: the drop on the wish, then on its row in the wishlist

@@ -16,7 +16,7 @@ import { Link, navigate, WISHLIST_PATH, wishPath } from '../router';
 import { timeOf } from '../today';
 import type { ItemSummary } from '../types';
 import { activeSituations, lifeSummary, situationLabel, type SituationId } from '../life';
-import { downWords, linkWords, wishlistWords, withinWords } from '../shop';
+import { downWords, googleShoppingLink, linkWords, wishlistWords, withinWords } from '../shop';
 import { LinkForm, WishShop } from './Shop';
 
 export const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
@@ -284,6 +284,10 @@ function GapCard({ gap, byId, actions }: { gap: Gap; byId: Map<string, ItemSumma
         <GapWhy why={gap.why} />
         <LookForBox look={gap.look_for} />
       </div>
+      <p className="gap-search">
+        <a className={buttonClass({ variant: 'link', small: true, className: 'wish-inline-button' })} data-testid="google-shopping"
+          href={googleShoppingLink(gap)} target="_blank" rel="noopener noreferrer">Search Google Shopping</a>
+      </p>
       {gap.evidence.items.length > 0 && (
         <div className="gap-pieces">
           <h4 className="gap-label">From your closet</h4>

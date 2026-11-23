@@ -198,11 +198,16 @@ export function orWords(words: string[]): string {
   return `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}`;
 }
 
-/** The kind of piece in a few words: "A smart casual coat", "Business dress shoes". */
-export function whatWords(look: Pick<LookFor, 'category' | 'formality'>): string {
+/** The kind of piece as a bare phrase: "smart casual coat", "business dress shoes". */
+export function kindWords(look: Pick<LookFor, 'category' | 'formality'>): string {
   const thing = THING[look.category] ?? (label('category', look.category).toLowerCase() || 'piece');
   const style = look.formality ? FORMALITY_WORDS[look.formality] ?? label('formality', look.formality).toLowerCase() : '';
-  const phrase = style ? `${style} ${thing}` : thing;
+  return style ? `${style} ${thing}` : thing;
+}
+
+/** The kind of piece in a few words: "A smart casual coat", "Business dress shoes". */
+export function whatWords(look: Pick<LookFor, 'category' | 'formality'>): string {
+  const phrase = kindWords(look);
   if (PLURAL_CATEGORIES.includes(look.category)) return phrase.charAt(0).toUpperCase() + phrase.slice(1);
   return `${article(phrase)} ${phrase}`;
 }

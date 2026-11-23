@@ -7,9 +7,9 @@ import { Button, buttonClass, Card, Notice, SegmentedControl, Sheet } from '../c
 import type { Wish } from '../gaps';
 import { touch } from '../queries';
 import {
-  checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, historyWords, lastChecked,
-  LINK_PROBLEM, linkIn, linkLine, priceWords, runDoneWords, runWords, searchWords, shopPoll, type ShopRun, typedCode, typedPrice,
-  watchWords, webLink,
+  checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, googleShoppingLink, historyWords,
+  lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll, type ShopRun,
+  typedCode, typedPrice, watchWords, webLink,
 } from '../shop';
 import { aboutUsd } from '../spend';
 import { queryKeys } from '../queryKeys';
@@ -140,7 +140,7 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
       {finds.length > 0 && (
         <section className="wish-watch" aria-label={`Watching for ${wish.name}`}>
           <ul className="find-list" aria-label="Found in shops">
-            {finds.map((f) => <li key={f.id}><FindCard find={f} locked={locked} onStop={() => void stop(f)} /></li>)}
+            {finds.map((f) => <li key={f.id}><FindCard find={f} demo={demo} locked={locked} onStop={() => void stop(f)} /></li>)}
           </ul>
           <PriceLine wish={wish} currency={currency} locked={locked} onPrice={onPrice}>{watchWords(wish)}</PriceLine>
           <p className="muted wish-shop-line" data-testid="prices-checked">
@@ -163,6 +163,10 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
             </Button>
           )}
         </div>
+        <p className="wish-shop-line">
+          <a className={buttonClass({ variant: 'link', small: true, className: 'wish-inline-button' })} data-testid="google-shopping"
+            href={googleShoppingLink(wish)} target="_blank" rel="noopener noreferrer">Search Google Shopping</a>
+        </p>
         {linking && (
           <LinkForm submit="Add to this wish" busy={starting || running} locked={locked} onCancel={() => setLinking(false)}
             onSubmit={async (url) => {
@@ -206,12 +210,13 @@ function RunSaid({ run, error }: { run: ShopRun | null; error: string | null }) 
   );
 }
 
-function FindCard({ find, locked, onStop }: { find: Find; locked: boolean; onStop(): void }) {
+function FindCard({ find, demo, locked, onStop }: { find: Find; demo: boolean; locked: boolean; onStop(): void }) {
   const link = webLink(find.url);
   const image = webLink(find.image_url);
   const tone = find.verdict ? verdictTone(find.verdict) : 'plain';
   const sent = linkLine(find);
   const went = historyWords(find.history);
+  const unjudged = notJudgedWords(find, demo);
   return (
     <Card as="article" className="find-card" data-testid="find" aria-label={find.name} data-verdict={find.verdict ?? ''}>
       {image && <img className="find-image" src={image} alt="" loading="lazy" referrerPolicy="no-referrer" />}
@@ -232,6 +237,7 @@ function FindCard({ find, locked, onStop }: { find: Find; locked: boolean; onSto
         )}
         {find.piece_words && <p className="muted find-piece">Claude saw: {find.piece_words}</p>}
         {sent && <p className="muted find-piece" data-testid="find-link">{sent}</p>}
+        {unjudged && <p className="muted find-piece" data-testid="find-not-judged">{unjudged}</p>}
         <div className="row">
           {link && <a className={buttonClass({ small: true })} href={link} target="_blank" rel="noopener noreferrer">Open in shop</a>}
           {/* the find goes, and with it its daily check */}

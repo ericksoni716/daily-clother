@@ -104,6 +104,8 @@
 .gap-thumb:hover { box-shadow: inset 0 0 0 1px var(--card-edge), 0 0 0 2px var(--accent); }
 .gap-thumb-more { font-size: var(--text-sm); padding-left: 4px; }
 
+/* Search Google Shopping: a link on its own line, so it never moves the card's two buttons */
+.gap-search { margin: 0; font-size: var(--text-sm); line-height: 1.45; }
 .gap-actions .btn svg { width: 20px; height: 20px; }
 /* A narrow card keeps both buttons on one row. */
 @container (max-width: 459px) {

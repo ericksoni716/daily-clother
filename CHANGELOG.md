@@ -114,6 +114,25 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **What you wear at home is no longer a reason to buy.** Worth buying asked for "Another pair of
+  trousers like your tartan lounge pants", showed the lounge pants among the pieces a suggestion is
+  based on, called a bath robe "your warmest outer layer", let pyjamas stand in for a plain tee, and
+  Would this work? said "you have it already" because of lounge pants. Pyjamas, lounge pants and
+  robes now count for nothing there, as swim trunks and sport shoes already did, and a search is no
+  longer told you love them as everyday clothes. A coat waiting to be mended counts as yours, as one
+  in the wash does, instead of bringing "A warm winter coat" onto the list.
+- **No second coat or third pair of boots for wearing what you have.** A coat or a pair of shoes
+  worn every day of a week no longer asks for "Another coat like your…", and nothing asks for
+  another of a kind while one of that kind sits unworn. A heavy down puffer now counts as a warm
+  winter coat.
+- **Not worn after a break from recording.** If you stop recording what you wear for a few months,
+  Not worn no longer lists your whole closet with Archive beside each piece; it says "Nothing has
+  been recorded as worn since 20 July 2026." Swim trunks, tennis and golf shoes and what you wear at
+  home are no longer listed as not worn.
+- **The Wardrobe's sentences read better.** No more "the engine", "it is the only boots you have",
+  "only one outfit that differ" or "the only top that suit", and dates read "between 3 and 22
+  November 2026" instead of "between 2026-11-03 and 2026-11-22". "Saved earlier" says the day the
+  way the rest of the page does ("on 3 Nov").
 - **Today's reasons are true of the outfit shown.** On a day the card warns is too cold it no longer
   also says "A single layer on top is enough", nor asks for a middle layer when you own none; suede
   boots are no longer said to "stand up to the rain" beside a warning that the rain spoils them; the

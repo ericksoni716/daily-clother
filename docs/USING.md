@@ -262,9 +262,9 @@ searching for "men's", the first colour and the kind of piece, nothing else), "I
 this" (onto the wishlist) and "Not for me" (hide it, and optionally similar ones). "Based on…" opens How you live, the same questions as
 Settings; once the closet has enough to suggest from and they are not answered, "Tell it how
 you live" offers them. What holds suggestions back, the days you ruled out and what you hid
-are folded at the end of the section. Swim trunks and shoes made for one sport (tennis, golf,
-studded boots) are not counted there: a pair of tennis shoes never stands in for everyday
-sneakers. **You might like**: three things Claude found on sale from what you wear and love,
+are folded at the end of the section. Swim trunks, shoes made for one sport (tennis, golf,
+studded boots) and what you wear at home (pyjamas, lounge pants, robes) are not counted there:
+a pair of tennis shoes never stands in for everyday sneakers, nor lounge pants for trousers. **You might like**: three things Claude found on sale from what you wear and love,
 not from a gap, each with the shop's picture (a hanger until there is one), its name (which
 opens the shop's page in your browser), the shop and price, one line from the closet ("Goes
 with 6 of your pieces."), **Save** (onto the wishlist, with the product as its first find, so
@@ -280,7 +280,9 @@ then Nines looks by itself once a week while it is running. Nothing it shows is 
 made up; a week with nothing new says so. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
 and a **Wishlist** row that opens the wishlist, saying how many things are on it ("3 things", or
 "Nothing on it yet") and, when prices went down, how many ("2 prices went down"). **Not worn**:
-pieces never worn and pieces not worn for a long time in their season, each to Archive or Keep.
+pieces never worn and pieces not worn for a long time in their season, each to Archive or Keep
+(never swim trunks, sport shoes or what you wear at home; after months with nothing recorded it
+says so instead of listing everything).
 **Worn most**: over the last 30 or 90 days or all time.
 **More numbers**, folded: how wears are spread in each kind of clothing, what the closet is
 made of, and cost per wear for pieces with a price. A piece opens in the Wardrobe

@@ -113,3 +113,16 @@ def test_for_search_reads_the_style_lines_and_the_saved_sizes_of_the_closet(cfg)
         text = aboutyou.for_search(conn, [], [], wish)
         assert "- Dark leather, never suede." in text and "- Shoes: 10.5 US." in text
         assert "umbrella" in text   # the starting line that stays once the owner writes one is theirs too
+
+
+def test_a_search_is_not_told_of_clothes_for_home_swimming_or_a_sport_as_pieces_loved():
+    # a search for trousers must not hear that tartan lounge pants are the trousers they love (gaps.everyday)
+    rows = [item("l1", "trousers", "red", "love", pattern="plaid", kind="lounge_pants"),
+            item("s1", "shorts", "orange", "love", kind="swim_trunks"),
+            item("g1", "sneakers", "white", "love", kind="tennis_shoe"),
+            item("c1", "trousers", "tan", "love", kind="chinos")]
+    worn_ = worn("l1", 6) + worn("s1", 6) + worn("g1", 6)
+    for category in ("trousers", "shorts", "sneakers", None):
+        text = aboutyou.about(rows, worn_, [], NO_SIZES, category)
+        assert "lounge" not in text and "swim" not in text and "tennis" not in text and "plaid" not in text
+    assert "- chinos: tan (loved)" in aboutyou.about(rows, worn_, [], NO_SIZES, "trousers")

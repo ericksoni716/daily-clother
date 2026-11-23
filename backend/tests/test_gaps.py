@@ -1,5 +1,7 @@
 import json
 import random
+import re
+from datetime import date, timedelta
 
 from closet import gaps, life
 from closet.config import bundle_dir
@@ -246,8 +248,8 @@ def test_demo_closet_gaps_name_real_items():
 # ---------------------------------------------------------------------------- API
 def test_gaps_answers_for_the_open_closet(client):
     assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
-    # every demo item but the small accessories (category "other"), which outfits leave out
-    demo_ids = {i["id"] for i in client.get("/api/items").json()["items"] if i["category"] != "other"}
+    # every demo item but the small accessories (category "other"), which outfits leave out, and what is worn at home
+    demo_ids = {i["id"] for i in client.get("/api/items").json()["items"] if i["category"] != "other" and gaps.everyday(i)}
     r = client.get("/api/gaps")
     assert r.status_code == 200
     body = r.json()
@@ -281,3 +283,130 @@ def test_gaps_demo_and_main_closets_are_separate(client):
     assert all(main_item["id"] not in g["evidence"]["items"] for g in demo["gaps"])
     client.post("/api/profile", json={"profile": "main"})
     assert client.get("/api/gaps").json() == r
+
+
+# ---------------------------------------------------------------------------- what is worn at home (review, 23 November)
+def sentences(answer) -> str:
+    return " ".join(s for g in answer["gaps"] for s in [g["name"], *g["why"]])
+
+
+def log(counts, first="2026-11-01"):
+    """A wear log: each item worn on that many days running from `first`."""
+    start = date.fromisoformat(first)
+    return [{"item_id": i, "worn_on": (start + timedelta(days=n)).isoformat()} for i, k in counts.items() for n in range(k)]
+
+
+LOUNGE = item("lounge", "trousers", "red", "casual", "cool", "plaid", name="Tartan lounge pants", kind="lounge_pants")
+ONE_PAIR = ("jeans_black", "chinos_tan", "chinos_navy", "trousers_grey", "trousers_navy", "shorts_tan", "shorts_navy")
+
+
+def test_lounge_pants_worn_at_home_do_not_ask_for_another_pair_of_trousers():
+    # the demo's "Another pair of trousers like your tartan lounge pants": nothing is suggested from clothes for home
+    worn = log({"lounge": 6, "chinos_tan": 2, "chinos_navy": 2, "trousers_grey": 1, "tee_white": 2, "sneakers_white": 3})
+    assert "lounge pants" not in sentences(all_gaps(full_closet() + [LOUNGE], worn))
+
+
+def test_lounge_pants_are_not_a_piece_a_suggestion_is_based_on():
+    answer = all_gaps(without(*ONE_PAIR) + [LOUNGE], log({"lounge": 6, "jeans_dark": 3, "tee_white": 2}))
+    assert "lounge" not in {i for g in answer["gaps"] for i in g["evidence"]["items"]}
+
+
+def test_lounge_pants_are_not_a_second_pair_of_trousers_to_change_into():
+    lounge = item("lounge", "trousers", "grey", "casual", name="Grey lounge pants", kind="lounge_pants")
+    before, after = all_gaps(without(*ONE_PAIR)), all_gaps(without(*ONE_PAIR) + [lounge])
+
+    def rests_on_jeans(answer):
+        return [g["id"] for g in answer["gaps"] if "thin_place" in g["found_by"] and "jeans_dark" in g["evidence"]["items"]]
+
+    assert rests_on_jeans(before)
+    assert "lounge pants" not in sentences(after)
+    assert rests_on_jeans(after) == rests_on_jeans(before)
+
+
+def test_a_bath_robe_is_not_the_warmest_outer_layer():
+    robe = item("robe", "coat", "white", "casual", "cool", name="White terry robe", kind="robe", weight_class="super_heavy")
+    assert "robe" not in sentences(all_gaps(without("coat_grey", "coat_navy", "trench") + [robe]))
+
+
+def test_pyjamas_do_not_count_as_owning_a_plain_tee():
+    no_tees = without("tee_white", "tee_grey", "tee_navy")
+    pyjamas = item("pj", "tee", "grey", "casual", name="Grey pyjamas", kind="pajama_set_knit")
+
+    def basic_tee(answer):
+        return [g for g in answer["gaps"] if g["look_for"]["category"] == "tee" and "basic" in g["found_by"]]
+
+    assert basic_tee(all_gaps(no_tees))
+    assert basic_tee(all_gaps(no_tees + [pyjamas]))
+
+
+def test_clothes_for_home_are_judged_as_if_they_were_not_in_the_closet():
+    # one rule for every kind worn at home: the answer is the closet's without them, whatever is recorded of them
+    home = [LOUNGE, item("robe", "coat", "navy", "casual", "cool", name="Navy robe", kind="robe", weight_class="super_heavy"),
+            item("pj", "tee", "grey", "casual", name="Grey pyjamas", kind="pajama_set_knit")]
+    worn = log({"lounge": 8, "robe": 8, "pj": 8, "jeans_dark": 3, "tee_white": 2})
+    assert all_gaps(full_closet() + home, worn) == all_gaps(full_closet(), worn)
+    assert all(not gaps.everyday(i) for i in home)
+    # the smoking jacket is worn out, so it is an everyday piece
+    assert gaps.everyday(item("sj", "jacket", "red", "smart_casual", kind="smoking_jacket"))
+
+
+def test_a_coat_waiting_to_be_mended_is_still_owned_like_one_in_the_wash():
+    def closet(**state):
+        return [dict(i, **state) if i["id"] == "coat_navy" else i for i in without("coat_grey", "trench")]
+
+    def listed(answer):
+        return [(g["id"], g["score"], g["why"]) for g in answer["gaps"]]
+
+    assert listed(all_gaps(closet(condition="needs_repair"))) == listed(all_gaps(closet(laundry="laundry")))
+
+
+def test_a_coat_worn_every_day_of_a_cold_week_does_not_ask_for_a_second_coat():
+    answer = all_gaps(without("coat_navy", "trench"), log({"coat_grey": 6, "jeans_dark": 3, "jeans_black": 3, "tee_white": 2}))
+    assert not [g for g in answer["gaps"] if "worn_most" in g["found_by"] and g["look_for"]["category"] == "coat"]
+    # nor do boots worn daily, and never a fourth pair while two sit unworn
+    three = full_closet() + [item("boots_tan", "boots", "tan", "smart_casual", name="Tan boots")]
+    answer = all_gaps(three, log({"boots_brown": 8, "jeans_dark": 3, "tee_white": 2}))
+    assert not [g for g in answer["gaps"] if "worn_most" in g["found_by"]]
+
+
+def test_a_top_worn_far_more_is_not_doubled_while_one_of_its_kind_sits_unworn():
+    worn = log({"tee_white": 6, "tee_grey": 1, "jeans_dark": 3, "sneakers_white": 2})
+    assert gap_by(all_gaps(full_closet(), worn), "tee", "worn_most") is None   # the navy linen tee is never worn
+    worn = log({"tee_white": 6, "tee_grey": 1, "tee_navy": 1, "jeans_dark": 3, "sneakers_white": 2})
+    assert gap_by(all_gaps(full_closet(), worn), "tee", "worn_most") is not None
+
+
+def test_a_heavy_puffer_jacket_is_a_warm_winter_coat():
+    puffer = item("puffer", "jacket", "black", "casual", "cool", name="Black down puffer", kind="puffer",
+                  weight_class="super_heavy")
+    answer = all_gaps(without("coat_grey", "coat_navy") + [puffer])
+    assert "A heavy coat is what keeps a cold day comfortable. You have none." not in sentences(answer)
+    # a light jacket is still no winter coat
+    light = item("bomber", "jacket", "black", "casual", name="Black bomber", weight_class="lightweight")
+    assert "A heavy coat is what keeps a cold day comfortable. You have none." in sentences(
+        all_gaps(without("coat_grey", "coat_navy") + [light]))
+
+
+def test_whats_missing_does_not_speak_of_the_engine():
+    said = sentences(all_gaps(without("trench", "belt_brown")))
+    assert "umbrella" in said
+    assert "engine" not in said
+    assert not [b for b in gaps.BASICS if "engine" in b.why]
+
+
+def test_whats_missing_speaks_of_one_and_of_pairs_correctly():
+    closet = without("boots_black", "dress_blue", "trousers_navy", "shoes_brown", "tee_grey", "tee_navy")
+    answer = all_gaps(closet, log({"tee_white": 5, "boots_brown": 2, "jeans_dark": 2, "sneakers_white": 2}))
+    said = sentences(answer)
+    assert "it is the only tee you have" in said and "only one outfit:" in said   # the sentences are there to judge
+    assert "one outfit that differ:" not in said
+    assert not re.search(r"is the only \w+ that suit\.", said)
+    boots = gaps._wear_findings(gaps._closet(without("boots_black"), log({"boots_brown": 6, "jeans_dark": 4, "tee_white": 2})))
+    assert boots == ([], boots[1])   # shoes are worn daily by nature: no second pair from wears
+
+
+def test_whats_missing_writes_dates_as_the_rest_of_the_wardrobe_does():
+    answer = all_gaps(without("tee_grey", "tee_navy"), log({"tee_white": 5, "jeans_dark": 3, "sneakers_white": 3}, "2026-11-03"))
+    said = sentences(answer) + " ".join(n["text"] for n in answer["notes"])
+    assert "between 3 and 7 November 2026" in said
+    assert not re.search(r"\d{4}-\d\d-\d\d", said)

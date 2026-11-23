@@ -129,3 +129,16 @@ def test_season_before_ownership_is_not_an_opportunity_to_wear():
 def test_long_ownership_and_applicable_season_cannot_replace_enough_wear_evidence(worn_items, wear_count):
     rows, wears = seasonal_history("shirt", "all", worn_items=worn_items, wear_count=wear_count)
     assert not taste.learn(rows, wears)["used"]
+
+
+def test_taste_does_not_learn_from_clothes_for_home_swimming_or_a_sport():
+    # tartan lounge pants worn every evening are not a liking for tartan trousers (gaps.everyday)
+    chinos = [item(f"chino{i}", "trousers", "tan", "smart_casual", silhouette={"fit": "regular"}) for i in range(2)]
+    home = [item(f"lounge{i}", "trousers", "red", "casual", pattern="plaid", rating="love", kind="lounge_pants",
+                 silhouette={"fit": "relaxed"}) for i in range(3)]
+    away = [item("trunks", "shorts", "orange", "casual", rating="love", kind="swim_trunks"),
+            item("tennis", "sneakers", "yellow", "athletic", rating="love", kind="tennis_shoe")]
+    wears = wears_for({"chino0": 3, "chino1": 3, "lounge0": 4, "lounge1": 4, "lounge2": 4, "trunks": 4, "tennis": 4})
+    learned = taste.learn(chinos + home + away, wears)
+    assert learned == taste.learn(chinos, wears)
+    assert "plaid" not in str(learned) and "red" not in str(learned)

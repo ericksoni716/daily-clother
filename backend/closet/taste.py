@@ -34,7 +34,7 @@ def _date(value: object) -> date | None:
 def _evidence(rows: list[dict], wears: list[dict]) -> tuple[list[dict], Counter, list[date], bool, bool]:
     """The active rows, the days each was worn, every day worn in order, and whether there are enough wears and
     enough ratings to say anything (MIN_WEARS across MIN_WORN_ITEMS, or MIN_RATINGS)."""
-    rows = [r for r in rows if r.get("status") != "archived"]
+    rows = [r for r in rows if r.get("status") != "archived" and gaps.everyday(r)]   # not what is worn at home or for a sport
     ids = {r["id"] for r in rows}
     seen = {(w.get("item_id"), w.get("worn_on")) for w in wears
             if w.get("item_id") in ids and _date(w.get("worn_on")) is not None}

@@ -1185,7 +1185,7 @@ class Shopper:
         verdict = None
         if piece is not None and judge_now:
             rows, worn = self.closet(profile)
-            verdict = judge(rows, worn, [piece], self.weighed(profile, (rows, worn)))[0]
+            verdict = judge(rows, worn, [piece], self.listed(profile, (rows, worn)))[0]
         conn = db.connect(self.cfg.db_path(profile))
         try:
             if piece is None:

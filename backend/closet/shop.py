@@ -137,6 +137,8 @@ class Asker(Protocol):
 
     def describe(self, product: dict, routes: tuple[str, ...]) -> shopping.Described: ...
 
+    def picks(self, asked: dict, routes: tuple[str, ...]) -> shopping.ShopAnswer: ...
+
 
 class ClaudeAsker:
     """The real one: `tagger/shopping.py` behind the monthly limit, each kind of call recorded as its own purpose."""
@@ -146,6 +148,7 @@ class ClaudeAsker:
         self.finding = spend.Meter(cfg, state, spend.PURPOSE_SHOP, spend.estimate_shop)
         self.pricing = spend.Meter(cfg, state, spend.PURPOSE_PRICES, spend.estimate_shop)
         self.describing = spend.Meter(cfg, state, spend.PURPOSE_DESCRIBE_LINK, spend.estimate_describe_link)
+        self.picking = spend.Meter(cfg, state, spend.PURPOSE_PICKS, spend.estimate_shop)
 
     def find(self, wish: dict, routes: tuple[str, ...]) -> shopping.ShopAnswer:
         return shopping.find(wish, routes, client=self.client, meter=self.finding)
@@ -155,6 +158,9 @@ class ClaudeAsker:
 
     def describe(self, product: dict, routes: tuple[str, ...]) -> shopping.Described:
         return shopping.describe(product, routes, client=self.client, meter=self.describing)
+
+    def picks(self, asked: dict, routes: tuple[str, ...]) -> shopping.ShopAnswer:
+        return shopping.picks(asked, routes, client=self.client, meter=self.picking)
 
 
 # the closet to check finds against, for a profile: (item rows, wear log)
@@ -346,13 +352,14 @@ def placeholder(url: str) -> str:
 
 # ------------------------------------------------------------------ "Would this work?" for each find
 def judge(rows: list[dict], worn: list[dict], pieces: list[dict], listed: dict | None = None) -> list[dict]:
-    """Each piece checked against the closet: {verdict, verdict_words, reasons, outfits, checked_at}, `outfits` being
-    how many example outfits the check could make with it (the card offers "See it with your clothes" when there is
-    one; the outfits themselves are worked out again when asked for, `Shopper.outfits`). The closet's gaps are
-    worked out once for all of them. `listed` is the gap list as What's missing has it (the app keeps it): the plain
-    list until the owner has said how they live, weighed by how they live once they have, its "context" saying which.
-    The finds are then judged exactly as "Would this work?" judges a piece, and the list is not worked out again.
-    Without it the plain list is worked out here."""
+    """Each piece checked against the closet: {verdict, verdict_words, reasons, outfits, pairs, checked_at}, `outfits`
+    being how many example outfits the check could make with it (the card offers "See it with your clothes" when there
+    is one; the outfits themselves are worked out again when asked for, `Shopper.outfits`), and `pairs` how many of the
+    owner's pieces it makes a good outfit with ("You might like" says it). The closet's gaps are worked out once for all
+    of them. `listed` is the gap list as What's missing has it (the app keeps it): the plain list until the owner has
+    said how they live, weighed by how they live once they have, its "context" saying which. The finds are then judged
+    exactly as "Would this work?" judges a piece, and the list is not worked out again. Without it the plain list is
+    worked out here."""
     if not pieces:
         return []
     before = listed if listed is not None else gaps.find_gaps(rows, worn, {"max_gaps": wouldwork.ALL_GAPS})
@@ -361,7 +368,8 @@ def judge(rows: list[dict], worn: list[dict], pieces: list[dict], listed: dict |
     for p in pieces:
         a = wouldwork.check(rows, worn, p, before, context.get("life"), context.get("climate"))
         out.append({"verdict": a["verdict"], "verdict_words": a["verdict_words"], "reasons": a["reasons"],
-                    "outfits": len(a["goes_with"]["examples"]), "checked_at": db.now()})
+                    "outfits": len(a["goes_with"]["examples"]), "pairs": a["goes_with"].get("pairs", 0),
+                    "checked_at": db.now()})
     return out
 
 
@@ -938,6 +946,10 @@ class Shopper:
                 raise Refused(LIMIT)
         return routes
 
+    def usable(self, searches: int = 0, cost: float | None = None) -> tuple[str, ...]:
+        """`_usable`, for "You might like" (`closet/picks.py`), which asks the same way."""
+        return self._usable(searches, cost)
+
     # ------------------------------------------------------------- starting
     def start_find(self, profile: str, wish_id: str) -> None:
         """Start a search for the wish. Refused (or ItemError, no such wish) when it cannot start."""
@@ -1337,10 +1349,12 @@ class Shopper:
 
 
 class PriceScheduler:
-    """Looks up the prices of the real closet's finds at most once a day per wish, while the program runs."""
+    """Looks up the prices of the real closet's finds at most once a day per wish, while the program runs. `also`: other
+    rounds made at each look, after the prices (the weekly look for things you might like, `picks.Picker.tick`)."""
 
-    def __init__(self, shopper: Shopper, check_every: float = CHECK_EVERY, first_wait: float = FIRST_WAIT):
-        self.shopper, self.check_every, self.first_wait = shopper, check_every, first_wait
+    def __init__(self, shopper: Shopper, check_every: float = CHECK_EVERY, first_wait: float = FIRST_WAIT,
+                 also: tuple[Callable[[], object], ...] = ()):
+        self.shopper, self.check_every, self.first_wait, self.also = shopper, check_every, first_wait, also
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -1356,10 +1370,13 @@ class PriceScheduler:
     def _loop(self) -> None:
         self._stop.wait(self.first_wait)   # let startup finish first
         while not self._stop.is_set():
-            try:
-                self.shopper.tick()
-            except Exception:
-                log.exception("price check scheduler error")
+            for tick in (self.shopper.tick, *self.also):
+                if self._stop.is_set():
+                    break
+                try:
+                    tick()
+                except Exception:
+                    log.exception("price check scheduler error")
             self._stop.wait(self.check_every)
 
 

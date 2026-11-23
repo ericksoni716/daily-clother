@@ -29,6 +29,9 @@ RATING_POINTS = {"love": 4, "like": 2, "meh": 0}   # a brand's weight from its i
 HEADING = "About the person this is for"
 LEANINGS = ("These are leanings to rank the products by, not requirements: the wish and its price range above come "
             "first, and a good match for the wish is never left out because of them.")
+# "You might like" has no wish: the block is then what to look for, not a way to rank (closet/picks.py)
+PICKS_LEAD = ("This is what Nines knows about them from their clothes. Look for what suits it, not only for more of "
+              "the same.")
 IN_STOCK = "When a shop lists sizes, prefer products in stock in their size."
 AXIS_WORDS = (("color", "colours"), ("pattern", "patterns"), ("fit", "fits"))
 _PLURAL = {"scarf": "scarves", "dress_shoes": "dress shoes"}
@@ -134,9 +137,10 @@ def size_words(saved: Mapping[str, Mapping], kind: str | None, every: bool) -> l
 
 
 def about(rows: list[dict], wears: list[dict], style_lines: list[str], saved_sizes: Mapping[str, Mapping],
-          category: str | None) -> str:
+          category: str | None, lead: str = LEANINGS) -> str:
     """The block about the owner for a search, or "" when nothing is known. `category` is the wish's closet category
-    (None: a wish added by hand, then the whole closet is looked at and every saved size is said)."""
+    (None: a wish added by hand, then the whole closet is looked at and every saved size is said). `lead` is the line
+    under the heading: for a wish, that these are leanings; for "You might like", `PICKS_LEAD`."""
     category = category if category in GARMENTS else None
     days = _worn_days(wears)
     blocks = []
@@ -168,7 +172,7 @@ def about(rows: list[dict], wears: list[dict], style_lines: list[str], saved_siz
         blocks.append(("Their size:" if kind else "Their sizes:") + "\n" + "\n".join(fitted) + f"\n{IN_STOCK}")
     if not blocks:
         return ""
-    return f"{HEADING}\n{LEANINGS}\n\n" + "\n\n".join(blocks)
+    return f"{HEADING}\n{lead}\n\n" + "\n\n".join(blocks)
 
 
 def style_lines(conn: sqlite3.Connection) -> list[str]:
@@ -184,3 +188,8 @@ def for_search(conn: sqlite3.Connection, rows: list[dict], wears: list[dict], wi
     """The block for a search for `wish`, from the closet open on `conn` and its item rows and wear log."""
     look = wish.get("look_for") if isinstance(wish.get("look_for"), dict) else {}
     return about(rows, wears, style_lines(conn), sizes.saved(conn), look.get("category"))
+
+
+def for_picks(conn: sqlite3.Connection, rows: list[dict], wears: list[dict]) -> str:
+    """The block for "You might like": the closet as a whole, as for a wish added by hand, led by `PICKS_LEAD`."""
+    return about(rows, wears, style_lines(conn), sizes.saved(conn), None, lead=PICKS_LEAD)

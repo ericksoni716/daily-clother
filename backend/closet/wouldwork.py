@@ -632,7 +632,7 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
 
     Returns {"enough", "message", "verdict", "verdict_words", "reasons": [sentences], "piece", "fills": [{gap_id,
     name, score_before, score_after, gone, filled, days, of_days, found_by, rank, low, situations, counts}],
-    "goes_with": {days, suits, of, items, examples, text}, "repeats": {items: [{id, worn, hardly_worn}], text},
+    "goes_with": {days, suits, of, items, pairs, examples, text}, "repeats": {items: [{id, worn, hardly_worn}], text},
     "holds_back": [sentences], "situations": [{id, label}], "situations_text", "weighed", "checked": {items, wears,
     days}}. `situations` and `situations_text` are empty and None without answers.
     """
@@ -646,8 +646,8 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
     clothes = [p for p in owned if p.category not in outfits.ACCESSORY_CATEGORIES]
     repeats = _repeats(c, cand)
     answer = {"enough": True, "message": None, "verdict": None, "verdict_words": None, "reasons": [], "piece": piece,
-              "fills": [], "goes_with": {"days": 0, "suits": 0, "of": len(gaps.grid()), "items": [], "examples": [],
-                                         "text": None},
+              "fills": [], "goes_with": {"days": 0, "suits": 0, "of": len(gaps.grid()), "items": [], "pairs": 0,
+                                         "examples": [], "text": None},
               "repeats": repeats, "holds_back": [], "situations": [], "situations_text": None, "weighed": weighed,
               "checked": {"items": len(owned), "wears": c.wear_total, "days": 0}}
     if len(clothes) < gaps.MIN_ITEMS:
@@ -676,13 +676,15 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
     if answers is not None:
         answer["situations"] = _serves(row, c, answers, climate)
         answer["situations_text"] = _serves_text(answer["situations"])
-    partners = _partners(tried)[:PAIRS_MAX]
+    every_partner = _partners(tried)
+    partners = every_partner[:PAIRS_MAX]
     goes_text = None
     if good:
         with_words = _names([c.by_id[i] for i in partners[:2]]) if partners else ""
         goes_text = (f"It makes a good outfit on {_count(len(good))} of the {len(tried)} kinds of day the closet is "
                      f"tried on" + (f", most often with {with_words}." if with_words else "."))
-    answer["goes_with"].update(days=len(good), suits=len(suits), items=partners, examples=_examples(tried), text=goes_text)
+    answer["goes_with"].update(days=len(good), suits=len(suits), items=partners, pairs=len(every_partner),
+                               examples=_examples(tried), text=goes_text)
     answer["fills"] = fills
     answer["checked"]["days"] = len(tried)
     holds = _holds_back(c, cand, tried, fills, before, peers)

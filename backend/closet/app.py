@@ -47,6 +47,7 @@ from . import (
     outfits,
     patjobs,
     phone,
+    picks,
     productpage,
     progress,
     review,
@@ -108,6 +109,7 @@ class Services:
     check_tagger: tagjobs.Tagger | None = None   # describes a photo for "Would this work?", recorded as its own purpose
     shopper: shop.Shopper | None = None           # searches shops for a wish and looks prices up again
     price_checks: shop.PriceScheduler | None = None   # looks prices up once a day while the program runs
+    picker: picks.Picker | None = None            # "You might like": a look on a tap, and once a week on the same round
     finder: sources.Worker | None = None          # asks where each piece is in a photo of several
     views: shoeviews.Worker | None = None         # sorts a shoe's photos into views
     draws: shoedraw.Worker | None = None          # draws a shoe from its sorted photos
@@ -437,10 +439,12 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                              finder or (no_finder if tagger is not None else real_finder))
     shopper = shop.Shopper(cfg, state, lambda profile: closet_inputs(cfg, profile), tag_worker.routes,
                            shop_asker or shop.ClaudeAsker(cfg, state, client=api_client), page_reader)
+    picker = picks.Picker(shopper)
     sv = Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
                   pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                   corrector=corrector or real_corrector,
-                  check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
+                  check_tagger=tagger or check_tagger, shopper=shopper, picker=picker,
+                  price_checks=shop.PriceScheduler(shopper, also=(picker.tick,)),
                   finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
                   add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter),
                   day_reader=day_reader or (no_day_reader if tagger is not None else real_day_reader),
@@ -1277,6 +1281,8 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     # shop finds are judged on the same list as "Would this work?" (closet_for_check)
     sv.shopper.listed = gap_analysis
     app.include_router(shop.router(sv.shopper, state, conn_dep))
+    assert sv.picker, "build_services wires it"
+    app.include_router(picks.router(sv.picker, state, conn_dep))
     app.include_router(sizes.router(conn_dep))
     # ---------------------------------------------------------------- the day in the owner's words
     def day_answer(message: str | None = None, saved: bool | None = None) -> dict:

@@ -659,7 +659,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
       {plansFailed && !tripDay && <Failed query={plansRead} what="your plans" />}
       {!plansFailed && (ahead || planned || undoPlan || (otherOutfits && !ahead)) && !tripDay && (
         <PlanLine ahead={ahead} today={today} planned={otherOutfits ? null : planned} planNow={planNow} undo={undoPlan} other={otherOutfits}
-          busy={busy} locked={locked} dayWord={dayWord}
+          busy={busy} locked={locked}
           onOther={(v) => setOtherOutfits(v)} onRemove={() => ahead && void unplan(ahead)} onUndo={() => void undoPlanChange()} />
       )}
 
@@ -1383,9 +1383,9 @@ function sayDay(day: string, today: string): string {
  * the day; a piece swapped is said under the outfit), or, on a day ahead, that one is planned or not yet; with Undo once a plan was taken
  * away or replaced here. Always one short paragraph, so the outfits under it do not move when it changes.
  */
-function PlanLine({ ahead, today, planned, planNow, undo, other, busy, locked, dayWord, onOther, onRemove, onUndo }: {
+function PlanLine({ ahead, today, planned, planNow, undo, other, busy, locked, onOther, onRemove, onUndo }: {
   ahead: string | null; today: string; planned: NonNullable<TodayAnswer['context']['plan']> | null; planNow: Plan | null;
-  undo: { words: string } | null; other: boolean; busy: boolean; locked: boolean; dayWord: string;
+  undo: { words: string } | null; other: boolean; busy: boolean; locked: boolean;
   onOther(on: boolean): void; onRemove(): void; onUndo(): void;
 }) {
   const title = locked ? OFFLINE_TITLE : undefined;
@@ -1403,7 +1403,7 @@ function PlanLine({ ahead, today, planned, planNow, undo, other, busy, locked, d
       : <>{planLine(planned.day, today, planned.note)} {link('See other outfits', () => onOther(true))}</>;
   } else if (other) body = <>{ahead ? 'Other outfits than your plan.' : 'These are other outfits than the one you planned.'} {link('Back to your plan', () => onOther(false))}</>;
   else if (planNow && ahead) body = <>{plannedFor(ahead, today)}. {link('Remove the plan', onRemove)}</>;
-  else if (ahead) body = <span className="muted">Nothing planned for {dayWord} yet.</span>;
+  else if (ahead) body = <span className="muted">Nothing planned yet.</span>;   // the heading names the day
   else return null;
   // on a day ahead, one line of fixed height over the outfit, whatever it says, so the outfit holds still under it
   return <p className={ahead ? 'today-plan today-plan-ahead' : 'today-plan'} role="status" data-testid="plan-line">{body}</p>;

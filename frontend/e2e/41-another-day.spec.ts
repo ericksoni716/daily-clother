@@ -59,7 +59,7 @@ test('another day: the sheet, the day in Today\'s layout, "Wear this tomorrow", 
   const noWeather = page.getByTestId('ahead-no-weather');
   await expect(noWeather).toHaveText('No forecast for that day. Try again');
   await expect(noWeather.getByRole('button', { name: 'Try again' })).toBeEnabled();
-  await expect(planLine(page)).toHaveText('Nothing planned for tomorrow yet.');
+  await expect(planLine(page)).toHaveText('Nothing planned yet.');   // the heading names the day
   await expect(page.getByTestId('recent-outfits')).toHaveCount(0);
   const wear = current(page).getByRole('button', { name: 'Wear this tomorrow' });
   await expect(wear).toBeVisible();
@@ -139,7 +139,7 @@ for (const weather of ['a forecast', 'no forecast']) {
     };
 
     await page.goto(`/today/day/${day}`);
-    await expect(planLine(page)).toHaveText(/^Nothing planned for \w+ yet\.$/);
+    await expect(planLine(page)).toHaveText('Nothing planned yet.');
     const wear = current(page).getByRole('button', { name: /^Wear this on / });
     await expect(wear).toBeVisible();
     await shoot('not-planned', (await wear.textContent())!.trim());

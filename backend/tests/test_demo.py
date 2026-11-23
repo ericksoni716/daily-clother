@@ -116,6 +116,24 @@ def test_the_demo_keeps_two_outfits_and_plans_a_day_a_few_days_ahead(client):
     assert [p["day"] for p in planned] == [(wears.today() + timedelta(days=3)).isoformat()]
 
 
+def test_the_demos_plan_and_kept_outfits_carry_no_warning_on_a_mild_day(client):
+    # the demo's planned day once warned "The grey wool trousers are a lot dressier than the chambray shirt": what the
+    # demo shows as a plan, or as an outfit kept, should be one the rules are happy with
+    client.post("/api/profile", json={"profile": "demo"})
+    plan = client.get("/api/plans").json()["plans"][0]
+    for occasion in (None, plan["occasion"]):
+        body = {"day": plan["day"], "low_c": 14, "high_c": 20, "rain": False, **({"occasion": occasion} if occasion else {})}
+        answer = client.post("/api/outfits/today", json=body).json()
+        assert answer["context"]["plan"]["unavailable"] == []
+        first = answer["outfits"][0]
+        assert first["pieces"] == plan["pieces"] and first["warnings"] == [], first["warnings"]
+    for kept in client.get("/api/outfits/kept").json()["outfits"]:
+        for occasion in (None, "smart_casual"):
+            body = {"again": kept["id"], "low_c": 14, "high_c": 20, "rain": False, **({"occasion": occasion} if occasion else {})}
+            first = client.post("/api/outfits/today", json=body).json()["outfits"][0]
+            assert first["warnings"] == [], (kept["name"], first["warnings"])
+
+
 def test_an_older_demo_closet_is_given_the_new_items_once(cfg, tmp_path, monkeypatch):
     full = data()
     older = {**{k: v for k, v in full.items() if k not in ("wishes", "trip")},

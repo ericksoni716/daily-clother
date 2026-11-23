@@ -717,11 +717,14 @@ def trip() -> dict:
 # (Dress for another day). The demo's dates are relative to the day it is opened, like its wears.
 KEPT = [
     dict(name="Lunch in the sun", pieces=dict(base="Madras plaid shirt", bottom="Stone pleated chinos",
-                                              shoes="Burgundy penny loafers", accessories=["Tortoiseshell glasses"])),
+                                              shoes="Tobacco suede derbies", accessories=["Tortoiseshell glasses"])),
     dict(name=None, pieces=dict(base="Marl turtleneck", bottom="Black jeans", shoes="Brown boots")),
 ]
+# The plan is the rules' own first outfit for a mild smart-casual day in the demo closet, so its day shows no warning
+# (tests/test_demo.py checks it, and that the kept outfits worn on a mild day show none either).
 PLAN = dict(in_days=3, occasion="smart_casual",
-            pieces=dict(base="Chambray shirt", bottom="Grey wool trousers", shoes="Tobacco suede derbies"))
+            pieces=dict(base="Blue oxford shirt", mid="Cream v-neck sweater", bottom="Stone pleated chinos",
+                        shoes="Brown boots", accessories=["Brown leather belt"]))
 
 
 def _pieces(named: dict) -> dict:

@@ -8979,7 +8979,7 @@
     "mid": null,
     "outer": null,
     "bottom": "17eb7aeb829f5b06ab8a069278a048f0",
-    "shoes": "9825991716f2588fbb02c902e093940b",
+    "shoes": "a6c5ca03668d54268a2a7e6d9bc9f9dd",
     "accessories": [
      "567a079b41995ba88af87a269a05e3f6"
     ]
@@ -9002,12 +9002,14 @@
   "in_days": 3,
   "occasion": "smart_casual",
   "pieces": {
-   "base": "6f06e5d9e9b6591295dac3dab571658b",
-   "mid": null,
+   "base": "12a1bc4c2086523ead1ed8d43676e451",
+   "mid": "2ddd124fa7a95b1598af1aacffeed210",
    "outer": null,
-   "bottom": "ed4c0700a2eb5db0ad921688eb79a544",
-   "shoes": "a6c5ca03668d54268a2a7e6d9bc9f9dd",
-   "accessories": []
+   "bottom": "17eb7aeb829f5b06ab8a069278a048f0",
+   "shoes": "7a5bd749c80e5f22bdd010e9debf20f0",
+   "accessories": [
+    "987d2f5a68f05c6ebb797193f54b85ae"
+   ]
   }
  }
 }

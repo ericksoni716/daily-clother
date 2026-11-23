@@ -51,11 +51,11 @@ export function reviewChanges(rows: ReviewRow[], chosen: Record<string, string>)
   return { changes, confirm };
 }
 
-/** Who said what it is, beside the kind: "Set by you", "Claude's guess · Claude was 80% sure", or nothing to say. With
+/** Who said what it is, beside the kind: "Set by you", "Claude's guess · 80% sure" (Claude named once), or nothing to say. With
  * no kind the row says what the category says, as the summary line does, and adds nothing that would contradict it. */
 export function kindWho(item: Pick<Item, 'kind' | 'kind_by' | 'kind_confidence'>): string {
   if (item.kind_by === 'owner') return 'Set by you';
-  if (item.kind_by === 'claude') return `Claude's guess${item.kind_confidence != null ? ` · ${sureText(item.kind_confidence)}` : ''}`;
+  if (item.kind_by === 'claude') return `Claude's guess${item.kind_confidence != null ? ` · ${percentSure(item.kind_confidence)}` : ''}`;
   return '';
 }
 
@@ -94,9 +94,12 @@ export function progressText(position: number, total: number): string {
   return `${position} of ${total}`;
 }
 
+/** "55% sure" */
+const percentSure = (confidence: number) => `${Math.round(Math.max(0, Math.min(1, confidence)) * 100)}% sure`;
+
 /** "Claude was 55% sure" */
 export function sureText(confidence: number): string {
-  return `Claude was ${Math.round(Math.max(0, Math.min(1, confidence)) * 100)}% sure`;
+  return `Claude was ${percentSure(confidence)}`;
 }
 
 const items = (n: number) => `${n} ${n === 1 ? 'item' : 'items'}`;

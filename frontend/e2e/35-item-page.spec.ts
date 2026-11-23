@@ -138,6 +138,33 @@ test.describe('the item page in the demo closet', () => {
     await expect(essentials.getByTestId('what-is-it')).toContainText('Henley');
   });
 
+  test('"What is it?" gives its words the width on a 320px phone: the longest kind in two lines, Claude named once', async ({ page }) => {
+    // the review of the item page's pictures (23 November): five lines for the kind, three for who said it
+    await page.setViewportSize({ width: 320, height: 640 });
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    const lines = async (el: Locator) => el.evaluate((e) => {
+      const r = e.getClientRects();   // one box per line of an inline run of text
+      return new Set(Array.from(r).map((b) => Math.round(b.top))).size;
+    });
+    // Claude's guess, as sure as can be: who said it is one line, and says Claude once
+    await page.goto(`/item/${demoId('White leather sneakers')}`);
+    const row = page.getByTestId('essentials').getByTestId('what-is-it');
+    await expect(row.locator('.kind-row-sure')).toHaveText("Claude's guess · 100% sure");
+    expect(await lines(row.locator('.kind-row-sure'))).toBe(1);
+    expect(await lines(row.locator('.detail-row-text'))).toBeLessThanOrEqual(2);
+    // the longest kind and group in the taxonomy
+    const id = demoId('Grey hoodie');
+    expect((await page.request.put(`/api/items/${id}/kind`, { data: { kind: 'crewneck_sweatshirt' } })).ok()).toBe(true);
+    await page.goto(`/item/${id}`);
+    await expect(row).toContainText('Crewneck sweatshirt · Knitwear & mid layers');
+    expect(await lines(row.locator('.detail-row-text'))).toBeLessThanOrEqual(2);
+    expect(await sideways(page)).toEqual([]);
+    // Fix the details lists the details, not this row: nothing to squeeze there
+    await page.getByRole('button', { name: 'Something wrong? Change the details' }).click();
+    await expect(page.getByRole('dialog').getByTestId('what-is-it')).toHaveCount(0);
+  });
+
   test('a change is said to be kept beside it, quietly, and no toast covers what you tap next', async ({ page }) => {
     await page.setViewportSize(PHONE);
     await goToCloset(page);

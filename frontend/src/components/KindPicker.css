@@ -10,3 +10,8 @@
 .kind-row-words { min-width: 0; display: grid; }
 .kind-row-sure { color: var(--ink-3); font-size: var(--text-xs); }
 .kind-row { position: relative; }
+/* on a phone the label takes its own line above, so the kind, its group and who said it have the row's width */
+@media (max-width: 699px) {
+  .kind-row .detail-row-button { flex-wrap: wrap; row-gap: var(--space-1); }
+  .kind-row .detail-row-label { width: 100%; max-width: none; }
+}

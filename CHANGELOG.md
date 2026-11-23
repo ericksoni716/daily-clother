@@ -283,8 +283,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   on its dark chip.
 - **A piece is called one thing on its page.** Until you choose its exact kind, "What is it?" says
   what the line under its name says ("Polo · Tees & polos"), on the piece's page and in the review,
-  instead of "Kind not said yet" beside a piece the page calls a polo. A long kind wraps instead of
-  being cut off.
+  instead of "Kind not said yet" beside a piece the page calls a polo. On a phone the row's label
+  sits above, so the kind and its group have the width (two lines at most), and who said it names
+  Claude once ("Claude's guess · 100% sure").
 - **A wish made from a link is named at once.** It shows the product's name as soon as Nines has read
   its page, not only when Claude has finished describing it.
 - **A trip under way stays as it is.** Opening a trip on its third day no longer says the forecast

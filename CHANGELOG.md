@@ -12,6 +12,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Nines tells you when a price on your wishlist goes down.** A banner at the top of every
+  screen says "A tan rain coat is down to $150.00 at Example Shop, from $177.00.", with **See it**
+  (opens the wish) and **Got it**; when several went down it counts them, and **See them** opens
+  the Wardrobe. It says so once: opening the wish or tapping Got it is enough, on your phone or
+  your computer alike. It needs Nines to be running, and the demo closet never shows it.
 - **Shades**, on an item's page: under **Details**, the Colour row now offers the shades of the
   piece's colour under the colours, each with its swatch (Green has Sage, Mint, Forest green,
   Hunter green and Teal; Navy has Navy, Midnight and Raw indigo), 55 in all. Choosing a colour keeps the
@@ -40,6 +45,17 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **A wish's page leads with what you are watching**: the pages you sent first, then what Claude
+  found, then one sentence saying Nines checks the price once a day and tells you when it goes
+  down, with when it last checked and **Check now** (was Check prices). Find more and Add a link
+  come after, then the note. **I found one: would it work?** is now **Would it go with my
+  clothes?**, and for a page you sent it starts with the product's name; **Remove** is now
+  **Remove from the list**, and a find's **Remove** is **Stop watching**. A find whose price
+  changed says what it was and when.
+- **One price instead of a range.** A wish's From and To are gone: **Set the most you'd pay**
+  opens a sheet with one amount. Nines then tells you only when a price goes down to it or less,
+  and Claude's searches stay under it. On the wishlist, a drop to that price or less says "That's
+  within your price."
 - A shoe now shows the kind Claude named for it under **What is it?** (a chukka boot, a running
   shoe), where before only the kind you chose showed.
 

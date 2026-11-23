@@ -265,7 +265,8 @@ sneakers. **Thinking of buying something?**: Would this work?,
 and your wishlist, a row per wish that opens its page, with "Add a link" (a product's page: a
 new wish made from it, then its page opens) and "Add by hand" (beside the rest on a computer).
 A row shows the note, what to look for, or the page it was sent as ("$68.00 at Example Shop"),
-and "Down from $68.00 to $54.40" when a price went down. **Not worn**: pieces never worn and
+and "Down from $68.00 to $54.40" when a price went down, with "That's within your price." when it
+is no more than the most you'd pay. **Not worn**: pieces never worn and
 pieces not worn for a long time in their season, each to Archive or Keep. **Worn most**: over
 the last 30 or 90 days or all time.
 **More numbers**, folded: how wears are spread in each kind of clothing, what the closet is
@@ -275,14 +276,25 @@ marked as saved earlier.
 
 ## A wish
 
-`/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wardrobe" goes back. What to look
-for, a note (saved when you leave the box or tap Save note, saying "Saving…", "Saved" or
-"Didn't save" with Try again), the price range and "Find some" (Claude searches shops; each
-find is checked against the closet and its price can be checked again later), "Add a link" (a
-product's page added as a find: Nines reads its name and price from the page, and asks Claude
-only when the page gives no price; the find says "You sent this link", and when Claude read the
-price), "Check prices" (the pages you sent read by Nines, the rest by Claude), "I found one:
-would it work?", "I bought it" and Remove. While a page is read the wish says who is reading it.
+`/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wardrobe" goes back. Top to bottom: what to
+look for (or "Added by hand"); what is watched, the pages you sent first ("You sent this link", and
+"Claude read its price from the page" when it did), then what Claude found, each checked against the
+closet, with "Open in shop", "Stop watching" (it goes, and with it its daily check) and, when its
+price changed from one day to another, "The price was … on 3 Nov and … yesterday."; under them one
+sentence, "Nines checks the price once a day while it's running and tells you when it goes down."
+(with a price, "…when it goes down to $150.00 or less."), with "Set the most you'd pay" or
+"Change", then when it was last checked and "Check now" (the pages you sent read by Nines, the rest
+by Claude). Then looking for more: "Find some" or "Find more" (Claude searches shops) and "Add a
+link" (a product's page added as a find: Nines reads its name and price from the page, and asks
+Claude only when the page gives no price); with nothing watched yet, the price is offered here
+("Claude looks at any price." or "Claude looks for ones up to $150.00."). Then the note (saved when
+you leave the box or tap Save note, saying "Saving…", "Saved" or "Didn't save" with Try again), and
+"Would it go with my clothes?" (Would this work? for this wish; for a page you sent it starts with
+the product's name), "I bought it" and "Remove from the list". **The most you'd pay** opens in a
+sheet: one amount and its currency, with Save, Clear and Cancel; Nines tells you when a price goes
+down to it or less, and Claude's searches stay under it. A wish that still has a lowest price from
+before says so until it is changed. While a page is read the wish says who is reading it. Opening
+the page counts as seeing its price news.
 
 ## Add a link
 
@@ -397,6 +409,12 @@ back. Its code loads only when it is opened. In order:
   still waiting when the page closes is sent as it closes.
 - **Offline.** On a phone that cannot reach the computer, the saved closet, trips and
   suggestions are shown and nothing can be changed or added until it is back.
+- **Price news.** When a price on your wishlist goes down (to the most you'd pay or less, when you
+  set one), a banner at the top of every screen says so once: "A tan rain coat is down to $150.00
+  at Example Shop, from $177.00." with See it and Got it, or for several "Prices went down for 3
+  things on your wishlist." with See them (the Wardrobe) and Got it. Opening the wish or Got it ends
+  it, on every device. It is asked for when the page opens, every half hour and when you come back
+  to it; never offline or in the demo closet. The update banner and the offline line sit beside it.
 - **The demo closet.** About 50 sample pieces in a closet of its own, opened and left from
   Advanced settings, with a strip at the top while it is open. It is never backed up and never sent
   to Claude.

@@ -3,7 +3,6 @@
  * with, and then, more exactly, one of the owner's named shades of that colour. The shades come from the server
  * (`GET /api/vocab`, from the taxonomy), so the page and the server always agree on them.
  */
-import { SWATCH } from './labels';
 import type { ItemPatch, NamedShade } from './types';
 
 /** The shades of one colour word, in the taxonomy's order; none for a colour without shades (multicolour), for no
@@ -12,11 +11,11 @@ export function shadesOf(shades: NamedShade[] | undefined, color: string | null 
   return color ? (shades ?? []).filter((s) => s.color === color) : [];
 }
 
-/** What choosing a colour word saves: the word, drawn in its swatch (null clears both). A shade of another colour
- * the owner chose before is put aside by the server. */
+/** What choosing a colour word saves: the word alone, with no colour of its own (null clears both). Only the colour
+ * is known then: the server draws the piece in the word's own colour and names no shade until one is chosen, and a
+ * shade the owner chose before is put aside. */
 export function colourPatch(color: string | null): ItemPatch {
-  const swatch = color ? SWATCH[color] : undefined;
-  return { color, color_hex: swatch?.startsWith('#') ? swatch : null };
+  return { color, color_hex: null };
 }
 
 /** What choosing a shade saves: the shade, with its colour word and its colour. The server sets those two from the

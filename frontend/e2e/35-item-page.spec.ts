@@ -161,6 +161,9 @@ test.describe('the item page in the demo closet', () => {
     const greens = sheet.getByRole('group', { name: 'Shades of green' });
     await expect(greens.getByRole('button', { name: 'Sage' })).toBeVisible();
     await expect(burgundies).toHaveCount(0);
+    // the colour alone claims no shade: none of green's is lit, and the row says the colour only (P15)
+    await expect(greens.getByRole('button', { pressed: true })).toHaveCount(0);
+    await expect(row).toHaveAttribute('aria-label', 'Colour: Green');
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
 

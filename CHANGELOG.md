@@ -255,6 +255,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   as before and the piece you chose stays where it was on the screen, instead of the grid folding to
   three across and showing other clothes. The panel has **Close**, Escape closes it, and Back closes
   it too; focus goes into the panel as it opens and back to the piece when it closes.
+- **Choosing a colour no longer chooses a shade for you.** On a piece's page, Colour → Blue used to
+  light up "French blue" by itself. Now a colour chosen alone is just that colour: no shade is lit,
+  the row says "Blue", and the piece is drawn in plain blue until you choose a shade. What Claude
+  described keeps its shade until you change the colour. The swatch on the chosen colour now shows
+  on its dark chip.
 - **A piece is called one thing on its page.** Until you choose its exact kind, "What is it?" says
   what the line under its name says ("Polo · Tees & polos"), on the piece's page and in the review,
   instead of "Kind not said yet" beside a piece the page calls a polo. A long kind wraps instead of

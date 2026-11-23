@@ -272,7 +272,8 @@ levels when it describes a photo; a formality you chose is never changed by desc
 
 The colour's choices end with the shades of the piece's colour, each with its swatch ("Shades of
 green": Sage, Mint, Forest green, Hunter green, Teal). Choosing a colour keeps the choices open on its
-shades; choosing a shade saves it with its colour and draws the piece in it. A shade you choose
+shades and saves the colour alone: no shade is lit and the piece is drawn in the colour's own tone
+until you choose one. Choosing a shade saves it with its colour and draws the piece in it. A shade you choose
 stays yours when Claude describes the piece again, and choosing another colour puts it aside. It
 is chosen only there: Fix the details does not list it.
 

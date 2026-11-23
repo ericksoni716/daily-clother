@@ -8,7 +8,7 @@ import json
 from contextlib import closing
 
 from closet import corrections, db, items, tagjobs, vocab
-from closet.tagger.schema import ItemTags
+from closet.tagger.schema import NAMED_HEX, ItemTags
 from closet.tagger.taxonomy import SHADES
 
 from .conftest import ANSWER, upload
@@ -79,12 +79,37 @@ def test_a_colour_chosen_alone_puts_aside_a_shade_of_another_colour(client, serv
     patch(client, item["id"], shade="sage")
     saved = patch(client, item["id"], color="navy", color_hex="#27344f")
     assert saved["own_details"] == {}
-    assert saved["color"] == "navy" and saved["shade"] in {n for n, (_, c) in SHADES.items() if c == "navy"}
+    # a colour the owner gave without a shade names none (P15): the owner chose navy, not one of its shades
+    assert saved["color"] == "navy" and saved["shade"] is None
     # the same colour word and the shade's own colour leave it standing
     patch(client, item["id"], shade="sage")
     assert patch(client, item["id"], color="green", color_hex=SAGE)["shade"] == "sage"
     # another colour of the same word is no longer that shade
     assert patch(client, item["id"], color_hex="#3f7d4f")["own_details"] == {}
+
+
+def test_choosing_a_colour_alone_claims_no_shade_and_draws_the_colour_words_own(client, services, claude, cfg):
+    # the review of 23 November (P15): Details, Colour, Blue lit "French blue" by itself
+    item = described(client, services, claude)
+    assert item["shade"] is not None   # what Claude described keeps its shade until the owner changes the colour
+    saved = patch(client, item["id"], color="blue", color_hex=None)
+    assert (saved["color"], saved["color_hex"], saved["shade"]) == ("blue", None, None)
+    assert saved["source"]["color"] == "user" and saved["source"]["color_hex"] == "user"
+    assert NAMED_HEX["blue"] in client.get(saved["illustration_url"]).text.lower()
+    shade = client.get(f"/api/items/{item['id']}/history").json()[0]["parts"][1]
+    assert (shade["title"], shade["after_words"]) == ("shade", "none chosen")
+    # the family's own colour sent with it is not a shade either, and nor is a colour said in a sentence
+    assert patch(client, item["id"], color="green", color_hex=NAMED_HEX["green"])["shade"] is None
+    with closing(db.connect(cfg.db_path("main"))) as conn:
+        said = corrections.confirm(conn, item["id"], "it is brown", [{"name": "color", "value": "brown"}])
+    assert (said["color"], said["shade"]) == ("brown", None)
+    # describing it again leaves the owner's colour and claims no shade for it
+    assert client.post(f"/api/items/{item['id']}/retag").status_code == 202
+    assert services.tag_worker.drain() == 1
+    again = client.get(f"/api/items/{item['id']}").json()
+    assert (again["color"], again["shade"]) == ("brown", None)
+    # a shade chosen afterwards is the owner's
+    assert patch(client, item["id"], shade="taupe")["shade"] == "taupe"
 
 
 def test_a_null_shade_gives_it_back_and_leaves_the_colour(client, services, claude):

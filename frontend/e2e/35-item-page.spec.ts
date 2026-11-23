@@ -102,12 +102,22 @@ test.describe('the item page in the demo closet', () => {
     }).toEqual(['Everyday black tee', 'Made-up Mills', 2450]);
     expect((await item()).checked_at).toBeTruthy();   // it counts as checked, so the review does not offer it
 
-    // a price that is not a price is said plainly and not saved
-    await essentials.getByRole('textbox', { name: 'Price' }).fill('about twenty');
-    await essentials.getByRole('textbox', { name: 'Price' }).press('Enter');
-    await expect(page.locator('.toast').filter({ hasText: 'Enter a price like 45 or 45.50.' })).toBeVisible();
-    await expect(essentials.getByRole('textbox', { name: 'Price' })).toHaveValue('24.50');
+    // a price that is not a price is said plainly under the box, which keeps what you typed, and nothing is saved
+    const price = essentials.getByRole('textbox', { name: 'Price' });
+    await price.fill('about twenty');
+    await price.press('Enter');
+    await expect(essentials.getByTestId('price-wrong')).toHaveText('Type the price as a number, like 45 or 45.50.');
+    await expect(price).toHaveValue('about twenty');
     expect((await item()).price_cents).toBe(2450);
+    // a decimal comma, as a phone set to such a region types it, is the same price (it was saved a hundred times
+    // too high, as 2,450.00)
+    await price.fill('24,95');
+    await price.press('Enter');
+    await expect(essentials.getByTestId('price-wrong')).toHaveCount(0);
+    await expect.poll(async () => (await item()).price_cents).toBe(2495);
+    await price.fill('24.50');
+    await price.press('Enter');
+    await expect.poll(async () => (await item()).price_cents).toBe(2450);
 
     // what it is: the row opens the kinds in a sheet; choosing one saves it at once as your word
     await essentials.getByTestId('what-is-it').click();
@@ -215,7 +225,7 @@ test.describe('with a stand-in for Claude', () => {
     await card.getByRole('textbox', { name: 'Brand' }).fill('Made-up Mills');
     await card.getByRole('textbox', { name: 'Price' }).fill('lots');
     await card.getByRole('textbox', { name: 'Price' }).press('Enter');
-    await expect(page.locator('.toast').filter({ hasText: 'Enter a price like 45 or 45.50.' })).toBeVisible();
+    await expect(page.locator('.toast').filter({ hasText: 'Type the price as a number, like 45 or 45.50.' })).toBeVisible();
     await expect(card).toBeVisible();
     expect((await item()).name).toBe('Navy polo');
 

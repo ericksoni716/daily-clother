@@ -1,5 +1,6 @@
 /** Plain words and small helpers for the review queue (the screen is in screens/Review.tsx). */
-import { formatPrice, parsePrice, PRICE_HINT, SWATCH } from './labels';
+import { formatPrice, SWATCH } from './labels';
+import { PRICE_HINT, readCents } from './spend';
 import type { CheckBody, Item, ItemPatch, ReviewField, ReviewItem } from './types';
 
 /** One choice to make: a field, or one part of the silhouette. */
@@ -74,7 +75,7 @@ export const typedOf = (item: Pick<ReviewItem, 'name' | 'brand' | 'price_cents'>
  */
 export function checkBody(item: Pick<ReviewItem, 'name' | 'brand' | 'price_cents' | 'kind'>, typed: Typed, kind: string | null,
   rows: ReviewRow[], chosen: Record<string, string>): { body: CheckBody } | { error: string } {
-  const price = parsePrice(typed.price);
+  const price = readCents(typed.price);
   if (price === undefined) return { error: PRICE_HINT };
   const { changes, confirm } = reviewChanges(rows, chosen);
   const name = typed.name.trim();

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
-import { BackLink, confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
+import { BackLink, confirmKeys, Failed, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { WhatItIs } from '../components/WhatItIs';
 import { WhereItIs } from '../components/WhereItIs';
@@ -13,7 +13,7 @@ import { TraceNotice } from '../components/ShoeTrace';
 import { ProgressStrip } from '../components/Progress';
 import { BackIcon, ChevronIcon, HangerIcon, InfoIcon, WarnIcon } from '../components/Icons';
 import { FormalityChips } from '../components/FormalityChips';
-import { FIELD_TITLES, formalityLabel, formatPrice, label, shadeLabel, measuredColours, parsePrice, PRICE_HINT, ratingLabel, swatchOf } from '../labels';
+import { FIELD_TITLES, formalityLabel, formatPrice, label, shadeLabel, measuredColours, ratingLabel, swatchOf } from '../labels';
 import { colourPatch, shadePatch, shadesOf } from '../shades';
 import { fixLabel, lastFoldTitle } from '../look';
 import { LookLine, NotesBox, useFieldText } from '../components/ItemAbout';
@@ -21,6 +21,7 @@ import { SaveLine, useWhenLeaving } from '../leave';
 import { navigate, useMediaQuery } from '../router';
 import { dropItem, itemQuery, itemSaved, touch, useItemProgress, useItemSummary, useVocab, writeSummary } from '../queries';
 import { itemPoll } from '../work';
+import { PRICE_HINT, readCents } from '../spend';
 import { queryKeys, type EditKind } from '../queryKeys';
 import { useApp } from '../store';
 import { notInDrawing, useShowDrawings } from '../drawing';
@@ -54,7 +55,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   // read again by itself only while Claude draws onto its drawing (`itemPoll`); the closet's poll does the rest
   const query = useQuery({ ...itemQuery(id), refetchInterval: (q) => itemPoll(q.state.data, offline) ?? false });
   const item = query.data ?? null;
-  const error = query.error ? query.error.message : null;
+  const error = query.error;
   const [fixing, setFixing] = useState(false);
   const [focus, setFocus] = useState<{ field: string; at: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -126,7 +127,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     return (
       <div className="detail">
         <DetailTop inPanel={inPanel} backTo={backTo} />
-        <div className="empty"><p className="form-error" role="alert">{error}</p></div>
+        <Failed query={query} what="this piece" />
       </div>
     );
   }
@@ -182,6 +183,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     <article className="detail" aria-label={item.name || 'Item'}>
       <DetailTop inPanel={inPanel} backTo={backTo} />
       {locked && <Notice as="p">You're offline, so this item can't be changed right now.</Notice>}
+      <Failed query={query} what="this piece" />
 
       {/* 1. the picture and the name, the name typed over in place; what went wrong with the picture sits under it */}
       <Picture item={item} progress={progress} />
@@ -235,7 +237,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         }} />
         <div className="essentials-fields">
           <TextField label="Brand" value={item.brand} disabled={locked} onSave={(v) => save({ brand: v })} />
-          <PriceField cents={item.price_cents} disabled={locked} onSave={(c) => save({ price_cents: c })} toastError={(m) => toast(m, 'error')} />
+          <PriceField cents={item.price_cents} disabled={locked} onSave={(c) => save({ price_cents: c })} />
         </div>
       </section>
 
@@ -657,30 +659,34 @@ function TextField({ label: text, value, disabled, placeholder, type = 'text', m
   );
 }
 
-function PriceField({ cents, disabled, onSave, toastError }: { cents: number | null; disabled: boolean; onSave(c: number | null): void; toastError(m: string): void }) {
+function PriceField({ cents, disabled, onSave }: { cents: number | null; disabled: boolean; onSave(c: number | null): void }) {
   const [v, setV] = useFieldText(formatPrice(cents));
+  // what you typed stays in the box when it is not a price, with the sentence under it; nothing is saved
+  const [wrong, setWrong] = useState(false);
+  const hint = useId();
   const commit = () => {
-    const parsed = parsePrice(v);
-    if (parsed === undefined) {
-      toastError(PRICE_HINT);
-      setV(formatPrice(cents));
-      return;
-    }
-    if (parsed !== cents) onSave(parsed);
+    const parsed = readCents(v);
+    setWrong(parsed === undefined);
+    if (parsed !== undefined && parsed !== cents) onSave(parsed);
   };
   useWhenLeaving(() => {
-    const parsed = parsePrice(v);
+    const parsed = readCents(v);
     if (parsed !== undefined && parsed !== cents) onSave(parsed);
   });
   return (
-    <label className="field">
-      <span>Price</span>
-      <span className="input-prefix">
-        <span aria-hidden="true">$</span>
-        <input inputMode="decimal" value={v} disabled={disabled} onChange={(e) => setV(e.target.value)} onBlur={commit}
-          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
-      </span>
-    </label>
+    <div className="field-with-hint">
+      <label className="field">
+        <span>Price</span>
+        <span className="input-prefix">
+          <span aria-hidden="true">$</span>
+          <input inputMode="decimal" autoComplete="off" value={v} disabled={disabled} aria-invalid={wrong || undefined}
+            aria-describedby={wrong ? hint : undefined}
+            onChange={(e) => { setV(e.target.value); if (wrong) setWrong(false); }} onBlur={commit}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+        </span>
+      </label>
+      {wrong && <p className="form-error" id={hint} role="alert" data-testid="price-wrong">{PRICE_HINT}</p>}
+    </div>
   );
 }
 

@@ -8,14 +8,14 @@ import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'reac
 import { api, ApiError } from '../api';
 import { StatusLine, Toggle } from '../components/Toggle';
 import { UpdatesManage } from '../components/Updates';
-import { Button, Notice, PageHeader } from '../components/ui';
+import { Button, Failed, Notice, PageHeader } from '../components/ui';
 import { deviceOf } from '../here';
-import { formatSize, parsePrice } from '../labels';
+import { formatSize } from '../labels';
 import { touch, useEdit, useModel } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { routeIds, settingsQuery, settingsSaved, storageQuery, taggingQuery, useSaveSettings, writePart } from '../settings';
 import { backupLine, computerOnly, modelLines, storageLine, type ComputerOnly } from '../settingsLines';
-import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
+import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, readCents, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useApp } from '../store';
 import type { ModelInfo, Profile, RouteOrder, Settings, TaggingRoute, TaggingSpend } from '../types';
 import { README_CLAUDE_CODE, Section, type Toast } from './Settings';
@@ -38,12 +38,7 @@ export function AdvancedScreen({ version }: { version: string }) {
       <div className="settings">
         {header}
         {offline ? <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>
-          : read.error ? (
-            <>
-              <p className="form-error" role="alert">{read.error.message}</p>
-              <button className="btn" onClick={() => void read.refetch()}>Try again</button>
-            </>
-          ) : <p className="hint" aria-busy="true">Opening the advanced settings…</p>}
+          : read.error ? <Failed query={read} what="the advanced settings" /> : <p className="hint" aria-busy="true">Opening the advanced settings…</p>}
       </div>
     );
   }
@@ -52,7 +47,7 @@ export function AdvancedScreen({ version }: { version: string }) {
     <div className="settings">
       {header}
       {offline && <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>}
-      {!offline && read.error && <p className="form-error" role="alert">{read.error.message}</p>}
+      {!offline && <Failed query={read} what="the advanced settings" />}
 
       <div className="settings-groups">
         {only.autostart && settings.autostart !== null && (
@@ -122,7 +117,7 @@ function ModelAddress({ model, only, toast, disabled }: { model: ModelInfo; only
     setStarting(true);
     try {
       qc.setQueryData(queryKeys.model(), await edit(() => api.downloadModel()));
-      toast('Downloading the background-removal model');
+      toast('Downloading the files for cutting the clothes out');
     } catch (err) {
       toast((err as Error).message, 'error');
     } finally {
@@ -268,7 +263,7 @@ function StorageSection({ offline, profile }: { offline: boolean; profile: Profi
       ['Cutouts', (s) => s.cutouts_bytes],
       ['Thumbnails', (s) => s.thumbnails_bytes],
       ['Backups on this computer', (s) => s.backups_bytes],
-      ['Background-removal model', (s) => s.model_bytes],
+      ['Cutting the clothes out of photos', (s) => s.model_bytes],
       ['Everything else', (s) => Math.max(0, s.total_bytes - s.photos_bytes - s.cutouts_bytes - s.thumbnails_bytes - s.backups_bytes - s.model_bytes)],
     ];
     body = (
@@ -287,7 +282,7 @@ function StorageSection({ offline, profile }: { offline: boolean; profile: Profi
               </div>
             ))}
           </dl>
-          {profile === 'demo' && <p className="hint">These are the demo closet's own pictures. The model, backups and logs are shared with your own closet.</p>}
+          {profile === 'demo' && <p className="hint">These are the demo closet's own pictures. The files for cutting the clothes out, backups and logs are shared with your own closet.</p>}
         </details>
       </>
     );
@@ -476,7 +471,7 @@ function ApiKeyBox({ offline, settings, toast }: { offline: boolean; settings: S
     <div className="api-key" data-testid="api-key">
       <p className={`state-line ${info.set ? 'state-ready' : 'state-missing'}`}>
         <span className="state-dot" aria-hidden="true" />
-        <span>{apiKeyLine(info)}</span>
+        <span>{apiKeyLine(info, deviceOf(window.location.hostname) === 'computer')}</span>
       </p>
       {askForKey && (
         <form className="field-row field-row-inline" onSubmit={(e) => void save(e)}>
@@ -568,7 +563,7 @@ function ApiKeySpend({ offline, settings, toast }: { offline: boolean; settings:
 
   /** The limit typed, in dollars, or null after saying what is wrong. */
   function typedCap(): number | null {
-    const cents = parsePrice(cap);
+    const cents = readCents(cap);
     if (cents === null || cents === undefined || cents <= 0) {
       setOpen(true);
       setCapError('Type a monthly limit in dollars, such as 5 or 2.50.');
@@ -617,7 +612,7 @@ function ApiKeySpend({ offline, settings, toast }: { offline: boolean; settings:
               <input inputMode="decimal" value={cap} placeholder={placeholder} disabled={offline}
                 onChange={(e) => setCap(e.target.value)} />
             </label>
-            <button className="btn" type="submit" disabled={offline || cap.trim() === '' || parsePrice(cap) === Math.round((saved ?? -1) * 100)}>Save limit</button>
+            <button className="btn" type="submit" disabled={offline || cap.trim() === '' || readCents(cap) === Math.round((saved ?? -1) * 100)}>Save limit</button>
           </form>
           {spend && (
             <>

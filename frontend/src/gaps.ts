@@ -209,6 +209,21 @@ export function orWords(words: string[]): string {
   return `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}`;
 }
 
+/** Words for a pair, which take "are": the categories that are pairs (as the server's rule, `gaps._be`) and the other
+ * names a pair goes by. */
+const PAIR_WORDS = new Set(['jeans', 'trousers', 'shorts', 'sneakers', 'boots', 'shoes', 'sandals', 'loafers', 'chinos',
+  'trainers', 'slippers', 'pants', 'socks', 'gloves', 'sunglasses', 'glasses', 'joggers', 'leggings', 'oxfords', 'brogues',
+  'derbies', 'mules', 'espadrilles', 'slides', 'flip-flops', 'chukkas', 'boxers', 'briefs', 'cufflinks']);
+
+/** "is" or "are" after a name a person gave a piece: "Tan suede chukka boots are…", "A pair of boots is…", "A tan rain
+ * coat is…". The name's last word decides, as the category does on the server. */
+export function beFor(name: string): 'is' | 'are' {
+  const words = name.trim().toLowerCase().replace(/[^a-z\s-]/g, '').split(/\s+/);
+  if (/^(a|one) (pair|set) of\b/.test(words.slice(0, 3).join(' '))) return 'is';
+  const last = words[words.length - 1] ?? '';
+  return PAIR_WORDS.has(last) ? 'are' : 'is';
+}
+
 /** The kind of piece as a bare phrase: "smart casual coat", "business dress shoes". */
 export function kindWords(look: Pick<LookFor, 'category' | 'formality'>): string {
   const thing = THING[look.category] ?? (label('category', look.category).toLowerCase() || 'piece');

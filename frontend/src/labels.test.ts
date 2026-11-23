@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryPlural, formalityLabel, formalityNeighbours, formatPrice, formatSize, humanize, label, measuredColours, parsePrice, ratingLabel, shadeLabel, tileCaption, wornWords } from './labels';
+import { categoryPlural, formalityLabel, formalityNeighbours, formatPrice, formatSize, humanize, label, measuredColours, ratingLabel, shadeLabel, tileCaption, wornWords } from './labels';
 import { messageFrom } from './api';
 import { fitWithin } from './resize';
 
@@ -85,18 +85,17 @@ describe('labels', () => {
     expect(formatPrice(4500)).toBe('45');
     expect(formatPrice(4550)).toBe('45.50');
     expect(formatPrice(null)).toBe('');
-    expect(parsePrice('45')).toBe(4500);
-    expect(parsePrice('$45.5')).toBe(4550);
-    expect(parsePrice('1,200.99')).toBe(120099);
-    expect(parsePrice('')).toBeNull();
-    expect(parsePrice('forty')).toBeUndefined();
-    expect(parsePrice('1.234')).toBeUndefined();
   });
 
   it('reads server error messages, including validation lists', () => {
     expect(messageFrom({ detail: 'That passphrase is not right.' }, 'x')).toBe('That passphrase is not right.');
     expect(messageFrom({ detail: [{ msg: 'Field required' }] }, 'x')).toBe('Field required');
     expect(messageFrom(null, 'fallback')).toBe('fallback');
+    // a bare status phrase is not a sentence for the owner: the plain fallback is said instead
+    expect(messageFrom({ detail: 'Internal Server Error' }, 'fallback')).toBe('fallback');
+    expect(messageFrom({ detail: 'Not Found' }, 'fallback')).toBe('fallback');
+    expect(messageFrom({ detail: 'Bad Gateway' }, 'fallback', 'Bad Gateway')).toBe('fallback');
+    expect(messageFrom({ detail: 'Error 500' }, 'fallback')).toBe('fallback');
   });
 });
 

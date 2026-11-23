@@ -1,5 +1,53 @@
 import { describe, expect, it } from 'vitest';
-import { aboutUsd, amount, apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, importLine, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from './spend';
+import { aboutUsd, amount, apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, importLine, monthName, PRICE_HINT, readAmount, readCents, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from './spend';
+
+describe('reading a price you typed', () => {
+  // one reader for every box a price is typed in: an item's price, the review card, a wish's most you'd pay, a code's
+  // amount off and the monthly limit. A phone set to a region that writes 45,50 has a comma on its decimal keypad.
+  it.each([
+    ['45', 45],
+    ['45.50', 45.5],
+    ['45,50', 45.5],
+    ['45,5', 45.5],
+    ['0,99', 0.99],
+    ['99,50', 99.5],
+    ['1,234.50', 1234.5],
+    ['1.234,50', 1234.5],
+    ['1,234', 1234],
+    ['1,234,567.89', 1234567.89],
+    ['1.234.567,89', 1234567.89],
+    ['1 234,50', 1234.5],
+    ['$45', 45],
+    ['$ 45.50', 45.5],
+    ['45 $', 45],
+    ['€45,50', 45.5],
+    ['£12', 12],
+    [' 120.50 ', 120.5],
+    ['.5', 0.5],
+    ['45.', 45],
+    ['0', 0],
+  ])('reads %j as %d', (typed, amount) => {
+    expect(readAmount(typed)).toBe(amount);
+  });
+
+  it.each(['', '   ', '$'])('reads %j as no price', (typed) => {
+    expect(readAmount(typed)).toBeNull();
+  });
+
+  it.each(['forty', '-5', '45.505', '45,505,5', '1.234', '1,23,456', '1.234.56', '45..5', '4 5', '1e3', '12abc', '1,234.567', '1.2,3', '$$45'])(
+    'refuses %j rather than guess', (typed) => {
+      expect(readAmount(typed)).toBeUndefined();
+    });
+
+  it('gives cents for what is stored in cents, and a sentence for what it cannot read', () => {
+    expect(readCents('45,50')).toBe(4550);
+    expect(readCents('99,50')).toBe(9950);
+    expect(readCents('0.29')).toBe(29);
+    expect(readCents('')).toBeNull();
+    expect(readCents('abc')).toBeUndefined();
+    expect(PRICE_HINT).toBe('Type the price as a number, like 45 or 45.50.');
+  });
+});
 
 describe('money wording', () => {
   it('says what something cost, whole amounts without cents, in its own currency, never converted', () => {
@@ -61,6 +109,9 @@ describe('the API key box', () => {
     expect(apiKeyLine({ ...none, set: true, source: 'keychain', where: 'Windows Credential Manager' }))
       .toBe('Your API key is saved in Windows Credential Manager.');
     expect(apiKeyLine({ ...none, set: true, source: 'environment' })).toBe('Your API key comes from ANTHROPIC_API_KEY, set on this computer.');
+    // read on the phone, "this Mac" would be the phone
+    expect(apiKeyLine({ ...none, set: true, source: 'keychain' }, false)).toBe("Your API key is saved in your Mac's keychain.");
+    expect(apiKeyLine({ ...none, set: true, source: 'environment' }, false)).toBe('Your API key comes from ANTHROPIC_API_KEY, set on your computer.');
   });
   it('says whether Anthropic checked it, and what to do next', () => {
     const saved = { ...none, set: true, source: 'keychain' as const };

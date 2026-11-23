@@ -59,10 +59,15 @@ export const connection = {
   set: setOffline,
 };
 
-/** Pulls a readable sentence out of an error body. FastAPI validation errors carry a list. */
-export function messageFrom(body: unknown, fallback: string): string {
+/** The status phrases a server may send as its whole message ("Internal Server Error"): never words for the owner. */
+const STATUS_PHRASES = /^(bad request|unauthorized|forbidden|not found|method not allowed|conflict|gone|payload too large|content too large|unprocessable (entity|content)|too many requests|internal server error|not implemented|bad gateway|service unavailable|gateway timeout|(http )?error( \d{3})?|\d{3}( \w+)*)$/i;
+
+/** Pulls a readable sentence out of an error body. FastAPI validation errors carry a list. A bare status phrase (the
+ * server's `statusText`, or one of the usual ones) gives `fallback`: the owner never reads a status text or code. */
+export function messageFrom(body: unknown, fallback: string, statusText = ''): string {
   if (body && typeof body === 'object' && 'detail' in body) {
     const detail = (body as { detail: unknown }).detail;
+    if (typeof detail === 'string' && detail && (STATUS_PHRASES.test(detail.trim()) || detail === statusText)) return fallback;
     if (typeof detail === 'string' && detail) return detail;
     if (Array.isArray(detail) && detail.length && typeof detail[0]?.msg === 'string') return detail[0].msg;
   }
@@ -160,7 +165,7 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
   }
   if (!res.ok) {
     const retry = Number(res.headers.get('Retry-After')) || undefined;
-    const err = new ApiError(res.status, messageFrom(data, fallbackMessage(res.status)), retry);
+    const err = new ApiError(res.status, messageFrom(data, fallbackMessage(res.status), res.statusText), retry);
     if (res.status === 401) unauthorizedListeners.forEach((l) => l(err.message));
     (err as ApiError & { body?: unknown }).body = data;
     throw err;

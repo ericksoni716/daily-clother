@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from datetime import date
 
 from . import gaps, insights, outfits, vocab
@@ -30,7 +31,9 @@ def _date(value: object) -> date | None:
         return None
 
 
-def learn(rows: list[dict], wears: list[dict]) -> dict:
+def _evidence(rows: list[dict], wears: list[dict]) -> tuple[list[dict], Counter, list[date], bool, bool]:
+    """The active rows, the days each was worn, every day worn in order, and whether there are enough wears and
+    enough ratings to say anything (MIN_WEARS across MIN_WORN_ITEMS, or MIN_RATINGS)."""
     rows = [r for r in rows if r.get("status") != "archived"]
     ids = {r["id"] for r in rows}
     seen = {(w.get("item_id"), w.get("worn_on")) for w in wears
@@ -38,10 +41,26 @@ def learn(rows: list[dict], wears: list[dict]) -> dict:
     counts = Counter(i for i, _ in seen)
     wear_ready = len(seen) >= MIN_WEARS and len(counts) >= MIN_WORN_ITEMS
     rating_ready = sum(r.get("rating") in RATING_POINTS for r in rows) >= MIN_RATINGS
+    return rows, counts, sorted(_date(d) for _, d in seen), wear_ready, rating_ready
+
+
+def overall(rows: list[dict], wears: list[dict], categories: Iterable[str]) -> dict | None:
+    """What the wears and ratings favour across the pieces of all these categories together, by the same rules and
+    thresholds as one category's (`learn`); None when there is too little to say anything."""
+    rows, counts, dates, wear_ready, rating_ready = _evidence(rows, wears)
+    wanted = set(categories)
+    rows = [r for r in rows if r.get("category") in wanted]
+    if not (wear_ready or rating_ready) or not rows:
+        return None
+    profile = _learn_category(rows, counts, dates, wear_ready, rating_ready)
+    return profile if profile["used"] else None
+
+
+def learn(rows: list[dict], wears: list[dict]) -> dict:
+    rows, counts, dates, wear_ready, rating_ready = _evidence(rows, wears)
     empty = {"used": False, "summary": None, "wear_ready": wear_ready, "by_category": {}}
     if not (wear_ready or rating_ready):
         return empty
-    dates = sorted(_date(d) for _, d in seen)
     categories = defaultdict(list)
     for row in rows:
         if row.get("category") in vocab.CATEGORY:

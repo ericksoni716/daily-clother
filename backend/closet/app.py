@@ -55,6 +55,7 @@ from . import (
     shoes,
     shoeviews,
     shop,
+    sizes,
     sources,
     spend,
     storage,
@@ -1275,6 +1276,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     # shop finds are judged on the same list as "Would this work?" (closet_for_check)
     sv.shopper.listed = gap_analysis
     app.include_router(shop.router(sv.shopper, state, conn_dep))
+    app.include_router(sizes.router(conn_dep))
     # ---------------------------------------------------------------- the day in the owner's words
     def day_answer(message: str | None = None, saved: bool | None = None) -> dict:
         out = {"note": daynote.describe(daynote.current(state, wears.today()), wears.today()), "message": message}
@@ -1540,6 +1542,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             "model": model_payload(),                          # GET /api/model
             "updates": sv.updater.status() if sv.updater else None,   # GET /api/updates
             "style_profile": styleprofile.current(conn),       # GET /api/style/profile
+            "sizes": sizes.current(conn),                      # GET /api/sizes
             "tagging_spend": spend.summary(cfg, state, conn),  # GET /api/tagging/spend
         }
 

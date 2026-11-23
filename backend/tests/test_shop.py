@@ -431,6 +431,18 @@ def test_the_finds_are_checked_against_the_closet_with_the_would_this_work_rules
     assert shop.judge(rows, worn, []) == []
 
 
+def test_find_some_also_tells_claude_about_the_owner(client, fake_shop):
+    # what the closet says about the owner goes with the wish (aboutyou.py builds it; its own tests say what is in it)
+    wid = wish(client)
+    find_some(client, wid)
+    assert fake_shop.calls[-1][1]["about"] == ""   # an empty closet with no sizes says nothing
+    assert client.put("/api/sizes/jackets", json={"size": "40R"}).status_code == 200
+    find_some(client, wid)
+    about = fake_shop.calls[-1][1]["about"]
+    assert about.startswith("About the person this is for") and "- Jackets and coats: 40R." in about
+    assert "- Jackets and coats: 40R." in shopping.find_prompt(fake_shop.calls[-1][1])
+
+
 # ------------------------------------------------------------------ the wish's price range
 def test_a_price_range_is_set_checked_and_cleared(client, fake_shop):
     wid = wish(client)

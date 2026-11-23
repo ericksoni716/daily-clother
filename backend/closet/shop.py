@@ -69,7 +69,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from . import db, gaps, productpage, spend, wishlist, wouldwork
+from . import aboutyou, db, gaps, productpage, spend, wishlist, wouldwork
 from .config import Config
 from .items import ItemError
 from .state import State
@@ -1044,6 +1044,12 @@ class Shopper:
     def find(self, profile: str, wish_id: str, routes: tuple[str, ...]) -> int:
         """Ask Claude, keep what fits, check each against the closet. Returns how many finds are new."""
         wish = self._wish(profile, wish_id)
+        rows, worn = self.closet(profile)
+        conn = db.connect(self.cfg.db_path(profile))
+        try:   # what the closet says about the owner goes with the wish, as a block of its own (aboutyou.py)
+            wish = {**wish, "about": aboutyou.for_search(conn, rows, worn, wish)}
+        finally:
+            conn.close()
         answer = self.asker.find(wish, routes)
         raw = answer.finds if hasattr(answer, "finds") else []
         found, urls = [], set()
@@ -1055,7 +1061,7 @@ class Shopper:
         if not found:
             self._end(profile, wish_id, "done", NOTHING if not raw else NOT_UNDERSTOOD, 0)
             return 0
-        rows, worn = self.closet(profile)
+        rows, worn = self.closet(profile)   # read again: the closet may have changed during the search
         verdicts = judge(rows, worn, [f["piece"] for f in found], self.listed(profile, (rows, worn)))
         conn = db.connect(self.cfg.db_path(profile))
         try:

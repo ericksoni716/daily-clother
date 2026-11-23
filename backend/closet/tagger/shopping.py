@@ -8,7 +8,10 @@ is checked against the monthly limit before it is made; the web searches an API
 request made are billed on top of its tokens (`spend.SEARCH_USD`).
 
 Claude is sent what the wish is (its name, what to look for, the owner's note
-and price range); nothing from the closet, no photo. Its answer is data only: a
+and price range) and, apart from it, what the closet says about the owner
+(`closet/aboutyou.py`: their style lines, what they love and wear in that kind
+of piece, the brands they wear and their size), as leanings to rank by; never a
+photo, an item's name or a note on an item. Its answer is data only: a
 list of products, or of prices, each price with the checkout code its page shows
 when it shows one (optional fields: no extra call is made for them).
 
@@ -137,9 +140,14 @@ def _range(wish: dict) -> str:
     return ""
 
 
+RANK = ("\n- Among the products that match the wish, put first those that suit what is said about the person this is "
+        "for; it never replaces the wish or its price range.")
+
+
 def find_prompt(wish: dict) -> str:
     """What Claude is asked for a wish: its name, what to look for (from the gap it came from), the owner's note and
-    price range. Values are the closet's own words with underscores taken out."""
+    price range, then, as a block of its own, what is known about the owner (`wish["about"]`, made by
+    `closet/aboutyou.py`; none when it is empty). Values are the closet's own words with underscores taken out."""
     look = wish.get("look_for") or {}
     words = []
     for key, label in (("category", "kind"), ("formality", "formality"), ("season", "season"),
@@ -157,15 +165,16 @@ def find_prompt(wish: dict) -> str:
         words.append(f"- price: {price}")
     details = "\n".join(words) or "- (nothing more than the name)"
     note = (wish.get("note") or "").strip()
+    about = (wish.get("about") or "").strip()
     return f"""Find menswear for sale now in online shops that matches this wish:
 
 Wish: {wish["name"]}
 {details}
 {f'The owner says: """{note}"""' if note else ""}
-
+{f"{chr(10)}{about}{chr(10)}" if about else ""}
 Search the web and give up to {MAX_FINDS} different products that are on sale now and match, best match first.
 - Each must be a real product page at a shop (not a search page, a list or an article), with its price as the page shows it.
-- Stay inside the price range when one is given.
+- Stay inside the price range when one is given.{RANK if about else ""}
 - Describe each product with the listed values only: what kind of piece, its main colour, formality, season, pattern, the weight of its cloth, whether it keeps the rain off, and its material as the shop says it.
 - Never make up a product, a link or a price. Fewer good finds are better than many doubtful ones; none is a fine answer."""
 

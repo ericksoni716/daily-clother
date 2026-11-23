@@ -1,6 +1,6 @@
 {
  "style": "line",
-  "schema_version": 11,
+ "schema_version": 11,
  "drawing_version": 21,
  "items": [
   {
@@ -8969,5 +8969,47 @@
    }
   ],
   "tick": "basic:"
+ },
+ "kept": [
+  {
+   "id": "d134cbdf6f4557c49d34fbd0ef6882bf",
+   "name": "Lunch in the sun",
+   "pieces": {
+    "base": "2795505179e5572babd1fd72804fafe1",
+    "mid": null,
+    "outer": null,
+    "bottom": "17eb7aeb829f5b06ab8a069278a048f0",
+    "shoes": "a6c5ca03668d54268a2a7e6d9bc9f9dd",
+    "accessories": [
+     "567a079b41995ba88af87a269a05e3f6"
+    ]
+   }
+  },
+  {
+   "id": "d78f64e8bbf1594ab5c763dfc9123432",
+   "name": null,
+   "pieces": {
+    "base": "c236e93196e55ee5860349fc9c211441",
+    "mid": null,
+    "outer": null,
+    "bottom": "1987307fd9bb554a80a86eefe0cc0d17",
+    "shoes": "7a5bd749c80e5f22bdd010e9debf20f0",
+    "accessories": []
+   }
+  }
+ ],
+ "plan": {
+  "in_days": 3,
+  "occasion": "smart_casual",
+  "pieces": {
+   "base": "12a1bc4c2086523ead1ed8d43676e451",
+   "mid": "2ddd124fa7a95b1598af1aacffeed210",
+   "outer": null,
+   "bottom": "17eb7aeb829f5b06ab8a069278a048f0",
+   "shoes": "7a5bd749c80e5f22bdd010e9debf20f0",
+   "accessories": [
+    "987d2f5a68f05c6ebb797193f54b85ae"
+   ]
+  }
  }
 }

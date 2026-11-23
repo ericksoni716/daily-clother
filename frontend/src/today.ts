@@ -74,8 +74,9 @@ export interface DayContext {
   low_c: number;
   high_c: number;
   rain: boolean;
-  /** 'mild': no forecast could be had, so the outfits are for a mild day (and `message` says why). */
-  source: 'forecast' | 'given' | 'forecast and given' | 'mild';
+  /** 'mild': no forecast could be had, so the outfits are for a mild day (and `message` says why). 'usual': a day
+   * ahead beyond the forecast, dressed for what the date is usually like. 'trip': a day ahead inside a saved trip. */
+  source: 'forecast' | 'given' | 'forecast and given' | 'usual' | 'usual and given' | 'mild' | 'trip';
   old: boolean;
   place: string | null;
   rain_chance: number | null;
@@ -83,7 +84,20 @@ export interface DayContext {
   /** Why the forecast is old, or why there is none (source 'mild'), in the server's words; null otherwise. */
   message?: string | null;
   /** When the outfits start from one worn before: which of its pieces came back and which could not. */
-  again?: { id: string; worn_on: string; kept: string[]; unavailable: string[] };
+  again?: { id: string; worn_on: string | null; kept: string[]; unavailable: string[]; away?: Record<string, string> };
+  /** The day's plan, when the outfits start from it: which of its pieces stay and which had to be swapped. `away`, in
+   * both: where each swapped piece that is away is, with its verb ("is at the cleaner's until Friday 27 November"). */
+  plan?: { day: string; kept: string[]; unavailable: string[]; note: string | null; away?: Record<string, string> };
+  /** Planned pieces not offered, as wearing them now leaves them in the laundry on their day: id -> that day. */
+  held?: Record<string, string>;
+  /** A day dressed ahead (Dress for another day), not today. */
+  ahead?: boolean;
+  /** A day ahead: the pieces away now that it counts as back by then (expected back before it), as a trip packs them. */
+  expected?: string[];
+  /** A day ahead with no weather: whether trying again may find it (the weather service could not be reached). */
+  retry?: boolean;
+  /** A day ahead inside a saved trip, which has that day's outfit. */
+  trip?: { id: string; place: string | null; first_day: string; last_day: string };
   /** The hours dressed for, read from the forecast hour by hour; null when it has no hours or the day was typed. */
   detail?: DayDetail | null;
   /** The day in the owner's words, if a note holds today or is coming up. */
@@ -156,8 +170,12 @@ export interface TodayRequest {
   low_c?: number;
   high_c?: number;
   rain?: boolean;
-  /** A worn outfit's id: start from its pieces that are clean. */
+  /** A worn (or kept) outfit's id: start from its pieces that are clean. */
   again?: string;
+  /** Another day, dressed ahead (YYYY-MM-DD). */
+  day?: string;
+  /** false: other outfits than the day's plan. */
+  planned?: boolean;
   /** Ask Claude to choose afresh (one request only: never kept with the request). */
   ask_again?: boolean;
   /** A message to Claude about the outfits on the page (one request only: never kept with the request). */
@@ -258,6 +276,15 @@ export function dayParts(c: DayContext): string[] {
     ? [d.feels_apart ? `feels like ${temps(d.feels_low_c, d.feels_high_c).replace(/^A/, 'a')}` : temps(d.temp_low_c, d.temp_high_c),
       ...(d.rain ? [] : ['no rain']), ...d.words.slice(1)]
     : [temps(c.low_c, c.high_c), c.rain ? (known ? `rain ${c.rain_chance}%` : 'rain likely') : 'no rain'];
+  if (c.source === 'usual' || c.source === 'usual and given') {
+    // a day beyond the forecast: what the date is usually like, as a trip's days say it
+    const usual = [temps(c.low_c, c.high_c), c.rain ? 'often rainy' : 'usually dry'];
+    if (c.place) usual.push(shortPlace(c.place));
+    return [...usual, 'usually, on these dates'];
+  }
+  // a day ahead with no weather: "14–20°C · a mild day" (a mild day is a dry one), short enough for one line at 320
+  // so the reason under it never meets it
+  if (c.source === 'mild' && c.ahead) return [parts[0], 'a mild day'];
   if (c.source === 'mild') parts.push('a mild day');
   else if (c.place) parts.push(shortPlace(c.place));
   else if (c.source === 'given') parts.push('your temperatures');
@@ -266,6 +293,9 @@ export function dayParts(c: DayContext): string[] {
 
 // the days are written by the one family of dates (wears.ts); Today and a trip read them from here too
 export { clock as timeOf, longDate, shortDate } from './wears';
+
+// days ahead (Dress for another day): written by the family too
+export { addDays, dayName, daysAhead, onDay, weekdayOf } from './wears';
 
 /** A temperature typed by hand ("5", "-3", "12.5", "12°"); null if it is not a number this app plans for. */
 export function parseTemp(text: string): number | null {

@@ -713,9 +713,39 @@ def trip() -> dict:
                 tick=TRIP["tick"])
 
 
+# Outfits kept without wearing them (Worn, Outfits you keep), newest first, and one outfit planned a few days ahead
+# (Dress for another day). The demo's dates are relative to the day it is opened, like its wears.
+KEPT = [
+    dict(name="Lunch in the sun", pieces=dict(base="Madras plaid shirt", bottom="Stone pleated chinos",
+                                              shoes="Tobacco suede derbies", accessories=["Tortoiseshell glasses"])),
+    dict(name=None, pieces=dict(base="Marl turtleneck", bottom="Black jeans", shoes="Brown boots")),
+]
+# The plan is the rules' own first outfit for a mild smart-casual day in the demo closet, so its day shows no warning
+# (tests/test_demo.py checks it, and that the kept outfits worn on a mild day show none either).
+PLAN = dict(in_days=3, occasion="smart_casual",
+            pieces=dict(base="Blue oxford shirt", mid="Cream v-neck sweater", bottom="Stone pleated chinos",
+                        shoes="Brown boots", accessories=["Brown leather belt"]))
+
+
+def _pieces(named: dict) -> dict:
+    return {**{pl: iid(named[pl]) if named.get(pl) else None for pl in ("base", "mid", "outer", "bottom", "shoes")},
+            "accessories": [iid(n) for n in named.get("accessories", [])]}
+
+
+def kept_outfits() -> list[dict]:
+    """KEPT as items.json keeps it, with ids that stay the same from run to run."""
+    return [dict(id=uuid.uuid5(NS, f"kept/{n}").hex, name=k["name"], pieces=_pieces(k["pieces"])) for n, k in enumerate(KEPT)]
+
+
+def plan() -> dict:
+    """PLAN as items.json keeps it."""
+    return dict(in_days=PLAN["in_days"], occasion=PLAN["occasion"], pieces=_pieces(PLAN["pieces"]))
+
+
 def lived_in() -> dict:
-    """What items.json keeps besides the items: the worn outfits, the wishes and the saved trip."""
-    return {"outfits": worn_outfits(), "wishes": wishes(), "trip": trip()}
+    """What items.json keeps besides the items: the worn outfits, the wishes, the saved trip, the outfits kept and the
+    day planned ahead."""
+    return {"outfits": worn_outfits(), "wishes": wishes(), "trip": trip(), "kept": kept_outfits(), "plan": plan()}
 
 
 def add_verdicts() -> None:
@@ -834,7 +864,7 @@ def main() -> None:
                 it["answer"] = it.pop("answer")
         data = {"style": data["style"], "schema_version": SCHEMA_VERSION, "drawing_version": data.get("drawing_version", DRAWING_VERSION),
                 "items": data["items"],   # as a full run writes it (the drawings are not touched)
-                **(lived_in() if a.history_only else {k: data[k] for k in ("outfits", "wishes", "trip") if k in data})}
+                **(lived_in() if a.history_only else {k: data[k] for k in ("outfits", "wishes", "trip", "kept", "plan") if k in data})}
         (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         if a.history_only:
             add_verdicts()

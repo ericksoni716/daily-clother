@@ -19,6 +19,8 @@ const SAMPLE: { [K in KeyName]: () => readonly unknown[] } = {
   weather: () => queryKeys.weather(),
   figure: () => queryKeys.figure({} as Parameters<typeof queryKeys.figure>[0]),
   worn: () => queryKeys.worn('2026-01-01'),
+  plans: () => queryKeys.plans(),
+  kept: () => queryKeys.kept(),
   trips: () => queryKeys.trips(),
   trip: () => queryKeys.trip('t1'),
   tripWeather: () => queryKeys.tripWeather('t1'),

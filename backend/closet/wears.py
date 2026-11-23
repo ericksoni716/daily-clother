@@ -54,6 +54,11 @@ def set_policy(get: Callable[[], Policy | None]) -> None:
     _policy = get
 
 
+def policy() -> Policy | None:
+    """The owner's laundry that keeps itself as it stands now, or None when it is off."""
+    return _policy()
+
+
 LAUNDRY_DEFAULT = {"auto": True, "day": 6}   # on, with Sunday as the laundry day, until the owner says otherwise
 DAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 

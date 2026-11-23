@@ -53,14 +53,21 @@ test('a screen whose read fails says so in plain words, offers Try again, and ke
   await expect(earlier).toHaveCount(0);
 });
 
-test('every screen that reads says the same when it fails: Worn, a trip list, Review and Would this work?', async ({ page }) => {
+test('every screen that reads says the same when it fails: Worn, the outfits you keep, a day ahead, a trip list, Review and Would this work?', async ({ page }) => {
   await page.setViewportSize(PHONE);
   await goToCloset(page);
+  await useProfile(page, 'demo');   // a day ahead is dressed only from a closet that can be dressed
+  const ahead = new Date();
+  ahead.setDate(ahead.getDate() + 2);
+  const day = `${ahead.getFullYear()}-${String(ahead.getMonth() + 1).padStart(2, '0')}-${String(ahead.getDate()).padStart(2, '0')}`;
   await page.route('**/api/outfits/worn*', (route) => route.fulfill(FAULT));
+  await page.route('**/api/outfits/kept', (route) => route.fulfill(FAULT));
+  await page.route('**/api/plans', (route) => route.fulfill(FAULT));
   await page.route('**/api/trips', (route) => route.fulfill(FAULT));
   await page.route('**/api/review', (route) => route.fulfill(FAULT));
   await page.route('**/api/vocab', (route) => route.fulfill(FAULT));
-  for (const [path, what] of [['/today/worn', 'your worn outfits'], ['/trips', 'your trips'], ['/review', 'the pieces to check'],
+  for (const [path, what] of [['/today/worn', 'your worn outfits'], ['/today/worn/kept', 'the outfits you keep'],
+    [`/today/day/${day}`, 'your plans'], ['/trips', 'your trips'], ['/review', 'the pieces to check'],
     ['/wardrobe/check', 'the words to describe a piece']]) {
     await page.goto(path);
     const failed = page.getByTestId('failed');

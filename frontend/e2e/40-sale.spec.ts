@@ -16,7 +16,7 @@ test.describe('on sale now', () => {
   });
 
   test('the On sale view, Shops you like, a sale row and Save', async ({ page }) => {
-    test.setTimeout(150_000);
+    test.setTimeout(300_000);
     await page.setViewportSize({ width: 393, height: 852 });
     await page.goto(backend.url + '/wardrobe');
     const card = page.locator('section.picks');
@@ -58,7 +58,8 @@ test.describe('on sale now', () => {
     await card.getByTestId('picks-look').click();
     await expect(card.getByRole('status').filter({ hasText: 'Claude is searching shops' })).toBeVisible();
     const picks = card.getByTestId('pick');
-    await expect(picks).toHaveCount(3, { timeout: 60_000 });
+    // the finds are judged against the closet before they show: why the wait is three minutes is in 39-picks.spec.ts
+    await expect(picks).toHaveCount(3, { timeout: 180_000 });
     await expect(card).not.toContainText('Cotton twill pleated trousers');   // 8% off: not a sale worth a pick
     await expect(card).not.toContainText('Brushed flannel work shirt');      // sold out on its page
     const coat = picks.filter({ hasText: 'Double-faced wool' });

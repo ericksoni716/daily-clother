@@ -90,8 +90,19 @@ for (const [layout, use] of LAYOUTS) {
         await expect(page.getByTestId('current-outfit').getByTestId('piece').first()).toBeVisible();
         await check(page, 'today', phone, shot);
 
+        // another day, dressed ahead
+        const ahead = new Date();
+        ahead.setDate(ahead.getDate() + 2);
+        const day = `${ahead.getFullYear()}-${String(ahead.getMonth() + 1).padStart(2, '0')}-${String(ahead.getDate()).padStart(2, '0')}`;
+        await visit(page, `/today/day/${day}`, '#today-title');
+        await expect(page.getByTestId('current-outfit').getByTestId('piece').first()).toBeVisible();
+        await check(page, 'another day', phone, shot);
+
         await visit(page, '/today/worn', 'h1');
         await check(page, 'worn', phone, shot);
+
+        await visit(page, '/today/worn/kept', 'h1');
+        await check(page, 'outfits you keep', phone, shot);
 
         await visit(page, '/trips', 'h1');
         await check(page, 'trips', phone, shot);

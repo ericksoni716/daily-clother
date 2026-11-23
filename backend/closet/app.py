@@ -43,12 +43,14 @@ from . import (
     instance,
     items,
     jobs,
+    kept,
     kinds,
     life,
     outfits,
     patjobs,
     phone,
     picks,
+    plans,
     productpage,
     progress,
     review,
@@ -1188,7 +1190,8 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
                 raise HTTPException(422, str(e))
             finally:
                 conn.close()
-            if state.get("profile") != "demo":   # what the page asked with is what is asked ahead tomorrow morning
+            # what the page asked with is what is asked ahead tomorrow morning; another day is not today opened
+            if state.get("profile") != "demo" and not (isinstance(body, dict) and body.get("day")):
                 styleahead.remember(state, body, wears.today(), styleahead.now().hour)
             return answer
 
@@ -1311,59 +1314,88 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     app.include_router(picks.router(sv.picker, state, conn_dep))
     app.include_router(sizes.router(conn_dep))
     app.include_router(shops.router(conn_dep))
+    app.include_router(plans.router(conn_dep))
+    app.include_router(kept.router(conn_dep))
     # ---------------------------------------------------------------- the day in the owner's words
-    def day_answer(message: str | None = None, saved: bool | None = None) -> dict:
-        out = {"note": daynote.describe(daynote.current(state, wears.today()), wears.today()), "message": message}
+    def ahead_of(value: object):
+        """The day ahead a note is about (Dress for another day), None for today; HTTPException when it is not one."""
+        if value in (None, ""):
+            return None
+        try:
+            return plans.check_day(value, wears.today())
+        except items.ItemError as e:
+            raise HTTPException(422, str(e))
+
+    def day_answer(message: str | None = None, saved: bool | None = None, ahead=None) -> dict:
+        if ahead is not None:
+            note = daynote.describe(daynote.for_day(state, ahead), ahead, ahead=True)
+        else:
+            note = daynote.describe(daynote.shown(state, wears.today()), wears.today())
+        out = {"note": note, "message": message}
         return out if saved is None else {**out, "saved": saved}
 
     @app.get("/api/day")
-    async def get_day():
-        """The note about today or the days ahead, if one holds: {note, message}."""
-        return day_answer()
+    async def get_day(day: str | None = None):
+        """The note about today or the days ahead, if one holds: {note, message}. With `day`, what is said about that
+        day ahead: its own word, or the note when it holds that day."""
+        return day_answer(ahead=ahead_of(day))
 
     @app.put("/api/day")
     async def put_day(request: Request):
         """Reads a sentence about the owner's day with Claude and keeps it: {saved, note, message}. Nothing from the
-        closet is sent, only the sentence, today's date and the home place's name. `saved` false with a `message`
-        when Claude cannot be asked or found nothing in it; the note kept before stays."""
+        closet is sent, only the sentence, the date it is about (today's, or with `day` that day's) and the home
+        place's name. `saved` false with a `message` when Claude cannot be asked or found nothing in it; the note kept
+        before stays."""
         try:
             body = await request.json()
         except ValueError:
             raise HTTPException(400, "The request was not valid JSON.")
+        if isinstance(body, dict) and set(body) - {"text", "day"}:
+            raise HTTPException(422, "Send the sentence as {\"text\": ...}, with the day it is about if it is not today.")
+        ahead = ahead_of(body.get("day") if isinstance(body, dict) else None)
         try:
             text = daynote.check_text(body.get("text") if isinstance(body, dict) else None)
         except ValueError as e:
             raise HTTPException(422, str(e))
         if state.get("profile") == "demo":
             return day_answer("The demo closet never asks Claude, so Nines can't read this here. "
-                              "Open your own closet to describe your day.", False)
+                              "Open your own closet to describe your day.", False, ahead)
         assert sv.tag_worker, "build_services wires it"
         # the API key first when it is switched on (the owner: "opus via api"), else the plan
         usable = tuple(sorted(sv.tag_worker.routes(), key=lambda r: r != "api"))
         if not usable and getattr(sv.day_reader, "needs_route", True):   # a stand-in (the browser tests) needs none
             return day_answer("Claude can't be reached right now, so Nines couldn't read that. "
-                              "You can still change where you are, or type the temperatures, under Change.", False)
+                              "You can still change where you are, or type the temperatures, under Change.", False, ahead)
         home = (state.get("place") or {}).get("name")
+        about = ahead or wears.today()   # the day the sentence is about is the "today" Claude reads it for
         try:
-            reading = await run_in_threadpool(sv.day_reader, text, wears.today(), home, usable)
+            reading = await run_in_threadpool(sv.day_reader, text, about, home, usable)
         except CapReached:
-            return day_answer(f"{spend.LIMIT_REACHED} Nines couldn't read that.", False)
+            return day_answer(f"{spend.LIMIT_REACHED} Nines couldn't read that.", False, ahead)
         except (RouteUnavailable, Unreachable):
-            return day_answer("Claude can't be reached right now, so Nines couldn't read that. Try again in a moment.", False)
+            return day_answer("Claude can't be reached right now, so Nines couldn't read that. Try again in a moment.",
+                              False, ahead)
         except TaggingError:
-            return day_answer("Claude gave no usable answer. Try again, or say it another way.", False)
+            return day_answer("Claude gave no usable answer. Try again, or say it another way.", False, ahead)
         from .tagger import dayread
         if not dayread.said_something(reading):
-            return day_answer(daynote.NOTHING_READ, False)
-        note, message = await run_in_threadpool(daynote.make, text, reading, wears.today())
-        daynote.save(state, note)
-        return day_answer(message, True)
+            return day_answer(daynote.NOTHING_READ, False, ahead)
+        note, message = await run_in_threadpool(daynote.make, text, reading, about)
+        if ahead is not None:
+            daynote.save_for(state, ahead, note, wears.today())
+        else:
+            daynote.save(state, note, wears.today())
+        return day_answer(message, True, ahead)
 
     @app.delete("/api/day")
-    async def delete_day():
-        """Back to an ordinary day at home."""
-        daynote.clear(state)
-        return day_answer()
+    async def delete_day(day: str | None = None):
+        """Back to an ordinary day at home (with `day`: that day ahead's own word goes)."""
+        ahead = ahead_of(day)
+        if ahead is not None:
+            daynote.clear_for(state, ahead)
+        else:
+            daynote.clear(state, wears.today())
+        return day_answer(ahead=ahead)
 
     @app.post("/api/add/sort")
     async def sort_add(request: Request):

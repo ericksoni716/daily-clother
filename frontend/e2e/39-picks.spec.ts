@@ -16,7 +16,7 @@ test.describe('you might like', () => {
   });
 
   test('look now, save one onto the wishlist, and turn one down with Undo', async ({ page }) => {
-    test.setTimeout(150_000);
+    test.setTimeout(300_000);
     await page.setViewportSize({ width: 393, height: 852 });
     await page.goto(backend.url + '/wardrobe');
     const card = page.locator('section.picks');
@@ -30,8 +30,10 @@ test.describe('you might like', () => {
     await card.getByTestId('picks-look').click();
     await expect(card.getByRole('status').filter({ hasText: 'Claude is searching shops' })).toBeVisible();
     const picks = card.getByTestId('pick');
-    // each find is checked against the closet on 40 kinds of day, a few seconds each on a slow runner
-    await expect(picks).toHaveCount(3, { timeout: 60_000 });
+    // the five finds are each checked against the closet on 40 kinds of day, about 30 seconds of computing in all on
+    // a developer machine; in CI two such looks run at once, and a slow runner took just over a minute, so the wait is
+    // three minutes
+    await expect(picks).toHaveCount(3, { timeout: 180_000 });
     await expect(card).not.toContainText('Not a real link');
     await expect(card).not.toContainText('Striped oxford');   // it repeats a shirt the closet has
     const coat = picks.first();

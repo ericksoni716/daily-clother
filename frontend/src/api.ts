@@ -4,6 +4,8 @@ import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } fro
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
 import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
+import type { Plan, PlanSaved } from './plans';
+import type { KeptAnswer, KeptOutfit } from './kept';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
 import type { FindOutfits, FindsAnswer, PriceNews } from './shop';
 import type { PickKind, PicksAnswer } from './picks';
@@ -255,9 +257,24 @@ export const api = {
   /** What each photo chosen on Add shows (one piece, several, a shoe and which shoe), up to ten small copies at once. */
   /** The note about today or the days ahead, if one holds. */
   day: () => request<DayAnswer>('/api/day'),
-  /** Reads a sentence about the owner's day with Claude and keeps it; `saved` false with a `message` when it could not. */
-  saveDay: (text: string) => request<DayAnswer>('/api/day', { method: 'PUT', body: { text } }),
-  clearDay: () => request<DayAnswer>('/api/day', { method: 'DELETE' }),
+  /** Reads a sentence about the owner's day with Claude and keeps it; `saved` false with a `message` when it could not.
+   * With `day`, the sentence is about that day ahead (Dress for another day). */
+  saveDay: (text: string, day?: string | null) => request<DayAnswer>('/api/day', { method: 'PUT', body: day ? { text, day } : { text } }),
+  clearDay: (day?: string | null) => request<DayAnswer>(day ? `/api/day?day=${encodeURIComponent(day)}` : '/api/day', { method: 'DELETE' }),
+  /** Today's plan and the plans of the days ahead, soonest first. */
+  plans: () => request<{ plans: Plan[] }>('/api/plans').then((r) => r.plans),
+  /** Keeps an outfit for a day ahead (one a day: it takes the place of the plan there was). */
+  savePlan: (day: string, pieces: Plan['pieces'], occasion?: string | null, mood?: string | null) =>
+    request<PlanSaved>(`/api/plans/${encodeURIComponent(day)}`, { method: 'PUT', body: { pieces, occasion: occasion ?? null, mood: mood ?? null } }),
+  removePlan: (day: string) => request<{ removed: Plan }>(`/api/plans/${encodeURIComponent(day)}`, { method: 'DELETE' }),
+  /** The outfits kept, newest first. */
+  keptOutfits: () => request<{ outfits: KeptOutfit[] }>('/api/outfits/kept').then((r) => r.outfits),
+  keepOutfit: (pieces: KeptOutfit['pieces'], name?: string | null) =>
+    request<KeptAnswer>('/api/outfits/kept', { method: 'POST', body: name ? { pieces, name } : { pieces } }),
+  nameKept: (id: string, name: string | null) =>
+    request<KeptOutfit>(`/api/outfits/kept/${encodeURIComponent(id)}`, { method: 'PATCH', body: { name } }),
+  removeKept: (id: string) => request<{ removed: KeptOutfit }>(`/api/outfits/kept/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  restoreKept: (id: string) => request<KeptOutfit>(`/api/outfits/kept/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
   sortAdd: (photos: { blob: Blob; filename: string }[]) => {
     const form = new FormData();
     for (const p of photos) form.append('photos', p.blob, p.filename);

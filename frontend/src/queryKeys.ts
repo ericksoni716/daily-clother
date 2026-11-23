@@ -48,6 +48,10 @@ export const queryKeys = {
   /** `POST /api/outfits/figure`: the As worn figure for some pieces (an SVG), with the layers under it when `layered`.
    * `version` changes when any piece's drawing does (`figureVersion`), so a figure once drawn never goes stale. */
   figure: (pieces: FigurePieces, version = '', layered = false) => ['figure', pieces, version, layered] as const,
+  /** `GET /api/plans`: today's plan and those of the days ahead (Dress for another day). */
+  plans: () => ['plans'] as const,
+  /** `GET /api/outfits/kept`: the outfits you keep. */
+  kept: () => ['kept'] as const,
   /** `GET /api/outfits/worn`: outfits worn, a page at a time (`before` is the page's cursor, null for the first). */
   worn: (before: string | null = null) => ['worn', before] as const,
 
@@ -109,7 +113,7 @@ export const TOUCHES = {
    * describing it again, archiving it. */
   item: ['items', 'item', 'itemDetails', 'history', 'review', 'insights', 'gaps', 'progress', 'findOutfits'],
   /** An item deleted. */
-  removeItem: ['items', 'item', 'review', 'insights', 'gaps', 'worn', 'findOutfits'],
+  removeItem: ['items', 'item', 'review', 'insights', 'gaps', 'worn', 'findOutfits', 'kept', 'plans'],
   /** Photos added (an upload finished), one at a time or from a photo of several pieces. */
   upload: ['items', 'review', 'sources', 'insights', 'gaps', 'progress', 'findOutfits'],
   /** A photo of several pieces: its boxes, its pieces added, forgotten. */
@@ -122,7 +126,11 @@ export const TOUCHES = {
   away: ['items', 'item', 'history', 'insights', 'gaps', 'findOutfits', 'trip'],
   /** An outfit worn: recorded, rated or removed. */
   outfit: ['worn', 'items', 'item', 'insights'],
-  trip: ['trips', 'trip', 'tripWeather'],
+  /** A day planned ahead, changed or removed. */
+  plan: ['plans'],
+  /** An outfit kept, named, removed or brought back. */
+  kept: ['kept'],
+  trip: ['trips', 'trip', 'tripWeather', 'plans'],
   /** What's missing: a gap hidden or shown again. */
   gap: ['gaps'],
   /** The wishlist: a wish added, changed, bought or removed, and its finds. */

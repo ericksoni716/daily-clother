@@ -145,3 +145,36 @@ export function sinceDay(day: string, today: string = localDay()): string {
 export function isPast(day: string, today: string = localDay()): boolean {
   return daysBetween(day, today) > 0;
 }
+
+// ------------------------------------------------------------------ days ahead (Dress for another day)
+
+/** "2026-11-28" from "2026-11-25" and 3. */
+export function addDays(day: string, n: number): string {
+  const [y, m, d] = parts(day);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+}
+
+/** How many days `day` is after `today` (0 for today, negative before). */
+export function daysAhead(today: string, day: string): number {
+  return daysBetween(today, day);
+}
+
+/** "Saturday" from "2026-11-28". */
+export function weekdayOf(day: string): string {
+  return weekday(day);
+}
+
+/** A day ahead by its name: "Tomorrow", "Saturday" within the week, "Sat 12 Dec" further off. */
+export function dayName(day: string, today: string = localDay()): string {
+  const n = daysBetween(today, day);
+  if (n === 1) return 'Tomorrow';
+  if (n > 1 && n < 7) return weekday(day);
+  return shortDate(day);
+}
+
+/** The same in a sentence: "tomorrow", "on Saturday", "on Sat 12 Dec". */
+export function onDay(day: string, today: string = localDay()): string {
+  const name = dayName(day, today);
+  return name === 'Tomorrow' ? 'tomorrow' : `on ${name}`;
+}

@@ -38,8 +38,8 @@ export function Shell({ version }: { version: string }) {
   }, [moved]);
 
   let content;
-  if (route.name === 'today') content = <TodayScreen itemId={route.itemId} wide={wide} />;
-  else if (route.name === 'worn') content = <WornScreen itemId={route.itemId} />;
+  if (route.name === 'today') content = <TodayScreen key={route.day ?? 'today'} itemId={route.itemId} wide={wide} day={route.day ?? null} />;
+  else if (route.name === 'worn') content = <WornScreen itemId={route.itemId} kept={!!route.kept} />;
   else if (route.name === 'wardrobe') {
     content = <WardrobeScreen itemId={route.itemId} check={route.check} wishId={route.wishId} wish={route.wish} link={!!route.link}
       wishlist={!!route.wishlist} wide={wide} />;

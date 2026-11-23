@@ -46,6 +46,7 @@ DEFAULTS: dict[str, Any] = {
     "today_asked_ahead": None,
     "today_first_hours": None,   # the hours of the owner's last first looks at Today, oldest first       # may Claude choose the outfits on Today (Settings, "Your style")? The rules engine does otherwise
     "day_note": None,         # the day in the owner's words, as Claude read it (closet/daynote.py); None: an ordinary day at home
+    "day_notes": None,        # a word about a day dressed ahead, by date: {"2026-11-28": note} (closet/daynote.py)
     "trip_weather": None,     # forecasts and usual weather looked up for trips: {"forecast": {...}, "usual": {...}}
     "rewear": None,           # "Before it needs washing": kind -> wears (closet/trips.py KINDS); None: the defaults
     "laundry": None,          # laundry that keeps itself: {"auto": bool, "day": 0-6 or None}; None: on, Sunday (wears.py)

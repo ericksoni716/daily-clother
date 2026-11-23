@@ -14,6 +14,22 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Dress for another day, and Outfits you keep** (23 November; DECISIONS, "Dress for another
+  day"). Claude does not choose the outfits for a day ahead: they are the rules' (Claude chooses for
+  today only, and that morning starts from the plan). A day ahead cannot take typed temperatures, and
+  its weather is the whole day's (no hours, so a word's hours outside change nothing yet). The word
+  about a day holds that one day, even when the sentence names more. Planned pieces are kept out of
+  the laundry's way by one more wear each, not by every day still to come; a plan is not told to the
+  trip planner, which may still pack its pieces. The morning of a planned day is not in the phone check
+  (the server's clock cannot be moved there); `e2e/41-another-day.spec.ts` pictures it. On a phone
+  Today's page reads about 66 words more than before (484 to 550 at 393px in the phone check's closet):
+  14 are this work's own (Another day, Keep this outfit under each of three outfits, "Thursday is
+  planned."), the rest the rules' reasons for a different third outfit, as the demo's plan keeps its
+  oxford shirt and chinos out of the laundry's way. Every outfit on Today and a day ahead repeats the
+  rules' taste line ("Dressed a little lighter than usual…"); saying it once is Today's to decide.
+  A failed read of the kept outfits on Today only leaves "Keep this outfit" in place of "Kept under
+  Worn" (keeping again says it is kept already); Worn says the read failed.
+
 - **The closet at a glance** (23 November; DECISIONS, "What a piece is is asked once", "Larger or Smaller
   pictures"). Left: on a computer with a piece's panel open, Larger tiles are narrow and still cut a name mid-word with
   "…" (the small tile's whole-word cut is not used there). A category whose pieces sit in two groups is found by the
@@ -485,8 +501,8 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 - [x] **The figure: an open layer under an open jacket** shows its fronts, not a thin strip (changes "The outfit as worn" in DECISIONS; say so).
 
 **Every day**
-- [ ] **Dress for another day**: on Today, tomorrow or a date you choose, with that day's forecast and a word about the day ("dinner at eight"). "Wear this on Saturday" keeps the outfit; that morning Today opens on it, and its pieces are kept out of the laundry's way.
-- [ ] **Outfits you keep**: save an outfit you like without wearing it; find them under Worn; wear one again in a tap.
+- [x] **Dress for another day**: on Today, tomorrow or a date you choose, with that day's forecast and a word about the day ("dinner at eight"). "Wear this on Saturday" keeps the outfit; that morning Today opens on it, and its pieces are kept out of the laundry's way.
+- [x] **Outfits you keep**: save an outfit you like without wearing it; find them under Worn; wear one again in a tap.
 - [ ] **From a piece to an outfit**: on a piece's page, "Build an outfit around it" and the outfits you have worn it in.
 - [ ] **Give it an outing**: Today may offer one outfit built around a piece you like and have not worn in a while, and says so.
 

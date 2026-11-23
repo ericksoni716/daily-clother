@@ -98,8 +98,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 - **Today's first screen holds the outfit and its button** on the smallest iPhone, with five
   pieces: the pieces are four to a row on a phone, the date sits beside "Today", and when the
-  weather cannot be fetched that is one line with **Try again** and **Type temperatures** instead
-  of a box that said it twice.
+  weather cannot be fetched that is one line, "No forecast.", with **Try again** and **Type
+  temperatures** instead of a box that said it twice. The weather line keeps **Change** at its
+  end instead of moving it to a line of its own when the font is wide.
 - **A piece's choices open in a sheet** over the page, from the bottom on a phone (beside the
   piece on a computer), on Today, Worn and a trip, instead of under the pieces where the tab bar
   hid them. On Today the choice is now **Build around this piece** (was Start from this piece),

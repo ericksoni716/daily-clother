@@ -75,8 +75,8 @@ outfits replace them ("Show Nines' own picks meanwhile" lets you use the rules' 
 wearing this" records the outfit and its wears, and ends building around a piece. A piece's ⋯
 opens a sheet with "Not this piece", which swaps it out, and "Build around this piece"; both
 are kept for the rest of the day, and how is said once, under the outfits, behind "Changing an
-outfit". When the weather cannot be fetched, one line says so, with Try again and Type
-temperatures. Change, beside the weather, opens a sheet, Where you are, with today's
+outfit". When the weather cannot be fetched, one line says "No forecast.", with Try again
+and Type temperatures. Change, beside the weather, opens a sheet, Where you are, with today's
 temperatures and "Somewhere else, or out all day?" folded under them: a note about the day
 ("In Lisbon until Friday") changes what is dressed for. Under the outfits you can write to
 Claude about them; it answers, may change the outfits, and may offer something to remember,

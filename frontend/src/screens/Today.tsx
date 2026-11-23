@@ -497,7 +497,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
 
       {ctx?.source === 'mild' && (
         <p className="today-no-weather" role="status" data-testid="no-weather">
-          <WarnIcon className="inline-icon" /> The weather could not be fetched.{' '}
+          <WarnIcon className="inline-icon" /> No forecast.{' '}
           <button className="btn btn-link today-inline-action" disabled={locked || asking} title={locked ? OFFLINE_TITLE : undefined} onClick={ask}>Try again</button>
           <span aria-hidden="true"> · </span>
           <button className="btn btn-link today-inline-action" disabled={locked} title={locked ? OFFLINE_TITLE : undefined} onClick={() => setEditDay(true)}>Type temperatures</button>
@@ -619,8 +619,10 @@ function DayLine({ phase, editing, locked, changeRef, onEdit }: {
   return (
     <section className="today-day" aria-label="The day">
       <p className="today-day-line" data-testid="day-line" title={c?.place ?? undefined}>
-        {c ? dayParts(c).map((part, i) => <span key={i}>{part}</span>)
-          : <span className="muted">{phase.kind === 'loading' ? 'Looking up the weather…' : 'The weather'}</span>}
+        <span className="today-day-parts">
+          {c ? dayParts(c).map((part, i) => <span key={i}>{part}</span>)
+            : <span className="muted">{phase.kind === 'loading' ? 'Looking up the weather…' : 'The weather'}</span>}
+        </span>
         {phase.kind !== 'needs-day' && (
           <span className="today-day-change">
             <button ref={changeRef} className="btn btn-link" aria-haspopup="dialog" aria-expanded={editing} disabled={locked}

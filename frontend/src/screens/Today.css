@@ -24,12 +24,15 @@
 
 /* ---------------------------------------------------------------- the day: one line, then the choices */
 .today-day { margin-bottom: 0; min-width: 0; }
+/* the summary takes the room there is and wraps inside it; Change stays at the end of its first line */
 .today-day-line {
-  margin: 0; min-height: var(--tap); display: flex; flex-wrap: wrap; align-items: center; row-gap: 0;
+  margin: 0; min-height: var(--tap); display: flex; align-items: baseline;
   font-size: var(--text-md); font-weight: var(--weight-label);
 }
+.today-day-parts { flex: 1 1 auto; min-width: 0; min-height: var(--tap); display: flex; flex-wrap: wrap; align-items: baseline; align-content: center; }
 /* the dot follows each part, so a line that wraps never starts with one */
-.today-day-line > span:not(:last-child)::after { content: '·'; color: var(--ink-3); padding: 0 0.4em; font-weight: var(--weight-body); }
+.today-day-parts > span:not(:last-child)::after { content: "·"; color: var(--ink-3); padding: 0 0.3em; font-weight: var(--weight-body); }
+.today-day-change { flex: none; }
 .today-day-change .btn-link { min-height: var(--tap); padding: 0 4px; font-size: var(--text-md); }
 .today-day-old { margin: 0 0 var(--space-2); color: var(--warn); font-size: var(--text-sm); }
 
@@ -73,11 +76,11 @@
 .today-changes { margin: -2px 0 14px; align-items: center; }
 .chip-change { background: var(--accent-soft); border-color: transparent; max-width: 100%; }
 .chip-change > span { font-size: var(--text-md); line-height: 1; }
-/* the weather could not be fetched: one line, with what to do about it beside it */
-.today-no-weather { margin: 0 0 var(--space-1); font-size: var(--text-sm); line-height: 1.45; color: var(--warn); font-weight: var(--weight-label); }
+/* the weather could not be fetched: one line, with what to do about it beside it (in body weight, so it stays one line on a 375px phone in a wide font) */
+.today-no-weather { margin: 0 0 var(--space-1); font-size: var(--text-sm); line-height: 1.45; color: var(--warn); font-weight: var(--weight-body); }
 .today-no-weather .inline-icon { margin-right: 2px; }
 /* a link in a line of text: as tall as the text, with a 44px hit area that does not push the lines apart */
-.btn-link.today-inline-action { position: relative; display: inline; min-height: 0; padding: 0; font-size: var(--text-sm); font-weight: var(--weight-label); }
+.btn-link.today-inline-action { position: relative; display: inline; min-height: 0; padding: 0; font-size: var(--text-sm); font-weight: inherit; }
 .btn-link.today-inline-action::after { content: ''; position: absolute; inset: calc((var(--tap) - 100%) / -2) -4px; }
 
 /* ---------------------------------------------------------------- the outfits */

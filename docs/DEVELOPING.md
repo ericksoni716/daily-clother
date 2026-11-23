@@ -244,6 +244,11 @@ A new spec file:
   starts its own with `startBackend` from `server.ts` in a `beforeAll` and stops it in
   `afterAll`, as `16-several.spec.ts` does.
 
+CI's system font (DejaVu Sans) is wider than a developer's may be (Inter, say), so a test that
+measures a layout, such as a button above the tab bar, should leave room, and so should the
+layout. To run a spec with the wide font, hide Inter from the browser with `e2e/wide-font.conf`:
+`FONTCONFIG_FILE=$PWD/e2e/wide-font.conf npm run e2e -- e2e/10-today.spec.ts` (in `frontend/`).
+
 There is nothing to log in to. A spec that opens the page by a Tailscale name gives the headers
 Tailscale Serve would (`extraHTTPHeaders`, as `18-phone-qr.spec.ts` does); without them the
 page is refused, as it would be.

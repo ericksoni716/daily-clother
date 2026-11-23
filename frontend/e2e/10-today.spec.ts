@@ -397,7 +397,7 @@ test('today when the forecast cannot be fetched: an outfit for a mild day, one l
   // no faked weather: the test backend never reaches the weather service, so the forecast for New York fails
   await openToday(page);
   const notice = page.getByTestId('no-weather');
-  await expect(notice).toContainText('The weather could not be fetched');
+  await expect(notice).toContainText('No forecast.');
   await expect(page.getByTestId('day-line')).toContainText('a mild day');
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
   await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeVisible();
@@ -409,7 +409,7 @@ test('today when the forecast cannot be fetched: an outfit for a mild day, one l
 
   // one line, said once: the day line says it is a mild day, and the line beside it what to do about it
   expect((await notice.boundingBox())!.height).toBeLessThanOrEqual(48);
-  await expect(page.getByText('The weather could not be fetched')).toHaveCount(1);
+  await expect(page.getByText('No forecast.')).toHaveCount(1);
 
   await notice.getByRole('button', { name: 'Type temperatures' }).click();
   const panel = page.getByRole('dialog', { name: 'Where you are' });

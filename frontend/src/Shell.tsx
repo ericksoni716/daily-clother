@@ -41,7 +41,8 @@ export function Shell({ version }: { version: string }) {
   if (route.name === 'today') content = <TodayScreen itemId={route.itemId} wide={wide} />;
   else if (route.name === 'worn') content = <WornScreen />;
   else if (route.name === 'wardrobe') {
-    content = <WardrobeScreen itemId={route.itemId} check={route.check} wishId={route.wishId} wish={route.wish} link={!!route.link} wide={wide} />;
+    content = <WardrobeScreen itemId={route.itemId} check={route.check} wishId={route.wishId} wish={route.wish} link={!!route.link}
+      wishlist={!!route.wishlist} wide={wide} />;
   }
   else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'several') content = <SeveralScreen key={route.id} id={route.id} />;

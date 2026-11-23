@@ -1,6 +1,7 @@
 /**
- * The parts of the Wardrobe page about buying: the things worth buying (found by rule), what they are based on, and
- * the wishlist with a wish on its own page. The page itself, which reads the lists, is Wardrobe.tsx.
+ * The parts of the Wardrobe page about buying: the things worth buying (found by rule), what they are based on, the row
+ * that opens the wishlist, and the wishlist's and a wish's own pages. The page itself, which reads the lists, is
+ * Wardrobe.tsx.
  */
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { CheckIcon, ChevronIcon, HangerIcon, LinkIcon, PlusIcon } from '../components/Icons';
@@ -9,13 +10,13 @@ import {
   colorWords, type Gap, type GapsAnswer, groupReasons, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
   type LookFor, reasonLabel, type Wish,
 } from '../gaps';
-import { Button, Card, Fold, SaveStatus, ShowMore, useSaveStatus } from '../components/ui';
+import { Button, buttonClass, Card, EmptyState, Fold, SaveStatus, ShowMore, useSaveStatus } from '../components/ui';
 import { swatchOf } from '../labels';
-import { Link, navigate, wishPath } from '../router';
+import { Link, navigate, WISHLIST_PATH, wishPath } from '../router';
 import { timeOf } from '../today';
 import type { ItemSummary } from '../types';
 import { activeSituations, lifeSummary, situationLabel, type SituationId } from '../life';
-import { downWords, linkWords, withinWords } from '../shop';
+import { downWords, linkWords, wishlistWords, withinWords } from '../shop';
 import { LinkForm, WishShop } from './Shop';
 
 export const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
@@ -29,6 +30,12 @@ export const TOP_GAPS = 3;
 export function savedLists(profile: string): { data: Lists; savedAt: string } | null {
   const saved = loadSavedGaps(profile);
   return saved?.gaps ? { data: { gaps: saved.gaps, wishes: saved.wishes ?? [] }, savedAt: saved.saved_at } : null;
+}
+
+/** The copy of the wishlist kept on this device, for its own page when Nines cannot be reached. */
+export function savedWishes(profile: string): { data: Wish[]; savedAt: string } | null {
+  const saved = loadSavedGaps(profile);
+  return saved?.wishes ? { data: saved.wishes, savedAt: saved.saved_at } : null;
 }
 
 function basisWords(context: NonNullable<GapsAnswer['context']>): string {
@@ -371,49 +378,75 @@ function LookForBox({ look }: { look: LookFor | null }) {
 // ------------------------------------------------------------------ the wishlist
 
 /**
- * "Thinking of buying something?": Would this work? for a piece you have in mind, and the wishlist, each wish one row
- * that opens its own page (its note, shop finds and prices: parked one level down, as the assessment asked).
+ * "Thinking of buying something?" on the Wardrobe: Would this work? for a piece you have in mind, and one row that opens
+ * the wishlist's own page, saying how many things are on it and how many of their prices went down.
  */
-export function Thinking({ wishes, actions, failed }: { wishes: Wish[] | null; actions: Actions; failed: boolean }) {
-  const [adding, setAdding] = useState(false);
-  const [linking, setLinking] = useState(false);
-  const off = actions.locked || wishes === null;
-  const offTitle = actions.locked ? OFFLINE_TITLE : undefined;
+export function Thinking({ wishes, locked }: { wishes: Wish[] | null; locked: boolean }) {
   return (
     <section className="wardrobe-section thinking" aria-labelledby="thinking-title">
       <h2 id="thinking-title" className="missing-section-title">Thinking of buying something?</h2>
       <div className="thinking-check">
         <p>See how a piece would go with your closet before you buy it.</p>
-        {actions.locked
+        {locked
           ? <span className="btn is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Would this work?</span>
           : <Link to="/wardrobe/check" className="btn" data-testid="would-work-open">Would this work?</Link>}
       </div>
-      <div className="wishlist" data-testid="wishlist" role="group" aria-labelledby="wishlist-title">
-        <div className="wishlist-head">
-          <h3 id="wishlist-title">Your wishlist{wishes && wishes.length > 0 && <span className="count"> · {wishes.length}</span>}</h3>
-          {!adding && !linking && (
-            <div className="row wishlist-adds">
-              <button className="btn btn-small" disabled={off} title={offTitle} onClick={() => setLinking(true)}><LinkIcon /> Add a link</button>
-              <button className="btn btn-small" disabled={off} title={offTitle} onClick={() => setAdding(true)}><PlusIcon /> Add by hand</button>
-            </div>
-          )}
-        </div>
-        {linking && (
-          <LinkForm submit="Add to the list" busy={actions.busy === 'new-link'} locked={actions.locked} lockedTitle={OFFLINE_TITLE}
-            onSubmit={actions.addLink} onCancel={() => setLinking(false)} />
-        )}
-        {adding && <AddWish actions={actions} onClose={() => setAdding(false)} />}
-        {wishes === null && !failed && <div className="missing-skeleton missing-skeleton-small" aria-hidden="true" />}
-        {wishes !== null && wishes.length === 0 && !adding && !linking && (
-          <p className="muted wishlist-empty">Nothing on it yet. Choose “I'll look for this” above, add a link to a product, or add something by hand.</p>
-        )}
-        {wishes && wishes.length > 0 && (
-          <ul className="wish-list">
-            {wishes.map((w) => <li key={w.id}><WishRow wish={w} /></li>)}
-          </ul>
-        )}
-      </div>
+      <WishlistRow wishes={wishes} />
     </section>
+  );
+}
+
+/** The row that opens the wishlist. Until the list is known its second line is kept empty, so nothing moves. */
+function WishlistRow({ wishes }: { wishes: Wish[] | null }) {
+  const words = wishes ? wishlistWords(wishes) : null;
+  return (
+    <Link to={WISHLIST_PATH} className="wish-row" data-testid="wishlist-open">
+      <span className="wish-row-text">
+        <span className="wish-row-name">Wishlist</span>
+        <span className="wish-row-more muted">{words?.count ?? '\u00a0'}</span>
+        {words?.down && (
+          <span className="wish-row-news">
+            <span className="wish-row-drop" data-testid="wishlist-down">{words.down}</span>
+          </span>
+        )}
+      </span>
+      <ChevronIcon aria-hidden="true" />
+    </Link>
+  );
+}
+
+/**
+ * The wishlist's own page (`/wardrobe/wishlist`): "Add a link" and "Add by hand", then a row per wish that opens its
+ * page (its note, shop finds and prices), or, with nothing on it, what a wishlist is for.
+ */
+export function Wishlist({ wishes, actions }: { wishes: Wish[]; actions: Actions }) {
+  const [adding, setAdding] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const offTitle = actions.locked ? OFFLINE_TITLE : undefined;
+  return (
+    <div className="wishlist" data-testid="wishlist">
+      {!adding && !linking && (
+        <div className="row wishlist-adds">
+          <Button small disabled={actions.locked} title={offTitle} onClick={() => setLinking(true)}><LinkIcon /> Add a link</Button>
+          <Button small disabled={actions.locked} title={offTitle} onClick={() => setAdding(true)}><PlusIcon /> Add by hand</Button>
+        </div>
+      )}
+      {linking && (
+        <LinkForm submit="Add to the list" busy={actions.busy === 'new-link'} locked={actions.locked} lockedTitle={OFFLINE_TITLE}
+          onSubmit={actions.addLink} onCancel={() => setLinking(false)} />
+      )}
+      {adding && <AddWish actions={actions} onClose={() => setAdding(false)} />}
+      {wishes.length === 0 && !adding && !linking && (
+        <EmptyState testId="wishlist-empty" title="Your wishlist is empty"
+          body="Things you'd like to buy wait here, and Nines tells you when their price goes down."
+          action={<Link to="/wardrobe" className={buttonClass()}>See what's worth buying</Link>} />
+      )}
+      {wishes.length > 0 && (
+        <ul className="wish-list">
+          {wishes.map((w) => <li key={w.id}><WishRow wish={w} /></li>)}
+        </ul>
+      )}
+    </div>
   );
 }
 

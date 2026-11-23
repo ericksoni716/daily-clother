@@ -1,6 +1,7 @@
 /** What's missing: the shapes the server sends, plain words for them, and the copy kept on this device. */
 import { label } from './labels';
-import { SAVED_PREFIX } from './today';
+import { SAVED_PREFIX, timeOf } from './today';
+import { localDay, whenWorn } from './wears';
 import type { Life } from './life';
 import type { PriceDrop, WishLink } from './shop';
 
@@ -283,4 +284,15 @@ export function saveGaps(profile: string, part: Partial<Omit<SavedGaps, 'saved_a
   } catch {
     /* private mode or full: not kept, nothing else breaks */
   }
+}
+
+/** When a saved copy was kept, in the words the rest of the page uses for a day: " today, at 9:05 AM", ", yesterday",
+ * ", on Tuesday", ", on 3 Nov" (`whenWorn`). */
+export function savedWhen(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const when = whenWorn(localDay(d), localDay(now));
+  const time = timeOf(iso);
+  if (when === 'today') return time ? ` today, at ${time}` : ' today';
+  return `, ${when}`;
 }

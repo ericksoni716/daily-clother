@@ -1260,7 +1260,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     # -------------------------------------------------------------- insights
     @app.get("/api/insights")
     def get_insights(conn=Depends(conn_dep)):
-        rows = conn.execute("SELECT id, name, category, color, formality, season, price_cents, status, created_at FROM items").fetchall()
+        rows = closet_rows(conn)   # with each piece's kind: what Today never offers is never "not worn"
         worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
         return find_insights(rows, worn, wears.today())
     app.include_router(wishlist.router(conn_dep, gap_analysis, state, rows=shop.on_the_list))

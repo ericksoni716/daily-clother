@@ -14,6 +14,12 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **What you wear at home, and words and dates** (23 November; DECISIONS, What's missing and Insights). Worn most and
+  cost per wear still count lounge pants and swim trunks (they were worn; only Not worn leaves them out). "You might
+  like" is still told what you have plenty of by kind, lounge pants included, as a reason not to buy more of them.
+  Not worn after a shorter break (weeks, not 90 days with nothing recorded) can still list pieces last worn before
+  it. Dates outside the Wardrobe and wishes (Settings, the item page, backups) still use the browser's own format
+  (`labels.formatDateTime`).
 - **Today's rules after the logic review** (23 November; DECISIONS, "The owner's outfit rules"). Trips
   and Would this work? still write a few sentences of their own with "is" for jeans and shoes; they
   could use `outfits.be` as Today and What's missing now do. A trip's day card does not yet pass
@@ -418,9 +424,9 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 
 **First, what is already there made right**
 - [ ] **The review's findings** (`docs/assessment/` gets a short report of the two reviews of 23 November, the screens and the rules; the fixes go in small batches, each fault shown with a failing test first).
-- [ ] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
+- [x] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
 - [ ] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
-- [ ] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
+- [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
 - [ ] **The closet at a glance**: three across as a choice, a search box that takes the row, the Photos or Drawings switch in words, and search that finds a shade, a brand, a material or a note.
 - [ ] **Would this work? by hand**: kind and colour first, the rest behind "More about it".
 - [ ] **The figure: an open layer under an open jacket** shows its fronts, not a thin strip (changes "The outfit as worn" in DECISIONS; say so).

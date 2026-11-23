@@ -5,6 +5,8 @@ tagger (`closet/tagger/schema.py`) uses the same lists (a test keeps the two in 
 """
 from __future__ import annotations
 
+from datetime import date
+
 CATEGORY = ["tee", "shirt", "polo", "sweater", "hoodie", "jacket", "coat", "jeans", "trousers", "shorts",
             "sneakers", "boots", "dress_shoes", "sandals", "bag", "belt", "hat", "scarf", "other"]
 COLOR = ["black", "white", "grey", "navy", "blue", "light_blue", "green", "olive", "tan", "brown", "cream",
@@ -57,3 +59,23 @@ def formality_words(level: str | None, also: str | None = None) -> str:
     """The formality in plain words, the lower level first: "smart casual", "smart casual to business"."""
     levels = sorted({w for w in (level, also) if w in FORMALITY}, key=FORMALITY.index)
     return " to ".join(w.replace("_", " ") for w in levels)
+
+
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December")
+
+
+def day_words(d: date) -> str:
+    """A day as the server writes it in a sentence for the owner: "3 November 2026" (Not worn, What's missing)."""
+    return f"{d.day} {MONTHS[d.month - 1]} {d.year}"
+
+
+def days_words(first: date, last: date) -> str:
+    """Two days in a few words: "3 and 22 November 2026", "28 October and 4 November 2026", "3 November 2026" (one
+    day), or both in full across a year end."""
+    if first == last:
+        return day_words(first)
+    if first.year != last.year:
+        return f"{day_words(first)} and {day_words(last)}"
+    start = str(first.day) if first.month == last.month else f"{first.day} {MONTHS[first.month - 1]}"
+    return f"{start} and {day_words(last)}"

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   colorWords, type Gap, groupReasons, HELP_LEVELS, helpOf, HIDE_REASONS, loadSavedGaps, lookForLines, type LookFor,
-  orWords, reasonLabel, saveGaps, whatWords,
+  orWords, reasonLabel, savedWhen, saveGaps, whatWords,
 } from './gaps';
 import { forgetSaved } from './today';
 
@@ -175,5 +175,15 @@ describe('the copy kept on this device', () => {
     const kv = new MemoryStorage();
     kv.setItem('closet-today-saved:gaps:main', '{not json');
     expect(loadSavedGaps('main', kv)).toBeNull();
+  });
+});
+
+describe('savedWhen', () => {
+  it('says the day a saved copy was kept as the rest of the page says days', () => {
+    const now = new Date(2026, 10, 23, 15, 0);
+    expect(savedWhen(new Date(2026, 10, 23, 9, 5).toISOString(), now)).toMatch(/^ today, at 9:05/);
+    expect(savedWhen(new Date(2026, 10, 22, 9, 5).toISOString(), now)).toBe(', yesterday');
+    expect(savedWhen(new Date(2026, 10, 3, 9, 5).toISOString(), now)).toBe(', on 3 Nov');
+    expect(savedWhen('not a time', now)).toBe('');
   });
 });

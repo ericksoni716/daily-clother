@@ -11,7 +11,7 @@ import { api } from '../api';
 import { ChevronLeftIcon, WarnIcon } from '../components/Icons';
 import { LifeQuestions } from '../components/LifeQuestions';
 import { BackLink, EmptyState, Notice, PageHeader } from '../components/ui';
-import { saveGaps, type Wish } from '../gaps';
+import { savedWhen, saveGaps, type Wish } from '../gaps';
 import { saveInsights } from '../insights';
 import { goBack, navigate, WISHLIST_PATH, wishPath } from '../router';
 import { touch, useItems } from '../queries';
@@ -23,7 +23,7 @@ import { wishById } from '../wouldwork';
 import { ItemDetail } from './ItemDetail';
 import { INSIGHTS_OFFLINE, savedInsights, Usage } from './Insights';
 import {
-  LifeAbout, LifeBasis, OFFLINE_TITLE, savedLists, savedWhen, savedWishes, Thinking, WishCard, Wishlist, WorthBuying, type Actions, type Lists,
+  LifeAbout, LifeBasis, OFFLINE_TITLE, savedLists, savedWishes, Thinking, WishCard, Wishlist, WorthBuying, type Actions, type Lists,
 } from './Missing';
 import { sharedLink } from '../shop';
 import { LinkForm } from './Shop';

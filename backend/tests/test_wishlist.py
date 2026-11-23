@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from closet import db, gaps
+from closet import db, gaps, wishlist
 
 from .conftest import upload
 
@@ -85,14 +85,18 @@ def test_hide_refuses_an_unknown_reason_or_gap(demo):
     assert r.status_code == 404 and "no longer" in r.json()["detail"]
 
 
-def test_a_hidden_gap_does_not_push_a_new_one_off_the_list(demo):
+def test_a_hidden_gap_does_not_push_a_new_one_off_the_list(demo, monkeypatch):
+    # the list shows LISTED here: the demo closet has more gaps than that (since 23 November it has fewer than
+    # gaps.MAX_GAPS, clothes for home no longer counting), so the next one has somewhere to move up from
+    listed = 4
+    monkeypatch.setattr(wishlist.mark, "__defaults__", (listed, None))
     everything = demo.get("/api/gaps").json()
-    assert len(everything["gaps"]) == gaps.MAX_GAPS   # the demo closet has more gaps than the list shows
+    assert len(everything["gaps"]) == listed
     shown = [g["id"] for g in everything["gaps"]]
     demo.post(f"/api/gaps/{shown[0]}/hide", json={})
     after = gap_list(demo)
-    assert [g["id"] for g in after if g["state"] == "open"][:gaps.MAX_GAPS - 1] == shown[1:]
-    assert len([g for g in after if g["state"] == "open"]) == gaps.MAX_GAPS   # the next one moved up
+    assert [g["id"] for g in after if g["state"] == "open"][:listed - 1] == shown[1:]
+    assert len([g for g in after if g["state"] == "open"]) == listed   # the next one moved up
     assert after[0]["id"] == shown[0] and after[0]["state"] == "hidden"       # and the hidden one keeps its place
 
 

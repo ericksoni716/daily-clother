@@ -34,6 +34,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from datetime import date
 
 from . import outfits, vocab
 from .tagger.taxonomy import SPORT_SHOES, SWIM_KINDS
@@ -85,6 +86,8 @@ WEAR_SCORE_BASE = 20         # an item worn out of proportion scores this...
 WEAR_SCORE_PER_WEAR = 4      # ...plus this per wear above the others' average...
 WEAR_SCORE_MAX = 50          # ...up to this
 NEVER_WORN_NAMES = 4         # the note about items never worn names at most this many
+WEAR_PLACES = ("base", "mid", "bottom")
+HEAVY_JACKET_WEIGHT = 3      # a jacket this heavy (super heavy) counts as a warm winter coat   # only clothes washed between wears ask for a second from the log
 
 # ------------------------------------------------------------------ merging and evidence
 MERGE_SHARE = 0.25           # a merged gap scores its best finding plus this share of the others
@@ -106,6 +109,7 @@ class Basic:
     solid: bool = False              # ...plain, not patterned
     rain: bool = False               # ...whose name or material says it sheds water
     min_weight: int | None = None    # ...at least this weight class (0 lightweight to 3 super heavy)
+    heavy_jacket: bool = False       # a super heavy jacket that is not a fleece counts too (a down puffer)
     want: tuple[str, str | None, str | None] = ("tee", None, None)  # what to buy: category, formality, tag
     score: int = 30                  # how much having it would help
     why: str = ""
@@ -134,8 +138,10 @@ BASICS = (
     Basic("neutral_trousers", "Chinos or smart trousers", ("trousers",), outfits.NEUTRALS, "smart_casual", solid=True,
           want=("trousers", "smart_casual", None), score=45,
           why="Chinos or trousers in a neutral colour are what smart casual days need when jeans are too casual."),
-    # 4.5: a topcoat, overcoat, peacoat or parka: something heavy for cold days.
-    Basic("warm_coat", "A warm winter coat", ("coat",), min_weight=2, want=("coat", "smart_casual", "warm"), score=50,
+    # 4.5: a topcoat, overcoat, peacoat or parka: something heavy for cold days. "What is it?" files a down puffer
+    # under jackets, and it keeps a cold day as warm as a parka does.
+    Basic("warm_coat", "A warm winter coat", ("coat",), min_weight=2, heavy_jacket=True,
+          want=("coat", "smart_casual", "warm"), score=50,
           why="A heavy coat is what keeps a cold day comfortable."),
     # 4.5: a mac, trench or waxed jacket: the outer layer that sheds rain.
     Basic("rain_layer", "A rain-proof outer layer", ("jacket", "coat"), rain=True, want=("coat", "smart_casual", "rain"),
@@ -150,7 +156,7 @@ BASICS = (
           why="Smart leather shoes (oxfords, derbies or loafers) are what business and formal days need."),
     # 4.9: a leather belt, worn with trousers and jeans.
     Basic("belt", "A leather belt", ("belt",), want=("belt", "smart_casual", None), score=20,
-          why="A leather belt finishes trousers and jeans; the engine adds one to every outfit that has them."),
+          why="A leather belt finishes trousers and jeans; Today adds one to every outfit that has them."),
 )
 
 WAYS = ("days", "thin_place", "orphan", "worn_most", "basic")
@@ -334,6 +340,27 @@ def _day_order(d: Day) -> tuple:
     return ([b for b, _, _ in TEMP_BANDS].index(d.band), d.rain, vocab.FORMALITY.index(d.occasion), d.situation or "")
 
 
+def _date_words(day: str | None) -> str:
+    """A day of the wear log as the Wardrobe writes days: "3 November 2026"."""
+    d = _as_date(day)
+    return vocab.day_words(d) if d else str(day or "")
+
+
+def _period(first: str | None, last: str | None) -> str:
+    """The log's days in a few words: "between 3 and 22 November 2026", "on 3 November 2026"."""
+    a, b = _as_date(first), _as_date(last)
+    if a is None or b is None:
+        return f"between {_date_words(first)} and {_date_words(last)}"
+    return f"on {vocab.day_words(a)}" if a == b else f"between {vocab.days_words(a, b)}"
+
+
+def _as_date(day: str | None) -> date | None:
+    try:
+        return date.fromisoformat(str(day)[:10])
+    except ValueError:
+        return None
+
+
 def _your(p: outfits.Piece) -> str:
     return f"your {p.label}"
 
@@ -410,27 +437,41 @@ class _Closet:
     last_wear: str | None
 
 
+def everyday(item: Mapping) -> bool:
+    """Whether a piece is one of the everyday clothes the closet is judged by. Clothes for wearing at home
+    (`outfits.HOME_KINDS`: pyjamas, lounge pants, robes...), swim trunks (`SWIM_KINDS`) and shoes made for one sport
+    (`SPORT_SHOES`) are not: Today never puts them in an outfit unless the owner asks for them by name. So they are
+    never a reason to buy, never a piece a suggestion is based on or that stands in for another, never "you have it
+    already", never counted as unused, and taste does not learn from them. The one rule every reader asks: What's
+    missing, How you live, Would this work?, Not worn, taste and what a shop search is told."""
+    kind = item.get("kind")
+    return kind not in outfits.HOME_KINDS and kind not in SWIM_KINDS and kind not in SPORT_SHOES
+
+
 def _closet(items: Iterable[object], wears: Iterable[object]) -> _Closet:
     engine_items, pieces, disliked = [], [], []
     for it in sorted((i for i in items if isinstance(i, Mapping) and i.get("id")), key=lambda i: str(i["id"])):
         if it.get("status") == "archived":
             continue
-        if it.get("kind") in SWIM_KINDS:   # for swimming on a trip, not an everyday piece: never counted, never "unused"
-            continue
-        if it.get("kind") in SPORT_SHOES:   # for tennis, golf or a pitch: never counted as everyday shoes, never "unused"
-            continue
+        at_home = it.get("kind") in outfits.HOME_KINDS
+        if not everyday(it) and not at_home:
+            continue   # swim trunks and shoes for a sport: not in the closet judged at all
         clean = dict(it)
-        clean["laundry"] = "clean"  # a piece in the wash is still owned
+        clean["laundry"] = "clean"  # a piece in the wash is still owned...
         if clean.get("location") == "laundry":
             clean["location"] = None
+        if clean.get("condition") == "needs_repair":
+            clean["condition"] = None   # ...and so is one waiting to be mended
         p = outfits._piece(clean)
         if p is None:
             continue
+        engine_items.append(clean)
+        if at_home:
+            continue   # left to the engine (which never offers it) and to Lounging at home (life._lounge); never counted
         if clean.get("rating") == "dislike":
             disliked.append(p)
         else:
             pieces.append(p)
-        engine_items.append(clean)
     by_id = {p.id: p for p in pieces}
     seen: set[tuple[str, str]] = set()
     counts: dict[str, int] = {}
@@ -644,11 +685,11 @@ def _day_why(kind: str, place: str, fs: list[_DayFailure]) -> list[str]:
     if kind == "rain":
         friendly = first.pieces
         if not friendly:
-            return [f"Nothing you own keeps the rain off; on {days} the engine can only say 'take an umbrella'."]
+            return [f"Nothing you own keeps the rain off; on {days} all Today can say is 'take an umbrella'."]
         names = _join([_your(p) for p in friendly[:2]])
         what = "warm enough" if first.want[2] == "rainwarm" else "right"
         return [f"Only {names} {_be(friendly[:2])} made for rain, and not {what} for {days}, "
-                "so the engine can only say 'take an umbrella'."]
+                "so all Today can say is 'take an umbrella'."]
     if kind == "rain_shoes":
         p = first.pieces[0]
         return [f"On {days} the best shoes for the outfit are {_your(p)}, which {_be([p])} {first.detail} and "
@@ -656,9 +697,11 @@ def _day_why(kind: str, place: str, fs: list[_DayFailure]) -> list[str]:
     # few
     pieces = _unique_pieces(p for f in fs for p in f.pieces)
     n = min(f.count for f in fs)
-    noun = PLACE_NOUN[place][0 if len(pieces) == 1 and not _plural(pieces[0]) else 1]
-    return [f"On {days} the closet can make only {NUMBER.get(n, str(n))} outfit{'' if n == 1 else 's'} that differ: "
-            f"{_join([_your(p) for p in pieces[:3]])} {_be(pieces[:3])} the only {noun} that suit."]
+    one = len(pieces) == 1 and not _plural(pieces[0])
+    noun = PLACE_NOUN[place][0 if one else 1]
+    outfits_made = "one outfit" if n == 1 else f"{NUMBER.get(n, str(n))} outfits that differ"
+    return [f"On {days} the closet can make only {outfits_made}: {_join([_your(p) for p in pieces[:3]])} "
+            f"{_be(pieces[:3])} the only {noun} that suit{'s' if one else ''}."]
 
 
 def _thin_findings(thin: list[tuple[outfits.Piece, str, Day]]) -> list[_Finding]:
@@ -722,12 +765,14 @@ def _wear_findings(c: _Closet) -> tuple[list[_Finding], list[dict]]:
     if c.wear_total < WEAR_MIN_LOG:
         return [], []
     out = []
-    period = f"between {c.first_wear} and {c.last_wear}"
+    period = _period(c.first_wear, c.last_wear)
     for p in c.pieces:
         n = c.wear_counts.get(p.id, 0)
-        if n < WEAR_HEAVY_MIN or p.category in outfits.ACCESSORY_CATEGORIES:
-            continue
+        if n < WEAR_HEAVY_MIN or HOME_PLACE.get(p.category) not in WEAR_PLACES:
+            continue   # coats, jackets and shoes are worn every day by nature: that is no wear to spread
         others = [q for q in c.pieces if q.category == p.category and q.id != p.id]
+        if any(not c.wear_counts.get(q.id) for q in others):
+            continue   # one of its kind sits unworn: wear that first (Not worn names it), do not buy another
         mean = sum(c.wear_counts.get(q.id, 0) for q in others) / len(others) if others else 0.0
         if n < WEAR_HEAVY_RATIO * mean:
             continue
@@ -743,7 +788,7 @@ def _wear_findings(c: _Closet) -> tuple[list[_Finding], list[dict]]:
         if others:
             compare = f"against {mean:.1f} on average for your other {kind}" + ("" if _plural(p) else "s")
         else:
-            compare = f"and it is the only {kind} you have"
+            compare = f"and {'they are' if _plural(p) else 'it is'} the only {kind} you have"
         why = [f"You wore {_your(p)} {n} times {period}, {compare}. A second one like "
                f"{'them' if _plural(p) else 'it'} would spread the wear."]
         score = min(WEAR_SCORE_MAX, WEAR_SCORE_BASE + WEAR_SCORE_PER_WEAR * (n - mean))
@@ -757,13 +802,15 @@ def _wear_findings(c: _Closet) -> tuple[list[_Finding], list[dict]]:
         more = len(never) - len(names)
         listed = _join(names + ([f"{more} more"] if more else []))
         notes.append({"kind": "never_worn", "items": [p.id for p in never],
-                      "text": f"Not worn since the log began ({c.first_wear}): {listed}. They are not gaps, "
+                      "text": f"Not worn since the log began ({_date_words(c.first_wear)}): {listed}. They are not gaps, "
                               "but worth a look before buying more."})
     return out, notes
 
 
 # ====================================================================== basics
 def _basic_matches(b: Basic, p: outfits.Piece) -> bool:
+    if b.heavy_jacket and p.category == "jacket" and p.weight >= HEAVY_JACKET_WEIGHT and "fleece" not in p.words:
+        return True
     return (p.category in b.categories and (not b.colors or p.color in b.colors)
             and (b.min_formality is None or outfits.span(p)[1] >= outfits._level(b.min_formality))
             and (not b.solid or p.pattern == "solid") and (not b.rain or outfits._rain_friendly(p))

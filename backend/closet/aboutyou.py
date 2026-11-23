@@ -14,7 +14,7 @@ import sqlite3
 from collections import Counter
 from collections.abc import Iterable, Mapping
 
-from . import outfits, sizes, styleprofile, taste, vocab
+from . import gaps, outfits, sizes, styleprofile, taste, vocab
 
 STYLE_CHARS = 1500     # the most of Your style that is sent, cut at a line
 STYLE_LINE = 300       # ...and the most of any one line
@@ -86,9 +86,10 @@ def _piece(row: Mapping, days: int) -> str:
 
 def pieces_words(rows: list[dict], days: Counter, categories: Iterable[str]) -> list[str]:
     """Up to PIECES pieces of these categories that are loved or worn on PIECE_WEARS days or more: loved first, then
-    the most worn, then by id."""
+    the most worn, then by id. Never what is worn at home, for swimming or for one sport (`gaps.everyday`): lounge
+    pants are not the trousers the owner loves."""
     wanted = set(categories)
-    chosen = [r for r in rows if r.get("status") != "archived" and r.get("category") in wanted
+    chosen = [r for r in rows if r.get("status") != "archived" and r.get("category") in wanted and gaps.everyday(r)
               and r.get("rating") not in ("dislike", "meh")
               and (r.get("rating") == "love" or days[r.get("id")] >= PIECE_WEARS)]
     chosen.sort(key=lambda r: (r.get("rating") != "love", -days[r.get("id")], str(r.get("id"))))

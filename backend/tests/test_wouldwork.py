@@ -349,3 +349,16 @@ def test_the_outfits_where_the_piece_shows_most_come_first():
     alone = {"pieces": {"base": c, "mid": None, "outer": None, "bottom": "b"}}
     shoes = {"pieces": {"base": "t", "mid": "m", "outer": "o", "shoes": c}}
     assert wouldwork.most_shown_first([under_two, shoes, under_one, alone]) == [shoes, alone, under_one, under_two]
+
+
+def test_would_this_work_does_not_say_you_have_it_already_because_of_lounge_pants():
+    # what is worn at home does not do the job of trousers worn out (gaps.everyday), nor a robe that of a coat
+    from .test_gaps import full_closet, item
+    lounge = item("lounge", "trousers", "grey", "casual", name="Grey lounge pants", kind="lounge_pants")
+    robe = item("robe", "coat", "navy", "casual", "cool", name="Navy robe", kind="robe")
+    piece = {"category": "trousers", "color": "grey", "formality": "casual"}
+    assert wouldwork.check(full_closet(), [], piece)["verdict"] == "adds"
+    answer = wouldwork.check(full_closet() + [lounge, robe], [], piece)
+    assert answer["verdict"] == "adds", answer["reasons"]
+    coat = {"category": "coat", "color": "navy", "formality": "casual"}
+    assert wouldwork.check(full_closet() + [robe], [], coat) == wouldwork.check(full_closet(), [], coat)

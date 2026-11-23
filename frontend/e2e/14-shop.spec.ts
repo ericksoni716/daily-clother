@@ -58,9 +58,7 @@ test.describe('shopping for a wish', () => {
     await wish.getByTestId('find-some').click();
     await expect(wish.getByRole('status').filter({ hasText: 'Claude is searching shops' })).toBeVisible();
     const finds = wish.getByTestId('find');
-    // the search checks each find against the closet on 40 kinds of day: about 15 seconds on a busy computer, and over
-    // 30 on a slow CI runner (23 November), so it has a minute
-    await expect(finds).toHaveCount(2, { timeout: 60_000 });   // the one without a web address is not kept
+    await expect(finds).toHaveCount(2, { timeout: 30_000 });   // the one without a web address is not kept
     await expect(wish).not.toContainText('Not a real link');
 
     const coat = finds.filter({ hasText: 'Tan gabardine rain coat' });

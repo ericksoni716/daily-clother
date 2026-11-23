@@ -13,7 +13,6 @@ import {
 import { Button, buttonClass, Card, EmptyState, Fold, SaveStatus, ShowMore, useSaveStatus } from '../components/ui';
 import { swatchOf } from '../labels';
 import { Link, navigate, WISHLIST_PATH, wishPath } from '../router';
-import { timeOf } from '../today';
 import type { ItemSummary } from '../types';
 import { activeSituations, lifeSummary, situationLabel, type SituationId } from '../life';
 import { downWords, googleShoppingLink, linkWords, wishlistWords, withinWords } from '../shop';
@@ -94,15 +93,6 @@ export function LifeAbout({ context }: { context: NonNullable<GapsAnswer['contex
       </div>
     </section>
   );
-}
-
-export function savedWhen(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const today = new Date().toDateString() === d.toDateString();
-  const time = timeOf(iso);
-  if (today) return time ? ` today, at ${time}` : ' today';
-  return `, on ${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
 }
 
 // ------------------------------------------------------------------ the gaps

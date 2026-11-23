@@ -1,4 +1,4 @@
-import { longDate, SAVED_PREFIX, shortPlace, temps, type Outfit } from './today';
+import { joinWords, longDate, SAVED_PREFIX, shortPlace, temps, type Outfit } from './today';
 import type { Place, RewearKind } from './types';
 
 /** Where a day's weather comes from: the forecast, what the dates are usually like, typed in, or not known. */
@@ -246,7 +246,7 @@ export function sourceRuns<T extends { source: WeatherSource }>(days: T[]): { so
   return runs;
 }
 
-/** "5°C to 11°C" or "Not known yet". */
+/** "5–11°C" or "Not known yet". */
 export function dayTemps(d: TripDay): string {
   return d.low_c === null || d.high_c === null ? 'Not known yet' : temps(d.low_c, d.high_c);
 }
@@ -418,4 +418,35 @@ export function swimHint(choice: boolean | null | undefined, plan?: SwimPlan | n
 export function rewearWords(n: number | null): string {
   if (n === null) return 'The whole trip';
   return n === 1 ? 'Worn once' : `Worn up to ${n} times`;
+}
+
+/** Days of a trip with the same sentence about them, said once: "Monday 7 Dec and Tuesday 8 Dec" and the sentence. */
+export function sameReasons(list: { date: string; reason: string }[]): { days: string; reason: string }[] {
+  const by = new Map<string, string[]>();
+  for (const { date, reason } of list) by.set(reason, [...(by.get(reason) ?? []), date]);
+  return [...by].map(([reason, dates]) => ({ days: joinWords(dates.map(longDate)), reason }));
+}
+
+/**
+ * What a trip has to say about its days, each said once. The days whose weather is not known are not dressed; when
+ * the trip already says why (it could not reach the weather service), that is not said again for each of them, and
+ * otherwise it is said in one sentence. The rest of the days with no outfit, and the days dressed with something to
+ * watch for, each with the days that share a sentence put together.
+ */
+export function tripProblems(trip: Pick<PlannedTrip, 'weather' | 'weather_message'> & { plan: Pick<PlannedTrip['plan'], 'uncovered' | 'warnings'> }): {
+  unknown: string | null; unknownDays: Set<string>; uncovered: { days: string; reason: string }[];
+  watch: { title: string; lines: { days: string; reason: string }[] } | null;
+} {
+  const unknownDays = new Set(trip.weather.filter((d) => d.source === 'unknown').map((d) => d.date));
+  const n = unknownDays.size;
+  const unknown = n === 0 || trip.weather_message ? null
+    : n === 1 ? 'The weather for one day is not known yet, so nothing was chosen for it. Try again later.'
+      : `The weather for ${n} days is not known yet, so nothing was chosen for them. Try again later.`;
+  const uncovered = sameReasons(trip.plan.uncovered.filter((u) => !unknownDays.has(u.date)));
+  const w = trip.plan.warnings;
+  const watch = w.length === 0 ? null : {
+    title: w.length === 1 ? '1 day has something to watch for' : `${w.length} days have something to watch for`,
+    lines: sameReasons(w),
+  };
+  return { unknown, unknownDays, uncovered, watch };
 }

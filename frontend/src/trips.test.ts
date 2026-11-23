@@ -3,7 +3,7 @@ import { forgetSaved } from './today';
 import {
   addDays, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, laundryDays, laundryEvery, laundryMode,
   laundryWords, progress, REWEAR_KINDS, rewearWords, shortDay, sourceLabel, sourceRuns, startLaundry, swimHint, swimOn,
-  loadSavedTrips, saveTrips,
+  loadSavedTrips, sameReasons, saveTrips, tripProblems,
   tripComingUp, tripDays, tripTitle, upcomingFirst, wornWords, type TripDay, type TripSummary,
 } from './trips';
 
@@ -177,5 +177,45 @@ describe('the trip Today mentions', () => {
   it('leaves out trips further off and trips that are over', () => {
     expect(tripComingUp([trip('far', '2026-12-05', '2026-12-08'), trip('over', '2026-11-10', '2026-11-19', { past: true })], '2026-11-20')).toBeNull();
     expect(tripComingUp(null, '2026-11-20')).toBeNull();
+  });
+});
+
+describe('what a trip says about its days', () => {
+  const unknownText = 'The weather for this day is not known yet, so nothing was chosen for it. Try again later.';
+  const jacket = 'The jacket is roomy and the chinos are tapered.';
+
+  it('says the days that share a sentence together, once', () => {
+    expect(sameReasons([
+      { date: '2026-12-07', reason: jacket }, { date: '2026-12-06', reason: 'Take an umbrella.' }, { date: '2026-12-08', reason: jacket },
+    ])).toEqual([
+      { days: 'Monday 7 Dec and Tuesday 8 Dec', reason: jacket }, { days: 'Sunday 6 Dec', reason: 'Take an umbrella.' },
+    ]);
+  });
+
+  it('says a forecast that could not be had once, not again for every day', () => {
+    const days = ['2026-12-05', '2026-12-06', '2026-12-07'];
+    const trip = {
+      weather: days.map((d) => day(d, 'unknown', { low_c: null, high_c: null, rain: null })),
+      weather_message: "Couldn't reach the weather service.",
+      plan: { uncovered: days.map((date) => ({ date, reason: unknownText })), warnings: [] },
+    };
+    const said = tripProblems(trip);
+    expect(said.unknown).toBeNull();
+    expect(said.uncovered).toEqual([]);
+    expect(said.watch).toBeNull();
+    expect([...said.unknownDays]).toEqual(days);
+    // with nothing else saying why, one sentence for all of them
+    expect(tripProblems({ ...trip, weather_message: null }).unknown).toBe(
+      'The weather for 3 days is not known yet, so nothing was chosen for them. Try again later.');
+  });
+
+  it('counts the days with something to watch for, for the one line that opens them', () => {
+    const trip = {
+      weather: [day('2026-12-06', 'forecast'), day('2026-12-07', 'forecast')], weather_message: null,
+      plan: { uncovered: [{ date: '2026-12-06', reason: 'Nothing warm enough.' }], warnings: [{ date: '2026-12-07', reason: jacket }] },
+    };
+    const said = tripProblems(trip);
+    expect(said.uncovered).toEqual([{ days: 'Sunday 6 Dec', reason: 'Nothing warm enough.' }]);
+    expect(said.watch).toEqual({ title: '1 day has something to watch for', lines: [{ days: 'Monday 7 Dec', reason: jacket }] });
   });
 });

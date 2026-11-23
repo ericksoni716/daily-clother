@@ -78,9 +78,12 @@ for (const viewport of [{ name: 'computer', width: 1280, height: 800 }, { name: 
       const oldName = (await firstPiece.locator('.trip-line-name').textContent())?.trim();
       expect(oldName).toBeTruthy();
       await firstPiece.getByRole('button', { name: /^Choices for/ }).click();
+      // the line's choices open in a sheet over the page, named for the piece
+      const choices = page.getByRole('dialog', { name: oldName! });
+      await expect(choices).toBeVisible();
       const swap = page.waitForResponse((response) =>
         response.request().method() === 'PATCH' && response.url().includes(`/api/trips/${tripId}`) && response.ok());
-      await page.getByRole('button', { name: 'Not this one' }).click();
+      await choices.getByRole('button', { name: 'Not this one' }).click();
       await swap;
       // the piece is gone from the lines to pack; it is still among the choices under "Take something else",
       // so the whole section's text cannot be asked
@@ -90,6 +93,47 @@ for (const viewport of [{ name: 'computer', width: 1280, height: 800 }, { name: 
     }
   });
 }
+
+test('a trip on a phone leads with what to pack, says a forecast it could not get once, and fits five pieces to a day', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 629 });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  const ids: string[] = [];
+  try {
+    // a mild trip whose days are dressed, some with something to watch for (rain on one day)
+    const first = futureDay(10), last = futureDay(14);
+    const weather = tripWeather(first, last).map((d, i) => ({ ...d, low_c: 14, high_c: 20, rain: i === 1 }));
+    const mild = await (await page.request.post('/api/trips', { data: { place: PLACE, first_day: first, last_day: last, weather } })).json();
+    ids.push(mild.id);
+    await page.goto(`/trips/${mild.id}`);
+    const pack = page.getByRole('heading', { name: /What to pack/ });
+    await expect(pack).toBeVisible();
+    const tabbar = (await page.locator('nav.tabbar').boundingBox())!;
+    expect((await pack.boundingBox())!.y).toBeLessThan(tabbar.y);
+    if (mild.plan.warnings.length) {
+      // the days to watch for are one line that opens, above the list
+      const watch = page.getByTestId('trip-watch');
+      await expect(watch).toContainText(/days? ha(s|ve) something to watch for/);
+      expect((await watch.boundingBox())!.height).toBeLessThanOrEqual(56);
+    }
+    // a day's five pieces in one row, not four and one left alone on a row
+    const day = page.getByTestId('trip-day').filter({ has: page.locator('.trip-day-pieces') }).first();
+    const tops = await day.locator('.trip-day-pieces > li').evaluateAll((lis) => lis.map((li) => Math.round(li.getBoundingClientRect().top)));
+    if (tops.length === 5) expect(new Set(tops).size).toBe(1);
+    // "Why this works" on a day is a whole tap high
+    expect((await day.locator('.trip-day-why summary').boundingBox())!.height).toBeGreaterThanOrEqual(44);
+
+    // the weather service out of reach (as in the tests): the days are not dressed, and that is said once
+    const unknown = await (await page.request.post('/api/trips', { data: { place: PLACE, first_day: futureDay(3), last_day: futureDay(6) } })).json();
+    ids.push(unknown.id);
+    await page.goto(`/trips/${unknown.id}`);
+    await expect(page.getByRole('heading', { name: /What to pack/ })).toBeVisible();
+    await expect(page.getByText(/not known yet, so nothing was chosen/)).toHaveCount(unknown.weather_message ? 0 : 1);
+    if (unknown.weather_message) await expect(page.getByText(unknown.weather_message)).toHaveCount(1);
+  } finally {
+    for (const id of ids) await page.request.delete(`/api/trips/${id}`);
+  }
+});
 
 test('laundry on the trip and the explained counts', async ({ page }) => {
   await goToCloset(page);

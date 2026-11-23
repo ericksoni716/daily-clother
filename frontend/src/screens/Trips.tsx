@@ -4,7 +4,7 @@ import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { OutfitFigure } from '../components/OutfitFigure';
 import { Toggle } from '../components/Toggle';
-import { BackLink, Card, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
+import { BackLink, Button, buttonClass, Card, EmptyState, Fold, PageHeader, SegmentedControl, Sheet } from '../components/ui';
 import { useShowDrawings, type GridView } from '../drawing';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
@@ -13,11 +13,11 @@ import { touch, useEdit, useItems } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
 import { useApp } from '../store';
-import { joinWords, longDate, occasionLabel, OCCASIONS, outfitIds, placeLabel, shortPlace, wornOrder, type Outfit } from '../today';
+import { joinWords, longDate, occasionLabel, OCCASIONS, outfitIds, placeLabel, shortPlace, temps, wornOrder, type Outfit } from '../today';
 import {
   addDays, basicLine, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, itemLine, laundryDays,
   laundryEvery, laundryMode, laundryWords, progress, shortDay, sourceRuns, startLaundry, SWIM_LABEL, swimHint, swimOn, tripDays,
-  loadSavedTrips, saveTrips, tripTitle, upcomingFirst, wornWords, type LaundryMode, type PlannedTrip, type SwimPlan, type Trip,
+  loadSavedTrips, saveTrips, tripProblems, tripTitle, upcomingFirst, wornWords, type LaundryMode, type PlannedTrip, type SwimPlan, type Trip,
   type TripDay, type TripLaundry, type TripPatch, type TripRequest, type TripSummary, type WeatherCheck,
 } from '../trips';
 import type { ItemSummary, Place } from '../types';
@@ -662,30 +662,30 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
   const [shown, setShown] = useTodayView();
   const plan = trip.plan;
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const anchor = useRef<HTMLElement | null>(null);
   const packedIds = new Set(plan.packed.map((x) => x.id));
+  const said = tripProblems(trip);
+  const menuPiece = menuFor ? plan.packed.find((x) => x.id === menuFor) : undefined;
   const title = changes.locked ? OFFLINE_TITLE : undefined;
 
   return (
     <div className={`trip-plan${asking ? ' is-asking' : ''}`}>
       <WeatherStrip days={trip.weather} />
-      {trip.weather_message && <p className="notice notice-warn" role="note"><WarnIcon /><span>{trip.weather_message}</span></p>}
-
-      {plan.uncovered.length > 0 && (
-        <div className="today-warnings trip-uncovered" role="note" aria-label="Not covered">
-          <WarnIcon />
-          <ul>
-            {plan.uncovered.map((u) => <li key={u.date}><strong>{longDate(u.date)}:</strong> {u.reason}</li>)}
-          </ul>
-        </div>
+      {/* what to pack comes first: what the days have to say is said once, each in a line, the watch-outs behind one */}
+      {(trip.weather_message || said.unknown) && (
+        <p className="trip-problem" role="note"><WarnIcon className="inline-icon" /> {trip.weather_message ?? said.unknown}</p>
       )}
-      {plan.warnings.length > 0 && (
-        <div className="notice notice-warn trip-uncovered" role="note" aria-label="Days dressed with warnings">
-          <WarnIcon />
-          <div>
-            <strong>These days have an outfit with something to watch out for:</strong>
-            <ul>{plan.warnings.map((w) => <li key={w.date}><strong>{longDate(w.date)}:</strong> {w.reason}</li>)}</ul>
-          </div>
-        </div>
+      {said.uncovered.length > 0 && (
+        <ul className="trip-problem trip-uncovered" role="note" aria-label="Not covered">
+          {said.uncovered.map((u) => <li key={u.reason}><WarnIcon className="inline-icon" /> <strong>{u.days}:</strong> {u.reason}</li>)}
+        </ul>
+      )}
+      {said.watch && (
+        <Fold title={said.watch.title} className="trip-watch" testId="trip-watch">
+          <ul aria-label="Days dressed with warnings">
+            {said.watch.lines.map((w) => <li key={w.reason}><strong>{w.days}:</strong> {w.reason}</li>)}
+          </ul>
+        </Fold>
       )}
 
       {(changes.leaveOut.length > 0 || changes.pin.length > 0) && (
@@ -726,18 +726,11 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
                           </span>
                         </span>
                       </Line>
-                      <button className="trip-more" aria-label={`Choices for ${name}`} aria-expanded={menuFor === piece.id}
-                        onClick={() => setMenuFor(menuFor === piece.id ? null : piece.id)}><MoreIcon /></button>
-                      {menuFor === piece.id && (
-                        <div className="today-piece-menu trip-menu" role="group" aria-label={`Choices for ${name}`}>
-                          <div className="row">
-                            <button className="btn btn-small" disabled={changes.locked} title={title} onClick={() => { setMenuFor(null); changes.swap(piece.id); }}>Not this one</button>
-                            {piece.pinned && <button className="btn btn-small" disabled={changes.locked} title={title} onClick={() => { setMenuFor(null); changes.unpin(piece.id); }}>Let Nines choose</button>}
-                            <Link className="btn btn-small btn-ghost" to={`/item/${encodeURIComponent(piece.id)}`}>See it</Link>
-                            <button className="btn btn-small btn-ghost" onClick={() => setMenuFor(null)}>Close</button>
-                          </div>
-                        </div>
-                      )}
+                      <button className="trip-more" aria-label={`Choices for ${name}`} aria-haspopup="dialog" aria-expanded={menuFor === piece.id}
+                        onClick={(e) => {
+                          anchor.current = e.currentTarget;
+                          setMenuFor(menuFor === piece.id ? null : piece.id);
+                        }}><MoreIcon /></button>
                       {unavailable && changes.planAgain && (
                         <button className="btn btn-small trip-line-replan" disabled={changes.locked} title={title}
                           onClick={changes.planAgain}>Plan again</button>
@@ -753,6 +746,17 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
               <h3 className="chip-group-title">{SWIM_LABEL}</h3>
               <p className="hint">{plan.swim.missing}</p>
             </div>
+          )}
+          {menuPiece && (
+            <Sheet title={itemName(byId.get(menuPiece.id))} anchor={anchor} onClose={() => setMenuFor(null)} className="trip-menu-sheet" testId="trip-menu">
+              <div className="trip-menu-list">
+                <Button block disabled={changes.locked} title={title} onClick={() => { setMenuFor(null); changes.swap(menuPiece.id); }}>Not this one</Button>
+                {menuPiece.pinned && (
+                  <Button block disabled={changes.locked} title={title} onClick={() => { setMenuFor(null); changes.unpin(menuPiece.id); }}>Let Nines choose</Button>
+                )}
+                <Link className={buttonClass({ block: true })} to={`/item/${encodeURIComponent(menuPiece.id)}`}>See it</Link>
+              </div>
+            </Sheet>
           )}
           <TakeSomethingElse byId={byId} packed={packedIds} changes={changes} />
 
@@ -798,7 +802,10 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
             )}
           </div>
           <ol className="trip-day-list">
-            {plan.days.map((d) => <DayCard key={d.date} day={d} tripOccasion={trip.occasion} byId={byId} view={view} shown={shown} />)}
+            {plan.days.map((d) => (
+              <DayCard key={d.date} day={d} tripOccasion={trip.occasion} byId={byId} view={view} shown={shown}
+                problemSaid={said.unknownDays.has(d.date)} />
+            ))}
           </ol>
         </section>
       </div>
@@ -856,7 +863,7 @@ function WeatherStrip({ days }: { days: TripDay[] }) {
               return (
                 <li key={d.date} className={`trip-weather-day${d.rain ? ' is-rainy' : ''}`} aria-label={`${longDate(d.date)}: ${dayTemps(d)}${d.rain !== null ? `, ${dayRain(d)}` : ''}`}>
                   <span className="trip-weather-date"><strong>{s.weekday}</strong> {s.date}</span>
-                  <span className="trip-weather-temps">{d.low_c === null || d.high_c === null ? '?' : `${Math.round(d.low_c)}° / ${Math.round(d.high_c)}°`}</span>
+                  <span className="trip-weather-temps">{d.low_c === null || d.high_c === null ? '?' : temps(d.low_c, d.high_c)}</span>
                   <span className="trip-weather-rain">{d.rain === null ? 'Unknown' : d.rain ? 'Rain' : 'Dry'}</span>
                 </li>
               );
@@ -868,10 +875,15 @@ function WeatherStrip({ days }: { days: TripDay[] }) {
   );
 }
 
-function DayCard({ day, tripOccasion, byId, view, shown }: {
+function DayCard({ day, tripOccasion, byId, view, shown, problemSaid }: {
   day: PlannedTrip['plan']['days'][number]; tripOccasion: string; byId: Map<string, ItemSummary>; view: GridView; shown: TodayView;
+  /** Why this day has no outfit is already said above the list (the weather could not be had): not again here. */
+  problemSaid: boolean;
 }) {
   const o: Outfit | null = day.outfit;
+  // up to five pieces in one row; more wrap into rows of the same length, so none is left alone on a row
+  const n = o ? outfitIds(o.pieces).length : 0;
+  const cols = n <= 5 ? 5 : Math.ceil(n / 2);
   return (
     <Card as="li" className={`trip-day${day.problem || day.warning ? ' has-problem' : ''}`} data-testid="trip-day">
       <div className="trip-day-head">
@@ -880,7 +892,7 @@ function DayCard({ day, tripOccasion, byId, view, shown }: {
         {day.occasion !== tripOccasion && <span className="trip-day-occasion">{occasionLabel(day.occasion)}</span>}
         {day.laundry && <span className="trip-day-occasion trip-day-laundry">Laundry day</span>}
       </div>
-      {day.problem && <p className="trip-day-problem"><WarnIcon className="inline-icon" /> {day.problem}</p>}
+      {day.problem && !problemSaid && <p className="trip-day-problem"><WarnIcon className="inline-icon" /> {day.problem}</p>}
       {day.warning && !o?.warnings.includes(day.warning) && <p className="trip-day-problem"><WarnIcon className="inline-icon" /> {day.warning}</p>}
       {o && (
         <>
@@ -889,7 +901,7 @@ function DayCard({ day, tripOccasion, byId, view, shown }: {
               alt={`What to wear on ${longDate(day.date)}, as worn: ${joinWords(wornOrder(o.pieces).map((p) => itemName(byId.get(p.id))))}`}
               version={figureVersion(outfitIds(o.pieces), byId)} />
           ) : (
-            <ul className="trip-day-pieces" aria-label={`What to wear on ${longDate(day.date)}`}>
+            <ul className="trip-day-pieces" data-cols={cols} aria-label={`What to wear on ${longDate(day.date)}`}>
               {wornOrder(o.pieces).map((p) => {
                 const item = byId.get(p.id);
                 return (

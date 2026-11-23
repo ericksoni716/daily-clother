@@ -85,6 +85,24 @@ temperatures and "Somewhere else, or out all day?" folded under them: a note abo
 Claude about them; it answers, may change the outfits, and may offer something to remember,
 which is kept only when you tap it, with Undo beside it once kept.
 
+**Another day**, beside the heading, opens a sheet with tomorrow and the next days by name (a day
+you planned says Planned, a day of a saved trip names the trip) and a date of your choice, up to
+60 days ahead. A day opens at `/today/day/<date>` in Today's own layout: its name as the heading,
+"‹ Today" back, its weather (the forecast where it reaches, else "usually, on these dates", or a
+mild day with a line saying why it is not known), one line saying whether an outfit is planned, and
+outfits by Nines' own rules with **Wear this on Saturday**. That keeps the outfit for the day: a
+plan, not a wear (nothing worn, nothing in the laundry). The planned outfit says "Planned for
+Saturday" with **Remove the plan**; taking a plan away, or replacing it, leaves Undo in the line.
+Change on that day opens a word about the day ("Dinner at eight"), read by Claude like today's note,
+with the same sentence saying what is sent. A day inside a saved trip says the trip has its outfit,
+with **See the trip**. Offline, a plan made earlier shows from what the device kept. On the
+morning of a planned day Today opens on the plan with one line saying so (and the word about the
+day), names a piece swapped because it cannot be worn by then, and offers **See other outfits**. On
+the days before, a planned piece that wearing would leave in the wash on its day is not offered; its
+choices say why if it is in an outfit anyway, with **Build around it anyway**. The plans of the
+coming week are one line on Today ("Saturday and Monday are planned."), each day a link. **Keep this
+outfit**, under each outfit's button, keeps it under Worn without wearing it.
+
 Below that, when a trip starts within two weeks (or is under way), a "Packing for a trip?"
 row opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
 outfit went, with every piece of it under the question; then the last outfits you wore (three
@@ -104,10 +122,16 @@ sport is clean, an athletic day's outfit says which pieces are a makeshift.
 
 ## Worn
 
-`/today/worn`, from "See all" under Recent outfits; "‹ Today" goes back. The outfits you
+`/today/worn`, from "See all" under Recent outfits; "‹ Today" goes back. A switch at the top
+chooses between **What you wore** and **Outfits you keep** (`/today/worn/kept`). The outfits you
 wore, newest first, each with its pieces, how it went (a rating and a note), and, behind ⋯ in
 a sheet, "Wear this again" (Today keeps the pieces you can wear today, and fills the place of one
-in the wash or waiting to be mended), a way to put its pieces in the laundry, and Remove. A piece
+in the wash or waiting to be mended), "Keep this outfit", a way to put its pieces in the laundry,
+and Remove. The outfits you keep are newest first, each with a name you can type in place (saved as
+you leave the box), when it was kept, its pieces, a line when a piece has left the closet, and
+**Wear this** (Today starts from it as from "Wear this again"); behind ⋯, **Wear this on another
+day** (the days sheet, then that day starting from it) and Remove, which leaves a line with Undo.
+With none kept, one sentence says how. Keeping the same pieces again says so instead. A piece
 opens at `/today/worn/item/<id>`, and "‹ Worn" goes back to where you were. "Record an outfit"
 opens a sheet with the day (today or an earlier day), a search, and your pieces in four groups
 (tops, bottoms, shoes and extras), the ones worn most recently first; a tie, a watch or anything

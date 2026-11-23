@@ -49,6 +49,21 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   card.
 - **Shops you like, in Settings, Everyday.** Up to 12 shop names or sites, where a look for
   things on sale starts. They are sent to Claude with that look.
+- **Dress for another day.** **Another day**, beside Today's heading, opens the next days by name
+  and a date of your choice, with the days you planned marked. A day shows in Today's own layout,
+  with its weather (the forecast where it reaches, otherwise what those dates are usually like) and
+  a word about the day if you give one ("dinner at eight"). **Wear this on Saturday** keeps the
+  outfit for that day: nothing is worn and nothing goes in the laundry until you wear it. That
+  morning Today opens on it, and a piece that cannot be worn by then is swapped and named. On the
+  days before, a planned piece that would still be in the wash on its day is not offered. A plan can
+  be changed or taken away with Undo, and the plans of the coming week are one line on Today. A day
+  inside a saved trip points to the trip, which has that day's outfit.
+
+- **Outfits you keep.** **Keep this outfit** under any outfit on Today, and in a worn outfit's
+  choices, saves it without wearing it. Worn has a second half, **Outfits you keep**: name one in
+  place, **Wear this** (Today starts from it, filling a piece you cannot wear today), **Wear this on
+  another day**, or remove it with Undo. Keeping the same pieces twice is said, not kept twice, and
+  an outfit whose piece has left your closet stays and says so.
 
 - **You might like, in the Wardrobe.** A small card with three things on sale that Claude found
   from what you wear and love, not from something missing: each with its picture, price and how

@@ -1,7 +1,7 @@
 import { backByWearing, recordedSentence } from '../away';
 import { queryOptions, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
-import { api, ApiError } from '../api';
+import { useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { api, ApiError, connection } from '../api';
 import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
 import { Pic } from '../components/ItemPic';
 import { nameOf, OutfitPics } from '../components/OutfitPics';
@@ -10,6 +10,7 @@ import { BackLink, Button, buttonClass, Card, EmptyState, Failed, PageHeader, Sa
 import { goneLine, KEPT_EMPTY, KEPT_NAME_MAX, keptToast, keptWhen, type KeptOutfit } from '../kept';
 import { label } from '../labels';
 import { setLaundryMany } from '../laundry';
+import { newActionId, outboxFor, withKeptRatings, type RateAction } from '../outbox';
 import { keptQuery, plansQuery, touch, useAllItems, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
@@ -29,25 +30,33 @@ const WASHED = new Set(['tee', 'shirt', 'polo', 'sweater', 'hoodie', 'jeans', 't
 import './Worn.css';
 
 const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
-export const RATE_OFFLINE = "You're offline, so rating has to wait until Nines on your computer can be reached.";
 
 /** The three answers, then the reasons that fit the answer; each tap is saved straight away. Used by the Worn list and by
- * Today's question. Offline the answers are off; the list they are in says why, once. */
+ * Today's question. While Nines cannot be reached, a tap is kept on this phone and sent when it answers (`outbox.ts`):
+ * it shows at once as if it had been sent, and the banner over the page says it is kept. */
 export function RateOutfit({ outfit, offline, onRated, compact }: {
   outfit: WornOutfit; offline: boolean; onRated(o: WornOutfit): void; compact?: boolean;
 }) {
   const qc = useQueryClient();
-  const rated = useEdit('outfit');
+  const { profile } = useApp();
   const status = useSaveStatus();
   const [note, setNote] = useState(outfit.rating_note ?? '');
-  const locked = offline || status.state === 'saving';
-  const title = offline ? OFFLINE_TITLE : undefined;
+  const locked = status.state === 'saving';
 
   // each tap saves at once and says so beside the answers: "Saving…", "Saved", or "Didn't save" with Try again
   function save(rating: Rating | null, reasons: Reason[], noteText: string | null) {
     return status.run(async () => {
-      const o = await rated(() => api.rateOutfit(outfit.id, rating, reasons, reasons.includes('other') ? noteText : null));
+      const kept: RateAction = {
+        kind: 'rate', id: newActionId(), at: new Date().toISOString(), outfit_id: outfit.id, worn_on: outfit.worn_on,
+        rating, reasons, note: reasons.includes('other') ? noteText : null,
+        before: { rating: outfit.rating, reasons: outfit.rating_reasons, note: outfit.rating_note },
+      };
+      const sent = await outboxFor(profile).send<WornOutfit>(kept);
+      const o = sent.kept
+        ? { ...outfit, rating: kept.rating, rating_reasons: kept.reasons, rating_note: kept.note, rated_at: kept.rating ? kept.at : null }
+        : sent.answer;
       changePages(qc, (page) => withOutfit(page, o));
+      if (!sent.kept) void touch(qc, 'outfit');
       onRated(o);
     });
   }
@@ -63,7 +72,7 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
       <div className="chips rate-answers" role="group" aria-label="How it went">
         {RATINGS.map((r) => (
           <button key={r} type="button" className={`chip${outfit.rating === r ? ' is-on' : ''}`} aria-pressed={outfit.rating === r}
-            disabled={locked} title={title}
+            disabled={locked}
             onClick={() => void save(outfit.rating === r ? null : r, outfit.rating === r ? [] : reasons.filter((x) => reasonsFor(r).includes(x)), note.trim() || null)}>
             {ratingLabel(r)}
           </button>
@@ -75,7 +84,7 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
           <div className="chips" role="group" aria-label="Why">
             {reasonsFor(outfit.rating).map((r) => (
               <button key={r} type="button" className={`chip${reasons.includes(r) ? ' is-on' : ''}`} aria-pressed={reasons.includes(r)}
-                disabled={locked} title={title} onClick={() => toggle(r)}>
+                disabled={locked} onClick={() => toggle(r)}>
                 {reasonLabel(r)}
               </button>
             ))}
@@ -86,7 +95,7 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
                 <span>What else?</span>
                 <input value={note} maxLength={300} disabled={locked} onChange={(e) => setNote(e.target.value)} />
               </label>
-              <button className="btn btn-small" disabled={locked || note.trim() === (outfit.rating_note ?? '')} title={title}>Save note</button>
+              <button className="btn btn-small" disabled={locked || note.trim() === (outfit.rating_note ?? '')}>Save note</button>
             </form>
           )}
         </>
@@ -110,7 +119,6 @@ export function RecentOutfits({ outfits, byId, offline, children }: {
   return (
     <section className="recent" aria-labelledby="recent-title" data-testid="recent-outfits">
       <h2 id="recent-title" className="recent-title">Recent outfits</h2>
-      {offline && <p className="hint rate-offline">{RATE_OFFLINE}</p>}
       {children}
       {outfits.length === 0 ? (
         <p className="muted recent-none">The outfits you wear show here, to say how each one went.{' '}
@@ -158,14 +166,18 @@ export interface WornRead {
 export const wornQuery = (profile: string, before: string | null = null) => queryOptions({
   queryKey: queryKeys.worn(before),
   queryFn: async (): Promise<WornRead> => {
+    // what this phone kept goes to Nines first, so a fresh page never shows a rating from before it (then it shows on
+    // whichever page comes back, the saved copy too, while it is still kept)
+    const box = outboxFor(profile);
+    if (!connection.offline) await box.flush();
     const started = Date.now();
     try {
       const page = await api.wornOutfits(before);
       if (before === null) saveWorn(profile, page);
-      return { page, at: navigator.onLine !== false ? started : null };
+      return { page: withKeptRatings(page, box.list), at: navigator.onLine !== false ? started : null };
     } catch (e) {
       const saved = before === null && (e as ApiError).status === 0 ? loadSavedWorn(profile) : null;
-      if (saved) return { page: saved.page, at: null };
+      if (saved) return { page: withKeptRatings(saved.page, box.list), at: null };
       throw e;
     }
   },
@@ -253,7 +265,6 @@ function WornList() {
         )} />
       <WornSwitch kept={false} />
       <p className="hint worn-intro">Outfits you wore, newest first. Say how each one went and the outfits Today offers learn from it.</p>
-      {offline && list && list.length > 0 && <p className="hint rate-offline">{RATE_OFFLINE}</p>}
 
       {adding && (
         <RecordByHand items={items ?? []} anchor={recordButton} onCancel={() => setAdding(false)}

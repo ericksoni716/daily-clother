@@ -36,6 +36,7 @@ export const FROM_CACHE_HEADER = 'x-closet-from-cache';
 type Listener = (offline: boolean) => void;
 const offlineListeners = new Set<Listener>();
 const unauthorizedListeners = new Set<(message: string) => void>();
+const answerListeners = new Set<() => void>();
 let offline = false;
 
 function setOffline(value: boolean) {
@@ -56,6 +57,12 @@ export const connection = {
   onUnauthorized(l: (message: string) => void): () => void {
     unauthorizedListeners.add(l);
     return () => void unauthorizedListeners.delete(l);
+  },
+  /** Told each time Nines itself answers a call with success (not the service worker's saved copy): what is kept on
+   * this phone is sent then (`outbox.ts`). */
+  onAnswer(l: () => void): () => void {
+    answerListeners.add(l);
+    return () => void answerListeners.delete(l);
   },
   /** Exposed for tests and for code that learns about the network another way. */
   set: setOffline,
@@ -154,7 +161,9 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
     if (kept !== null) keepaliveBytes -= kept;
     if (timer !== undefined) clearTimeout(timer);
   }
-  setOffline(res.headers.get(FROM_CACHE_HEADER) === '1');
+  const fromCache = res.headers.get(FROM_CACHE_HEADER) === '1';
+  setOffline(fromCache);
+  if (res.ok && !fromCache) answerListeners.forEach((l) => l());
   if (res.status === 204) return undefined as T;
   let data: unknown = null;
   if (opts.text && res.ok) return text as T;
@@ -187,9 +196,13 @@ export const api = {
   wear: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/wears`, { method: 'POST' }),
   unwear: (id: string, day: string) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/wears/${encodeURIComponent(day)}`, { method: 'DELETE' }),
-  /** Records a wear for several items at once (an outfit), on one day. */
-  wearMany: (ids: string[], outfit?: OutfitSent) =>
-    request<WearManyAnswer>('/api/wears', { method: 'POST', body: outfit ? { item_ids: ids, outfit } : { item_ids: ids } }),
+  /** Records a wear for several items at once (an outfit), on one day: `worn_on`, or Nines' today. `tapped_at` is when
+   * the owner tapped, for an outfit kept on the phone while Nines could not be reached and sent now (`outbox.ts`). */
+  wearMany: (ids: string[], outfit?: OutfitSent, when: { worn_on?: string; tapped_at?: string } = {}) =>
+    request<WearManyAnswer>('/api/wears', {
+      method: 'POST',
+      body: { item_ids: ids, ...(outfit ? { outfit } : {}), ...(when.worn_on ? { worn_on: when.worn_on } : {}), ...(when.tapped_at ? { tapped_at: when.tapped_at } : {}) },
+    }),
   /** With `outfitId`, the outfit remembered with the wears is removed too (`ids` may then be empty). */
   unwearMany: (ids: string[], day: string, outfitId?: string) =>
     request<WearManyAnswer>('/api/wears/remove', {
@@ -199,8 +212,11 @@ export const api = {
     request<WornPage>(`/api/outfits/worn?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ''}`),
   recordOutfit: (ids: string[], day?: string) =>
     request<WornOutfit>('/api/outfits/worn', { method: 'POST', body: day ? { item_ids: ids, worn_on: day } : { item_ids: ids } }),
-  rateOutfit: (id: string, rating: Rating | null, reasons: Reason[] = [], note?: string | null) =>
-    request<WornOutfit>(`/api/outfits/worn/${encodeURIComponent(id)}/rating`, { method: 'PUT', body: { rating, reasons, note: note || null } }),
+  /** `tappedAt`: when the owner tapped, for a rating kept on the phone and sent now (`outbox.ts`). */
+  rateOutfit: (id: string, rating: Rating | null, reasons: Reason[] = [], note?: string | null, tappedAt?: string) =>
+    request<WornOutfit>(`/api/outfits/worn/${encodeURIComponent(id)}/rating`, {
+      method: 'PUT', body: { rating, reasons, note: note || null, ...(tappedAt ? { tapped_at: tappedAt } : {}) },
+    }),
   removeOutfit: (id: string) => request<void>(`/api/outfits/worn/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   /** Marking a piece in the laundry clean answers with `undo`; sent back with "laundry", it puts the piece back as it was. */
   setLaundry: (id: string, state: Laundry, undo?: LaundryUndo) =>

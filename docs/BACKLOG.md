@@ -14,6 +14,14 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Wearing while the computer is off** (23 November; DECISIONS, "Wearing while the computer is
+  off"). Left undone: a gateway's answer while the computer sleeps (Cloudflare's 502 or 530 through
+  the Cloudflare door) counts as an answer, not as Nines being out of reach, so a tap then shows the
+  error instead of being kept; `api.ts` would have to tell a gateway's page from Nines' own. "Wear
+  this instead" over an outfit Nines already has stays off offline (keeping a removal would be a
+  fourth kind of action). An outfit worn offline shows on Today at once but joins Worn's list only
+  once it is sent. Two tabs open on the same phone each send what they find kept; the calls are safe
+  to repeat, so this costs a request, not a second wear.
 - **"Added by hand" after a link's find is stopped** (24 November; DECISIONS, the row on Stop
   watching). Left: once you leave the page, a wish made from a link whose only find you stopped says
   "Added by hand" on its row and its page, since nothing on the wish keeps where it came from.
@@ -537,7 +545,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 
 **The closet**
 - [x] **Where a piece is**: at the cleaner's, at the tailor's, lent out, needs mending. Left out of outfits and trips like the laundry, with one line on the closet and a tap to bring it back.
-- [ ] **Wearing while the computer is off**: "I'm wearing this", a rating and a tick on a packing list are kept on the phone and sent when Nines answers again (the backlog's offline edit queue).
+- [x] **Wearing while the computer is off**: "I'm wearing this", a rating and a tick on a packing list are kept on the phone and sent when Nines answers again (the backlog's offline edit queue). Done 23 November (DECISIONS, "Wearing while the computer is off").
 
 **The wardrobe**
 - [x] **On sale now** (step 5 of "Finding clothes you might like").
@@ -756,7 +764,7 @@ Original phase 5.
 - Trip packing (historical weather beyond the 16-day forecast, count-only basics).
 - "Your nines" (the owner's idea, 20 November; the app is now called Nines): the nine pieces worn most, shown as a three-by-three square in the Wardrobe.
 - Rework the colours (the owner, 20 November, after seeing Nines' mark on the screens: "we'll probably rework the colors later"). A change to the design system's colour tokens, decided once and written down in DECISIONS ("The design system"), light and dark together; the brand mark's own colours (`--brand-edge`) go with it.
-- Extras: calendar-aware suggestions, offline edit queue. Cut: resale suggestions, seasonal storage rotation.
+- Extras: calendar-aware suggestions, ~~offline edit queue~~ (done for the three things done away from the computer: "Wearing while the computer is off", 23 November). Cut: resale suggestions, seasonal storage rotation.
 
 ### Definition of done for a stop
 Tests pass, the packaged build is green in CI, demo mode works, docs are updated, and the owner is told exactly what to try from the downloaded program and what is uncertain.

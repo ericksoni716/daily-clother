@@ -521,6 +521,8 @@ export interface WornToday {
   outfit_id?: string;
   /** When this device recorded it (ms), so an older list of worn outfits does not undo it. */
   at?: number;
+  /** Kept on this phone while Nines could not be reached: the kept action's id (`outbox.ts`), until Nines has it. */
+  kept?: string;
 }
 
 /** The fields of a worn outfit (as the Worn screen lists them) that say what was worn today. */

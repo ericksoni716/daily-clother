@@ -75,7 +75,11 @@ fastened, its front showing between the coat's; a shirt worn open over a tee sta
 the coat's fronts. The rules choose outfits at once; when Claude may choose,
 the outfits on the page stay there, dimmed, under a card saying Claude is choosing, until its
 outfits replace them ("Show Nines' own picks meanwhile" lets you use the rules' outfits). "I'm
-wearing this" records the outfit and its wears, and ends building around a piece. A piece's ⋯
+wearing this" records the outfit and its wears, and ends building around a piece. When Nines on your
+computer can't be reached, "I'm wearing this" still works: the outfit shows as worn at once, is kept on
+this phone for the day you tapped, and is sent when Nines answers (the offline banner says so); Undo
+before then simply forgets it. Wearing another outfit instead of one Nines already has waits until it
+can be reached. A piece's ⋯
 opens a sheet with "Not this piece", which swaps it out, and "Build around this piece"; both
 are kept for the rest of the day, and how is said once, under the outfits, behind "Changing an
 outfit". Now and then the last outfit is an outing: built around a piece you love or like and have not
@@ -137,7 +141,8 @@ Below that, when a trip starts within two weeks (or is under way, and is not tod
 row opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
 outfit went, with every piece of it under the question; then the last outfits you wore (three
 on a phone, a week's worth on a computer), each with its pieces and how it went, rated in place,
-saying "Saving…" and "Saved" as it saves; the reasons offered follow the rating. "See all" opens
+saying "Saving…" and "Saved" as it saves; the reasons offered follow the rating. Offline, a rating is
+kept on this phone and sent when Nines answers, as "I'm wearing this" is. "See all" opens
 Worn. The page ends with a link to Trips. Tapping a
 piece opens it (`/today/item/<id>`), and **Build an outfit around it** there comes back to Today built around it.
 
@@ -171,6 +176,8 @@ more and record them; a piece away that you record for today is back in your clo
 message says so. A day your phone calls today is taken even when the computer at home is a
 time zone behind. An outfit for a day the pieces have been washed since (before the last laundry
 day, or before you marked them clean) goes in the log but does not put them in the laundry again.
+Offline, how an outfit went can still be given or changed: it is kept on this phone and sent when
+Nines answers; recording, removing and the choices behind ⋯ wait until it can be reached.
 
 ## Trips
 
@@ -195,7 +202,8 @@ one line that opens, and a forecast that could not be had is said once. A packed
 a sheet with "Not this one" and "See it". Each day's outfit shows up to five pieces in a row. A
 saved trip is a packing list to tick off, on the computer or the phone, with its choices under
 "Change the trip". What you have ticked stays on the list when the trip is planned again, and can
-be worn whatever the laundry at home says. Once the trip has begun, the days already gone keep
+be worn whatever the laundry at home says. Offline you can still tick what you pack: the ticks are
+kept on this phone and sent when Nines answers, and the trip's choices wait. Once the trip has begun, the days already gone keep
 their outfits and their weather, the days to come are dressed only from what you packed, and the
 trip says the forecast changed only when it changed for the days still to come. A day on which you recorded
 another outfit than the plan's counts what you wore, once the trip is planned again. Today's day is marked
@@ -652,7 +660,13 @@ back. Its code loads only when it is opened. In order:
   Try again. A save
   still waiting when the page closes is sent as it closes.
 - **Offline.** On a phone that cannot reach the computer, the saved closet, trips and
-  suggestions are shown and nothing can be changed or added until it is back.
+  suggestions are shown and nothing can be changed or added until it is back, except the three things
+  you do away from the computer: "I'm wearing this", how an outfit went, and a tick on a packing list.
+  Those show as done at once, are kept on this phone (through a reload or the app being closed), and
+  are sent in the order you made them, once each, when Nines answers; while they wait, the offline
+  banner ends "What you marked is kept on this phone and will be sent when Nines answers." If Nines
+  turns one down when it gets it (a piece archived meanwhile, another outfit recorded for that day, a
+  trip deleted), a message says what was not recorded and why, and the screen shows what Nines has.
 - **Price news.** When a price on your wishlist goes down (to the most you'd pay or less, when you
   set one), a banner at the top of every screen says so once: "A tan rain coat is down to $150.00
   at Example Shop, from $177.00." with See it and Got it, or for several "Prices went down for 3

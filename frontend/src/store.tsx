@@ -1,11 +1,13 @@
-import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { QueryClientProvider, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { api, connection } from './api';
 import { keepShowDrawings, loadShowDrawings, ShowDrawings } from './drawing';
-import { itemsQuery, modelQuery, progressQuery, vocabQuery } from './queries';
+import { outboxFor, refusedLine, type KeptAction, type Outbox, type OutboxEvent } from './outbox';
+import { itemsQuery, modelQuery, progressQuery, touch, vocabQuery, writeItem } from './queries';
 import { makeQueryClient } from './queryClient';
 import { queryKeys } from './queryKeys';
 import { picturesQuery } from './settings';
+import { keptFor, type WearManyAnswer } from './today';
 import type { Profile, ProgressList } from './types';
 import { uploads } from './uploads';
 import { downloading, DOWNLOAD_MS, movedOn, progressPoll } from './work';
@@ -26,6 +28,33 @@ export function useApp(): AppState {
   const v = useContext(Ctx);
   if (!v) throw new Error('useApp outside ClosetProvider');
   return v;
+}
+
+/** What is kept on this phone for the open closet, to be sent when Nines answers (`outbox.ts`); drawn again as it changes. */
+export function useKept(box: Outbox): KeptAction[] {
+  return useSyncExternalStore(useCallback((changed: () => void) => box.subscribe(changed), [box]), () => box.list);
+}
+
+/**
+ * After an action kept on this phone reached Nines, or Nines refused it: Today's memory of what is worn takes what Nines
+ * recorded (or forgets the outfit Nines refused), and what it touches is read again, so every screen shows what Nines
+ * says is true.
+ */
+function afterKept(qc: QueryClient, profile: string, e: OutboxEvent): void {
+  const a = e.action;
+  if (a.kind === 'wear') {
+    const kept = keptFor(profile);
+    const record = kept.worn(a.day);
+    if (record?.kept === a.id) {
+      if (e.type === 'sent') {
+        const r = e.answer as WearManyAnswer;
+        kept.setWorn({ ...record, worn_on: r.worn_on, recorded: r.recorded ?? [], outfit_id: r.outfit?.id, at: Date.now(), kept: undefined });
+      } else kept.setWorn(null);
+    }
+    if (e.type === 'sent') (e.answer as WearManyAnswer).items.forEach((i) => writeItem(qc, i));
+    void touch(qc, 'wear');
+  } else if (a.kind === 'rate') void touch(qc, 'outfit');
+  else void touch(qc, 'trip');
 }
 
 export function useOffline(): boolean {
@@ -111,6 +140,33 @@ function OpenCloset({ profile, onProfile, onQuit, toast, children }: Props) {
     }, 5000);
     return () => window.clearInterval(t);
   }, [offline, qc]);
+
+  // What was kept on this phone while Nines could not be reached is sent when it answers again: when the app opens,
+  // when the browser says it is back online, when the page comes back into view, and after any call Nines answers.
+  // Never by the service worker or in the background: iOS Safari has neither for a page like this.
+  useEffect(() => {
+    const box = outboxFor(profile);
+    const send = () => {
+      if (box.list.length) void box.flush();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') send();
+    };
+    send();
+    window.addEventListener('online', send);
+    document.addEventListener('visibilitychange', onVisible);
+    const stopAnswers = connection.onAnswer(send);
+    const stopEvents = box.onEvent((e) => {
+      if (e.type === 'refused') toast(refusedLine(e.action, e.message), 'error');
+      afterKept(qc, profile, e);
+    });
+    return () => {
+      window.removeEventListener('online', send);
+      document.removeEventListener('visibilitychange', onVisible);
+      stopAnswers();
+      stopEvents();
+    };
+  }, [profile, qc, toast]);
 
   // A finished upload shows up in the grid straight away.
   useEffect(() => {

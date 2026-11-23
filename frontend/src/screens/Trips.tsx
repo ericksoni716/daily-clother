@@ -9,6 +9,7 @@ import { useShowDrawings, type GridView } from '../drawing';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
 import { SaveLine } from '../leave';
+import { newActionId, outboxFor, withKeptCounts, withKeptTicks, type TickAction } from '../outbox';
 import { touch, useEdit, useItems } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
@@ -43,13 +44,16 @@ export function TripsScreen({ tripId }: { tripId: string | null }) {
 export const tripsQuery = (profile: string) => queryOptions({
   queryKey: queryKeys.trips(),
   queryFn: async () => {
+    // ticks kept on this phone go to Nines first, so a fresh list never counts from before them (`outbox.ts`)
+    const box = outboxFor(profile);
+    if (!connection.offline) await box.flush();
     try {
       const trips = await api.trips();
       if (!connection.offline) saveTrips(profile, { list: trips });
-      return trips;
+      return withKeptCounts(trips, box.list);
     } catch (e) {
       const saved = (e as ApiError).status === 0 ? loadSavedTrips(profile)?.list : null;
-      if (saved) return saved;
+      if (saved) return withKeptCounts(saved, box.list);
       throw e;
     }
   },
@@ -59,13 +63,15 @@ export const tripsQuery = (profile: string) => queryOptions({
 const tripQuery = (profile: string, id: string) => queryOptions({
   queryKey: queryKeys.trip(id),
   queryFn: async () => {
+    const box = outboxFor(profile);
+    if (!connection.offline) await box.flush();
     try {
       const trip = await api.trip(id);
       if (!connection.offline) keepTrip(profile, trip);
-      return trip;
+      return withKeptTicks(trip, box.list);
     } catch (e) {
       const saved = (e as ApiError).status === 0 ? loadSavedTrips(profile)?.details[id] : null;
-      if (saved) return saved;
+      if (saved) return withKeptTicks(saved, box.list);
       throw e;
     }
   },
@@ -429,7 +435,10 @@ function SavedTrip({ id }: { id: string }) {
   // shown a moment too early, every piece read "no longer in your closet". Offline there may be nothing to wait for.
   const itemsReady = offline || (active !== undefined && archived !== undefined);
   // the copy kept on this device shows until the trip arrives, and stays with an error
-  const [kept] = useState<Trip | null>(() => loadSavedTrips(profile)?.details[id] ?? null);
+  const [kept] = useState<Trip | null>(() => {
+    const saved = loadSavedTrips(profile)?.details[id];
+    return saved ? withKeptTicks(saved, outboxFor(profile).list) : null;
+  });
   const query = useQuery(tripQuery(profile, id));
   // what is ticked while ticks are being saved: drawn at once (a checkbox follows its tap), taken from the trip after
   const [ticked, setTicked] = useState<string[] | null>(null);
@@ -452,20 +461,30 @@ function SavedTrip({ id }: { id: string }) {
   const locked = offline;
   const setTrip = (t: Trip) => qc.setQueryData(queryKeys.trip(id), t);
 
-  function tick(line: string, on: boolean) {
-    if (!trip || locked) return;
+  // A tick works offline too: while Nines cannot be reached it is kept on this phone and sent when it answers
+  // (`outbox.ts`), and the banner over the page says so. Everything else on the trip waits.
+  function tick(line: string, on: boolean, name: string) {
+    if (!trip) return;
+    const action: TickAction = {
+      kind: 'tick', id: newActionId(), at: new Date().toISOString(), trip_id: id, line, on, before: trip.packed.includes(line),
+      name, place: shortPlace(trip.place.name),
+    };
     setTicked((now) => {
       const packed = (now ?? trip.packed).filter((x) => x !== line);
       return on ? [...packed, line] : packed;
     });
     pending.current += 1;
     // one at a time, in the order they were tapped; what they answer is taken once the last has been saved
-    void ticks.current.add(() => api.patchTrip(id, { ticks: { [line]: on } })).then(
-      (t) => {
+    void ticks.current.add(() => outboxFor(profile).send<Trip>(action)).then(
+      (sent) => {
         pending.current -= 1;
-        if (pending.current === 0) {
-          setTrip(t);
-          keepTrip(profile, t);
+        if (sent.kept) {
+          // drawn from the trip as this phone shows it, the tick in it, until Nines has it
+          qc.setQueryData<Trip>(queryKeys.trip(id), (t) => t && withKeptTicks(t, [action]));
+          qc.setQueryData<TripSummary[]>(queryKeys.trips(), (list) => list && withKeptCounts(list, [action]));
+        } else if (pending.current === 0) {
+          setTrip(sent.answer);
+          keepTrip(profile, sent.answer);
           void touch(qc, 'trip', ['trip', 'tripWeather']);   // the list's packed count; the weather is the same
         }
       },
@@ -542,7 +561,7 @@ function SavedTrip({ id }: { id: string }) {
       {locked && (
         <p className="notice notice-warn" role="status">
           <WarnIcon />
-          <span>You're offline: this is the copy saved on this device. Ticking and changes wait until Nines on your computer can be reached.</span>
+          <span>You're offline: this is the copy saved on this device. You can tick what you pack; changing the trip waits until Nines on your computer can be reached.</span>
         </p>
       )}
       <Failed query={{ ...query, data: trip }} what="this trip" />
@@ -562,7 +581,7 @@ function SavedTrip({ id }: { id: string }) {
       </div>
 
       <PlanView trip={trip} byId={byId} changes={changes} asking={busy}
-        ticks={{ packed: new Set(trip.packed), locked, onTick: tick }} />
+        ticks={{ packed: new Set(trip.packed), onTick: tick }} />
 
       <section className="trip-options" aria-label="Change the trip">
         <h2 className="chip-group-title">Change the trip</h2>
@@ -683,8 +702,8 @@ interface Changes {
 
 interface Ticks {
   packed: Set<string>;
-  locked: boolean;
-  onTick(line: string, on: boolean): void;
+  /** Kept on this phone while Nines cannot be reached, so never off; `name` says which piece if Nines refuses it later. */
+  onTick(line: string, on: boolean, name: string): void;
 }
 
 function PlanView({ trip, byId, changes, asking, ticks }: {
@@ -849,8 +868,8 @@ function Line({ ticks, line, name, children }: { ticks?: Ticks; line: string; na
   if (!ticks) return <div className="trip-line-body">{children}</div>;
   const on = ticks.packed.has(line);
   return (
-    <label className="trip-line-body trip-tick" title={ticks.locked ? OFFLINE_TITLE : undefined}>
-      <input type="checkbox" checked={on} disabled={ticks.locked} aria-label={`Packed: ${name}`} onChange={(e) => ticks.onTick(line, e.target.checked)} />
+    <label className="trip-line-body trip-tick">
+      <input type="checkbox" checked={on} aria-label={`Packed: ${name}`} onChange={(e) => ticks.onTick(line, e.target.checked, name)} />
       {children}
     </label>
   );

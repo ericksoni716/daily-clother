@@ -12,6 +12,14 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Wearing while the computer is off.** When your phone can't reach Nines (the computer is asleep
+  or off), "I'm wearing this", how an outfit went and a tick on a packing list still work: each shows
+  as done at once, is kept on this phone (through a reload or the app being closed), and is sent in
+  the order you made it, once, when Nines answers again. The offline banner says so while they wait,
+  and you can take one back before then. A wear or a rating counts for the day you tapped. If Nines
+  turns one down when it gets it (a piece archived meanwhile, another outfit recorded for that day,
+  the trip deleted), a message says what was not recorded and why. Everything else still waits for
+  Nines, as before.
 - **A trip covers today.** On a day inside a trip you saved in Trips, Today knows you are away without a
   note: the weather is where the trip is, the trip's own outfit for the day comes first, and the other
   outfits come only from what you packed. One line over the outfits says which day of the trip it is

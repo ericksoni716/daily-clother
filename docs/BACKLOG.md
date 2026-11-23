@@ -14,6 +14,13 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Where a piece is** (23 November; DECISIONS, "Where a piece is"). Left undone: recording an
+  outfit by hand that brings an away piece back says so in the toast, but its Undo is on the piece's
+  page, not beside the toast (the toast has no button); the away view keeps the pieces brought back
+  only while it is open; the filter's "Away" sits in the laundry's group (its heading is now
+  "Laundry and away"); a piece away cannot be built around even when it is due back today; Today's
+  stylist path is told nothing about away pieces (they are simply not listed), so Claude never says
+  "your suit is at the cleaner's"; the demo closet has no piece away.
 - **The Wardrobe made short, Your nines, what your clothes cost you** (23 November; DECISIONS, "The Wardrobe made
   short"). Left: the Not worn pieces are still a row that scrolls sideways with Archive and Keep under each; `worn_most`
   stays in the insights answer though no screen shows it (old saved copies, and taste reads its own); the unused
@@ -467,7 +474,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 - [ ] **Give it an outing**: Today may offer one outfit built around a piece you like and have not worn in a while, and says so.
 
 **The closet**
-- [ ] **Where a piece is**: at the cleaner's, at the tailor's, lent out, needs mending. Left out of outfits and trips like the laundry, with one line on the closet and a tap to bring it back.
+- [x] **Where a piece is**: at the cleaner's, at the tailor's, lent out, needs mending. Left out of outfits and trips like the laundry, with one line on the closet and a tap to bring it back.
 - [ ] **Wearing while the computer is off**: "I'm wearing this", a rating and a tick on a packing list are kept on the phone and sent when Nines answers again (the backlog's offline edit queue).
 
 **The wardrobe**

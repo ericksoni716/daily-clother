@@ -10,6 +10,9 @@ Laundry that keeps itself (when the owner leaves it on in Settings): a piece goe
 in the laundry by itself once worn as often as "Before it needs washing" allows
 for its kind, and everything in the laundry is clean again on the owner's laundry
 day. A wear removed again takes a piece back out if that wear put it in.
+
+A wear for today of a piece that is away (at the cleaner's, the tailor's, lent out: `away.py`) brings it back, and
+removing that wear sends it away again.
 """
 from __future__ import annotations
 
@@ -18,7 +21,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
-from . import db, items
+from . import away, db, items
 
 LAUNDRY = ("clean", "laundry")
 AHEAD_DAYS = 1   # a wear may be for the computer's tomorrow: a phone a time zone ahead is already there
@@ -130,6 +133,11 @@ def _record(conn, item_id: str, day: date, t: str) -> bool:
     """Record one wear inside the caller's transaction; True when it is new. A wear for a day the piece has been
     washed since is kept in the log but neither counted nor puts the piece in the laundry."""
     row = items.get(conn, item_id)
+    if conn.execute("SELECT 1 FROM wears WHERE item_id = ? AND worn_on = ?", (item_id, day.isoformat())).fetchone():
+        return False
+    if row["away"] in away.PLACES and day >= today():
+        away.bring_back(conn, row, "wear", t)   # worn today, so it is evidently back (undone with the wear)
+        row = items.get(conn, item_id)
     counted = not washed_since(conn, row, day)
     if conn.execute("INSERT OR IGNORE INTO wears (item_id, worn_on, created_at) VALUES (?, ?, ?)",
                     (item_id, day.isoformat(), t)).rowcount != 1:
@@ -155,6 +163,7 @@ def _unrecord(conn, item_id: str, day: str, t: str) -> bool:
     conn.execute("UPDATE items SET wears_since_wash = max(0, wears_since_wash - ?), updated_at = ? WHERE id = ?",
                  (1 if counted else 0, t, item_id))
     _after_unwear(conn, item_id, t, wear["created_at"])
+    away.unwear(conn, item_id, wear["created_at"], t)   # away again, when this wear is what brought it back
     return True
 
 

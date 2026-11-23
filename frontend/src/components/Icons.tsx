@@ -71,3 +71,7 @@ export const InfoIcon = (p: P) => (
 export const WardrobeIcon = (p: P) => (
   <svg {...base} {...p}><rect x="4.5" y="3" width="15" height="16.5" rx="1.5" /><path d="M12 3v16.5M10 10.5v2M14 10.5v2M6.5 19.5V21M17.5 19.5V21" /></svg>
 );
+/** A piece away from the closet: out of the box. */
+export const AwayIcon = (p: P) => (
+  <svg {...base} {...p}><path d="M13 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7" /><path d="M10 12h10M17 8.5l3.5 3.5-3.5 3.5" /></svg>
+);

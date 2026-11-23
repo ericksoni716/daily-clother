@@ -1,0 +1,49 @@
+/* ---------------------------------------------------------------- where a piece is (WhereItIs, WhereSheet, AwayView) */
+
+/* the item page's row, in the card with wearing and washing */
+.where {
+  flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3);
+  padding-top: var(--space-3); border-top: 1px solid var(--line);
+}
+.where-text { flex: 1 1 12rem; min-width: 0; }
+.where-line { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-label); }
+.where .where-note { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+.where-actions { gap: var(--space-2); }
+
+.where-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.where-form .chips { margin: 0; }
+.where-form .field { margin: 0; }
+.where-form .hint { margin: 0; }
+
+/* the small mark on a tile in the full grid: quiet, opposite the step's mark */
+.away-mark {
+  position: absolute; right: var(--space-2); bottom: var(--space-2); display: inline-grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 50%; background: var(--card-veil); color: var(--card-ink-2); box-shadow: var(--shadow-lift);
+}
+.away-mark svg { width: 16px; height: 16px; }
+
+/* the closet's away view: a row a piece, where it is and when, and "It's back" */
+.away-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.away-row {
+  display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2); border-radius: var(--radius-md);
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.away-pic {
+  flex: none; width: 56px; aspect-ratio: 400 / 460; border-radius: var(--radius-sm); background: var(--card); overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--card-edge);
+}
+.away-pic img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.away-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-sm); }
+.away-name { color: var(--ink); font-weight: var(--weight-label); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.away-where { color: var(--ink-2); }
+.away-when { color: var(--ink-3); }
+.away-when.is-late { color: var(--ink); font-weight: var(--weight-label); }
+.away-row .btn { flex: none; }
+
+/* the closet line's away part: after the others on a computer; on a phone, where the three rarely fit, on a line of
+   its own under them, so no dot is left at the start or the end of a line */
+.closet-status-group { display: inline-flex; align-items: center; white-space: pre; }
+@media (max-width: 699px) {
+  .closet-status-group.is-own-line { display: flex; }
+  .closet-status-group.is-own-line .closet-status-dot { display: none; }
+}

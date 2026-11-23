@@ -29,6 +29,7 @@ import math
 import re
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import date
 
 from . import outfit_rules, vocab
 from .tagger.taxonomy import LOUNGE_KINDS, SPORT_SHOES, SWIM_KINDS
@@ -1606,8 +1607,11 @@ FOR_SWIMMING = "for swimming"
 # packs a pair when the owner pins it, worn on no day (`trips.py`).
 FOR_SPORT = {kind: f"for {sport}" for kind, sport in SPORT_SHOES.items()}   # "for tennis", "for golf", "for sport"
 NEEDS_MENDING = "waiting to be mended"
+# Where a piece is when it is not in the closet (`closet/away.py`): left out like a piece in the laundry, and still owned
+AWAY = {"cleaner": "at the cleaner's", "tailor": "at the tailor's", "lent": "lent out"}
+WEEKDAY_WORDS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 # Pieces still owned for going out, though not to be worn today
-OWNED_REASONS = (None, "in the laundry", NEEDS_MENDING, "left out today", "rated dislike")
+OWNED_REASONS = (None, "in the laundry", *AWAY.values(), NEEDS_MENDING, "left out today", "rated dislike")
 # Pieces never chosen by Nines but worn when the owner asks for them by name: built around, or kept from an outfit
 # worn again (DECISIONS: "Tennis and golf shoes", "Swim trunks", the owner's loungewear)
 ASKED_FOR_ONLY = (FOR_HOME, FOR_SWIMMING, *FOR_SPORT.values())
@@ -1616,6 +1620,8 @@ ASKED_FOR_ONLY = (FOR_HOME, FOR_SWIMMING, *FOR_SPORT.values())
 def _unavailable(item: dict, ctx: Context) -> str | None:
     if item.get("status") == "archived":
         return "archived"
+    if item.get("away") in AWAY:
+        return AWAY[item["away"]]
     if _in_laundry(item):
         return "in the laundry"
     if item.get("condition") == "needs_repair":
@@ -1631,6 +1637,26 @@ def _unavailable(item: dict, ctx: Context) -> str | None:
     if item.get("rating") == "dislike":
         return "rated dislike"
     return None
+
+
+def day_words(day: object) -> str:
+    """ "Friday 27 November" from "2026-11-27" (no clock: the weekday is the date's own); the day as given if it is
+    not a date."""
+    try:
+        d = date.fromisoformat(str(day))
+    except ValueError:
+        return str(day)
+    return f"{WEEKDAY_WORDS[d.weekday()]} {d.day} {MONTH_WORDS[d.month - 1]}"
+
+
+def away_words(item: Mapping) -> str | None:
+    """Where an away piece is, with the day it is expected back when the owner said one: "at the cleaner's until
+    Friday 27 November", "lent out". None for a piece in the closet."""
+    why = AWAY.get(item.get("away"))   # type: ignore[arg-type]
+    if why is None:
+        return None
+    until = item.get("away_until")
+    return f"{why} until {day_words(until)}" if until else why
 
 
 def _missing_place(place: str, everything: list[tuple[Piece, dict]], pool: list[Piece], ctx: Context) -> str | None:
@@ -1684,7 +1710,9 @@ def suggest(items: list[dict], context: Context | dict, count: int = DEFAULT_COU
                 f"The {_label(raw)} has no category an outfit can use. Set its category, then build around it."]}
         forced_piece, it = match
         why = _unavailable(it, ctx)
-        if why in ("archived", "in the laundry"):
+        if why in AWAY.values():
+            why = away_words(it)   # "at the cleaner's until Friday 27 November", as the laundry is said
+        if why in ("archived", "in the laundry") or it.get("away") in AWAY:
             return {"outfits": [], "missing": [f"{_the(forced_piece, True)} {_is(forced_piece)} {why}, so there is nothing "
                                                f"to build around {'them' if plural(forced_piece) else 'it'}."]}
         if forced_piece.category in ACCESSORY_CATEGORIES:

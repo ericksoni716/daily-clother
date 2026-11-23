@@ -24,7 +24,8 @@ Gaps are found five ways, and each gap says which found it:
 
 Gaps that would be met by the same purchase are merged and their evidence
 combined; the list is ranked by how much each would help and cut to MAX_GAPS.
-Items in the laundry count as owned: a shirt in the wash is not missing.
+Items in the laundry count as owned: a shirt in the wash is not missing. So do items away (at the cleaner's, at the
+tailor's, lent out), though "not worn" does not name them while they are away.
 
 The engine's own rules are read from `outfits.py` (its pieces, its options per
 place, its rules for a piece and between pieces), so the two never disagree;
@@ -435,6 +436,7 @@ class _Closet:
     wear_total: int
     first_wear: str | None
     last_wear: str | None
+    away: frozenset[str] = frozenset()            # pieces away (at the cleaner's, the tailor's, lent): owned, not nudged
 
 
 def everyday(item: Mapping) -> bool:
@@ -449,7 +451,7 @@ def everyday(item: Mapping) -> bool:
 
 
 def _closet(items: Iterable[object], wears: Iterable[object]) -> _Closet:
-    engine_items, pieces, disliked = [], [], []
+    engine_items, pieces, disliked, away = [], [], [], set()
     for it in sorted((i for i in items if isinstance(i, Mapping) and i.get("id")), key=lambda i: str(i["id"])):
         if it.get("status") == "archived":
             continue
@@ -462,6 +464,9 @@ def _closet(items: Iterable[object], wears: Iterable[object]) -> _Closet:
             clean["location"] = None
         if clean.get("condition") == "needs_repair":
             clean["condition"] = None   # ...and so is one waiting to be mended
+        if clean.get("away") in outfits.AWAY:
+            away.add(str(clean["id"]))
+            clean["away"] = None        # ...and one at the cleaner's, at the tailor's or lent out
         p = outfits._piece(clean)
         if p is None:
             continue
@@ -484,7 +489,7 @@ def _closet(items: Iterable[object], wears: Iterable[object]) -> _Closet:
             counts[item_id] = counts.get(item_id, 0) + 1
     dates = sorted(d for _, d in seen)
     return _Closet(pieces, by_id, disliked, engine_items, counts, len(seen), dates[0] if dates else None,
-                   dates[-1] if dates else None)
+                   dates[-1] if dates else None, frozenset(away))
 
 
 # ====================================================================== days the engine cannot dress well
@@ -795,7 +800,7 @@ def _wear_findings(c: _Closet) -> tuple[list[_Finding], list[dict]]:
         thing = f"pair of {kind}" if _plural(p) else kind
         out.append(_Finding("worn_most", want, place, why, score, (p.formality,), [], [p.id], first_color=p.color,
                             name=f"Another {thing} like your {p.label}"))
-    never = [p for p in c.pieces if not c.wear_counts.get(p.id)]
+    never = [p for p in c.pieces if not c.wear_counts.get(p.id) and p.id not in c.away]   # an away piece is not nudged
     notes = []
     if never:
         names = [_your(p) for p in never[:NEVER_WORN_NAMES]]

@@ -7,6 +7,13 @@ export type CutoutState = 'none' | 'pending' | 'processing' | 'ready' | 'failed'
 export type TagState = 'none' | 'waiting' | 'working' | 'done' | 'failed';
 export type Profile = 'main' | 'demo';
 export type Laundry = 'clean' | 'laundry';
+/** Where a piece is when it is not in the closet. */
+export type AwayPlace = 'cleaner' | 'tailor' | 'lent';
+/** A piece away: where, since when, and the day it is expected back (local "YYYY-MM-DD"); the note only on its own page. */
+export interface Away { place: AwayPlace; since: string | null; until: string | null; note?: string | null }
+/** The piece's latest return, while it is today and can be undone: from where, the day, how (the owner said so, or a
+ * wear brought it back) and whether coming back from the tailor's cleared "needs mending". */
+export interface CameBack { from: AwayPlace; on: string; by: 'owner' | 'wear'; mended: boolean }
 export type ModelState = 'missing' | 'downloading' | 'failed' | 'ready';
 
 /** What the page opens with (`GET /api/session`). The server also sends `authenticated: true`, for a page from an older
@@ -47,6 +54,8 @@ export interface ItemSummary {
   wear_count: number;
   wears_since_wash: number;
   laundry: Laundry;
+  /** where it is when not in the closet (at the cleaner's, at the tailor's, lent out); null in the closet */
+  away?: Away | null;
   created_at: string;
   updated_at: string;
   /** what it is: its kind from the owner's taxonomy (see kinds.ts), or null when nobody has said */
@@ -129,6 +138,8 @@ export interface Failure {
 }
 
 export interface Item extends ItemSummary {
+  /** the latest return, today and undoable; null otherwise */
+  came_back?: CameBack | null;
   /** who said what it is ("owner" or "claude"), how sure Claude was, and the kinds Claude's answer also fits */
   kind_by?: 'owner' | 'claude' | null;
   kind_confidence?: number | null;

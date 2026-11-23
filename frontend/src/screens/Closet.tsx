@@ -14,6 +14,8 @@ import { itemSaved, itemsQuery, progressQuery, reviewQuery, useVocab } from '../
 import { useApp } from '../store';
 import type { ItemSummary, Laundry, Progress } from '../types';
 import { ItemDetail } from './ItemDetail';
+import { AwayMark, AwayView } from '../components/AwayView';
+import { awayPart } from '../away';
 
 interface Props {
   status: 'active' | 'archived';
@@ -25,8 +27,8 @@ interface Props {
 
 /** The search and filters, kept while the app is open: on a phone the item page replaces the closet, and coming
  * back from it should find the list as it was left. Kept per closet (demo or real) and per In use / Archived. */
-interface Filters { category: string | null; group: string | null; kind: string | null; query: string; laundry: Laundry | null; check: boolean }
-const NO_FILTERS: Filters = { category: null, group: null, kind: null, query: '', laundry: null, check: false };
+interface Filters { category: string | null; group: string | null; kind: string | null; query: string; laundry: Laundry | null; check: boolean; away: boolean }
+const NO_FILTERS: Filters = { category: null, group: null, kind: null, query: '', laundry: null, check: false, away: false };
 const filterMemory = new Map<string, Filters>();
 /** The Photos / Drawings switch, used for the moment: kept while the app is open (not on the device), and set aside
  * once the setting changes (`gridViewOf`). */
@@ -53,9 +55,13 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   // "Needs a check": the pieces added and not checked yet, and those with a detail Claude was unsure of (the review
   // queue, read once for the count too)
   const [check, setCheck] = useState(kept.check);
+  // "Away": the pieces at the cleaner's, at the tailor's or lent out (`AwayView`); those brought back there stay listed
+  const [away, setAwayOn] = useState(kept.away);
+  const [returned, setReturned] = useState<Set<string>>(() => new Set());
+  const setAway = (on: boolean) => { setAwayOn(on); setReturned(new Set()); };
   useEffect(() => {
-    filterMemory.set(memoryKey, { category, group, kind, query, laundry, check });
-  }, [memoryKey, category, group, kind, query, laundry, check]);
+    filterMemory.set(memoryKey, { category, group, kind, query, laundry, check, away });
+  }, [memoryKey, category, group, kind, query, laundry, check, away]);
   const review = useQuery({ ...reviewQuery(), enabled: !offline && status === 'active' }).data;
   const toCheck = useMemo(() => new Set((review?.items ?? []).map((i) => i.id)), [review]);
   const showDrawings = useShowDrawings();
@@ -79,6 +85,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const activeKind = kinds.find((k) => k.id === kind) ?? null;
   const activeLaundry = status === 'active' ? laundry : null;
   const activeCheck = status === 'active' && check && !offline;
+  const activeAway = status === 'active' && away;
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -88,19 +95,22 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
       if (activeKind && it.kind !== activeKind.id) return false;
       if (activeLaundry && (it.laundry ?? 'clean') !== activeLaundry) return false;
       if (activeCheck && !toCheck.has(it.id)) return false;
+      if (activeAway && !it.away && !returned.has(it.id)) return false;
       if (!q) return true;
       const hay = [it.name, label('category', it.category), label('color', it.color), label('pattern', it.pattern), it.category, it.color,
         it.kind_name, groupTitle(vocab?.kind_groups, it.group)]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [list, activeCategory, activeGroup, activeKind, activeLaundry, activeCheck, toCheck, query, vocab]);
+  }, [list, activeCategory, activeGroup, activeKind, activeLaundry, activeCheck, activeAway, returned, toCheck, query, vocab]);
 
   const empty = list !== null && list.length === 0;
   const title = status === 'archived' ? 'Archived' : profile === 'demo' ? 'Demo closet' : 'Your closet';
   const filters = (activeCategory ? 1 : 0) + (activeGroup ? 1 : 0) + (activeKind ? 1 : 0) + (activeLaundry ? 1 : 0) +
-    (activeCheck ? 1 : 0) + (status === 'archived' ? 1 : 0);
-  const inLaundry = useMemo(() => (list ?? []).filter((it) => it.laundry === 'laundry'), [list]);
+    (activeCheck ? 1 : 0) + (activeAway ? 1 : 0) + (status === 'archived' ? 1 : 0);
+  // a piece away is said under away, not under the laundry (it is not in the basket at home)
+  const inLaundry = useMemo(() => (list ?? []).filter((it) => it.laundry === 'laundry' && !it.away), [list]);
+  const awayNow = useMemo(() => (list ?? []).filter((it) => it.away), [list]);
   const allClean = (pieces: ItemSummary[]) => {
     setWashing(true);
     void setLaundryMany(pieces.map((it) => it.id), 'clean', (item) => itemSaved(qc, item, 'laundry'))
@@ -123,7 +133,8 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
       {status === 'active' && list && (
         <StatusLine toCheck={offline ? 0 : toReview ?? 0} inLaundry={inLaundry} checking={activeCheck} washing={activeLaundry === 'laundry'}
           busy={washing} offline={offline} onCheck={() => setCheck(!activeCheck)}
-          onLaundry={() => setLaundry(activeLaundry === 'laundry' ? null : 'laundry')} onAllClean={allClean} />
+          onLaundry={() => setLaundry(activeLaundry === 'laundry' ? null : 'laundry')} onAllClean={allClean}
+          away={awayNow} awayOn={activeAway} onAway={() => setAway(!activeAway)} />
       )}
       {status === 'active' && <WorkingLine />}
 
@@ -149,6 +160,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
               {filtering && (
                 <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" onClose={() => setFiltering(false)}>
                   <FilterChoices status={status} categories={categories} category={activeCategory} laundry={activeLaundry}
+                    away={activeAway} onAway={setAway}
                     groups={groups} group={activeGroup} kinds={kinds} kind={activeKind?.id ?? null}
                     onCategory={setCategory} onLaundry={setLaundry} onGroup={(g) => { setGroup(g); setKind(null); }} onKind={setKind} />
                 </Sheet>
@@ -188,6 +200,10 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
                 <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${NEEDS_CHECK}`}
                   onClick={() => setCheck(false)}>{NEEDS_CHECK}<CloseIcon /></button></li>
               )}
+              {activeAway && (
+                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${AWAY}`}
+                  onClick={() => setAway(false)}>{AWAY}<CloseIcon /></button></li>
+              )}
             </ul>
           )}
         </>
@@ -200,7 +216,12 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
 
       {list && !empty && (
         shown.length === 0 ? (
-          <div className="empty"><p className="muted">{activeCheck && toCheck.size === 0 ? 'Nothing needs a check now.' : 'Nothing matches. Try another word or filter.'}</p></div>
+          <div className="empty"><p className="muted">{activeCheck && toCheck.size === 0 ? 'Nothing needs a check now.'
+            : activeAway && awayNow.length === 0 ? 'Everything is in your closet.' : 'Nothing matches. Try another word or filter.'}</p></div>
+        ) : activeAway ? (
+          <AwayView pieces={shown} returned={returned} offline={offline} saved={(item) => itemSaved(qc, item, 'away')}
+            failed={(m) => toast(m, 'error')}
+            onReturned={(id, back) => setReturned((r) => { const n = new Set(r); if (back) n.add(id); else n.delete(id); return n; })} />
         ) : (
           <ul className="grid" aria-label="Clothes">
             {shown.map((it) => (
@@ -227,18 +248,20 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
 const LAUNDRY: Record<Laundry, string> = { clean: 'Clean', laundry: 'In the laundry' };
 
 const NEEDS_CHECK = 'Needs a check';
+const AWAY = 'Away';
 
 /**
  * One line over the grid for what wants seeing to: how many pieces need a quick check and how many are in the
  * laundry. Each part shows only those pieces; then the first offers to check them one at a time (the review) and the
  * second to mark them all clean.
  */
-function StatusLine({ toCheck, inLaundry, checking, washing, busy, offline, onCheck, onLaundry, onAllClean }: {
+function StatusLine({ toCheck, inLaundry, checking, washing, busy, offline, onCheck, onLaundry, onAllClean, away, awayOn, onAway }: {
   toCheck: number; inLaundry: ItemSummary[]; checking: boolean; washing: boolean; busy: boolean; offline: boolean;
   onCheck(): void; onLaundry(): void; onAllClean(pieces: ItemSummary[]): void;
+  away: ItemSummary[]; awayOn: boolean; onAway(): void;
 }) {
   const n = inLaundry.length;
-  if (!toCheck && !n && !checking) return null;
+  if (!toCheck && !n && !checking && !away.length && !awayOn) return null;
   return (
     <div className="closet-status" data-testid="closet-status">
       <p className="closet-status-line">
@@ -254,6 +277,15 @@ function StatusLine({ toCheck, inLaundry, checking, washing, busy, offline, onCh
             data-testid="in-laundry" onClick={onLaundry}>
             {n} in the laundry
           </button>
+        )}
+        {(away.length > 0 || awayOn) && (
+          <span className={`closet-status-group${toCheck > 0 || checking || n > 0 ? ' is-own-line' : ''}`}>
+            {(toCheck > 0 || checking || n > 0) && <span className="closet-status-dot" aria-hidden="true"> · </span>}
+            <button type="button" className={`btn btn-link closet-status-part${awayOn ? ' is-on' : ''}`} aria-pressed={awayOn}
+              data-testid="away" onClick={onAway}>
+              {awayPart(away)}
+            </button>
+          </span>
         )}
       </p>
       {checking && toCheck > 0 && (
@@ -274,8 +306,10 @@ function StatusLine({ toCheck, inLaundry, checking, washing, busy, offline, onCh
   );
 }
 
-function FilterChoices({ status, categories, category, laundry, groups, group, kinds, kind, onCategory, onLaundry, onGroup, onKind }: {
+function FilterChoices({ status, categories, category, laundry, away, groups, group, kinds, kind, onCategory, onLaundry, onAway, onGroup, onKind }: {
   status: 'active' | 'archived';
+  away: boolean;
+  onAway(on: boolean): void;
   categories: string[];
   category: string | null;
   laundry: Laundry | null;
@@ -332,12 +366,13 @@ function FilterChoices({ status, categories, category, laundry, groups, group, k
       )}
       {status === 'active' && (
         <div className="filter-group">
-          <h3 className="chip-group-title">Laundry</h3>
+          <h3 className="chip-group-title">Laundry and away</h3>
           <div className="chips" role="group" aria-label="Filter by laundry">
             {(['clean', 'laundry'] as const).map((value) => (
               <button key={value} type="button" className={`chip${laundry === value ? ' is-on' : ''}`} aria-pressed={laundry === value}
                 onClick={() => onLaundry(laundry === value ? null : value)}>{LAUNDRY[value]}</button>
             ))}
+            <button type="button" className={`chip${away ? ' is-on' : ''}`} aria-pressed={away} onClick={() => onAway(!away)}>{AWAY}</button>
           </div>
         </div>
       )}
@@ -359,6 +394,7 @@ const Tile = memo(function Tile({ item, status, selected, progress, view, onChoo
         <TilePicture item={item} view={view} />
         {progress && <StepMark progress={progress} />}
         {item.laundry === 'laundry' && <span className="tile-mark" data-testid="laundry-mark">In the laundry</span>}
+        <AwayMark item={item} />
       </div>
       <span className="tile-name">{name}</span>
       <span className="tile-caption">{caption || ' '}</span>

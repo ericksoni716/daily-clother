@@ -91,7 +91,9 @@ Worn. The page ends with a link to Trips. Tapping a
 piece opens it (`/today/item/<id>`).
 
 Temperatures can be typed when the forecast cannot be fetched. The demo closet's outfits are
-the rules' alone; nothing about it is sent to Claude. Swim trunks (and what you wear at home)
+the rules' alone; nothing about it is sent to Claude. A piece away (at the cleaner's, at the tailor's, lent out) is
+not offered, and building around it says where it is ("at the cleaner's until Friday 27 November").
+Swim trunks (and what you wear at home)
 are never in the day's outfits, by the rules or by Claude, unless you build an outfit around
 them or wear again an outfit they were in; a trip packs them for swimming. Shoes made for one sport (tennis shoes, golf shoes and
 studded boots) are left out in the same way, even on an athletic day; when nothing made for
@@ -107,7 +109,8 @@ opens at `/today/worn/item/<id>`, and "‹ Worn" goes back to where you were. "R
 opens a sheet with the day (today or an earlier day), a search, and your pieces in four groups
 (tops, bottoms, shoes and extras), the ones worn most recently first; a tie, a watch or anything
 else of category Other is among the extras and goes with the outfit's accessories. Choose two or
-more and record them. A day your phone calls today is taken even when the computer at home is a
+more and record them; a piece away that you record for today is back in your closet, and the
+message says so. A day your phone calls today is taken even when the computer at home is a
 time zone behind. An outfit for a day the pieces have been washed since (before the last laundry
 day, or before you marked them clean) goes in the log but does not put them in the laundry again.
 
@@ -128,7 +131,8 @@ never worn in a day's outfit; with none in your closet the trip says so there. C
 or Golf packs one pair of your tennis or golf shoes with the shoes, worn on no day; with none
 that can go, the trip says so. Shoes for a sport and what you wear at home (lounge pants, a robe)
 are otherwise packed only when you choose "I want to take this", beside the days, and are worn
-on no day. What to pack comes first, under the weather: the days with something to watch for are
+on no day. A piece away is packed only when you expect it back before the first day, and the trip
+then says it counts on it being back. What to pack comes first, under the weather: the days with something to watch for are
 one line that opens, and a forecast that could not be had is said once. A packed piece's ⋯ opens
 a sheet with "Not this one" and "See it". Each day's outfit shows up to five pieces in a row. A
 saved trip is a packing list to tick off, on the computer or the phone, with its choices under
@@ -140,17 +144,24 @@ trip says the forecast changed only when it changed for the days still to come.
 ## Closet
 
 `/` (and `/archived`). A grid of your clothes with search, one Filter button (kind,
-category, group, laundry, and In use or Archived) whose choices stay visible as chips, and a
+category, group, laundry and away, and In use or Archived) whose choices stay visible as chips, and a
 switch between Photos and Drawings. The switch starts from Settings' **Show drawings instead of
 photos** each time Nines is opened, and changing it shows the other kind in the grid only, until
 then. One line over the grid says what wants seeing to: "5 to
 check · 4 in the laundry" (to check: the pieces added and not checked yet, and those with a
 detail Claude was unsure of). Each part shows only those pieces, as a chip that removes
 itself: "Needs a check" then offers "Check them one at a time" (the review), and "In the
-laundry" offers "All clean". A tile shows the piece's picture and name, and, while
+laundry" offers "All clean". When pieces are away (at the cleaner's, at the tailor's, lent out), the
+line says how many, and how many are past the day you expected them back ("2 away, 1 expected
+back"); on a phone that part has a line of its own under the others. It shows those pieces as a
+list, soonest back first, each saying where it is and when it is expected ("Expected back on Friday
+20 Nov" once the day has gone by), with **It's back** beside it; a piece brought back stays in the
+list with Undo until you leave it. A piece in the laundry while it is away is counted as away, not
+in the laundry. A tile shows the piece's picture and name, and, while
 Nines is working on it, a small round mark with the step it is at (1 cutting out, 2
 describing and drawing, 3 finishing the drawing): turning while it is being done, dashed while
-it waits, a warning sign when a step failed. While anything is being worked on, one line,
+it waits, a warning sign when a step failed. A piece away has a small round mark in the other
+corner. While anything is being worked on, one line,
 "Working on 3 items", floats above the grid and the tab bar; tapping it lists those pieces,
 each with what is happening to it, and says once why they wait when it is something you can
 see to in Settings. On a computer, choosing a piece opens it in a panel beside the grid; on a
@@ -164,7 +175,17 @@ leaves out, and the name, which you type over in place. Straight under the name:
 (the kind, with who said it, a sheet of kinds on a phone; for a shoe, the kind of shoe set in
 Fix the details counts too), the brand and the price, each saved as you leave it. Changing any of these counts as having checked the piece, so it leaves the review.
 
-Then "Wearing and washing": Wore it today, put in the laundry or mark clean, and recent wears.
+Then "Wearing and washing": Wore it today, put in the laundry or mark clean, where the piece is,
+and recent wears. Where it is is one sentence ("In your closet", "At the cleaner's until Friday 27
+Nov", "Lent out since 3 Nov") with your note under it; **Change** opens a sheet with In your closet,
+At the cleaner's, At the tailor's and Lent out, the day you expect it back and a short note (it stays
+on your computer and is never sent to Claude). While it is away the row's button is **It's back**:
+back from the cleaner's it is marked clean, back from the tailor's it is no longer marked as needing
+mending, and back from being lent nothing else changes. The row then says what coming back did, with
+Undo, for the rest of the day. A piece marked as needing mending reads "In your closet, waiting to be
+mended", with **Take it to the tailor's**. Wearing an away piece today (Wore it today, or an outfit
+recorded for today) brings it back, and undoing that wear sends it away again. The History fold says
+when it went and came back.
 About it holds how you feel about it and one box, Notes for you and Claude, which Claude reads
 when it chooses your outfits; it shows every note kept about the piece, and once you change it
 the whole text is kept there.

@@ -28,6 +28,7 @@ from . import (
     additions,
     apikey,
     autostart,
+    away,
     background,
     backup,
     climate,
@@ -560,6 +561,15 @@ class OutfitRating(BaseModel):
 
 class LaundryState(BaseModel):
     state: str
+
+
+class AwayChoice(BaseModel):
+    """Where a piece is going: "cleaner", "tailor" or "lent", with the day it is expected back and a note (`away.py`)."""
+    place: str
+    until: str | None = None
+    note: str | None = None
+    since: str | None = None
+    model_config = {"extra": "forbid"}
 
 
 class Confirm(BaseModel):
@@ -1119,6 +1129,19 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     @app.post("/api/items/{item_id}/laundry")
     def set_laundry(item_id: str, body: LaundryState, conn=Depends(conn_dep)):
         return wears.set_laundry(conn, item_id, body.state)
+
+    # where a piece is: away at the cleaner's, at the tailor's or lent out, and back (`away.py`)
+    @app.put("/api/items/{item_id}/away")
+    def send_away(item_id: str, body: AwayChoice, conn=Depends(conn_dep)):
+        return away.send(conn, item_id, body.place, body.until, body.note, body.since)
+
+    @app.post("/api/items/{item_id}/back")
+    def come_back(item_id: str, conn=Depends(conn_dep)):
+        return away.back(conn, item_id)
+
+    @app.post("/api/items/{item_id}/back/undo")
+    def undo_come_back(item_id: str, conn=Depends(conn_dep)):
+        return away.undo_back(conn, item_id)
 
     @app.get("/api/review")
     def review_queue(conn=Depends(conn_dep)):

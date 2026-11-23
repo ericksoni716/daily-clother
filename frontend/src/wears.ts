@@ -52,3 +52,23 @@ export function sinceWash(n: number): string {
   if (!n) return 'Not worn since it was washed';
   return `Worn ${n === 1 ? 'once' : `${n} times`} since it was washed`;
 }
+
+/** A day near or ahead, with its weekday: "Friday 27 Nov", or "Friday 27 Nov 2027" in another year. */
+export function calendarDay(day: string, today: string = localDay()): string {
+  const [y, m, d] = parts(day);
+  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d} ${MONTHS[m - 1]}${y === parts(today)[0] ? '' : ` ${y}`}`;
+}
+
+/** A day gone, short: "today", "yesterday", "3 Nov", or "3 Nov 2025" in another year. */
+export function sinceDay(day: string, today: string = localDay()): string {
+  const ago = daysBetween(day, today);
+  if (ago <= 0) return 'today';
+  if (ago === 1) return 'yesterday';
+  const [y, m, d] = parts(day);
+  return `${d} ${MONTHS[m - 1]}${y === parts(today)[0] ? '' : ` ${y}`}`;
+}
+
+/** Whether `day` is before `today` (both local "YYYY-MM-DD"). */
+export function isPast(day: string, today: string = localDay()): boolean {
+  return daysBetween(day, today) > 0;
+}

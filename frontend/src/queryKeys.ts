@@ -118,6 +118,8 @@ export const TOUCHES = {
   wear: ['items', 'item', 'history', 'worn', 'insights'],
   /** Into the laundry, or clean again. */
   laundry: ['items', 'item', 'insights', 'findOutfits'],
+  /** Away (at the cleaner's, the tailor's, lent out) or back. */
+  away: ['items', 'item', 'history', 'insights', 'gaps', 'findOutfits', 'trip'],
   /** An outfit worn: recorded, rated or removed. */
   outfit: ['worn', 'items', 'item', 'insights'],
   trip: ['trips', 'trip', 'tripWeather'],

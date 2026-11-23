@@ -39,6 +39,10 @@ says, and stays on the list. On a trip under way (`under_way`) the days already
 gone keep their outfits (`kept`), and the days still to come are dressed only
 from what is in the bag, and what the owner pins: the rest is at home.
 
+A piece away (at the cleaner's, at the tailor's, lent out) is packed only when
+the owner expects it back before the first day, and the plan then says it counts
+on it being back; otherwise it is left out like a piece in the laundry.
+
 The engine's rules are read from `outfits.py` (its pieces, its search, its
 accessories and its explanations); nothing there is changed.
 """
@@ -373,6 +377,7 @@ class _Planner:
         self.rewear = dict(rewear)
         self.days = days
         self.notes: list[str] = []
+        self.expected: dict[str, str] = {}   # pieces away now and expected back before the first day: where they are
         everything = []
         for item in sorted((i for i in items if isinstance(i, Mapping) and i.get("id")), key=lambda i: str(i["id"])):
             p = outfits._piece(dict(item))
@@ -392,6 +397,13 @@ class _Planner:
             # swim trunks and shoes for a sport never go in the pool the days are dressed from: they are packed for
             # swimming (`pack_trunks`) or for their sport (`pack_sport`)
             why = outfits._unavailable({**it, "kind": None} if swim or sport else it, out)
+            if why in outfits.AWAY.values() and (p.id in carried or self._back_before(it)):
+                # in the bag already, or expected back before the first day: packed as it will be by then (back from
+                # the tailor's, it is mended), and the plan says it counts on it being back
+                back = {**it, "away": None, **({"condition": None} if it.get("away") == "tailor" else {})}
+                if p.id not in carried:
+                    self.expected[p.id] = outfits.away_words(it) or why
+                why = outfits._unavailable({**back, "kind": None} if swim or sport else back, out)
             if why == "in the laundry" and (washed_by_then or p.id in carried):
                 why = None   # washed by the time the trip starts, or in the bag already
             if why == "rated dislike" and p.id in pins:
@@ -435,6 +447,11 @@ class _Planner:
         self._refs: dict[tuple, _Reference | str] = {}
         self.swim: dict = {}
         self.swim_packed: list[outfits.Piece] = []
+
+    def _back_before(self, item: Mapping) -> bool:
+        """Whether an away piece is expected back before the trip's first day (on the first day is too late to pack)."""
+        until = item.get("away_until")
+        return bool(until and self.days and str(until) < self.days[0].date)
 
     def _not_packed(self, p: outfits.Piece, why: str) -> None:
         self.notes.append(f"{_the(p, True)} {outfits.be([p])} {why}, so {'they are' if outfits.plural(p) else 'it is'} "
@@ -700,6 +717,11 @@ class _Planner:
                 packed.append({"id": p.id, "group": GROUP_OF.get(p.category, "accessories"), "days": 0,
                                "pinned": p.id in self.opts.pin})
         extras = self.swim_packed + self.beside
+        for pid, where in self.expected.items():   # packed while away: the plan counts on it being back
+            p = self.packed.get(pid) or next((q for q in extras if q.id == pid), None)
+            if p is not None:
+                self.notes.append(f"{_the(p, True)} {outfits.be([p])} {where}: this plan counts on "
+                                  f"{'them' if outfits.plural(p) else 'it'} being back before you leave.")
         labels = {pid: p.label.lower() for pid, p in [*self.packed.items(), *((p.id, p) for p in extras)]}
         packed.sort(key=lambda x: (GROUP_ORDER.index(x["group"]), -x["days"], labels[x["id"]], x["id"]))
         basics = self.basics()

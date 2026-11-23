@@ -21,7 +21,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from . import vocab
+from . import gaps, vocab
+from .vocab import day_words
 
 # ------------------------------------------------------------------ money
 # Prices are stored in cents as the owner typed them, in their own currency (US dollars: see DECISIONS,
@@ -69,8 +70,6 @@ MAKEUP_MIN_WEARS = 10          # fewer wears than this in the log and the share 
 
 NO_LOG = "Nothing has been recorded as worn yet. Use “Wore it today” on an item, or “I'm wearing this” on Today."
 
-MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
-          "November", "December")
 CATEGORY_PLURAL = {
     "tee": "T-shirts", "shirt": "Shirts", "polo": "Polos", "sweater": "Sweaters", "hoodie": "Hoodies", "jacket": "Jackets",
     "coat": "Coats", "jeans": "Jeans", "trousers": "Trousers", "shorts": "Shorts", "sneakers": "Sneakers", "boots": "Boots",
@@ -92,6 +91,7 @@ class _Piece:
     price: int | None         # cents
     added: date | None
     wears: list[date] = field(default_factory=list)   # oldest first, one per day
+    everyday: bool = True     # one Today offers (gaps.everyday): only these are ever "not worn"
 
     @property
     def last(self) -> date | None:
@@ -106,6 +106,7 @@ class _Log:
     wears: int                # every wear in the log (archived items' too), up to today
     first: date | None        # the day of the first wear: when the owner began recording
     days: int                 # days from the first wear to today
+    last: date | None = None  # the day of the last wear: when the owner last recorded one
 
 
 def _date(value: object) -> date | None:
@@ -152,7 +153,7 @@ def _closet(items: Iterable[object], wears: Iterable[object], today: date) -> tu
             formality=_get(row, "formality") if _get(row, "formality") in vocab.FORMALITY else None,
             season=_get(row, "season") if _get(row, "season") in vocab.SEASON else None,
             price=price if isinstance(price, int) and not isinstance(price, bool) and price >= 0 else None,
-            added=_date(_get(row, "created_at")))
+            added=_date(_get(row, "created_at")), everyday=gaps.everyday({"kind": _get(row, "kind")}))
     days: dict[str, set[date]] = {}
     for w in wears:
         item_id, day = _get(w, "item_id"), _date(_get(w, "worn_on"))
@@ -164,7 +165,8 @@ def _closet(items: Iterable[object], wears: Iterable[object], today: date) -> tu
         if item_id in pieces:
             pieces[item_id].wears = sorted(s)
     ordered = sorted(pieces.values(), key=lambda p: p.id)
-    return ordered, _Log(wears=len(every), first=first, days=(today - first).days if first else 0)
+    return ordered, _Log(wears=len(every), first=first, days=(today - first).days if first else 0,
+                         last=max(every) if every else None)
 
 
 # ====================================================================== words
@@ -184,10 +186,6 @@ def _n(n: int, word: str, plural: str | None = None) -> str:
     return f"{n} {word if n == 1 else (plural or word + 's')}"
 
 
-def _day(d: date) -> str:
-    return f"{d.day} {MONTHS[d.month - 1]} {d.year}"
-
-
 def _join(words: list[str]) -> str:
     return words[0] if len(words) == 1 else f"{', '.join(words[:-1])} and {words[-1]}"
 
@@ -198,6 +196,16 @@ def _your(pieces: list[_Piece], capital: bool = False) -> str:
 
 def _ago(days: int) -> str:
     return "today" if days == 0 else ("yesterday" if days == 1 else f"{days} days ago")
+
+
+def _quiet(log: _Log, today: date, window: int) -> bool:
+    """Whether nothing at all was recorded in the last `window` days: the log stopped, not the wearing."""
+    return log.last is not None and (today - log.last).days >= window
+
+
+def _quiet_words(log: _Log) -> str:
+    assert log.last is not None
+    return f"Nothing has been recorded as worn since {day_words(log.last)}."
 
 
 def _window_words(days: int | None) -> str:
@@ -279,14 +287,14 @@ def _never_worn(pieces: list[_Piece], log: _Log, today: date) -> dict:
                                    f"{NEVER_MIN_LOG_WEARS} wears are recorded ({log.wears} so far)."}
     found, early = [], 0
     for p in pieces:
-        if p.wears or (p.added is not None and (today - p.added).days < RECENT_DAYS):
+        if p.wears or not p.everyday or (p.added is not None and (today - p.added).days < RECENT_DAYS):
             continue
         since = max(p.added, log.first) if p.added else log.first
         if season_days(since, today, p.season) < NEVER_MIN_SEASON_DAYS:
             early += 1   # too early to say: not listed, and not counted as worn either
             continue
-        sentence = (f"Not worn since you added it on {_day(since)}." if p.added and p.added > log.first else
-                    f"Not worn since you began recording what you wear, on {_day(since)}.")
+        sentence = (f"Not worn since you added it on {day_words(since)}." if p.added and p.added > log.first else
+                    f"Not worn since you began recording what you wear, on {day_words(since)}.")
         found.append((since, p, sentence))
     found.sort(key=lambda x: (x[0], x[1].name.lower(), x[1].id))
     out["items"] = [{"id": p.id, "since": since.isoformat(), "sentence": s} for since, p, s in found]
@@ -320,16 +328,19 @@ def _not_worn_lately(pieces: list[_Piece], log: _Log, today: date) -> dict:
     if log.days < NEGLECT_DAYS:
         return {**out, "sentence": f"The wear log goes back {_n(log.days, 'day')}. Pieces left unworn for {NEGLECT_DAYS} days "
                                    "of their season show here once it goes back that far."}
+    if _quiet(log, today, NEGLECT_DAYS):
+        return {**out, "sentence": f"{_quiet_words(log)} Pieces left unworn show here again once you record what you "
+                                   "wear."}
     found = []
     for p in pieces:
-        if not p.wears:
+        if not p.wears or not p.everyday:
             continue
         n = season_days(p.last, today, p.season)
         if n >= NEGLECT_DAYS:
             found.append((n, p))
     found.sort(key=lambda x: (-x[0], x[1].name.lower(), x[1].id))
     out["items"] = [{"id": p.id, "last_worn": p.last.isoformat(), "season_days": n,
-                     "sentence": f"Last worn on {_day(p.last)}; {n} days of its season have passed since."} for n, p in found]
+                     "sentence": f"Last worn on {day_words(p.last)}; {n} days of its season have passed since."} for n, p in found]
     if not found:
         sentence = f"Everything you have worn has been worn again within {NEGLECT_DAYS} days of its season."
     else:
@@ -428,6 +439,9 @@ def _makeup(pieces: list[_Piece], log: _Log, today: date) -> dict:
     if log.wears < MAKEUP_MIN_WEARS:
         return {**out, "sentence": f"You have {_n(len(pieces), 'piece')}. How much of it is in use shows once "
                                    f"{MAKEUP_MIN_WEARS} wears are recorded ({log.wears} so far)."}
+    if _quiet(log, today, MAKEUP_WINDOW_DAYS):
+        return {**out, "sentence": f"You have {_n(len(pieces), 'piece')}. {_quiet_words(log)} How much of it is in use "
+                                   "shows again once you record what you wear."}
     n = len(in_use)
     if log.days >= MAKEUP_WINDOW_DAYS - 1:
         worn = f"{'was' if n == 1 else 'were'} worn in the last {MAKEUP_WINDOW_DAYS} days"

@@ -152,7 +152,7 @@ def test_never_worn_headline_claims_no_more_than_is_true_for_the_pieces():
     wears += worn("busy", 300)   # the log began 300 days ago
     added = (TODAY - timedelta(days=60)).isoformat() + "T09:00:00Z"
     alone = find([busy, item("new", "shirt", "Linen shirt", created=added)], wears)["never_worn"]
-    assert alone["items"][0]["sentence"] == f"Not worn since you added it on {insights._day(TODAY - timedelta(days=60))}."
+    assert alone["items"][0]["sentence"] == f"Not worn since you added it on {insights.day_words(TODAY - timedelta(days=60))}."
     assert "300" not in alone["sentence"]
     assert alone["sentence"].startswith("1 piece has not been worn in the 60 days since you added it.")
     both = find([busy, item("new", "shirt", "Linen shirt", created=added), item("old", "sweater", "Cream sweater")], wears)["never_worn"]
@@ -166,8 +166,11 @@ def test_a_winter_coat_not_worn_since_march_is_not_neglected_in_august():
     busy = item("busy", "jeans", "Busy jeans")
     wears = [{"item_id": "coat", "worn_on": march.isoformat()},
              {"item_id": "tee", "worn_on": march.isoformat()},
-             {"item_id": "busy", "worn_on": "2026-01-02"}]
-    items = [busy, item("coat", "coat", "Winter coat", season="cool"), item("tee", "tee", "White tee", season="all")]
+             {"item_id": "busy", "worn_on": "2026-01-02"},
+             # something is recorded lately, so the log has not stopped (a break from recording lists nothing)
+             {"item_id": "socks", "worn_on": "2026-08-15"}, {"item_id": "socks", "worn_on": "2026-12-15"}]
+    items = [busy, item("coat", "coat", "Winter coat", season="cool"), item("tee", "tee", "White tee", season="all"),
+             item("socks", "other", "Socks")]
     august = find(items, wears, date(2026, 8, 20))["not_worn_lately"]
     assert august["enough"] is True
     assert [e["id"] for e in august["items"]] == ["busy", "tee"]   # the coat's season has hardly come round
@@ -346,3 +349,48 @@ def test_insights_answers_for_the_open_closet(client):
 
     assert client.post("/api/profile", json={"profile": "main"}).status_code == 200
     assert client.get("/api/insights").json()["makeup"]["pieces"] == 1
+
+
+# ---------------------------------------------------------------------------- review, 23 November
+def test_a_break_from_recording_does_not_make_the_whole_closet_not_worn_for_a_long_time():
+    # three weeks recorded in July, then nothing: the log stopped, not the wearing
+    rows = [item(f"p{n}", name=f"Piece {n}") for n in range(6)]
+    wears = [{"item_id": f"p{n}", "worn_on": (date(2026, 7, 1) + timedelta(days=d)).isoformat()}
+             for n in range(6) for d in (n, n + 7, n + 14)]
+    found = find(rows, wears, date(2026, 11, 12))
+    assert found["not_worn_lately"]["items"] == [] and found["not_worn_lately"]["enough"] is False
+    assert "Nothing has been recorded as worn since 20 July 2026" in found["not_worn_lately"]["sentence"]
+    assert "0%" not in found["makeup"]["sentence"] and found["makeup"]["worn"] is None
+    assert "Nothing has been recorded as worn since 20 July 2026" in found["makeup"]["sentence"]
+    # a wear recorded within the window brings both back
+    found = find(rows, wears + [{"item_id": "p0", "worn_on": "2026-11-10"}], date(2026, 11, 12))
+    assert len(found["not_worn_lately"]["items"]) == 5 and "(17%)" in found["makeup"]["sentence"]
+
+
+def test_swim_trunks_tennis_shoes_and_clothes_for_home_are_not_listed_as_not_worn():
+    # Today never offers them, so they are never "not worn" with Archive beside them (gaps.everyday)
+    rows = [item(f"p{n}", name=f"Piece {n}") for n in range(4)] + [
+        item("trunks", "shorts", "Blue swim trunks", season="warm", kind="swim_trunks"),
+        item("tennis", "sneakers", "Tennis shoes", kind="tennis_shoe"),
+        item("robe", "coat", "Navy robe", kind="robe")]
+    wears = [{"item_id": f"p{n}", "worn_on": (date(2026, 6, 1) + timedelta(days=d)).isoformat()} for n in range(4) for d in range(3)]
+    found = find(rows, wears, date(2026, 6, 20))
+    assert found["never_worn"]["enough"] and found["never_worn"]["items"] == []
+    late = find(rows, wears + worn("trunks", 200, today=date(2026, 12, 20)) + worn("p0", 1, today=date(2026, 12, 20)),
+                date(2026, 12, 20))
+    assert "trunks" not in {i["id"] for i in late["not_worn_lately"]["items"]}
+    # the smoking jacket is worn out: it is listed like any jacket
+    found = find(rows + [item("sj", "jacket", "Smoking jacket", kind="smoking_jacket")], wears, date(2026, 6, 20))
+    assert [i["id"] for i in found["never_worn"]["items"]] == ["sj"]
+
+
+def test_insights_are_told_each_pieces_kind(client, monkeypatch):
+    # the route reads the kind the item page shows (today.cloth), so swim trunks named by their kind are left out
+    from closet import app as app_module
+    from closet import today
+    made = upload(client).json()
+    monkeypatch.setattr(today, "cloth", lambda row: {"kind": "swim_trunks" if row["id"] == made["id"] else None})
+    rows = []
+    monkeypatch.setattr(app_module, "find_insights", lambda items, wears, day: rows.extend(items) or {})
+    client.get("/api/insights")
+    assert [r["kind"] for r in rows if r["id"] == made["id"]] == ["swim_trunks"]

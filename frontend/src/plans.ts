@@ -1,5 +1,5 @@
 /** Dress for another day: the plans the server keeps, the days the sheet offers, and the words for both. */
-import { addDays, daysAhead, dayName, joinWords, onDay, SAVED_PREFIX, shortPlace, type OutfitPieces } from './today';
+import { addDays, daysAhead, dayName, joinWords, midName, onDay, SAVED_PREFIX, shortPlace, type OutfitPieces } from './today';
 import type { TripSummary } from './trips';
 
 /** An outfit kept for a day ahead (`GET /api/plans`): a plan, not a wear. */
@@ -99,10 +99,6 @@ export function planLine(day: string, today: string, note: string | null): strin
 
 /** A piece's name in the middle of a sentence, as the rules' own sentences name one: "the oatmeal henley", but "the
  * GANT polo". */
-function midName(n: string): string {
-  return n.length > 1 && n[1] === n[1].toLowerCase() ? n[0].toLowerCase() + n.slice(1) : n;
-}
-
 /** A piece that had to be swapped: its name, and where it is when it is away, with its verb, as the server says it
  * ("is at the cleaner's until Friday 27 November"). */
 export interface Swapped { name: string; away?: string | null }

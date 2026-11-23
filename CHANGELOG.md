@@ -12,6 +12,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Give it an outing.** Now and then, Today builds its last outfit around a piece you love or like and
+  have not worn in a while, and says so in one sentence under its button ("An outing for your tweed
+  jacket: you love it and have not worn it since 2 Oct."). The best outfit for the day stays first. It
+  comes at most once every five days, never offers the same piece again for three weeks, and only on a
+  day the piece suits. "Not this piece" on it gives you an ordinary outfit back for the day.
 - **Smaller pictures in the closet.** Under **Show** in the Filter sheet, **Smaller** puts three
   pieces across on a phone (and more to a row on a computer); **Larger** goes back to two. This
   device remembers your choice. A small tile shows the picture and the name on two short lines,

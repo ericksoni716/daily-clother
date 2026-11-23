@@ -78,7 +78,11 @@ outfits replace them ("Show Nines' own picks meanwhile" lets you use the rules' 
 wearing this" records the outfit and its wears, and ends building around a piece. A piece's ⋯
 opens a sheet with "Not this piece", which swaps it out, and "Build around this piece"; both
 are kept for the rest of the day, and how is said once, under the outfits, behind "Changing an
-outfit". When the weather cannot be fetched, one line says "No forecast.", with Try again
+outfit". Now and then the last outfit is an outing: built around a piece you love or like and have not
+worn in four weeks or so, with one sentence under its button saying so ("An outing for your tweed jacket:
+you love it and have not worn it since 2 Oct."); at most once every five days, never on a day ahead, a trip
+or when you build around a piece yourself, and "Not this piece" on it gives an ordinary outfit back for the
+day. When the weather cannot be fetched, one line says "No forecast.", with Try again
 and Type temperatures. Change, beside the weather, opens a sheet, Where you are, with today's
 temperatures and "Somewhere else, or out all day?" folded under them: a note about the day
 ("In Lisbon until Friday") changes what is dressed for. Under the outfits you can write to

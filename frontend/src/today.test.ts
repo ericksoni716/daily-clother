@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDays, dayName, daysAhead, onDay, weekdayOf,
-  canDress, closetKey, dayParts, newestOn, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
+  canDress, closetKey, dayParts, midName, newestOn, outingLine, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
   parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, whatToAddFirst, wornOrder,
   type DayContext, type Outfit, type SavedOutfits, wornNow, type WornToday, shortDate,
 } from './today';
@@ -276,5 +276,27 @@ describe('days ahead', () => {
       rain_chance: 30, summary: null } as const;
     expect(dayParts(c)).toEqual(['1–6°C', 'usually dry', 'New York', 'usually, on these dates']);
     expect(dayParts({ ...c, rain: true })[1]).toBe('often rainy');
+  });
+});
+
+describe('Give it an outing', () => {
+  const outing = { item_id: 'x', rating: 'love', since: '2026-10-02', never_worn: false, plural: false } as const;
+
+  it('says why the last outfit is built around the piece, in one sentence with the day it was last worn', () => {
+    expect(outingLine(outing, 'Tweed jacket', '2026-11-23'))
+      .toBe('An outing for your tweed jacket: you love it and have not worn it since 2 Oct.');
+    expect(outingLine({ ...outing, rating: 'like' }, 'Tweed jacket', '2026-11-23'))
+      .toBe('An outing for your tweed jacket: you like it and have not worn it since 2 Oct.');
+  });
+
+  it('says them for a plural name, and the day it was added when it was never worn', () => {
+    expect(outingLine({ ...outing, plural: true, never_worn: true, since: '2026-08-01' }, 'Brown cords', '2026-11-23'))
+      .toBe('An outing for your brown cords: you love them and have not worn them since you added them on 1 Aug.');
+  });
+
+  it('gives the year of a day in another year, and keeps a name that starts with a short form', () => {
+    expect(outingLine({ ...outing, since: '2025-12-20' }, 'Navy coat', '2026-01-25'))
+      .toBe('An outing for your navy coat: you love it and have not worn it since 20 Dec 2025.');
+    expect(midName('MA-1 bomber')).toBe('MA-1 bomber');
   });
 });

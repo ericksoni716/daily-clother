@@ -263,6 +263,19 @@ def test_an_outfit_is_recorded_by_hand_with_its_pieces_in_their_places(client):
     assert client.get("/api/outfits/worn").json()["outfits"] == []
 
 
+def test_an_outfit_recorded_by_hand_can_include_a_tie_or_a_watch(client):
+    # "Record an outfit" lists every piece with a category, the tie and the watch among them (their category is
+    # Other: there is none for a tie); they are worn with the outfit's accessories
+    ids = small(client)
+    tie, watch = item_in(client, "tie", "other", (120, 20, 40)), item_in(client, "watch", "other", (90, 90, 90))
+    r = client.post("/api/outfits/worn", json={"item_ids": [ids["tee"], ids["jeans"], ids["shoes"], tie, watch]})
+    assert r.status_code == 201, r.json()
+    o = r.json()
+    assert o["pieces"]["accessories"] == [tie, watch] and o["pieces"]["base"] == ids["tee"]
+    assert client.get(f"/api/items/{tie}").json()["wear_count"] == 1
+    assert [x["id"] for x in client.get("/api/outfits/worn").json()["outfits"]] == [o["id"]]
+
+
 def test_two_outfits_the_same_day_share_a_piece_and_removing_one_keeps_its_wear(client):
     ids = small(client)
     a = client.post("/api/outfits/worn", json={"item_ids": [ids["tee"], ids["jeans"]]}).json()

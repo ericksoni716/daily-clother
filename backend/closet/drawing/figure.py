@@ -522,7 +522,10 @@ def as_worn(piece: Piece) -> list[dict]:
     """How the piece sits on the wearer, in the words the item page shows under its name: for a top its fit, the
     landmark its hem goes to (a key of HEM_AT) and its sleeve length; for trousers their leg and their length. Each
     is {"part", "value", "field"}, `field` being the detail the owner corrects it with in "Fix the details". A part
-    nothing was told about is left out (it is drawn regular). Never raises."""
+    nothing was told about is left out (it is drawn regular). Only tops and trousers are told; anything else (shoes,
+    accessories, a piece of category Other or with no category yet) has nothing to tell. Never raises."""
+    if piece.category not in item.TOPS + item.BOTTOMS:
+        return []
     try:
         spec = _spec(piece)
         tags = item._tags(piece.answer) if piece.answer is not None else None

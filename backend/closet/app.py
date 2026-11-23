@@ -1172,7 +1172,8 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         except ValueError:
             raise HTTPException(400, "The request was not valid JSON.")
         try:
-            ids = illustrations.figure_ids(body)
+            # a piece not in the closet (a find, a piece being checked) may be worn with the owner's own
+            ids, new = illustrations.figure_request(body)
         except illustrations.FigureError as e:
             raise HTTPException(422, str(e))
         path = cfg.db_path(state.get("profile"))
@@ -1180,7 +1181,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         def work() -> str:
             conn = db.connect(path)
             try:
-                return illustrations.outfit_figure(conn, ids)
+                return illustrations.outfit_figure(conn, ids, new)
             except illustrations.FigureError as e:
                 raise HTTPException(422, str(e))
             finally:

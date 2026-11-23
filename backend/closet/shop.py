@@ -114,6 +114,7 @@ NO_PAGE_PRICE = "The page doesn't give its price in a way Nines can read."
 NO_PRICE_AT_ALL = NO_PAGE_PRICE[:-1] + ", and Claude found no price on it either."
 SOME_UNREAD = "Not every page gives its price in a way Nines can read."
 LINKS_ONLY = "Only the pages you sent as links were read."
+NOT_DESCRIBED = "Nines has no description of this one yet, so it can't be shown with your clothes."
 DEMO_ASKS_NOTHING = "The demo closet never sends anything to Claude."
 # a code you type, refused
 BAD_CODE = "A code is 3 to 30 letters or digits, and can have - or _ in it."
@@ -345,7 +346,9 @@ def placeholder(url: str) -> str:
 
 # ------------------------------------------------------------------ "Would this work?" for each find
 def judge(rows: list[dict], worn: list[dict], pieces: list[dict], listed: dict | None = None) -> list[dict]:
-    """Each piece checked against the closet: {verdict, verdict_words, reasons, checked_at}. The closet's gaps are
+    """Each piece checked against the closet: {verdict, verdict_words, reasons, outfits, checked_at}, `outfits` being
+    how many example outfits the check could make with it (the card offers "See it with your clothes" when there is
+    one; the outfits themselves are worked out again when asked for, `Shopper.outfits`). The closet's gaps are
     worked out once for all of them. `listed` is the gap list as What's missing has it (the app keeps it): the plain
     list until the owner has said how they live, weighed by how they live once they have, its "context" saying which.
     The finds are then judged exactly as "Would this work?" judges a piece, and the list is not worked out again.
@@ -358,7 +361,7 @@ def judge(rows: list[dict], worn: list[dict], pieces: list[dict], listed: dict |
     for p in pieces:
         a = wouldwork.check(rows, worn, p, before, context.get("life"), context.get("climate"))
         out.append({"verdict": a["verdict"], "verdict_words": a["verdict_words"], "reasons": a["reasons"],
-                    "checked_at": db.now()})
+                    "outfits": len(a["goes_with"]["examples"]), "checked_at": db.now()})
     return out
 
 
@@ -446,6 +449,7 @@ def _find(conn: sqlite3.Connection, r: sqlite3.Row) -> dict:
         f.pop(column)
     f["code"] = code
     f["with_code"] = price_with(f["price"], code["percent"], code["amount"]) if code else None
+    f["outfits"] = verdict.get("outfits") if verdict else None   # None: judged before outfits were counted
     f["not_judged"] = not_judged(f, marker)
     history = _history(conn, f["id"])
     f["history"] = history[-HISTORY_MAX:]
@@ -1020,6 +1024,24 @@ class Shopper:
         finally:
             conn.close()
 
+    def outfits(self, profile: str, wish_id: str, find_id: str) -> dict:
+        """A find worn with the owner's own clothes: {piece, outfits}, the example outfits "Would this work?" makes
+        with its piece (`wouldwork.outfits_with`), worked out from the closet as it is now (none are kept), those where
+        the piece shows most first (`wouldwork.most_shown_first`). Nothing is asked of Claude. ItemError (404) when the find is not kept with the wish, (409) when it has no piece yet."""
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            wishlist.get_wish(conn, wish_id)
+            r = conn.execute("SELECT piece FROM finds WHERE id = ? AND wish_id = ?", (find_id, wish_id)).fetchone()
+        finally:
+            conn.close()
+        if r is None:
+            raise ItemError("That find is not kept with this wish.", 404)
+        piece = json.loads(r["piece"]) if r["piece"] else None
+        if not piece:
+            raise ItemError(NOT_DESCRIBED, 409)
+        rows, worn = self.closet(profile)
+        return {"piece": piece, "outfits": wouldwork.most_shown_first(wouldwork.outfits_with(rows, worn, piece))}
+
     def _thread(self, work: Callable[[], None], profile: str, wish_id: str) -> None:
         def run() -> None:
             try:
@@ -1430,6 +1452,11 @@ def router(shopper: Shopper, state: State, conn_dep: Callable) -> APIRouter:
         if state.get("profile") != "demo":
             mark_seen(conn, body.wish_ids)
         return news_now(conn)
+
+    @r.get("/api/wishlist/{wish_id}/finds/{find_id}/outfits")
+    def find_outfits(wish_id: str, find_id: str):
+        # the outfit engine over the kinds of day, a second or so: a plain route, so it runs off the event loop
+        return shopper.outfits(state.get("profile"), wish_id, find_id)
 
     @r.delete("/api/wishlist/{wish_id}/finds/{find_id}", status_code=204)
     def delete_find(wish_id: str, find_id: str, conn=Depends(conn_dep)):

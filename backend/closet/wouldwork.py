@@ -593,7 +593,35 @@ def _serves_text(serves: list[dict]) -> str:
     return f"It suits {gaps._join([s['label'].lower() for s in serves])}."
 
 
-# ====================================================================== entry point
+# ====================================================================== entry points
+def outfits_with(items: Iterable[object], wears: Iterable[object], piece: Mapping) -> list[dict]:
+    """The example outfits `check` gives for the piece (`goes_with.examples`), without the rest of the check: the
+    engine built around the piece on every kind of day, and the best few chosen as `check` chooses them. Empty when
+    the closet is too small to say, or when nothing makes a good outfit with it. Each is {day, pieces, score,
+    reasons}, the piece's place holding CANDIDATE_ID."""
+    piece = parse_piece(piece)
+    items, wears = list(items), list(wears)
+    c = gaps._closet(items + [candidate_row(piece)], wears)
+    clothes = [p for p in c.pieces + c.disliked if p.id != CANDIDATE_ID and p.category not in outfits.ACCESSORY_CATEGORIES]
+    if len(clothes) < gaps.MIN_ITEMS:
+        return []
+    return _examples(_try_days(c, c.by_id[CANDIDATE_ID]))
+
+
+LAYERS_OVER = {"base": ("mid", "outer"), "mid": ("outer",)}   # the places worn over a top's place
+
+
+def most_shown_first(examples: list[dict]) -> list[dict]:
+    """The example outfits with those where the piece shows most first: fewest layers worn over it (a shirt alone
+    before a shirt under a sweater and a coat), else in their own order. For showing the piece worn, where a piece
+    hidden under two layers says little about it."""
+    def over(ex: dict) -> int:
+        pieces = ex["pieces"]
+        place = next((pl for pl in outfits.PLACES if pieces.get(pl) == CANDIDATE_ID), None)
+        return sum(1 for pl in LAYERS_OVER.get(place or "", ()) if pieces.get(pl))
+    return sorted(examples, key=over)
+
+
 def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, before: Mapping | None = None,
           answers: Mapping | None = None, climate: Mapping | None = None) -> dict:
     """Would this piece work with the closet? `piece` is a description as `parse_piece` returns it (it is checked

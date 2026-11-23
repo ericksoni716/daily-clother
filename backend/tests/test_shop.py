@@ -426,6 +426,7 @@ def test_the_finds_are_checked_against_the_closet_with_the_would_this_work_rules
                                    formality="smart_casual", season="warm", rain_proof=False, weight_class="midweight"))
     verdicts = shop.judge(rows, worn, [coat["piece"], polo["piece"]])
     assert verdicts[0]["verdict"] == "fills_gap" and verdicts[0]["verdict_words"] == "Fills a gap"
+    assert verdicts[0]["outfits"] == 3   # the example outfits the check made with it, counted for "See it with your clothes"
     assert any("rain" in r.lower() for r in verdicts[0]["reasons"])
     assert verdicts[1]["verdict"] in ("have_it", "adds", "hard_to_wear") and verdicts[1]["reasons"]
     assert shop.judge(rows, worn, []) == []
@@ -1686,3 +1687,33 @@ def test_migration_0046_leaves_every_find_without_a_code(tmp_path):
         assert [n["to"] for n in shop.news(conn)] == [80.0]
     finally:
         conn.close()
+
+
+# ------------------------------------------------------------------ a find worn with the owner's clothes
+def test_a_judged_find_comes_back_with_the_outfits_made_with_it(client, services, cfg):
+    # the demo closet's items as plain rows (read from its file, not built into a database): the engine needs a closet
+    # with enough in it, and the route reads whatever the shopper's closet gives
+    from .test_wouldwork import demo as demo_items
+    services.shopper.closet = lambda profile: demo_items()
+    wid = wish(client)
+    coat = shop.clean_find(product(name="Tan gabardine trench coat"))
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        shop.save_finds(conn, wid, [coat], [{"verdict": "fills_gap", "verdict_words": "Fills a gap", "reasons": [],
+                                             "outfits": 3, "checked_at": db.now()}])
+        link = shop.keep_link(conn, wid, "https://shop.example/not-described-yet")
+    finally:
+        conn.close()
+    find = next(f for f in client.get(f"/api/wishlist/{wid}/finds").json()["finds"] if f["piece"])
+    assert find["outfits"] == 3
+
+    r = client.get(f"/api/wishlist/{wid}/finds/{find['id']}/outfits")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["piece"] == find["piece"] and 1 <= len(body["outfits"]) <= 3
+    assert all(o["day"]["words"] and "~candidate" in o["pieces"].values() for o in body["outfits"])
+
+    assert client.get(f"/api/wishlist/{wid}/finds/nope/outfits").status_code == 404
+    assert client.get(f"/api/wishlist/nope/finds/{find['id']}/outfits").status_code == 404
+    r = client.get(f"/api/wishlist/{wid}/finds/{link}/outfits")
+    assert r.status_code == 409 and r.json()["detail"] == shop.NOT_DESCRIBED

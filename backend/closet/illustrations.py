@@ -30,13 +30,13 @@ import logging
 import sqlite3
 from dataclasses import replace
 
-from . import details, drawing, kinds
+from . import details, drawing, kinds, wouldwork
 from .drawing import added, drawnside, sideshoe, stored
 from .drawing import item as draw
 from .drawing.figure import PLACES, Piece, as_worn, figure
 from .drawing.traced import TracedShoe
 from .tagger import surfaceform, taxonomy
-from .tagger.schema import SILHOUETTE_FIELDS, Details
+from .tagger.schema import NAMED_HEX, SILHOUETTE_FIELDS, Details
 
 log = logging.getLogger("closet.illustrations")
 
@@ -131,6 +131,30 @@ def describe(row, extra: dict | None = None) -> Piece:
                   silhouette)
     return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row), drawn=drawn_of(row),
                    added=added_of(row))
+
+
+def new_piece(piece) -> Piece:
+    """A piece not in the closet (a find, a piece checked with "Would this work?"), drawn from its described values
+    as a new item with them would be: its category, colour word and shape, in its colour word's colour, with no
+    pattern (that would come from a photo). When its name says one of its category's kinds in so many words
+    (`kinds.from_words`: "Brown suede chelsea boots"), it is drawn as that kind, as the kind picker draws one.
+    `piece` is a description as `wouldwork.parse_piece` gives it."""
+    category, color = piece["category"], piece["color"]
+    silhouette = dict(piece.get("silhouette") or {})
+    kind = kinds.from_words(piece.get("name"), category)
+    if kind is None:
+        return Piece(category, None, None, color, None, silhouette)
+    found = Details.plain().model_dump(mode="json")
+    if kind in kinds.GARMENTS:
+        found["garment"] = kind
+    answer = {
+        "category": category, "category_confidence": 1, "color": color if color in NAMED_HEX else "grey",
+        "color_confidence": 1, "secondary_colors": [], "pattern": "solid", "pattern_confidence": 1,
+        "formality": "casual", "formality_confidence": 1, "season": "all", "season_confidence": 1,
+        "silhouette": {k: silhouette.get(k) for k in SILHOUETTE_FIELDS}, "silhouette_confidence": 1,
+        "details": kinds.conform(found, kind, None, {}), "details_confidence": 1, "brand": None, "size": None,
+        "material": None, "needs_shot": None}
+    return Piece(category, answer, None, color, None, silhouette)
 
 
 def added_of(row) -> tuple:
@@ -298,12 +322,21 @@ class FigureError(ValueError):
 MAX_ACCESSORIES = 8   # an outfit's accessories, as many as one request may name
 
 
-def figure_ids(body) -> dict[str, str | list[str]]:
-    """The item ids by place from a request for an outfit figure: places as the outfit engine names them
-    (base, mid, outer, bottom, shoes), each an item id or null, and "accessories", a list of up to
-    MAX_ACCESSORIES item ids (or null)."""
+def figure_request(body) -> tuple[dict[str, str | list[str]], dict | None]:
+    """From a request for an outfit figure: the item ids by place, places as the outfit engine names them (base, mid,
+    outer, bottom, shoes), each an item id or null, and "accessories", a list of up to MAX_ACCESSORIES item ids (or
+    null); and the piece not in the closet that is worn with them, if any. A request may also give "piece", a
+    description as `wouldwork.parse_piece` takes it, worn wherever a place (or the accessories) names
+    `wouldwork.CANDIDATE_ID`, as "Would this work?"'s example outfits name it."""
     if not isinstance(body, dict):
         raise FigureError("Send the items by place, for example {\"base\": \"…\", \"bottom\": \"…\"}.")
+    piece = None
+    if body.get("piece") is not None:
+        try:
+            piece = wouldwork.parse_piece(body["piece"])
+        except wouldwork.PieceError as e:
+            raise FigureError(str(e)) from None
+    body = {k: v for k, v in body.items() if k != "piece"}
     unknown = [k for k in body if k not in PLACES and k != "accessories"]
     if unknown:
         raise FigureError(f"Unknown place: {unknown[0]}. The places are {', '.join(PLACES)} and accessories.")
@@ -323,22 +356,29 @@ def figure_ids(body) -> dict[str, str | list[str]]:
         ids[place] = value
     if not ids:
         raise FigureError("Say which items to draw.")
-    return ids
+    named = any(v == wouldwork.CANDIDATE_ID for value in ids.values()
+                for v in (value if isinstance(value, list) else [value]))
+    if named and piece is None:
+        raise FigureError("Describe the piece that is not in the closet, as \"piece\".")
+    return ids, piece if named else None
 
 
-def outfit_figure(conn, ids: dict[str, str | list[str]]) -> str:
+def outfit_figure(conn, ids: dict[str, str | list[str]], new: dict | None = None) -> str:
     """The outfit drawn as worn, from the open closet's items. Each piece is drawn from what its own drawing is
-    made from (`describe`), so the owner's corrections show here too."""
+    made from (`describe`), so the owner's corrections show here too. `new` is a piece not in the closet (a find),
+    drawn from its description (`new_piece`) wherever `ids` names `wouldwork.CANDIDATE_ID`: it takes its place
+    among the owner's layers as any garment does."""
     wanted = [(place, v) for place, value in ids.items() for v in (value if isinstance(value, list) else [value])]
+    owned = [v for _, v in wanted if not (new is not None and v == wouldwork.CANDIDATE_ID)]
     rows = {r["id"]: r for r in conn.execute(
-        f"SELECT * FROM items WHERE id IN ({','.join('?' * len(wanted))})", [v for _, v in wanted])}
+        f"SELECT * FROM items WHERE id IN ({','.join('?' * len(owned))})", owned)} if owned else {}
     for place, item_id in wanted:
-        if item_id not in rows:
+        if item_id not in rows and not (new is not None and item_id == wouldwork.CANDIDATE_ID):
             raise FigureError(f"The {'accessory' if place == 'accessories' else place} is not in this closet.")
     pieces: dict = {}
     for place, item_id in wanted:
         try:
-            piece = describe(rows[item_id])
+            piece = new_piece(new) if item_id not in rows else describe(rows[item_id])
         except Exception:   # a piece that cannot be read is left out; the rest are still drawn
             log.exception("could not read an item for an outfit figure")
             continue

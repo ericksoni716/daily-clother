@@ -345,6 +345,33 @@ def search_words(kind: str) -> str:
     return " ".join(_say(" ".join(parts)).split())
 
 
+def _phrases() -> list[tuple[str, str]]:
+    """Each kind's own names as words a shop's product name may hold ("chelsea boot", "chelsea boots"), longest first."""
+    out = set()
+    for k in KINDS:
+        for w in (word(k), k.replace("_", " ")):
+            said = _say(w).strip()
+            if said:
+                out |= {(said, k), (said[:-1] if said.endswith("s") else said + "s", k)}
+    return sorted(out, key=lambda x: (-len(x[0]), x[0], x[1]))
+
+
+PHRASES = _phrases()
+
+
+def from_words(text, category) -> str | None:
+    """The kind a product's name says it is, when it names one of the kinds of `category` in so many words ("Brown
+    suede chelsea boots" is a chelsea boot, "Olive cotton chinos" chinos); the longest name wins. None when it names
+    none, or only kinds of another category: a found piece is then drawn as the plainest of its category."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    said = _say(text)
+    for phrase, kind in PHRASES:
+        if f" {phrase} " in said and category_for(kind, category) == category:
+            return kind
+    return None
+
+
 def catalogue() -> dict:
     """The groups and every kind in them, in the taxonomy's order, for the item page's picker and the Closet filter."""
     return {"groups": [{"id": g, "title": t} for g, t, _ in GROUPS],

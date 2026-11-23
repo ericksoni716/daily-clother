@@ -322,3 +322,28 @@ def test_a_piece_between_two_levels_of_formality_is_checked_as_either(closet):
     a = check(closet, p)
     assert {r["id"] for r in a["repeats"]["items"]} == ids_of(closet, "jeans")
     assert {f["gap_id"] for f in a["fills"]} == {"trousers-business", "trousers-business-light"}
+
+
+# ------------------------------------------------------------------ the example outfits alone ("See it with your clothes")
+def test_the_example_outfits_alone_are_the_checks_own(closet):
+    items, wears, _ = closet
+    piece = {"category": "coat", "color": "tan", "rain_proof": True}
+    examples = wouldwork.outfits_with(items, wears, piece)
+    assert examples and examples == check(closet, piece)["goes_with"]["examples"]
+    assert all(wouldwork.CANDIDATE_ID in ex["pieces"].values() for ex in examples)
+
+
+def test_a_closet_too_small_to_say_makes_no_example_outfits(closet):
+    items, wears, _ = closet
+    assert wouldwork.outfits_with(items[:3], wears, {"category": "shirt", "color": "white"}) == []
+    with pytest.raises(wouldwork.PieceError):
+        wouldwork.outfits_with(items, wears, {"category": "spaceship", "color": "white"})
+
+
+def test_the_outfits_where_the_piece_shows_most_come_first():
+    c = wouldwork.CANDIDATE_ID
+    under_two = {"pieces": {"base": c, "mid": "m", "outer": "o", "bottom": "b"}}
+    under_one = {"pieces": {"base": c, "mid": None, "outer": "o", "bottom": "b"}}
+    alone = {"pieces": {"base": c, "mid": None, "outer": None, "bottom": "b"}}
+    shoes = {"pieces": {"base": "t", "mid": "m", "outer": "o", "shoes": c}}
+    assert wouldwork.most_shown_first([under_two, shoes, under_one, alone]) == [shoes, alone, under_one, under_two]

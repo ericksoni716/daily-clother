@@ -123,7 +123,7 @@ outfit went, with every piece of it under the question; then the last outfits yo
 on a phone, a week's worth on a computer), each with its pieces and how it went, rated in place,
 saying "Saving…" and "Saved" as it saves; the reasons offered follow the rating. "See all" opens
 Worn. The page ends with a link to Trips. Tapping a
-piece opens it (`/today/item/<id>`).
+piece opens it (`/today/item/<id>`), and **Build an outfit around it** there comes back to Today built around it.
 
 Temperatures can be typed when the forecast cannot be fetched. The demo closet's outfits are
 the rules' alone; nothing about it is sent to Claude. A piece away (at the cleaner's, at the tailor's, lent out) is
@@ -231,7 +231,7 @@ says "Saving…" and then "Saved" for a moment beside the box or row it changed,
 why in a message at the top; archiving is said in a message too. Changing any of these counts as having checked the piece, so it leaves the review.
 
 Then "Wearing and washing": Wore it today, put in the laundry or mark clean, where the piece is,
-and recent wears. Where it is is one sentence ("In your closet", "At the cleaner's until Friday 27
+**Build an outfit around it**, and when you wore it. Where it is is one sentence ("In your closet", "At the cleaner's until Friday 27
 Nov", "Lent out since 3 Nov") with your note under it; **Change** opens a sheet with In your closet,
 At the cleaner's, At the tailor's and Lent out, the day you expect it back and a short note (it stays
 on your computer and is never sent to Claude). While it is away the row's button is **It's back**:
@@ -241,6 +241,16 @@ Undo, for the rest of the day. A piece marked as needing mending reads "In your 
 mended", with **Take it to the tailor's**. Wearing an away piece today (Wore it today, or an outfit
 recorded for today) brings it back, and undoing that wear sends it away again. The History fold says
 when it went and came back.
+**Build an outfit around it** opens Today built around the piece, as Today's own "Build around this
+piece" does: in place of any piece built around before, with the pieces you left out still left out.
+Back returns to the piece. In the laundry, away or not yet described, one line says when Today can
+("Once it's clean, Today can build an outfit around it."); an archived piece, or one no outfit has a
+place for (a tie, a watch), has neither. **When you wore it** lists the piece's wears, newest first:
+a wear on a day you recorded an outfit with it shows that outfit's pieces (each opens its own page),
+the day, and how it went; the same outfit worn on several days is one row ("3 times, last on 12
+Nov"); a wear with no outfit is a plain dated line. Three rows are on the page; "All 5 outfits" opens
+the rest in a sheet. A row's ⋯ holds **Wear this again** (Today starts from that outfit, as from
+Worn) and removing a wear, one button for each day.
 About it holds how you feel about it and one box, Notes for you and Claude, which Claude reads
 when it chooses your outfits; it shows every note kept about the piece, and once you change it
 the whole text is kept there.

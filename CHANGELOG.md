@@ -12,6 +12,15 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **From a piece to an outfit.** On a piece's page, under Wearing and washing, **Build an outfit
+  around it** opens Today built around that piece, in place of any piece built around before (the
+  pieces you left out stay left out); Back returns to the piece. When Today could not (the piece is
+  in the laundry, away, or not described yet) one line says when it can instead. Under it, **When you
+  wore it** shows the outfits you wore the piece in, each with its pieces, the day and how it went;
+  the same outfit worn on several days is shown once ("3 times, last on 12 Nov"), and a day you wore
+  the piece without recording an outfit is a plain line. The first three are on the page, the rest
+  behind "All 5 outfits". Each one's ⋯ offers **Wear this again**, as on Worn, and removing a wear,
+  which used to be the Remove links under Recent wears.
 - **Give it an outing.** Now and then, Today builds its last outfit around a piece you love or like and
   have not worn in a while, and says so in one sentence under its button ("An outing for your tweed
   jacket: you love it and have not worn it since 2 Oct."). The best outfit for the day stays first. It

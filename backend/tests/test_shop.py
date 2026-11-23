@@ -19,8 +19,8 @@ from fastapi.testclient import TestClient
 from closet import app as app_module
 from closet import db, demo, gaps, life, productpage, shop, spend
 from closet.tagger import correcting, shopping
-from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
-from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
+from closet.tagger.shopping import Described, Found, PriceAnswer, PriceSeen, ShopAnswer
+from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError, Unreachable
 
 from .conftest import fake_cutter
 
@@ -34,9 +34,18 @@ def product(**changes) -> Found:
     return Found(**{**base, **changes})
 
 
+def described(**changes) -> Described:
+    """A page sent as a link as Claude would describe it from its words: a white linen shirt."""
+    base = dict(clothing=True, category="shirt", color="white", formality="casual", season="warm", pattern="solid",
+                weight_class="lightweight", rain_proof=False, material="linen")
+    return Described(**{**base, **changes})
+
+
 class FakeShop:
-    """Stands in for Claude searching shops and looking up prices. `prices_seen`: what the next price check
-    answers (by default every price 20% lower); `error`: raised by the next calls instead."""
+    """Stands in for Claude searching shops, looking up prices and describing a page sent as a link. `prices_seen`:
+    what the next price check answers (by default every price 20% lower); `error`: raised by the next calls instead.
+    `described`: what each description was asked about (kept apart from `calls`, the searches and price checks);
+    `description`: its answer (by default a white linen shirt), or an exception to raise."""
 
     def __init__(self):
         self.finds = [product(), product(name="Navy wool coat", url="https://other.example/p/2", color="navy",
@@ -44,6 +53,8 @@ class FakeShop:
         self.prices_seen: list | None = None
         self.error: Exception | None = None
         self.calls: list[tuple] = []
+        self.described: list[tuple] = []
+        self.description: Described | Exception = described()
 
     def find(self, wish, routes):
         self.calls.append(("find", wish, routes))
@@ -59,6 +70,12 @@ class FakeShop:
             return PriceAnswer(prices=self.prices_seen)
         return PriceAnswer(prices=[PriceSeen(url=f["url"], price=round((f["price"] or 100) * 0.8, 2),
                                              currency=f["currency"], available=True) for f in finds])
+
+    def describe(self, product, routes):
+        self.described.append((product, routes))
+        if isinstance(self.description, Exception):
+            raise self.description
+        return self.description
 
 
 SHIRT = "https://shop.example/p/linen-shirt"
@@ -591,9 +608,14 @@ def test_a_link_becomes_a_wish_with_its_one_find_read_from_the_page(client, fake
     find, = body["finds"]
     assert find["link"] is True and find["url"] == SHIRT and find["read_at"] and find["read_by"] == "page"
     assert (find["name"], find["shop"], find["price"], find["currency"]) == ("Linen camp-collar shirt", "Example Shop", 68.0, "USD")
-    assert find["piece"] is None and find["piece_words"] is None and find["verdict"] is None   # not judged: not described
+    # described by Claude from the page's words, then judged against the (empty) closet as a search's finds are
+    assert find["piece"]["category"] == "shirt" and find["piece"]["name"] == "Linen camp-collar shirt"
+    assert "white shirt" in find["piece_words"] and find["verdict"] == "too_small" and find["reasons"]
+    assert find["not_judged"] is None
     assert [h["price"] for h in find["history"]] == [68.0] and find["drop"] is None
-    assert fake_shop.calls == []   # the page gave its price: Claude was never asked
+    assert fake_shop.calls == []   # the page gave its price: Claude was not asked for it
+    (asked, routes), = fake_shop.described
+    assert asked["name"] == "Linen camp-collar shirt" and asked["shop"] == "Example Shop" and routes == ("plan",)
     listed, = client.get("/api/wishlist").json()["wishes"]
     assert listed["name"] == "Linen camp-collar shirt"   # named after the product once read
     assert listed["link"] == {"name": "Linen camp-collar shirt", "shop": "Example Shop", "price": 68.0, "currency": "USD",
@@ -796,6 +818,155 @@ def test_nothing_about_a_link_is_logged_when_its_page_breaks_the_reader(client, 
         wid = add_link(client, SHIRT)
     assert client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["read_at"]
     assert "shop.example" not in caplog.text and "linen" not in caplog.text.lower()
+
+
+# ------------------------------------------------------------------ a link described by Claude and judged
+def described_page(name: str = "Linen camp-collar shirt", description: str = "A boxy shirt in washed linen.") -> str:
+    """A made-up product page whose structured data gives its description, colour and material too."""
+    data = {"@context": "https://schema.org", "@type": "Product", "name": name, "description": description,
+            "brand": {"@type": "Brand", "name": "Example Brand"}, "color": "Sand", "material": "Linen",
+            "image": "https://shop.example/img/shirt.jpg",
+            "offers": {"@type": "Offer", "price": "68.00", "priceCurrency": "USD"}}
+    return (f'<html><head><script type="application/ld+json">{json.dumps(data)}</script>'
+            '<meta property="og:site_name" content="Example Shop"></head><body></body></html>')
+
+
+def test_only_what_the_page_says_is_sent_to_claude_to_describe_a_link(client, fake_shop, pages):
+    pages.pages[SHIRT] = described_page()
+    wid = wish(client, name="A summer shirt", note="my size is L")
+    assert client.post(f"/api/wishlist/{wid}/link", json={"url": SHIRT}).status_code == 202
+    find, = settle(client, wid)["finds"]
+    (asked, _), = fake_shop.described
+    assert asked == {"name": "Linen camp-collar shirt", "shop": "Example Shop", "brand": "Example Brand",
+                     "color": "Sand", "material": "Linen", "description": "A boxy shirt in washed linen."}
+    prompt = shopping.describe_prompt(asked)
+    assert "Description: A boxy shirt in washed linen." in prompt and "Brand: Example Brand" in prompt
+    assert "my size is L" not in prompt and "A summer shirt" not in prompt   # nothing about the wish or the closet
+    # judged, and shown with the shop's picture, as a search's find is
+    assert find["verdict"] and find["image_url"] == "https://shop.example/img/shirt.jpg" and find["not_judged"] is None
+
+
+def test_a_link_waits_for_claude_and_is_described_once_at_a_later_check(client, fake_shop, pages, usable):
+    usable["routes"] = ()
+    wid = add_link(client, SHIRT)
+    find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert find["piece"] is None and find["verdict"] is None and find["not_judged"] == "waiting"
+    assert fake_shop.described == [] and find["price"] == 68.0   # its price is read all the same
+
+    usable["routes"] = ("plan",)
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    find, = settle(client, wid)["finds"]
+    assert find["piece"]["category"] == "shirt" and find["verdict"] == "too_small" and find["not_judged"] is None
+    assert len(fake_shop.described) == 1
+    # described once: later checks judge it again with the closet as it is, without asking Claude again
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    find, = settle(client, wid)["finds"]
+    assert find["verdict"] == "too_small" and len(fake_shop.described) == 1
+
+
+def test_the_daily_round_describes_a_link_that_waited(client, services, fake_shop, pages, usable, clock):
+    usable["routes"] = ()
+    wid = add_link(client, SHIRT)
+    usable["routes"] = ("plan",)
+    clock[0] += timedelta(days=1, seconds=1)
+    assert services.shopper.tick() == 1
+    find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert find["piece"]["category"] == "shirt" and find["verdict"] and len(fake_shop.described) == 1
+
+
+def test_an_answer_that_cannot_be_used_is_not_asked_again_for_the_same_page(client, fake_shop, pages):
+    fake_shop.description = described(clothing=False)   # a gift card, say
+    wid = add_link(client, SHIRT)
+    find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert find["piece"] is None and find["verdict"] is None and find["reasons"] == []
+    assert find["not_judged"] == "unclear" and len(fake_shop.described) == 1
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    assert settle(client, wid)["finds"][0]["not_judged"] == "unclear" and len(fake_shop.described) == 1
+    # the page changed: asked once more
+    pages.pages[SHIRT] = shirt_page(name="Linen camp-collar shirt in sand")
+    fake_shop.description = described()
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    find, = settle(client, wid)["finds"]
+    assert find["piece"]["category"] == "shirt" and find["verdict"] and len(fake_shop.described) == 2
+
+    # a description outside the closet's words, or no usable answer at all, counts as an answer that cannot be used
+    for answer in (described(color="plaid-ish"), TaggingError("no valid answer")):
+        fake_shop.description = answer
+        other = add_link(client, PLAIN)
+        assert client.get(f"/api/wishlist/{other}/finds").json()["finds"][0]["not_judged"] == "unclear"
+        client.delete(f"/api/wishlist/{other}")
+
+
+def test_claude_out_of_reach_while_describing_leaves_the_link_for_later(client, fake_shop, pages):
+    for error in (Unreachable("no connection"), RouteUnavailable("signed out"), CapReached("the limit")):
+        fake_shop.description = error
+        wid = add_link(client, SHIRT)
+        body = client.get(f"/api/wishlist/{wid}/finds").json()
+        assert body["run"]["state"] == "done" and body["run"]["message"] is None   # the price was read all the same
+        assert body["finds"][0]["price"] == 68.0 and body["finds"][0]["not_judged"] == "waiting"
+        fake_shop.description = described()
+        assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+        assert settle(client, wid)["finds"][0]["verdict"]   # asked again, and judged
+        client.delete(f"/api/wishlist/{wid}")
+
+
+def test_a_page_that_gives_no_name_is_not_described(client, fake_shop, pages):
+    gone = "https://shop.example/p/gone"
+    fake_shop.prices_seen = [PriceSeen(url=gone, price=50.0, currency="USD", available=True)]
+    wid = add_link(client, gone)
+    find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert find["price"] == 50.0 and find["not_judged"] == "no_name" and fake_shop.described == []
+
+
+def test_the_demo_closet_never_sends_a_link_to_claude_to_describe(client, fake_shop, pages):
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    wid = add_link(client, SHIRT)
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    find, = settle(client, wid)["finds"]
+    assert find["not_judged"] == "waiting" and find["verdict"] is None and fake_shop.described == []
+
+
+def test_describing_a_link_through_the_api_key_is_refused_when_it_could_pass_the_limit(client, fake_shop, usable):
+    usable["routes"] = ("api",)   # only the API key, and no limit set: nothing may be asked through it
+    wid = add_link(client, SHIRT)
+    assert client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["not_judged"] == "waiting"
+    assert fake_shop.described == []
+
+
+def test_claudes_description_is_checked_like_a_searchs():
+    assert shop.clean_described(described(), "Shirt")["category"] == "shirt"
+    assert shop.clean_described(described(weight_class="unknown"), "Shirt")["weight_class"] is None
+    assert shop.clean_described(described(clothing=False), "Shirt") is None
+    assert shop.clean_described(described(category="other"), "Shirt") is None
+    assert shop.clean_described({"clothing": True, "category": "shirt"}, "Shirt") is None   # no colour
+    assert shop.clean_described(None, "Shirt") is None
+    # the fingerprint knows the same words again, and only them
+    words = {"name": "Shirt", "shop": "Example Shop", "description": "Linen."}
+    assert shop.fingerprint(shopping.describe_prompt(words)) == shop.fingerprint(shopping.describe_prompt(dict(words)))
+    assert shop.fingerprint(shopping.describe_prompt(words)) != shop.fingerprint(
+        shopping.describe_prompt({**words, "description": "Cotton."}))
+
+
+def test_describing_a_link_is_a_short_question_recorded_with_its_own_purpose(services, cfg, monkeypatch):
+    seen = {}
+
+    def run(cmd, **kw):
+        seen["cmd"], seen["input"] = cmd, kw["stdin"].read().decode("utf-8")
+        return SimpleNamespace(returncode=0, stderr="", stdout=json.dumps(
+            {"structured_output": described().model_dump(), "usage": {"input_tokens": 10, "output_tokens": 5}}))
+    monkeypatch.setattr(correcting.subprocess, "run", run)
+    monkeypatch.setattr(correcting.claude_cli, "find_claude", lambda: "claude")
+    answer = shop.ClaudeAsker(cfg, services.state).describe(
+        {"name": "Linen camp-collar shirt", "shop": "Example Shop", "description": "A boxy shirt."}, ("plan",))
+    assert answer.category == "shirt" and answer.clothing is True
+    cmd = seen["cmd"]
+    assert "WebSearch" not in cmd[cmd.index("--tools") + 1]   # no web search: the page's words are all it is given
+    assert "Description: A boxy shirt." in seen["input"]
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        assert conn.execute("SELECT purpose FROM claude_calls").fetchone()[0] == spend.PURPOSE_DESCRIBE_LINK == "shop_describe"
+    finally:
+        conn.close()
 
 
 # ------------------------------------------------------------------ price news

@@ -41,6 +41,7 @@ PURPOSE_CORRECT = "correct_item"   # reading the owner's sentence about an item 
 PURPOSE_LANDMARKS = "item_landmarks"   # where a patterned top's buttons, neck, hem and sleeves are (`tagger/landmarks.py`)
 PURPOSE_SHOP = "shop_find"            # searching shops for a wish (`tagger/shopping.py`)
 PURPOSE_PRICES = "shop_prices"        # looking up the prices of a wish's finds again
+PURPOSE_DESCRIBE_LINK = "shop_describe"   # a page sent as a link described from its words (`tagger/shopping.py`)
 PURPOSE_GARMENTS = "find_garments"    # where each piece is in a photo of several (`tagger/garments.py`)
 PURPOSE_VIEWS = "sort_views"          # which view each photo of a shoe shows (`tagger/views.py`)
 PURPOSE_SORT_ADD = "sort_add"         # what each photo chosen on Add shows: a piece, several, a shoe (`tagger/addsort.py`)
@@ -228,6 +229,13 @@ def estimate_add_to_drawing(images: int, model: str = ADD_MODEL) -> float:
 def estimate_correction(photos: int, model: str = TAGGING_MODEL) -> float:
     """The most one request to read a correction should cost (`photos` is 0 or 1)."""
     return cost_usd(model, CORRECT_TEXT_TOKENS + IMAGE_TOKENS * max(0, photos), CORRECT_MAX_TOKENS)
+
+
+def estimate_describe_link(photos: int = 0, model: str = TAGGING_MODEL) -> float:
+    """The most one request to describe a page sent as a link should cost: a short text question with no photo (its
+    prompt, a page's words of at most a few thousand characters and the answer's schema, well inside a correction's
+    bound) and the longest answer the request allows (`correcting.MAX_TOKENS`)."""
+    return estimate_correction(0, model)
 
 
 def estimate_shop(searches: int, model: str = TAGGING_MODEL) -> float:

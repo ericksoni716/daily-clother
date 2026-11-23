@@ -15,8 +15,15 @@ The owner can also send a product's page as a link (migration 0042): a new wish
 made from it, or a find added to a wish. Nines reads the page itself first, from
 this computer (`productpage.py`: the address checked, the page fetched with
 care, its structured data read), and asks Claude to read that one page, as a
-price check, only when the page gives no price. A link is not described in the
-closet's words, so it is not judged against the closet.
+price check, only when the page gives no price. Once the page has given a name,
+Claude is asked once to describe the product in the closet's words from what the
+page says (`tagger/shopping.py`'s `describe`, recorded with the purpose
+`spend.PURPOSE_DESCRIBE_LINK`, held against the same limit); the piece is kept
+on the find and judged as a search's finds are. When Claude cannot be asked
+(out of reach, the limit, the demo closet) the link waits, and is described at
+the next price check or daily round that reads its page; an answer that cannot
+be used is remembered by a fingerprint of what was asked (`unclear`), so the
+same page is not asked about again until it changes.
 
 A wish's finds can have their prices looked up again on demand and, while the
 program runs, at most once a day (`PriceScheduler`): a link's page read by Nines
@@ -44,6 +51,7 @@ a link is logged.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -66,7 +74,7 @@ from .config import Config
 from .items import ItemError
 from .state import State
 from .tagger import shopping
-from .tagger.tagging import CapReached, RouteUnavailable, TaggingError
+from .tagger.tagging import CapReached, RouteUnavailable, TaggingError, Unreachable
 
 log = logging.getLogger("closet.shop")
 
@@ -82,6 +90,9 @@ NAME_MAX = 200
 # shops' names run long; the find keeps the whole name
 LINK_NAME_MAX = 60
 SHOP_MAX = 120
+DESCRIPTION_MAX = productpage.DESCRIPTION_MAX   # characters of a page's description sent to Claude to describe a link
+BRAND_MAX = 120
+COLOR_MAX = 60
 PRICE_MAX = 1_000_000.0
 CURRENCY = re.compile(r"^[A-Z]{3}$")
 CODE = re.compile(r"^[A-Z0-9_-]{3,30}$")   # a checkout code, kept upper-case as shops show them
@@ -123,6 +134,8 @@ class Asker(Protocol):
 
     def prices(self, finds: list[dict], routes: tuple[str, ...]) -> shopping.PriceAnswer: ...
 
+    def describe(self, product: dict, routes: tuple[str, ...]) -> shopping.Described: ...
+
 
 class ClaudeAsker:
     """The real one: `tagger/shopping.py` behind the monthly limit, each kind of call recorded as its own purpose."""
@@ -131,12 +144,16 @@ class ClaudeAsker:
         self.client = client
         self.finding = spend.Meter(cfg, state, spend.PURPOSE_SHOP, spend.estimate_shop)
         self.pricing = spend.Meter(cfg, state, spend.PURPOSE_PRICES, spend.estimate_shop)
+        self.describing = spend.Meter(cfg, state, spend.PURPOSE_DESCRIBE_LINK, spend.estimate_describe_link)
 
     def find(self, wish: dict, routes: tuple[str, ...]) -> shopping.ShopAnswer:
         return shopping.find(wish, routes, client=self.client, meter=self.finding)
 
     def prices(self, finds: list[dict], routes: tuple[str, ...]) -> shopping.PriceAnswer:
         return shopping.prices(finds, routes, client=self.client, meter=self.pricing)
+
+    def describe(self, product: dict, routes: tuple[str, ...]) -> shopping.Described:
+        return shopping.describe(product, routes, client=self.client, meter=self.describing)
 
 
 # the closet to check finds against, for a profile: (item rows, wear log)
@@ -195,18 +212,36 @@ def clean_find(raw: object) -> dict | None:
     price = raw.get("price")
     if price is not None and clean_price(price) is None:
         return None
+    piece = _piece_of(raw, name)
+    if piece is None:
+        return None
+    return {"name": name, "shop": shop, "url": url, "image_url": clean_url(raw.get("image_url")),
+            "price": clean_price(price) if price is not None else None, "currency": currency, "piece": piece}
+
+
+def _piece_of(raw: dict, name: str) -> dict | None:
+    """A product's description in the listed values, as the closet's words (`wouldwork.parse_piece`), or None when it
+    does not fit."""
     weight = raw.get("weight_class")
     material = _words(raw.get("material"), wouldwork.MATERIAL_MAX)
     try:
-        piece = wouldwork.parse_piece({
+        return wouldwork.parse_piece({
             "category": raw.get("category"), "color": raw.get("color"), "formality": raw.get("formality"),
             "season": raw.get("season"), "pattern": raw.get("pattern"),
             "weight_class": None if weight in (None, "", "unknown") else weight,
             "rain_proof": raw.get("rain_proof") is True, "name": name[:wouldwork.NAME_MAX], "material": material})
     except wouldwork.PieceError:
         return None
-    return {"name": name, "shop": shop, "url": url, "image_url": clean_url(raw.get("image_url")),
-            "price": clean_price(price) if price is not None else None, "currency": currency, "piece": piece}
+
+
+def clean_described(raw: object, name: str) -> dict | None:
+    """Claude's description of a page sent as a link, as a piece in the closet's words; None when Claude said it is
+    not one piece of menswear, or the answer does not fit."""
+    if hasattr(raw, "model_dump"):
+        raw = raw.model_dump()
+    if not isinstance(raw, dict) or raw.get("clothing") is not True:
+        return None
+    return _piece_of(raw, name)
 
 
 def _number(value: object) -> bool:
@@ -265,7 +300,8 @@ def clean_read(p: productpage.Product) -> dict:
     """What Nines read on a link's page, checked as Claude's answers are: text shortened, a picture only by a web
     address, a price only as a number in range (else none), a currency only as three letters (else none), and of the
     checkout codes its text shows, the biggest discount among those that fit (`clean_code`; an amount off only in the
-    page's currency), else none."""
+    page's currency), else none. Its words about the product (description, brand, colour, material) are kept only to
+    be sent to Claude to describe it."""
     price, currency = clean_price(p.price), clean_currency(p.currency)
     codes = []
     for c in getattr(p, "codes", None) or []:
@@ -277,7 +313,20 @@ def clean_read(p: productpage.Product) -> dict:
         if checked:
             codes.append(checked)
     return {"name": _words(p.name, NAME_MAX), "shop": _words(p.shop, SHOP_MAX), "image_url": clean_url(p.image_url),
-            "price": price, "currency": currency, "available": p.available is not False, "code": best_code(codes, price)}
+            "price": price, "currency": currency, "available": p.available is not False, "code": best_code(codes, price),
+            "description": _words(p.description, DESCRIPTION_MAX), "brand": _words(p.brand, BRAND_MAX),
+            "color": _words(p.color, COLOR_MAX), "material": _words(p.material, wouldwork.MATERIAL_MAX)}
+
+
+def page_words(read: dict) -> dict:
+    """What Claude is given to describe a link: only what its page says (`clean_read`), never anything from the
+    closet."""
+    return {k: read.get(k) for k in ("name", "shop", "brand", "color", "material", "description")}
+
+
+def fingerprint(text: str) -> str:
+    """A short fingerprint of what was asked, to know the same page again without keeping its words."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
 
 
 def shortened(text: str, limit: int) -> str:
@@ -358,13 +407,36 @@ def _code_of(r: Mapping) -> dict | None:
             "seen_at": r["code_seen_at"]}
 
 
+def unclear(verdict: str | None) -> str | None:
+    """The fingerprint of what Claude was asked about a link whose answer could not be used, kept in the find's
+    verdict column while it has no piece (`mark_unclear`); None otherwise."""
+    v = json.loads(verdict) if verdict else None
+    return v.get("unclear") if isinstance(v, dict) else None
+
+
+def not_judged(f: dict, marker: str | None) -> str | None:
+    """Why a find is not judged against the closet, for the sentence on its card: "unread" (its page not read yet),
+    "no_name" (the page gave no name), "unclear" (Claude could not say what it is), "waiting" (Claude not asked yet:
+    out of reach, the limit, the demo closet). None when it is judged, or is waiting for a search's verdict."""
+    if f["piece"] or not f["link"]:
+        return None
+    if not f["read_at"]:
+        return "unread"
+    if marker:
+        return "unclear"
+    if f["name"] == placeholder(f["url"])[:NAME_MAX]:
+        return "no_name"
+    return "waiting"
+
+
 def _find(conn: sqlite3.Connection, r: sqlite3.Row) -> dict:
     f = dict(r)
     f["available"] = bool(f["available"])
     f["link"] = bool(f["link"])
-    f["piece"] = json.loads(f["piece"]) if f["piece"] else None   # a link has none ("null")
+    f["piece"] = json.loads(f["piece"]) if f["piece"] else None   # a link not described yet has none ("null")
     f["piece_words"] = wouldwork.describe(f["piece"]) if f["piece"] else None
-    verdict = json.loads(f.pop("verdict")) if f["verdict"] else None
+    marker = unclear(f["verdict"])
+    verdict = json.loads(f.pop("verdict")) if f["verdict"] and not marker else None
     f["verdict"] = verdict["verdict"] if verdict else None
     f["verdict_words"] = verdict["verdict_words"] if verdict else None
     f["reasons"] = verdict["reasons"] if verdict else []
@@ -374,6 +446,7 @@ def _find(conn: sqlite3.Connection, r: sqlite3.Row) -> dict:
         f.pop(column)
     f["code"] = code
     f["with_code"] = price_with(f["price"], code["percent"], code["amount"]) if code else None
+    f["not_judged"] = not_judged(f, marker)
     history = _history(conn, f["id"])
     f["history"] = history[-HISTORY_MAX:]
     f["drop"] = drop(history)
@@ -697,6 +770,20 @@ def save_prices(conn: sqlite3.Connection, wish_id: str, finds: list[dict], seen:
     return len(done)
 
 
+def save_piece(conn: sqlite3.Connection, wish_id: str, find_id: str, piece: dict, verdict: dict | None) -> bool:
+    """Keep Claude's description of a link (and its verdict, when it was judged at once). False when the find is no
+    longer kept, or was described meanwhile."""
+    return bool(conn.execute("UPDATE finds SET piece = ?, verdict = ? WHERE id = ? AND wish_id = ? AND piece = 'null'",
+                             (json.dumps(piece), json.dumps(verdict) if verdict else None, find_id, wish_id)).rowcount)
+
+
+def mark_unclear(conn: sqlite3.Connection, wish_id: str, find_id: str, asked: str) -> None:
+    """Claude was asked about a link and its answer could not be used: remember what was asked (`fingerprint`), so the
+    same page is not asked about again. Kept in the verdict column, which a find with no piece has no other use for."""
+    conn.execute("UPDATE finds SET verdict = ? WHERE id = ? AND wish_id = ? AND piece = 'null'",
+                 (json.dumps({"unclear": asked, "at": db.now()}), find_id, wish_id))
+
+
 def set_verdicts(conn: sqlite3.Connection, finds: list[dict], verdicts: list[dict]) -> None:
     for f, v in zip(finds, verdicts, strict=True):
         conn.execute("UPDATE finds SET verdict = ? WHERE id = ?", (json.dumps(v), f["id"]))
@@ -829,9 +916,10 @@ class Shopper:
                 "find_usd": round(spend.estimate_shop(shopping.FIND_SEARCHES), 6),
                 "prices_usd": round(spend.estimate_shop(min(shopping.PRICE_SEARCHES, max(1, finds))), 6)}
 
-    def _usable(self, searches: int) -> tuple[str, ...]:
+    def _usable(self, searches: int = 0, cost: float | None = None) -> tuple[str, ...]:
         """The routes to try, or Refused: none can be used, or only the API key can and the request could take
-        the month past its limit (the estimate is checked before anything is asked)."""
+        the month past its limit (the estimate is checked before anything is asked): a search's with `searches` web
+        searches, or `cost` when given."""
         routes = self.routes()
         if not routes:
             raise Refused(NO_ROUTE)
@@ -842,7 +930,7 @@ class Shopper:
                 so_far = spend.spent(main)
             finally:
                 main.close()
-            if limit is None or so_far + spend.estimate_shop(searches) > limit:
+            if limit is None or so_far + (spend.estimate_shop(searches) if cost is None else cost) > limit:
                 raise Refused(LIMIT)
         return routes
 
@@ -1014,31 +1102,37 @@ class Shopper:
 
     def read_link(self, profile: str, wish_id: str, find_id: str) -> int:
         """Read a link's page: Nines first; Claude, as a price check of that one page, only when the page gives no
-        price (never in the demo closet, nor for an address Nines would not open). Returns 1 when a price was kept."""
+        price (never in the demo closet, nor for an address Nines would not open). Then, once the page has given a
+        name, Claude describes the product so it can be judged (`_describe_link`). Returns 1 when a price was kept."""
         row = self._link(profile, wish_id, find_id)
         if row is None:   # removed meanwhile
             self._end(profile, wish_id, "done", None, 0)
             return 0
         self._step(profile, wish_id, "page")
         read, refused = self._read_page(row["url"])
+        got, message = self._link_price(profile, wish_id, find_id, read, refused)
+        if not refused:
+            self._describe_link(profile, wish_id, find_id, read)
+        self._end(profile, wish_id, "done", message, got)
+        return got
+
+    def _link_price(self, profile: str, wish_id: str, find_id: str, read: dict | None,
+                    refused: str | None) -> tuple[int, str | None]:
+        """Keep what the page said, and ask Claude for its price when it gave none and Claude may be asked: (1 when a
+        price was kept, else 0; the sentence to show, or None)."""
         if self._save_read(profile, wish_id, find_id, read):
-            self._end(profile, wish_id, "done", None, 1)
-            return 1
+            return 1, None
         if refused:
-            self._end(profile, wish_id, "done", refused, 0)
-            return 0
+            return 0, refused
         if profile == "demo":
-            self._end(profile, wish_id, "done", f"{NO_PAGE_PRICE} {DEMO_ASKS_NOTHING}", 0)
-            return 0
+            return 0, f"{NO_PAGE_PRICE} {DEMO_ASKS_NOTHING}"
         try:
             routes = self._usable(1)
         except Refused as e:
-            self._end(profile, wish_id, "done", f"{NO_PAGE_PRICE} {e}", 0)
-            return 0
+            return 0, f"{NO_PAGE_PRICE} {e}"
         find = self._link(profile, wish_id, find_id)   # with the name the page gave, if it gave one
         if find is None:
-            self._end(profile, wish_id, "done", None, 0)
-            return 0
+            return 0, None
         self._step(profile, wish_id, "claude")
         answer = self.asker.prices([find], routes)
         conn = db.connect(self.cfg.db_path(profile))
@@ -1048,15 +1142,65 @@ class Shopper:
         finally:
             conn.close()
         got = bool(priced and priced["price"] is not None)
-        self._end(profile, wish_id, "done", None if got else NO_PRICE_AT_ALL, int(got))
-        return int(got)
+        return int(got), None if got else NO_PRICE_AT_ALL
+
+    def _describe_link(self, profile: str, wish_id: str, find_id: str, read: dict | None,
+                       routes: tuple[str, ...] | None = None, judge_now: bool = True) -> bool:
+        """Ask Claude once to describe a link from what its page says (`page_words`), keep the piece and, with
+        `judge_now`, its verdict. Not asked: in the demo closet, for a page that gave no name, for a find already
+        described, for the same page whose answer could not be used before, or when Claude cannot be asked (`routes`,
+        else worked out here); the link then waits for a later reading. True when a piece was kept."""
+        if profile == "demo" or not read or not read.get("name"):
+            return False
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            row = conn.execute("SELECT piece, verdict FROM finds WHERE id = ? AND wish_id = ?",
+                               (find_id, wish_id)).fetchone()
+        finally:
+            conn.close()
+        if row is None or json.loads(row["piece"] or "null"):
+            return False
+        product = page_words(read)
+        asked = fingerprint(shopping.describe_prompt(product))
+        if unclear(row["verdict"]) == asked:
+            return False
+        if routes is None:
+            try:
+                routes = self._usable(cost=spend.estimate_describe_link())
+            except Refused:
+                return False
+        if not routes:
+            return False
+        self._step(profile, wish_id, "describe")
+        try:
+            answer = self.asker.describe(product, routes)
+        except (RouteUnavailable, Unreachable):   # not asked, or not reached: described at a later reading
+            return False
+        except TaggingError:   # asked, with no usable answer
+            answer = None
+        except Exception as e:   # never the link in the log; the page's price is kept whatever happens here
+            log.error("a link could not be described: %s", type(e).__name__)
+            return False
+        piece = clean_described(answer, read["name"]) if answer is not None else None
+        verdict = None
+        if piece is not None and judge_now:
+            rows, worn = self.closet(profile)
+            verdict = judge(rows, worn, [piece], self.weighed(profile, (rows, worn)))[0]
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            if piece is None:
+                mark_unclear(conn, wish_id, find_id, asked)
+                return False
+            return save_piece(conn, wish_id, find_id, piece, verdict)
+        finally:
+            conn.close()
 
     def prices(self, profile: str, wish_id: str, routes: tuple[str, ...], daily: bool = False,
                why_not: str | None = None) -> int:
         """Look the prices of the wish's finds up again, and check them against the closet as it is now. A link's
-        page is read by Nines first (in the daily round, only when it was not read in the last day); Claude is asked
-        about the other finds and about the pages that gave no price, when `routes` allow (`why_not` says why they do
-        not). A malformed answer still counts as a look, so the daily round does not ask again and again; a look
+        page is read by Nines first (in the daily round, only when it was not read in the last day), and a link not
+        described yet is described from it when `routes` allow; Claude is asked about the other finds and about the
+        pages that gave no price, when `routes` allow (`why_not` says why they do not). A malformed answer still counts as a look, so the daily round does not ask again and again; a look
         that could not ask Claude about a find it found does not count, so it is tried again later."""
         conn = db.connect(self.cfg.db_path(profile))
         try:
@@ -1068,7 +1212,7 @@ class Shopper:
             return 0
         links = [f for f in finds if f["link"] and not (daily and read_since(f, _now() - DAY))]
         others = [f for f in finds if not f["link"]]
-        n, unread = 0, []
+        n, unread, pages = 0, [], []
         if links:
             self._step(profile, wish_id, "page")
         for f in links:
@@ -1077,6 +1221,11 @@ class Shopper:
                 n += 1
             elif not refused:
                 unread.append(f)
+            if not refused:
+                pages.append((f, read))
+        if routes and profile != "demo":
+            for f, read in pages:   # judged with the rest below
+                self._describe_link(profile, wish_id, f["id"], read, routes=routes, judge_now=False)
         ask = others + unread
         answer = None
         if ask and routes and profile != "demo":
@@ -1094,7 +1243,7 @@ class Shopper:
                 raise
         conn = db.connect(self.cfg.db_path(profile))
         try:
-            judged = [f for f in list_finds(conn, wish_id) if f["piece"]]   # a link is not described: not judged
+            judged = [f for f in list_finds(conn, wish_id) if f["piece"]]   # a link not described yet: not judged
         finally:
             conn.close()
         verdicts = []

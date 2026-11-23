@@ -117,6 +117,21 @@ def test_a_price_of_nothing_or_zero_is_no_price():
     assert parse(page(ld(product(offers={"@type": "Offer", "price": "-5", "priceCurrency": "USD"})))).price is None
 
 
+def test_the_products_words_are_read_for_claude_to_describe_it():
+    p = parse(page(ld(product(description="  A boxy shirt\n in <b>washed</b> linen &amp; cotton. ",
+                              brand={"@type": "Brand", "name": "Example Brand"}, color="Sand", material="Linen"))
+                   + '<meta property="og:description" content="Shop our shirts.">'))
+    assert (p.description, p.brand, p.color, p.material) == (
+        "A boxy shirt in <b>washed</b> linen & cotton.", "Example Brand", "Sand", "Linen")   # as text, never markup
+    # with none in the product's data, the page's own description for link previews or search engines
+    assert parse(page(ld(product()) + '<meta property="og:description" content="Shop our shirts.">')).description \
+        == "Shop our shirts."
+    assert parse(page('<meta name="description" content="A linen shirt.">')).description == "A linen shirt."
+    assert parse(page(ld(product()))).description is None
+    # a long description is kept to its first characters
+    assert len(parse(page(ld(product(description="word " * 2000)))).description) == pp.DESCRIPTION_MAX
+
+
 # ------------------------------------------------------------------ the tags for link previews, and microdata
 def test_opengraph_tags_when_there_is_no_json_ld():
     head = ('<meta property="og:title" content="Wool overcoat">'

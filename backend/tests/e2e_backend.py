@@ -29,7 +29,8 @@ A product's page sent as a link is never fetched from the web, with or without t
 shop.example is the only name that can be found, and its made-up pages are a linen shirt whose structured data gives
 its price ($68.00 the first time it is read, then 20% lower each time it is read again), a shirt with a very long
 name and a shirt whose banner shows a checkout code, 40% off (the same prices), and a page with no price, which goes
-to Claude's stand-in (a price check, $80.00).
+to Claude's stand-in (a price check, $80.00). Once a page has given a name, Claude's stand-in describes it after a
+second: a white casual linen shirt, whatever the page.
 
 Finding the pieces in a photo of several is a stand-in too: after a second it gives the boxes of
 `conftest.GARMENT_BOXES` (a red piece left, a blue one in the middle, a green one right), whatever the photo.
@@ -93,7 +94,7 @@ from closet import apikey, app, cli, demo, productpage, tracejobs, weather
 from closet.tagger import routes as tagger_routes
 from closet.tagger import shoedrawing
 from closet.tagger.correcting import CorrectionResult
-from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
+from closet.tagger.shopping import Described, Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import TaggingError, TagResult, Unreachable
 
 from .conftest import (
@@ -259,6 +260,11 @@ class FakeShop:
         time.sleep(1)
         return PriceAnswer(prices=[PriceSeen(url=f["url"], price=round((f["price"] or 100) * 0.8, 2),
                                              currency=f["currency"], available=True) for f in finds])
+
+    def describe(self, product, routes):
+        time.sleep(1)   # long enough for the page to show Claude describing it
+        return Described(clothing=True, category="shirt", color="white", formality="casual", season="warm",
+                         pattern="solid", weight_class="lightweight", rain_proof=False, material="linen")
 
 
 SHOP_PAGE_NAMES = {

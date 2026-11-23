@@ -4,8 +4,10 @@ The owner sends a product's page as a link (`closet/shop.py`). Before Claude is 
 from this computer and reads what shops publish for search engines and link previews: schema.org `Product` and
 `Offer` in JSON-LD (`<script type="application/ld+json">`, with `@graph` and lists), then the OpenGraph
 `product:price:amount` and `product:price:currency` tags, then microdata's `itemprop="price"`. The name, the shop, a
-picture, the price, its currency and whether it can be bought come back as the page wrote them (`parse`, pure); the
-caller checks every value before it keeps one, as it does Claude's (`shop.clean_read`).
+picture, the price, its currency and whether it can be bought come back as the page wrote them (`parse`, pure), with
+what the page says about the product in words (its description, brand, colour and material), which Claude is given to
+describe a link in the closet's words; the caller checks every value before it keeps one, as it does Claude's
+(`shop.clean_read`).
 
 A checkout code is read from the page's visible text only (never its scripts or styles): a discount and a code written
 together in one short stretch, "40% off with code SAVE40", "Use code SAVE40 for 40% off", "$20 off with code TAKE20"
@@ -49,6 +51,7 @@ TIMEOUT = 10.0         # seconds for the whole page, every redirect included
 WAIT = 5.0             # seconds to wait for any one step: connecting, the answer, the next part of the page
 MAX_BYTES = 2 * 1024 * 1024
 TEXT_MAX = 500         # characters kept of any one value read from a page (the caller shortens them further)
+DESCRIPTION_MAX = 2000  # ...and of the product's description, which runs longer
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
               "Chrome/131.0.0.0 Safari/537.36")
 HEADERS = {"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
@@ -151,6 +154,11 @@ class Product:
     currency: str | None = None
     available: bool = True
     codes: list[Code] = field(default_factory=list)   # every checkout code its text shows; the caller keeps the best
+    # what the page says about the product in words, for Claude to describe it in the closet's (`shop.describe`)
+    description: str | None = None
+    brand: str | None = None
+    color: str | None = None
+    material: str | None = None
 
 
 Resolve = Callable[[str], list[str]]
@@ -410,7 +418,7 @@ class _Collect(HTMLParser):
         self._break()
 
 
-def _text(value: object) -> str | None:
+def _text(value: object, limit: int = TEXT_MAX) -> str | None:
     """A value as plain text: a string, the first string of a list, or the `name` of an object (a brand, a seller)."""
     if isinstance(value, list):
         value = next((v for v in value if isinstance(v, (str, dict))), None)
@@ -419,7 +427,7 @@ def _text(value: object) -> str | None:
     if not isinstance(value, str):
         return None
     value = " ".join(html.unescape(value).split())
-    return value[:TEXT_MAX] or None
+    return value[:limit] or None
 
 
 def _image(value: object) -> str | None:
@@ -622,7 +630,8 @@ def codes(bits: list[str]) -> list[Code]:
 def parse(page: str, url: str) -> Product:
     """What the page says about its product: from JSON-LD first, then the OpenGraph tags, then microdata, then its
     title; and the checkout codes its visible text shows (`codes`). Nothing is checked here beyond being read; a price
-    of 0 is taken as none (shops write it for "ask us")."""
+    of 0 is taken as none (shops write it for "ask us"). The description is the product's own, else the page's for link
+    previews and search engines; its brand, colour and material only as the product's data gives them."""
     collect = _Collect()
     try:
         collect.feed(page)
@@ -643,6 +652,8 @@ def parse(page: str, url: str) -> Product:
         offers = _offers(product)
         out.price, out.currency, out.available = _best([_offer(o) for o in offers])
         seller = next((_text(o.get("seller")) for o in offers if _text(o.get("seller"))), None)
+        out.description = _text(product.get("description"), DESCRIPTION_MAX)
+        out.brand, out.color, out.material = (_text(product.get(k)) for k in ("brand", "color", "material"))
     if out.price is None:
         for amount, code, stock in (("product:price:amount", "product:price:currency", "product:availability"),
                                     ("og:price:amount", "og:price:currency", "og:availability")):
@@ -658,6 +669,9 @@ def parse(page: str, url: str) -> Product:
             out.available = _available(items.get("availability")) is not False
     out.name = out.name or _text(meta.get("og:title")) or _text(meta.get("twitter:title")) or _text(collect.title)
     out.shop = _text(meta.get("og:site_name")) or seller
+    out.description = out.description or next(
+        (_text(meta.get(k), DESCRIPTION_MAX) for k in ("og:description", "description", "twitter:description")
+         if _text(meta.get(k))), None)
     image = out.image_url or _image(meta.get("og:image:secure_url")) or _image(meta.get("og:image")) \
         or _image(meta.get("twitter:image"))
     out.image_url = urljoin(url, image) if image else None

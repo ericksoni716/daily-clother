@@ -67,8 +67,10 @@
 }
 /* Drawn as tight as the page titles so a usual name ("A pair of smart leather shoes") stays on one line on a phone. */
 .gap-head h3 { margin: 0; font-size: var(--text-lg); line-height: 1.25; letter-spacing: -0.015em; min-width: 0; overflow-wrap: anywhere; }
+/* the name's own box is 44px tall (its padding taken back by the margin, so the title does not move); its ::after
+   stretches over the whole head */
 .gap-toggle {
-  margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left;
+  margin: -10px 0; padding: 10px 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left;
   cursor: pointer;
 }
 .gap-toggle::after { content: ''; position: absolute; inset: 0; border-radius: var(--radius-sm); }

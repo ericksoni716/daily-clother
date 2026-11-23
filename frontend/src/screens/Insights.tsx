@@ -88,7 +88,7 @@ export function Usage({ answer, byId, locked }: { answer: Insights; byId: ById; 
       {answer.nines && (
         <section className="wardrobe-section insights" aria-labelledby="nines-title">
           <h2 id="nines-title" className="missing-section-title">Your nines</h2>
-          <p className="hint nines-hint">The nine pieces you wear most, with how many times you wore each.</p>
+          <p className="hint nines-hint">The nine pieces you wore most, and how many times you wore each.</p>
           <Nines windows={answer.nines.windows} byId={byId} />
         </section>
       )}

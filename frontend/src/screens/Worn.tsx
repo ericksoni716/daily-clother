@@ -96,9 +96,10 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
 }
 
 /** The pieces of a worn outfit, each opening its item unless `linked` is false (a small preview, as on Today's question).
- * `from` is the page it is on, whose own address the item opens at, so the item's back link goes back there. */
+ * `from` is the page it is on, whose own address the item opens at, so the item's back link goes back there ('' for the
+ * closet's own item page, from a piece's page there). */
 export function OutfitPics({ outfit, byId, linked = true, from = '/today' }: {
-  outfit: Pick<WornOutfit, 'pieces' | 'gone'>; byId: Map<string, ItemSummary>; linked?: boolean; from?: '/today' | '/today/worn';
+  outfit: Pick<WornOutfit, 'pieces' | 'gone'>; byId: Map<string, ItemSummary>; linked?: boolean; from?: string;
 }) {
   const ids = wornIds(outfit.pieces);
   return (

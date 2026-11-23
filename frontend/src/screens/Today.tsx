@@ -18,7 +18,7 @@ import { Link, navigate } from '../router';
 import { settingsQuery } from '../settings';
 import { useApp } from '../store';
 import {
-  canDress, chosenBy, closetKey, dayName, dayParts, daysAhead, joinWords, longDate, weekdayOf, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
+  askedOf, buildAroundPiece, canDress, chosenBy, closetKey, dayName, dayParts, daysAhead, joinWords, longDate, weekdayOf, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
   OCCASIONS, outfitIds, outingLine, parseTemp, placeLabel, readFor, sameOutfit, sameOutfits, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
   timeOf, waitingLine, whatToAddFirst, withThing, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place, type RememberHow,
   type StylistState, type TodayAnswer, type TodayRequest, type TypedDay, type WornToday,
@@ -101,8 +101,15 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const [choice, setChoice] = useState<Choice>(() => loadChoice());
   // the outfits changed today: kept while the app is open, and on this device for the rest of the day
   const keptChanges = remembered || ahead ? null : kept.changes(today);
-  const [buildAround, setBuildAround] = useState<string | null>(remembered?.buildAround ?? keptChanges?.build_around ?? null);
-  const [leaveOut, setLeaveOut] = useState<string[]>(remembered?.leaveOut ?? keptChanges?.leave_out ?? []);
+  // what the address asks as Today opens: an outfit to wear again (Worn), or a piece to build around (its page), which
+  // takes the place of the piece built around before, as "Build around this piece" does
+  const [asked] = useState(() => askedOf(window.location.search));
+  const [buildAround, setBuildAround] = useState<string | null>(
+    (!ahead && asked.around) || (remembered?.buildAround ?? keptChanges?.build_around ?? null));
+  const [leaveOut, setLeaveOut] = useState<string[]>(() => {
+    const left = remembered?.leaveOut ?? keptChanges?.leave_out ?? [];
+    return !ahead && asked.around ? buildAroundPiece(left, asked.around).leaveOut : left;
+  });
   const [typedOnDay, setTyped] = useState<TypedDay | null>(() => kept.typed(today));
   const typed = typedOnDay?.day === today && !ahead ? typedOnDay : null;
   // The outfits saved on this device earlier today, shown while Nines cannot be reached; nothing is asked meanwhile.
@@ -119,7 +126,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const [editDay, setEditDay] = useState(false);
   // "Change" beside the weather: where the sheet of where you are and today's temperatures floats from on a computer
   const changeButton = useRef<HTMLButtonElement>(null);
-  const [again, setAgain] = useState<string | null>(() => new URLSearchParams(window.location.search).get('again'));
+  const [again, setAgain] = useState<string | null>(asked.again);
   const [dismissed, setDismissed] = useState<string[]>(() => loadDismissed(profile));
   const [rated, setRated] = useState<WornOutfit | null>(null);
   // Claude choosing: the question whose rules' outfits are shown meanwhile, and whether the owner chose one of them
@@ -144,9 +151,24 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
     };
   }, []);
 
+  // The address asks once, then is tidied. Today stays open under a piece's page on a phone (`/today/item/<id>`) and
+  // beside it on a computer, so what the address asks as that page closes is taken then.
+  const opened = useRef(false);
   useEffect(() => {
+    const first = !opened.current;
+    opened.current = true;
+    if (itemId) return;
+    if (!first) {
+      const now = askedOf(window.location.search);
+      if (now.again) setAgain(now.again);
+      if (now.around && !ahead) {
+        const around = now.around;
+        setBuildAround(around);
+        setLeaveOut((l) => buildAroundPiece(l, around).leaveOut);
+      }
+    }
     if (window.location.search) navigate(window.location.pathname, { replace: true });
-  }, []);
+  }, [itemId, ahead]);
   // a day that has come while the screen was open is today's
   useEffect(() => {
     if (forDay && !ahead) navigate('/today', { replace: true });

@@ -249,6 +249,19 @@ export function outfitIds(p: OutfitPieces): string[] {
   return wornOrder(p).map((x) => x.id);
 }
 
+/** Building around a piece, as Today's "Build around this piece" does it: the piece becomes the one built around (in
+ * place of any other), and is no longer left out; the other pieces left out stay left out. */
+export function buildAroundPiece(leaveOut: readonly string[], id: string): { buildAround: string; leaveOut: string[] } {
+  return { buildAround: id, leaveOut: leaveOut.filter((x) => x !== id) };
+}
+
+/** What Today's address asks for as it opens: an outfit to wear again (`again`, from Worn) or a piece to build around
+ * (`around`, from the item page). */
+export function askedOf(search: string): { again: string | null; around: string | null } {
+  const q = new URLSearchParams(search);
+  return { again: q.get('again') || null, around: q.get('around') || null };
+}
+
 /** Same pieces, whatever the order: the same outfit. */
 export function sameOutfit(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;

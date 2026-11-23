@@ -18,7 +18,8 @@ test('wear log and laundry in the demo closet: wear, undo, laundry and back', as
   await panel.getByRole('button', { name: 'Wore it today' }).click();
   await expect(summary).toHaveText('Worn 2 times, last today');
   await expect(panel.getByText('Worn today', { exact: true })).toBeVisible();
-  await expect(panel.getByRole('button', { name: 'Remove the wear: Today' })).toBeVisible();
+  // the wear is listed under When you wore it, removed from its row's choices (no longer a Remove link of its own)
+  await expect(panel.getByTestId('worn-in').getByRole('button', { name: 'More for the wear: Today' })).toBeVisible();
   // a shirt needs washing after one wear (Settings → Laundry, on by default): it went in the laundry by itself
   await expect(panel.getByTestId('laundry-state')).toHaveText(/^In the laundry/);
 

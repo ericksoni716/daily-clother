@@ -328,7 +328,14 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
         const context = await browser.newContext({ ...device, colorScheme: scheme, storageState: state, serviceWorkers: 'block' });
         // A closet with enough clothes opens on Today the first time a tab opens / (src/landing.ts); this check wants the closet there.
         await context.addInitScript(() => sessionStorage.setItem('closet-landed', '1'));
-        if (TEXT !== 100) await context.addInitScript((pct) => { document.documentElement.style.fontSize = `${pct}%`; }, TEXT);
+        if (TEXT !== 100) {
+          await context.addInitScript((pct) => {
+            // the script runs before the page has its <html>: set the size as soon as it does
+            const set = () => document.documentElement?.style.setProperty('font-size', `${pct}%`);
+            if (document.documentElement) set();
+            else new MutationObserver((_, watch) => { if (document.documentElement) { set(); watch.disconnect(); } }).observe(document, { childList: true });
+          }, TEXT);
+        }
         for (const route of pages) {
           const page = await context.newPage();
           const errors = [];

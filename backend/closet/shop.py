@@ -213,14 +213,16 @@ def placeholder(url: str) -> str:
 
 
 # ------------------------------------------------------------------ "Would this work?" for each find
-def judge(rows: list[dict], worn: list[dict], pieces: list[dict], weighed: dict | None = None) -> list[dict]:
+def judge(rows: list[dict], worn: list[dict], pieces: list[dict], listed: dict | None = None) -> list[dict]:
     """Each piece checked against the closet: {verdict, verdict_words, reasons, checked_at}. The closet's gaps are
-    worked out once for all of them. `weighed` is the gap list weighed by how the owner lives, as What's missing
-    shows it (None until the owner has said): the finds are then judged exactly as "Would this work?" judges a piece."""
+    worked out once for all of them. `listed` is the gap list as What's missing has it (the app keeps it): the plain
+    list until the owner has said how they live, weighed by how they live once they have, its "context" saying which.
+    The finds are then judged exactly as "Would this work?" judges a piece, and the list is not worked out again.
+    Without it the plain list is worked out here."""
     if not pieces:
         return []
-    before = weighed if weighed is not None else gaps.find_gaps(rows, worn, {"max_gaps": wouldwork.ALL_GAPS})
-    context = (weighed or {}).get("context") or {}
+    before = listed if listed is not None else gaps.find_gaps(rows, worn, {"max_gaps": wouldwork.ALL_GAPS})
+    context = (listed or {}).get("context") or {}
     out = []
     for p in pieces:
         a = wouldwork.check(rows, worn, p, before, context.get("life"), context.get("climate"))
@@ -558,8 +560,9 @@ class Shopper:
                  reader: productpage.Reader | None = None):
         self.cfg, self.state, self.closet, self.routes, self.asker = cfg, state, closet, routes, asker
         self.reader = reader or productpage.Reader()   # a link's page, read by Nines itself (tests stand in for the web)
-        # the gap list weighed by how the owner lives, as "Would this work?" is given it (set by the app); None: plain
-        self.weighed: Callable[[str, tuple[list[dict], list[dict]]], dict | None] = lambda profile, inputs: None
+        # the gap list as What's missing has it, as "Would this work?" is given it (set by the app: kept, so a search
+        # or a price check does not work it out again); None: the plain list is worked out for each
+        self.listed: Callable[[str, tuple[list[dict], list[dict]]], dict | None] = lambda profile, inputs: None
         self._runs: dict[tuple[str, str], dict] = {}   # (profile, wish id) -> the last or current search or check
         self._lock = threading.Lock()
 
@@ -739,7 +742,7 @@ class Shopper:
             self._end(profile, wish_id, "done", NOTHING if not raw else NOT_UNDERSTOOD, 0)
             return 0
         rows, worn = self.closet(profile)
-        verdicts = judge(rows, worn, [f["piece"] for f in found], self.weighed(profile, (rows, worn)))
+        verdicts = judge(rows, worn, [f["piece"] for f in found], self.listed(profile, (rows, worn)))
         conn = db.connect(self.cfg.db_path(profile))
         try:
             wishlist.get_wish(conn, wish_id)   # still on the list (it may have been removed meanwhile)
@@ -871,7 +874,7 @@ class Shopper:
         verdicts = []
         if judged:
             rows, worn = self.closet(profile)
-            verdicts = judge(rows, worn, [f["piece"] for f in judged], self.weighed(profile, (rows, worn)))
+            verdicts = judge(rows, worn, [f["piece"] for f in judged], self.listed(profile, (rows, worn)))
         conn = db.connect(self.cfg.db_path(profile))
         try:
             if answer is not None:

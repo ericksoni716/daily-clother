@@ -2005,3 +2005,20 @@ their prices".
 | The most you'd pay opens in a `Sheet` (a popover under the sentence on a computer), with Save, Clear and Cancel beside the title (`closeLabel`, new on the shared `Sheet`); the currency starts as the wish's, else its newest find's, else USD | DESIGN, principle 3: the inline form pushed the page down. "Done" beside the title would have read as saving. |
 | A find whose price changed from one day to another says how: "The price was $177.00 on 3 Nov, $160.00 on Tuesday and $150.00 yesterday.", each day's last price, the last three changes | The drop line says how much; this says when, in the app's own day words. Several checks in one day would otherwise read "today and … today". |
 | On the wishlist row, a drop to the most you'd pay or less adds "That's within your price." beside the drop's pill | Said briefly, outside the pill, which wrapped at phone width with it inside. |
+
+## The gap list worked out once at a time (23 November, the browser tests going red overnight)
+
+The browser tests' search and Wardrobe waits (`14-shop`, `32-places`) failed on every run from the night of 22 to 23
+November, with no change to the code. It was not the date: the same code passed at 02:28 on 23 November, and every run
+that failed was on a slow runner (all its tests together over 1,290 seconds, against 840 to 1,230 for the runs that
+passed). What made those two waits so sensitive to a slow computer was work done twice. Opening What's missing,
+reloading it and opening it again asked for the list each time while the first was still being worked out, and each
+asker worked it out beside the others: `32-places` started six at once, so each took six times as long. And until the
+owner has said how they live, every search, price check and "Would this work?" worked the plain list out again,
+a third of what judging two finds costs on the demo's closet. Both are in `app.gap_analysis` and its callers.
+
+| Decision | Why |
+|---|---|
+| One gap analysis at a time per closet (`gap_analysis`, a lock per profile): whoever asks while it is being worked out waits for that answer and takes it from the kept list. Asking for a different closet or wear log waits too, then works out its own | Six side by side under Python's one lock take as long as six one after another, and each page waits for all of them; waiting for the first gives every page its answer as soon as one is done. The page that asked first may be gone (a reload), and its work is still the answer the next one wants. |
+| "Would this work?" and the shop's finds are always given the list as kept (`closet_for_check`, `Shopper.listed`): the plain list until the owner has said how they live, the weighed one once they have. A check given the plain list still compares it with the plain analysis with the piece, as before | It is the same list the check would work out, from the same items and wears (the kept list leaves laundry out of what decides it, and so does the analysis), so the answers are the same, and seconds quicker. `shop.judge` without a list still works the plain one out, for callers that have none. |
+| No test's wait was raised. The waits were long enough for the work; the work was done several times over | Measured with the browser tests' four files at once on this container: the old-addresses test 30.8 s to 10.3 s, the search's finds and drop 44 s to 28 s, the whole run 1,155 to 964 test-seconds. |

@@ -14,6 +14,12 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The gap list worked out once at a time** (23 November; DECISIONS, of that name). What is left of a
+  search's wait is "Would this work?" itself: each find runs the outfit engine over the 40 kinds of day
+  with the piece (about 3 s of one core on the demo's closet, nearly all in `outfits._search`), so the
+  browser tests' search for two finds is still about 7 s of work, each price check the same. On a runner
+  much slower than the slowest seen so far it could reach its 30 s wait again; making the engine's search
+  quicker is the way, not a longer wait.
 - **The wish page and price news** (23 November; DECISIONS, "The wish page and price news"). "See
   them" on the banner opens the Wardrobe at its top; on a phone the wishlist is below Worth buying.
   (Telling the owner on their phone when Nines is not open is not wanted: the owner said no.)

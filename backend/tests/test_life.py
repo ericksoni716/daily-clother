@@ -1,4 +1,6 @@
 """The unanswered path, and the explicit life/taste rules; no real weather calls."""
+import threading
+import time
 from copy import deepcopy
 
 import pytest
@@ -236,6 +238,40 @@ def test_cache_changes_with_answers_place_and_climate_not_laundry(client, monkey
     assert len(calls) == 4
     client.get("/api/gaps")
     assert len(calls) == 4
+
+
+def test_the_list_asked_for_again_while_it_is_worked_out_is_worked_out_once(client, monkeypatch):
+    # The Wardrobe opened, reloaded and opened again asks for the list each time, and the page that asked first may be
+    # gone: each asker used to work the same list out beside the others, so six of them took six times as long and
+    # on a slow computer the list did not come at all. Now the others wait for the one under way.
+    from closet import app as app_module
+    client.post("/api/profile", json={"profile": "demo"})
+    calls, arrived, release = [], threading.Semaphore(0), threading.Event()
+    original_analyse, original_inputs = life.analyse, app_module.closet_inputs
+
+    def analyse(*args):
+        calls.append(1)
+        assert release.wait(30)
+        return original_analyse(*args)
+
+    def closet_inputs(cfg, profile):
+        arrived.release()
+        return original_inputs(cfg, profile)
+
+    monkeypatch.setattr(life, "analyse", analyse)
+    monkeypatch.setattr(app_module, "closet_inputs", closet_inputs)
+    answers = []
+    askers = [threading.Thread(target=lambda: answers.append(client.get("/api/gaps").json())) for _ in range(4)]
+    for t in askers:
+        t.start()
+    for _ in askers:
+        assert arrived.acquire(timeout=30)
+    time.sleep(0.2)   # each is past reading the closet: working the list out, or waiting for it
+    release.set()
+    for t in askers:
+        t.join(60)
+    assert len(calls) == 1 and len(answers) == 4
+    assert all(a == answers[0] for a in answers) and answers[0]["gaps"]
 
 
 def test_never_wear_holds_back_similar_suggestions_and_undo_restores(cfg, services):

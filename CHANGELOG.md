@@ -66,6 +66,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   changed there, so a new version looked as though it had not been found. When it finds one in
   **Ask me first**, Nines starts getting it ready at once, so the banner offers it within a
   minute or two instead of up to half an hour later.
+- **What's missing comes sooner** when you open the Wardrobe again, or reload it, while Nines is
+  still working the list out: it waits for that list instead of starting another beside it, which
+  made each one slower. Until you have said how you live, **Find some**, **Check prices** and
+  **Would this work?** no longer work the list out again for every search or check; they use the
+  one the Wardrobe has, so each is a few seconds quicker.
 
 ## 0.15.0
 

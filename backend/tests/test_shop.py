@@ -17,7 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from closet import app as app_module
-from closet import db, demo, gaps, productpage, shop, spend
+from closet import db, demo, gaps, life, productpage, shop, spend
 from closet.tagger import correcting, shopping
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
@@ -1084,7 +1084,7 @@ def test_the_plan_route_may_only_search_the_web(monkeypatch):
 def test_finds_are_judged_on_the_same_weighed_list_as_would_this_work():
     # a find for a wish and the same piece described on "Would this work?" must get the same answer once the owner
     # has said how they live (a find used to be judged on the plain list, naming gaps for days they never have)
-    from closet import life, wouldwork
+    from closet import wouldwork
 
     from .test_wouldwork import demo as demo_closet
     rows, worn = demo_closet()
@@ -1101,7 +1101,55 @@ def test_finds_are_judged_on_the_same_weighed_list_as_would_this_work():
         wouldwork.check(rows, worn, p, gaps.find_gaps(rows, worn, {"max_gaps": wouldwork.ALL_GAPS}))["verdict"] for p in pieces]
 
 
-def test_the_app_gives_the_shopper_the_weighed_list(client, services, cfg):
-    assert services.shopper.weighed("main", app_module.closet_inputs(cfg, "main")) is None   # not said how they live yet
+def test_the_app_gives_the_shopper_the_list_it_keeps(client, services, cfg):
+    # the plain list until the owner has said how they live, the weighed one in the demo; either way the one the
+    # Wardrobe's list is made from, kept, so a search or a price check does not work it out again
+    plain = services.shopper.listed("main", app_module.closet_inputs(cfg, "main"))
+    assert plain["context"]["life"] is None   # not said how they live yet
+    assert services.shopper.listed("main", app_module.closet_inputs(cfg, "main")) is plain
     client.post("/api/profile", json={"profile": "demo"})
-    assert "context" in services.shopper.weighed("demo", app_module.closet_inputs(cfg, "demo"))
+    assert services.shopper.listed("demo", app_module.closet_inputs(cfg, "demo"))["context"]["life"] == life.DEMO_LIFE
+
+
+def owner_closet_like_the_demo(cfg) -> None:
+    """The owner's own closet starts as a copy of the demo closet, as the browser tests' `seed: 'demo'` makes it."""
+    demo.ensure(cfg)
+    src, dst = sqlite3.connect(cfg.db_path("demo")), sqlite3.connect(cfg.db_path("main"))
+    try:
+        src.backup(dst)
+    finally:
+        src.close()
+        dst.close()
+
+
+def test_a_search_and_a_price_check_judge_on_the_list_the_wardrobe_keeps(cfg, fake_shop, usable, pages, monkeypatch):
+    # Until the owner has said how they live, each search and each price check worked the plain list out again: a
+    # third of what judging two finds costs on the demo's closet, and with the browser tests' four files at once on a
+    # slow computer, what took the finds past their wait. The list kept for the Wardrobe is the same list.
+    owner_closet_like_the_demo(cfg)
+    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, tagger=lambda images, routes: None,
+                                   routes=lambda: usable["routes"], shop_asker=fake_shop, page_reader=pages.reader)
+    try:
+        client = TestClient(app_module.create_app(sv))
+        worked_out = []
+        plain = gaps.find_gaps
+        monkeypatch.setattr(gaps, "find_gaps", lambda *a, **kw: worked_out.append(1) or plain(*a, **kw))
+        assert client.get("/api/gaps").json()["gaps"]   # the Wardrobe's list, worked out once
+        assert len(worked_out) == 1
+        polo = product(name="Navy polo", url="https://other.example/polo", category="polo", color="navy", season="warm",
+                       rain_proof=False, material="")
+        fake_shop.finds = [product(weight_class="heavyweight"), polo]
+        wid = wish(client)
+        found = find_some(client, wid)["finds"]
+        assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+        checked = settle(client, wid)
+        assert checked["run"]["state"] == "done" and checked["finds"][0]["drop"]
+        assert len(worked_out) == 1   # neither the search nor the price check worked it out again
+        # and the finds are judged exactly as on the list worked out afresh
+        rows, worn = app_module.closet_inputs(cfg, "main")
+        afresh = shop.judge(rows, worn, [f["piece"] for f in found])
+        assert [(f["verdict"], f["reasons"]) for f in found] == [(v["verdict"], v["reasons"]) for v in afresh]
+        assert [(f["verdict"], f["reasons"]) for f in checked["finds"]] == [(v["verdict"], v["reasons"]) for v in afresh]
+        assert found[0]["verdict"] == "fills_gap"
+    finally:
+        sv.stop()

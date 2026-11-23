@@ -104,6 +104,33 @@ def test_the_check_is_weighed_once_the_owner_has_said_how_they_live(client):
     assert demo["situations"] and demo["situations_text"].startswith("It suits ")
 
 
+def test_the_check_compares_with_the_list_the_wardrobe_keeps(cfg, monkeypatch):
+    # Until the owner has said how they live, every check worked the plain list out again, seconds the Wardrobe had
+    # already spent on the same closet: it is given the kept list, and answers exactly as on one worked out afresh
+    from closet import gaps, wouldwork
+
+    from .test_shop import owner_closet_like_the_demo
+    owner_closet_like_the_demo(cfg)
+    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None)
+    try:
+        client = TestClient(app_module.create_app(sv))
+        worked_out = []
+        plain = gaps.find_gaps
+        monkeypatch.setattr(gaps, "find_gaps", lambda *a, **kw: worked_out.append(1) or plain(*a, **kw))
+        assert client.get("/api/gaps").json()["gaps"]
+        answers = [wait(client, client.post("/api/would-this-work", json={"piece": COAT}).json()["id"])["answer"]
+                   for _ in range(2)]
+        assert len(worked_out) == 1   # once, for the Wardrobe
+        rows, worn = app_module.closet_inputs(cfg, "main")
+        afresh = wouldwork.check(rows, worn, wouldwork.parse_piece(COAT))
+        for answer in answers:
+            assert answer["weighed"] is False and answer["verdict"] == "fills_gap"
+            assert {k: answer[k] for k in ("verdict", "reasons", "fills", "holds_back")} == {
+                k: afresh[k] for k in ("verdict", "reasons", "fills", "holds_back")}
+    finally:
+        sv.stop()
+
+
 def test_nothing_is_added_to_the_closet(client):
     before = client.get("/api/items").json()["items"]
     body = wait(client, client.post("/api/would-this-work", json={"piece": COAT}).json()["id"])

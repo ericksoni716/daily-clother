@@ -282,6 +282,9 @@ export function dayParts(c: DayContext): string[] {
     if (c.place) usual.push(shortPlace(c.place));
     return [...usual, 'usually, on these dates'];
   }
+  // a day ahead with no weather: "14–20°C · a mild day" (a mild day is a dry one), short enough for one line at 320
+  // so the reason under it never meets it
+  if (c.source === 'mild' && c.ahead) return [parts[0], 'a mild day'];
   if (c.source === 'mild') parts.push('a mild day');
   else if (c.place) parts.push(shortPlace(c.place));
   else if (c.source === 'given') parts.push('your temperatures');

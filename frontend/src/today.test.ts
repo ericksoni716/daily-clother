@@ -75,6 +75,9 @@ describe('the day at a glance', () => {
     // no forecast could be had: a mild day, whatever place is saved
     expect(dayParts(day({ place: null, source: 'mild', low_c: 14, high_c: 20, rain: false, rain_chance: null })))
       .toEqual(['14–20°C', 'no rain', 'a mild day']);
+    // a day ahead with no weather says only that it is dressed as a mild day, so the line stays one at 320
+    expect(dayParts(day({ place: null, source: 'mild', low_c: 14, high_c: 20, rain: false, rain_chance: null, ahead: true })))
+      .toEqual(['14–20°C', 'a mild day']);
   });
 
   it('with the forecast hour by hour: what the hours ahead feel like, when the rain falls, and the wind', () => {

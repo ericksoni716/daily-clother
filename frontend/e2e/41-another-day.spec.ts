@@ -167,7 +167,7 @@ async function firstOutfit(page: Page) {
   return (await r.json()).outfits[0].pieces as Record<string, unknown>;
 }
 
-test('the outfit heading never breaks inside its words, on Today and a day ahead, from 320 to 430', async ({ page }) => {
+test('the outfit heading never breaks inside its words, and a day ahead\'s weather reason stays clear of its weather, from 320 to 430', async ({ page }) => {
   // at 375 it read "Best for this / day · 1 of 3"; the words and the count each stay whole, whatever the width
   await openDemo(page);
   const whole = async (where: string) => {
@@ -185,8 +185,16 @@ test('the outfit heading never breaks inside its words, on Today and a day ahead
     await page.setViewportSize({ width, height: 800 });
     await page.goto('/today');
     await whole(`Today at ${width}`);
+    // Another day never runs into Today's date (it did at 320)
+    const date = (await page.locator('.today-header .count').boundingBox())!;
+    const another = (await page.getByTestId('another-day').boundingBox())!;
+    expect(another.x >= date.x + date.width || another.y >= date.y + date.height, `Today at ${width}`).toBe(true);
     await page.goto(`/today/day/${localDay(2)}`);
     await whole(`a day ahead at ${width}`);
+    // no weather in the tests: the reason under the weather line never meets it (at 320 "a mild day" once wrapped into it)
+    const parts = (await page.locator('.today-day-parts span').last().boundingBox())!;
+    const reason = (await page.getByTestId('ahead-no-weather').boundingBox())!;
+    expect(parts.y + parts.height, `a day ahead at ${width}`).toBeLessThanOrEqual(reason.y + 2);   // line boxes may touch by a pixel; the words do not
   }
 });
 

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from . import (
     additions,
+    away,
     db,
     details,
     failures,
@@ -72,6 +73,8 @@ def summary(conn, row) -> dict:
         "illustration_url": (f"/api/items/{row['id']}/illustration.svg?v={hashlib.sha256(row['illustration_svg'].encode()).hexdigest()}"
                              if row["illustration_svg"] is not None else None),
         "last_worn": worn[0], "wear_count": worn[1], "wears_since_wash": row["wears_since_wash"], "laundry": row["laundry"],
+        # where it is when not in the closet ({place, since, until}: at the cleaner's, at the tailor's, lent out), or null
+        "away": away.fields(row),
         "tag_state": row["tag_state"], "created_at": row["created_at"], "updated_at": row["updated_at"],
         # why describing failed, or why it waits (the API key's monthly limit, Claude Code's sign-in): the import list
         # on Add reads the list and says it once for all the photos just added
@@ -95,6 +98,7 @@ def detail(conn, row) -> dict:
         out[f] = row[f]
     for f in ("confidence", "source"):
         out[f] = json.loads(row[f] or "{}")
+    out.update(away.detail(conn, row))   # where it is, with the owner's note, and a return today that can be undone
     # the look, read from one place (`look`): the description the drawing was made from, with the owner's corrections
     # folded over it. `silhouette` is its coarse shape as drawn (the details decide, the coarse shape fills in) and
     # `details` its details as drawn (null when Claude has not described it), so no word on the page can disagree

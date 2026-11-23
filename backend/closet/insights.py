@@ -14,7 +14,8 @@ money is said in one place (`frontend/src/spend.ts`).
 
 This is not the gap analysis (`gaps.py`), which says what to buy; this says
 how what is owned is being used. Archived items are left out; items in the
-laundry count.
+laundry count, and so do items away, though "not worn" leaves them out while
+they are away (nothing nudges you to wear a suit at the cleaner's).
 """
 from __future__ import annotations
 
@@ -104,6 +105,7 @@ class _Piece:
     acquired: date | None = None   # the date bought, as the owner gave it on the item's page
     wears: list[date] = field(default_factory=list)   # oldest first, one per day
     everyday: bool = True     # one Today offers (gaps.everyday): only these are ever "not worn"
+    away: bool = False        # at the cleaner's, at the tailor's or lent out: still owned, never "not worn" meanwhile
 
     @property
     def last(self) -> date | None:
@@ -166,7 +168,7 @@ def _closet(items: Iterable[object], wears: Iterable[object], today: date) -> tu
             season=_get(row, "season") if _get(row, "season") in vocab.SEASON else None,
             price=price if isinstance(price, int) and not isinstance(price, bool) and price >= 0 else None,
             added=_date(_get(row, "created_at")), acquired=_date(_get(row, "acquired_on")),
-            everyday=gaps.everyday({"kind": _get(row, "kind")}))
+            everyday=gaps.everyday({"kind": _get(row, "kind")}), away=bool(_get(row, "away")))
     days: dict[str, set[date]] = {}
     for w in wears:
         item_id, day = _get(w, "item_id"), _date(_get(w, "worn_on"))
@@ -300,7 +302,7 @@ def _never_worn(pieces: list[_Piece], log: _Log, today: date) -> dict:
                                    f"{NEVER_MIN_LOG_WEARS} wears are recorded ({log.wears} so far)."}
     found, early = [], 0
     for p in pieces:
-        if p.wears or not p.everyday or (p.added is not None and (today - p.added).days < RECENT_DAYS):
+        if p.wears or not p.everyday or p.away or (p.added is not None and (today - p.added).days < RECENT_DAYS):
             continue
         since = max(p.added, log.first) if p.added else log.first
         if season_days(since, today, p.season) < NEVER_MIN_SEASON_DAYS:
@@ -346,7 +348,7 @@ def _not_worn_lately(pieces: list[_Piece], log: _Log, today: date) -> dict:
                                    "wear."}
     found = []
     for p in pieces:
-        if not p.wears or not p.everyday:
+        if not p.wears or not p.everyday or p.away:
             continue
         n = season_days(p.last, today, p.season)
         if n >= NEGLECT_DAYS:

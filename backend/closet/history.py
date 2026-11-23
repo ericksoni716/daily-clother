@@ -188,6 +188,16 @@ def listing(conn, item_id: str) -> list[dict]:
             # Claude growing more or less sure of a value it already gave is not worth a line
             "parts": [q for q in map(_public_part, parts) if not (q["same"] and e["by"] == "claude")],
         })
+    # when it went away and came back (`away.py`), among the changes in time order; their ids are below zero, so
+    # they never meet a change's, and they are not undone here (the item's row of where it is undoes a return)
+    from . import away
+    went = away.history(conn, item_id)
+    for a in went:
+        out.append({"id": -a["id"], "at": a["at"], "by": "owner", "kind": "away", "sentence": None, "undoes": None,
+                    "undone": False, "can_undo": False, "why_not": None, "first_description": False, "parts": [],
+                    "away": {"event": a["event"], "place": a["place"], "by": a["by"]}})
+    if went:
+        out.sort(key=lambda e: e["at"])
     out.reverse()
     return out
 

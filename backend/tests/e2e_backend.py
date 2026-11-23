@@ -33,8 +33,9 @@ found is checked against a closet with something in it (the demo closet itself n
 A product's page sent as a link is never fetched from the web, with or without the other stand-ins (`ShopPages`):
 shop.example is the only name that can be found, and its made-up pages are a linen shirt whose structured data gives
 its price ($68.00 the first time it is read, then 20% lower each time it is read again), a shirt with a very long
-name and a shirt whose banner shows a checkout code, 40% off (the same prices), and a page with no price, which goes
-to Claude's stand-in (a price check, $80.00). Once a page has given a name, Claude's stand-in describes it after a
+name and a shirt whose banner shows a checkout code, 40% off (the same prices), a shirt whose page takes three seconds
+to answer (the same prices, so a test can see a wish named after the product while the page that showed it waits for
+the run to end), and a page with no price, which goes to Claude's stand-in (a price check, $80.00). Once a page has given a name, Claude's stand-in describes it after a
 second: a white casual linen shirt, whatever the page.
 
 Finding the pieces in a photo of several is a stand-in too: after a second it gives the boxes of
@@ -333,7 +334,10 @@ SHOP_PAGE_NAMES = {
     "https://shop.example/long-name": ("Heavyweight garment-dyed linen camp-collar short-sleeve shirt in washed sand with "
                                        "horn-effect buttons and a boxy cropped fit"),
     "https://shop.example/code-shirt": "Linen shirt with a code",
+    "https://shop.example/slow-shirt": "Slowly read linen shirt",
 }
+# pages that take a while to answer, so the page that sent the link has asked for the wishlist before they are read
+SLOW_SHOP_PAGES = {"https://shop.example/slow-shirt"}
 # what a page's text shows besides its structured data: a banner with a checkout code (made-up codes)
 SHOP_PAGE_TEXT = {
     "https://shop.example/long-name": '<div class="banner"><p>Take 40% off everything with code TESTWEEKEND40</p></div>',
@@ -387,6 +391,8 @@ class ShopPages:
         elif slug in SALE_PAGES:
             text = sale_page(slug)
         elif url in SHOP_PAGE_NAMES:
+            if url in SLOW_SHOP_PAGES:
+                time.sleep(3)
             n = self.reads.get(url, 0)
             self.reads[url] = n + 1
             data = {"@context": "https://schema.org", "@type": "Product", "name": SHOP_PAGE_NAMES[url],

@@ -10,7 +10,7 @@ import { touch, useItems } from '../queries';
 import {
   canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, googleShoppingLink,
   historyWords, lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll,
-  type ShopRun, typedCode, typedPrice, watchWords, webLink,
+  type ShopRun, typedCode, typedPrice, watchWords, webLink, wishlistAgain,
 } from '../shop';
 import { SEARCH_SENDS } from '../shop';
 import { aboutUsd } from '../spend';
@@ -88,7 +88,7 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   const addLink = useMutation({ mutationFn: (url: string) => api.addLinkTo(wish.id, url), onSuccess: (a) => qc.setQueryData(key, a) });
   const starting = begin.isPending || addLink.isPending;
   const running = answer?.run?.state === 'running';
-  const wasRunning = useRef(false);
+  const lastRun = useRef<Pick<ShopRun, 'state' | 'step'> | null>(null);
   const answered = useRef(false);
   const watching = !locked && profile !== 'demo';
 
@@ -99,19 +99,19 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   }, [watching, wish.id, seen]);
 
   useEffect(() => {
-    const run = answer?.run;
-    if (wasRunning.current && run && run.state !== 'running') {
-      toast(runDoneWords(run, wish.name), run.state === 'failed' ? 'error' : undefined);
-      // the wish's name (a link names it) and its row's price may have changed
-      void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
-      if (watching) seen([wish.id]).catch(() => undefined);
-    } else if (!answered.current && run && run.state !== 'running') {
-      // one that ended before the page first asked (a link read in the moment the page took to open): the list may
-      // have been read before it ended, so it is asked for again, once
+    if (!answer) return;
+    const run = answer.run;
+    // the wish's name (a link's page names it) and its row's price may have changed: asked for again as soon as the
+    // pages are read, not only when the run ends (src/shop.ts, wishlistAgain)
+    if (wishlistAgain(answered.current ? lastRun.current : undefined, run)) {
       void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
     }
-    if (answer) answered.current = true;
-    wasRunning.current = run?.state === 'running';
+    if (lastRun.current?.state === 'running' && run && run.state !== 'running') {
+      toast(runDoneWords(run, wish.name), run.state === 'failed' ? 'error' : undefined);
+      if (watching) seen([wish.id]).catch(() => undefined);
+    }
+    answered.current = true;
+    lastRun.current = run ? { state: run.state, step: run.step } : null;
   }, [answer, toast, wish.name, wish.id, qc, watching, seen]);
 
   async function stop(f: Find) {

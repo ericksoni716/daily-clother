@@ -103,6 +103,20 @@ export function shopPoll(answer: Pick<FindsAnswer, 'run'> | null | undefined): n
   return answer?.run?.state === 'running' ? SHOP_POLL_MS : false;
 }
 
+/**
+ * Whether the wishlist (where a wish's name and its row's price come from) is asked for again, from the run in the
+ * finds answer before (`undefined` when there was no answer yet, null when it had no run) and now: as soon as the run
+ * moves on from reading the pages (a link's page has named the wish by then), at each later step, when a run ends,
+ * and when the first answer shows one already past its reading (the list may have been read before). Once per change.
+ */
+export function wishlistAgain(before: Pick<ShopRun, 'state' | 'step'> | null | undefined,
+  now: Pick<ShopRun, 'state' | 'step'> | null | undefined): boolean {
+  if (!now) return false;
+  if (now.state !== 'running') return before === undefined || before?.state === 'running';
+  if (!now.step || now.step === 'page') return false;
+  return !before || before.state !== 'running' || before.step !== now.step;
+}
+
 /** "$120.00", "€89.50"; the currency's code when the browser does not know it. With the checkout code the price is
  * after: "$106.20 with code SAVE40". */
 export function priceWords(price: number | null | undefined, currency: string, code?: string | null): string {

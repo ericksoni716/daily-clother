@@ -199,6 +199,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **A wish made from a link is named at once.** It shows the product's name as soon as Nines has read
+  its page, not only when Claude has finished describing it.
 - **A trip under way stays as it is.** Opening a trip on its third day no longer says the forecast
   changed when only the days already gone have left the forecast, and "Plan again" no longer dresses
   those days again for "usual" weather they never had. The days gone keep their outfits, the days

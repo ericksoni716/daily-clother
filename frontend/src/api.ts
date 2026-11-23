@@ -439,6 +439,9 @@ export const api = {
     request<FindOutfits>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}/outfits`),
   removeFind: (id: string, findId: string) =>
     request<void>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}`, { method: 'DELETE' }),
+  /** Undo "Stop watching": the find back as it was, with its price history, while Nines has kept running. */
+  restoreFind: (id: string, findId: string) =>
+    request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}/restore`, { method: 'POST' }),
   /** A checkout code you typed for a find, with its percent or its amount off (it marks the wish's news seen). */
   setFindCode: (id: string, findId: string, code: { code: string; percent?: number; amount?: number }) =>
     request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}/code`, { method: 'PUT', body: code }),

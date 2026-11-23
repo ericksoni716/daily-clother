@@ -266,6 +266,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   as before and the piece you chose stays where it was on the screen, instead of the grid folding to
   three across and showing other clothes. The panel has **Close**, Escape closes it, and Back closes
   it too; focus goes into the panel as it opens and back to the piece when it closes.
+- **Stop watching can be undone.** On a wish's page, a find you stop watching no longer vanishes at
+  once: it stays in its place saying so, with **Undo**, which puts it back with its price history and
+  its code.
 - **Would this work? remembers.** A reload, or your phone closing the app, no longer forgets what you
   described and the answer: they are kept on this device for the rest of the day, until you tap
   **Check another piece**.

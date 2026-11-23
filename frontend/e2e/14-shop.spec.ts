@@ -167,6 +167,20 @@ test.describe('shopping for a wish', () => {
     await wish.getByRole('button', { name: 'Check now' }).click();
     await expect(find.getByTestId('find-drop')).toHaveText('Was $68.00, now $54.40 (20% less)', { timeout: 30_000 });
 
+    // Stop watching can be undone (the review of 23 November, A8): the find stays in its place saying so, Undo has the
+    // focus, and Undo puts it back as it was, its price history and its drop with it
+    const top = (await find.boundingBox())!.y;
+    await find.getByRole('button', { name: 'Stop watching' }).click();
+    await expect(find.getByTestId('find-stopped')).toContainText('You stopped watching it');
+    await expect(find.getByRole('button', { name: 'Undo' })).toBeFocused();
+    expect((await find.boundingBox())!.y).toBe(top);
+    const wishId = page.url().split('/wardrobe/wish/')[1];
+    await expect.poll(async () => (await (await page.request.get(`${backend.url}/api/wishlist/${wishId}/finds`)).json()).finds.length).toBe(0);
+    await find.getByRole('button', { name: 'Undo' }).click();
+    await expect(find.getByTestId('find-stopped')).toHaveCount(0);
+    await expect(find.getByRole('button', { name: 'Stop watching' })).toBeVisible();
+    await expect(find.getByTestId('find-drop')).toHaveText('Was $68.00, now $54.40 (20% less)');
+
     // Would it go with my clothes? starts from the product's name on the page that was sent
     await wish.getByRole('button', { name: 'Would it go with my clothes?' }).click();
     await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);

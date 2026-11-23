@@ -57,6 +57,7 @@ import logging
 import re
 import sqlite3
 import threading
+import time
 import traceback
 import uuid
 from collections.abc import Callable, Mapping
@@ -860,9 +861,51 @@ def due(conn: sqlite3.Connection, now: datetime) -> list[str]:
 NO_SUCH_FIND = "That find is not kept with this wish."
 
 
-def remove_find(conn: sqlite3.Connection, wish_id: str, find_id: str) -> None:
-    if not conn.execute("DELETE FROM finds WHERE id = ? AND wish_id = ?", (find_id, wish_id)).rowcount:
-        raise ItemError(NO_SUCH_FIND, 404)
+NOT_PUT_BACK = "That find can no longer be put back. Search again, or add its link, to watch it."
+WATCHED_AGAIN = "That page is being watched for this wish again already."
+# how long, and how many, finds you stopped watching can be put back (Undo), while Nines keeps running
+UNDO_KEEP_S = 3600
+UNDO_KEEP_MAX = 20
+
+
+def remove_find(conn: sqlite3.Connection, wish_id: str, find_id: str) -> dict:
+    """"Stop watching": the find goes, and with it its daily check. Gives back what was removed, the find and every
+    price kept for it, for `restore_find` (Undo)."""
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        row = conn.execute("SELECT rowid AS row_at, * FROM finds WHERE id = ? AND wish_id = ?", (find_id, wish_id)).fetchone()
+        if row is None:
+            raise ItemError(NO_SUCH_FIND, 404)
+        prices = [dict(p) for p in conn.execute("SELECT * FROM find_prices WHERE find_id = ? ORDER BY id", (find_id,))]
+        conn.execute("DELETE FROM finds WHERE id = ?", (find_id,))
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    return {"find": dict(row), "prices": prices}
+
+
+def restore_find(conn: sqlite3.Connection, wish_id: str, removed: Mapping) -> None:
+    """Puts back a find `remove_find` took away, as it was: in its place among the wish's finds, with its whole price
+    history and its code. 404 when the wish has gone since; 409 when the same page is watched for it again."""
+    find = dict(removed["find"])
+    row_at = find.pop("row_at")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if conn.execute("SELECT 1 FROM wishes WHERE id = ?", (wish_id,)).fetchone() is None:
+            raise ItemError(NOT_PUT_BACK, 404)
+        if conn.execute("SELECT 1 FROM finds WHERE wish_id = ? AND url = ?", (wish_id, find["url"])).fetchone():
+            raise ItemError(WATCHED_AGAIN, 409)
+        taken = conn.execute("SELECT 1 FROM finds WHERE rowid = ?", (row_at,)).fetchone() is not None
+        columns = ([] if taken else ["rowid"]) + list(find)   # its old place, unless a newer find has it
+        values = ([] if taken else [row_at]) + list(find.values())
+        conn.execute(f"INSERT INTO finds ({', '.join(columns)}) VALUES ({', '.join('?' * len(columns))})", values)
+        for p in removed["prices"]:
+            conn.execute(f"INSERT INTO find_prices ({', '.join(p)}) VALUES ({', '.join('?' * len(p))})", list(p.values()))
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
 
 
 def set_code(conn: sqlite3.Connection, wish_id: str, find_id: str, code: object, percent: object, amount: object,
@@ -1523,10 +1566,32 @@ def router(shopper: Shopper, state: State, conn_dep: Callable) -> APIRouter:
         # the outfit engine over the kinds of day, a second or so: a plain route, so it runs off the event loop
         return shopper.outfits(state.get("profile"), wish_id, find_id)
 
+    # the finds stopped watching, kept while Nines runs so Undo can put them back: (closet, wish, find) -> (when, what)
+    stopped: dict[tuple[str, str, str], tuple[float, dict]] = {}
+    stopped_lock = threading.Lock()
+
     @r.delete("/api/wishlist/{wish_id}/finds/{find_id}", status_code=204)
     def delete_find(wish_id: str, find_id: str, conn=Depends(conn_dep)):
-        remove_find(conn, wish_id, find_id)
+        removed = remove_find(conn, wish_id, find_id)
+        now = time.monotonic()
+        with stopped_lock:
+            for k in [k for k, (at, _) in stopped.items() if now - at > UNDO_KEEP_S]:
+                del stopped[k]
+            stopped[(state.get("profile"), wish_id, find_id)] = (now, removed)
+            while len(stopped) > UNDO_KEEP_MAX:
+                del stopped[min(stopped, key=lambda k: stopped[k][0])]
         return Response(status_code=204)
+
+    @r.post("/api/wishlist/{wish_id}/finds/{find_id}/restore")
+    def put_back_find(wish_id: str, find_id: str, conn=Depends(conn_dep)):
+        """Undo "Stop watching": the find back as it was, with its price history. 404 once it cannot be."""
+        profile = state.get("profile")
+        with stopped_lock:
+            held = stopped.pop((profile, wish_id, find_id), None)
+        if held is None or time.monotonic() - held[0] > UNDO_KEEP_S:
+            raise ItemError(NOT_PUT_BACK, 404)
+        restore_find(conn, wish_id, held[1])
+        return payload(conn, profile, wish_id)
 
     @r.put("/api/wishlist/{wish_id}/finds/{find_id}/code")
     def put_code(wish_id: str, find_id: str, body: CodeBody, conn=Depends(conn_dep)):

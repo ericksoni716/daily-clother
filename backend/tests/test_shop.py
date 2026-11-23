@@ -314,6 +314,33 @@ def test_a_find_can_be_removed_and_goes_with_its_wish(client, cfg):
     conn.close()
 
 
+def test_stop_watching_can_be_undone_with_the_find_and_its_price_history(client):
+    # the review of 23 November (A8): "Stop watching" took a find and its prices away at once, with no way back
+    wid = wish(client)
+    find_some(client, wid)
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    before = settle(client, wid)["finds"]
+    first = before[0]
+    assert first["history"]
+    assert client.delete(f"/api/wishlist/{wid}/finds/{first['id']}").status_code == 204
+    r = client.post(f"/api/wishlist/{wid}/finds/{first['id']}/restore")
+    assert r.status_code == 200, r.text
+    assert r.json()["finds"] == before   # the same find, in the same place, with its whole price history
+    # once only, and only a find that was stopped
+    assert client.post(f"/api/wishlist/{wid}/finds/{first['id']}/restore").status_code == 404
+    assert client.post(f"/api/wishlist/{wid}/finds/nope/restore").status_code == 404
+    # nor while a search has found the same page again
+    assert client.delete(f"/api/wishlist/{wid}/finds/{first['id']}").status_code == 204
+    again = [f for f in find_some(client, wid)["finds"] if f["url"] == first["url"]]
+    assert again   # the stand-in finds the same products every time
+    r = client.post(f"/api/wishlist/{wid}/finds/{first['id']}/restore")
+    assert r.status_code == 409 and r.json()["detail"] == shop.WATCHED_AGAIN
+    # nor once its wish has gone
+    assert client.delete(f"/api/wishlist/{wid}/finds/{again[0]['id']}").status_code == 204
+    assert client.delete(f"/api/wishlist/{wid}").status_code == 204
+    assert client.post(f"/api/wishlist/{wid}/finds/{again[0]['id']}/restore").status_code == 404
+
+
 def test_removing_a_find_during_a_price_check_keeps_the_other_prices(client, fake_shop, monkeypatch):
     wid = wish(client)
     first, second = find_some(client, wid)["finds"]

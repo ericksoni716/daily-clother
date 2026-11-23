@@ -119,12 +119,13 @@ def _line(n: int, item: dict, p: outfits.Piece, days_ago: int | None) -> str:
 def listed(rows: list[dict], ctx: outfits.Context) -> Listed:
     """The closet as Claude is given it: every piece that can be worn today, in the order of the outfit's places
     (tops, bottoms, shoes, accessories), then by name. A piece the owner builds around is in it whatever its state,
-    as for the engine."""
+    as for the engine, and so is one kept from an outfit worn again that Nines never chooses by itself (tennis shoes)."""
     order = {place: i for i, place in enumerate((*outfits.PLACES, "accessory"))}
     found = []
     for item in rows:
         p = outfits._piece(item) if isinstance(item, dict) else None
-        if p is None or (outfits._unavailable(item, ctx) and p.id != ctx.build_around):
+        why = outfits._unavailable(item, ctx) if p is not None else None
+        if p is None or (why and p.id != ctx.build_around and not (p.id in ctx.keep and why in outfits.ASKED_FOR_ONLY)):
             continue
         places = places_of(p)
         if places:

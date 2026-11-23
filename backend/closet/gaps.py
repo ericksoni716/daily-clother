@@ -222,7 +222,7 @@ OCCASION_ADJ = {"athletic": "sport", "casual": "casual", "smart_casual": "smart 
                 "formal": "formal"}
 PLACE_NOUN = {"base": ("top", "tops"), "mid": ("middle layer", "middle layers"), "outer": ("coat or jacket", "coats and jackets"),
               "bottom": ("bottoms", "bottoms"), "shoes": ("shoes", "shoes")}
-PLURAL_CATEGORIES = ("jeans", "trousers", "shorts", "sneakers", "boots", "dress_shoes", "sandals")
+PLURAL_CATEGORIES = outfits.PLURAL_CATEGORIES   # pieces spoken of as a pair, the same in Today's sentences
 NUMBER = {0: "no", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
 # Places an item needs partners in to make an outfit, and places a new piece would go with.
 NEEDS = {"base": ("bottom", "shoes"), "mid": ("base", "bottom", "shoes"), "outer": ("base", "bottom", "shoes"),
@@ -338,12 +338,8 @@ def _your(p: outfits.Piece) -> str:
     return f"your {p.label}"
 
 
-def _plural(p: outfits.Piece) -> bool:
-    return p.category in PLURAL_CATEGORIES
-
-
-def _be(pieces: list[outfits.Piece]) -> str:
-    return "are" if len(pieces) > 1 or (pieces and _plural(pieces[0])) else "is"
+_plural = outfits.plural   # shared with Today's sentences
+_be = outfits.be
 
 
 def _cap(s: str) -> str:

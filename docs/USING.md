@@ -87,14 +87,16 @@ piece opens it (`/today/item/<id>`).
 Temperatures can be typed when the forecast cannot be fetched. The demo closet's outfits are
 the rules' alone; nothing about it is sent to Claude. Swim trunks (and what you wear at home)
 are never in the day's outfits, by the rules or by Claude, unless you build an outfit around
-them; a trip packs them for swimming. Shoes made for one sport (tennis shoes, golf shoes and
-studded boots) are left out in the same way, even on an athletic day.
+them or wear again an outfit they were in; a trip packs them for swimming. Shoes made for one sport (tennis shoes, golf shoes and
+studded boots) are left out in the same way, even on an athletic day; when nothing made for
+sport is clean, an athletic day's outfit says which pieces are a makeshift.
 
 ## Worn
 
 `/today/worn`, from "See all" under Recent outfits; "‹ Today" goes back. The outfits you
 wore, newest first, each with its pieces, how it went (a rating and a note), and, behind ⋯,
-"Wear this again", a way to put its pieces in the laundry, and Remove. "Record an outfit"
+"Wear this again" (Today keeps the pieces you can wear today, and fills the place of one in the
+wash or waiting to be mended), a way to put its pieces in the laundry, and Remove. "Record an outfit"
 adds one by hand from pieces.
 
 ## Trips

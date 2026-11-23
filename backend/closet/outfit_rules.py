@@ -131,11 +131,17 @@ class Band:
     accessories: tuple[str, ...] = ()  # accessories to add (hat, scarf)
     shoes: tuple[tuple[str, str | None], ...] = ()    # (category, kind) the band names, preferred
     bottoms: tuple[tuple[str, int | None], ...] = ()  # (category, heaviest weight class) the band names, preferred
+    layer: bool = False               # a layer over the base is asked for, not optional ("base + light mid or light outer")
 
     @property
     def bare(self) -> bool:
         """Nothing over the base: the hot band."""
         return self.mid == "no" and self.outer == "no"
+
+    @property
+    def asks_layer(self) -> bool:
+        """The band asks for something over the base: a mid or an outer layer it requires, or one of the two."""
+        return self.layer or self.mid == "must" or self.outer == "must"
 
 
 @dataclass(frozen=True)
@@ -264,7 +270,7 @@ def _band(entry: dict, unread: list) -> Band | None:
     must: set[str] | None = None
     weights: dict[str, tuple[int, int]] = {}
     fabrics, accessories, shoes, bottoms = 0, [], [], []
-    bare, any_layers = False, False
+    bare, any_layers, layer = False, False, False
     for clause in (c.strip().lower() for c in text.split(";")):
         if not clause:
             continue
@@ -292,6 +298,7 @@ def _band(entry: dict, unread: list) -> Band | None:
             if not optional:
                 common = set.intersection(*alts) if alts else set()
                 must = common if must is None else must | common
+                layer = layer or bool(alts) and all(alt & {"mid", "outer"} for alt in alts)
         for name, (cat, kind) in _SHOE_TERMS.items():
             if re.search(rf"\b{name}\b", clause):
                 shoes.append((cat, kind))
@@ -322,7 +329,7 @@ def _band(entry: dict, unread: list) -> Band | None:
         return "must" if place in must else "may"
 
     return Band(float(high), text, state("mid"), state("outer"), weights, fabrics, tuple(dict.fromkeys(accessories)),
-                tuple(dict.fromkeys(shoes)), tuple(dict.fromkeys(bottoms)))
+                tuple(dict.fromkeys(shoes)), tuple(dict.fromkeys(bottoms)), layer)
 
 
 def _levels(outfit: dict, unread: list) -> tuple[str, ...]:

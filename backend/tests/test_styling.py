@@ -1,6 +1,7 @@
 """Outfits chosen by Claude: the brief the stylist reads and the check of its answer (closet/styling.py), the question
 itself (closet/tagger/stylist.py) and the developer tool that tries it on the demo closet (tools/style_demo_days.py).
 Claude is always stood in for."""
+import dataclasses
 import importlib.util
 import json
 from datetime import date
@@ -96,6 +97,15 @@ def test_swim_trunks_are_never_listed_for_the_stylist_even_on_a_hot_day():
     listing = styling.listed(rows, context(low_c=24, high_c=31))
     assert "b3" not in listing.ids and "b1" in listing.ids
     assert "b3" in styling.listed(rows, context(low_c=24, high_c=31, build_around="b3")).ids   # unless built around
+
+
+def test_tennis_shoes_kept_from_an_outfit_worn_again_are_listed_for_the_stylist():
+    # the engine keeps them in the outfit worn again (today.again_of); Claude is told it must, so it must see them
+    rows = closet() + [item("s3", "Tennis shoes", "sneakers", color="white", kind="tennis_shoe"),
+                       item("s4", "Worn sneakers", "sneakers", color="white", condition="needs_repair")]
+    assert "s3" not in styling.listed(rows, context()).ids
+    again = dataclasses.replace(context(), keep=("t1", "s3", "s4"))
+    assert "s3" in styling.listed(rows, again).ids and "s4" not in styling.listed(rows, again).ids
 
 
 def test_tennis_shoes_are_never_listed_for_the_stylist_even_for_an_athletic_day():

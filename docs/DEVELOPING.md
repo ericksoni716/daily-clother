@@ -64,7 +64,7 @@ note), `stylist.py` (the outfits, and the style conversation), `shopping.py` (sh
 
 `drawing/` draws. `templates.py` (the garment shapes), `illustrate.py` and `fills.py` (shape
 plus fill), `added.py` (the parts Claude drew onto a drawing, read safely; the grid and the shape in words it is shown), `item.py` (one item, as the app calls it), `stored.py` (a measured pattern as a
-fill), `accessories.py`; the figure: `figure.py`, `fitting.py`, `worn.py`; shoes: `trace.py`,
+fill), `wordpattern.py` (a plain stripe or plaid from a find's pattern word), `accessories.py`; the figure: `figure.py`, `fitting.py`, `worn.py`; shoes: `trace.py`,
 `traced.py`, `sideshoe.py` (traced from the side), `frontshoe.py` (the template seen from the
 front), `drawn.py`, `turned.py`, `photocheck.py` (drawn by Claude), with worked examples in
 `shoe_examples/`, and `drawnside.py` (the side drawn by Claude: its frame on the card, made
@@ -177,8 +177,9 @@ Some backend tests carry the `slow` marker: pure image tests that take seconds e
 not depend on the computer they run on. Today that is all of `test_patterns.py` (measuring
 stripes, plaid and prints), the image tests in `test_trace.py` that take over a second
 (shoe tracing; a few cheap ones stay unmarked so every pull request still traces a shoe),
-`test_shoedrawing_turned.py` (shoes drawn by Claude), and the few tests in `test_turned.py`
-and `test_surface.py` that take seconds. A whole file is marked with
+`test_shoedrawing_turned.py` (shoes drawn by Claude), `test_figure_layers.py` (how much of a
+layer under an open coat shows, read from the figure as a picture), and the few tests in
+`test_turned.py` and `test_surface.py` that take seconds. A whole file is marked with
 `pytestmark = pytest.mark.slow` at the top; a single test with `@pytest.mark.slow`.
 
 A test gets the marker only when it is an image algorithm with no platform code in it, it
@@ -248,6 +249,16 @@ CI's system font (DejaVu Sans) is wider than a developer's may be (Inter, say), 
 measures a layout, such as a button above the tab bar, should leave room, and so should the
 layout. To run a spec with the wide font, hide Inter from the browser with `e2e/wide-font.conf`:
 `FONTCONFIG_FILE=$PWD/e2e/wide-font.conf npm run e2e -- e2e/10-today.spec.ts` (in `frontend/`).
+
+The tests' own calls (`page.request`, `request`) each go on a connection of their own
+(`asThePage` in `fixtures.ts`): the server closes a connection idle for 5 seconds, and a call
+sent on a kept one in that moment fails with a reset connection that the owner never meets.
+A screen must not wait for a run to end to show what the server already knows: a wish is
+named as soon as its link's page is read, while Claude is still describing it.
+A test that measures where something sits first puts the page where it needs it (`scrollIntoView` on what it will
+tap): a click scrolls its own target into view, and from wherever earlier steps left the page that moves it.
+A step waits for the answer it asked for, not for what is on the page: Today keeps the last answer up while it asks
+(`.today-outfits.is-asking`), and a tab's first page moves from the closet to Today by itself (`src/landing.ts`).
 
 There is nothing to log in to. A spec that opens the page by a Tailscale name gives the headers
 Tailscale Serve would (`extraHTTPHeaders`, as `18-phone-qr.spec.ts` does); without them the

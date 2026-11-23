@@ -7,6 +7,10 @@ export const CLIENT = { 'X-Closet-Client': '1' };
 /**
  * The tests' own calls (`page.request`, `request`) send the page's header, so they are let in as the page is. Only
  * those calls: the page itself is never given it, so a call the page makes without it fails the test.
+ *
+ * Each of them also goes on a connection of its own (`Connection: close`). The server closes a connection left idle
+ * for 5 seconds (uvicorn's keep-alive), and a call sent on a kept one in that moment fails with ECONNRESET; with no
+ * kept connection there is nothing to meet it, whatever the method (a retry could not be made safe for a POST).
  */
 export function asThePage(request: APIRequestContext): APIRequestContext {
   const calls = new Set(['get', 'head', 'post', 'put', 'patch', 'delete', 'fetch']);
@@ -16,7 +20,7 @@ export function asThePage(request: APIRequestContext): APIRequestContext {
       if (typeof value !== 'function') return value;
       if (typeof prop !== 'string' || !calls.has(prop)) return value.bind(target);
       return (url: unknown, options: { headers?: Record<string, string> } = {}) =>
-        value.call(target, url, { ...options, headers: { ...CLIENT, ...options.headers } });
+        value.call(target, url, { ...options, headers: { ...CLIENT, Connection: 'close', ...options.headers } });
     },
   });
 }

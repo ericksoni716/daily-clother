@@ -185,6 +185,41 @@ test.describe('shopping for a wish', () => {
     await expect(page.getByTestId('wishlist').getByTestId('wish-drop')).toHaveCount(down);
   });
 
+  // The wish is named after the product as soon as its page is read, not when Claude has finished describing it: the
+  // page takes three seconds to read (ShopPages' slow shirt), so the wishlist was asked for before, and the run is
+  // held in its describing step here for as long as the test looks.
+  test("a wish made from a link carries the product's name while Claude is still describing it", async ({ page }) => {
+    test.setTimeout(90_000);
+    expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const finds = /\/api\/wishlist\/[^/]+\/finds$/;   // only the finds themselves, not a find's outfits or its code
+    await page.route(finds, async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const answer = await route.fetch();
+      const body = await answer.json();
+      if (body.run && body.run.state !== 'running') {
+        // the run ended: answered as still describing, with what the page gave
+        body.run = { ...body.run, state: 'running', step: 'describe', message: null, added: null, finished_at: null };
+      }
+      await route.fulfill({ response: answer, json: body });
+    });
+    await page.goto(backend.url + '/wardrobe/wishlist');
+    const wishlist = page.getByTestId('wishlist');
+    await wishlist.getByRole('button', { name: 'Add a link' }).click({ timeout: 30_000 });
+    const box = wishlist.getByRole('form', { name: 'Add a link' });
+    await box.getByLabel("The address of a product's page").fill('https://shop.example/slow-shirt');
+    await box.getByRole('button', { name: 'Add to the list' }).click();
+    await expect(page).toHaveURL(/\/wardrobe\/wish\//);
+    const wish = page.getByTestId('wish');
+    const describing = wish.getByRole('status').filter({ hasText: 'Claude is describing it…' });
+    await expect(wish.getByTestId('find')).toContainText('Example Shop · $68.00', { timeout: 30_000 });
+    await expect(describing).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: 'Slowly read linen shirt', level: 1 })).toBeVisible({ timeout: 10_000 });
+    // still describing: the name came with the page's reading, not with the run's end
+    await expect(describing).toBeVisible();
+    await page.unroute(finds);
+  });
+
   test('a link shared from another app opens the box filled in, and nothing is added without a tap', async ({ page }) => {
     test.setTimeout(120_000);
     expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);

@@ -1152,7 +1152,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             full.append((cx, a[1] + (b[1] - a[1]) * t))
     full.append(run[-1])
     past = max(0.0, cx - min(x for x, _ in edge))             # how far a front reaches past the centre
-    turn = max(0.5, (half - 0.21 * half) / (half + past))     # the fronts end up about a fifth of the chest apart
+    turn = max(0.5, (half - shape.apart * half) / (half + past))   # the fronts end up about a fifth of the chest apart
     hinge = {+1: cx + half, -1: cx - half}
     mat = {side: f"matrix({turn:.4f} 0 0 1 {hinge[side] * (1 - turn):.2f} 0)" for side in (+1, -1)}
     flip = f"matrix(-1 0 0 1 {2 * cx:.1f} 0)"

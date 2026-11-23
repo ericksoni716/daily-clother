@@ -7,7 +7,7 @@ import {
   atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, googleShoppingLink,
   historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
   runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, typedPrice, watchWords,
-  webLink, wishlistWords, withinWords,
+  webLink, wishlistAgain, wishlistWords, withinWords,
 } from './shop';
 import { timeOf } from './today';
 
@@ -58,6 +58,38 @@ describe('asking for the finds again', () => {
   it('does not ask again when nothing was ever started, or nothing has been read', () => {
     expect(shopPoll({ run: null })).toBe(false);
     expect(shopPoll(undefined)).toBe(false);
+  });
+});
+
+describe('asking for the wishlist again', () => {
+  type Seen = Parameters<typeof wishlistAgain>[0];
+  const page = { state: 'running', step: 'page' } as const;
+  const started = { state: 'running', step: null } as const;
+  const describing = { state: 'running', step: 'describe' } as const;
+  const claude = { state: 'running', step: 'claude' } as const;
+  const done = { state: 'done', step: 'describe' } as const;
+  const failed = { state: 'failed', step: 'page' } as const;
+  // [what it is, the run before (undefined: no answer yet), the run now, asked again]
+  const table: [string, Seen, Seen, boolean][] = [
+    ['first answer, just started', undefined, started, false],
+    ['first answer, still on the page', undefined, page, false],
+    ['first answer, already past the page', undefined, describing, true],
+    ['first answer without a run', undefined, null, false],
+    ['still on the page', page, page, false],
+    ['moved from starting to the page', started, page, false],
+    ['moved to describing', page, describing, true],
+    ['still describing', describing, describing, false],
+    ['moved to Claude reading the price', page, claude, true],
+    ['moved from Claude reading the price to describing', claude, describing, true],
+    ['ended', describing, done, true],
+    ['failed', page, failed, true],
+    ['ended before the first answer', undefined, done, true],
+    ['still ended', done, done, false],
+    ['ended, after an answer without a run', null, done, false],
+    ['a new run past its page after one ended', done, describing, true],
+  ];
+  it.each(table)('%s', (_, before, now, again) => {
+    expect(wishlistAgain(before, now)).toBe(again);
   });
 });
 

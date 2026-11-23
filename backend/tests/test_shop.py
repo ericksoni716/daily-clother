@@ -1724,3 +1724,34 @@ def test_a_judged_find_comes_back_with_the_outfits_made_with_it(client, services
     assert client.get(f"/api/wishlist/nope/finds/{find['id']}/outfits").status_code == 404
     r = client.get(f"/api/wishlist/{wid}/finds/{link}/outfits")
     assert r.status_code == 409 and r.json()["detail"] == shop.NOT_DESCRIBED
+
+
+def test_a_striped_finds_outfits_are_drawn_with_its_stripes(client, services, cfg):
+    """A find carries its pattern word into the outfits made with it, and the figure draws it striped (a plain,
+    typical stripe from the words: `drawing.wordpattern`); the same find described as plain is drawn in one colour."""
+    from .conftest import upload
+    from .test_wouldwork import demo as demo_items
+    services.shopper.closet = lambda profile: demo_items()
+    wid = wish(client, name="A striped shirt")
+    striped = shop.clean_find(product(name="Striped poplin shirt", category="shirt", color="light_blue",
+                                      pattern="stripe", formality="casual", rain_proof=False, url="https://shop.example/s"))
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        shop.save_finds(conn, wid, [striped], [{"verdict": "adds", "verdict_words": "Adds something", "reasons": [],
+                                                "outfits": 3, "checked_at": db.now()}])
+    finally:
+        conn.close()
+    find = client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]
+    body = client.get(f"/api/wishlist/{wid}/finds/{find['id']}/outfits").json()
+    assert body["piece"]["pattern"] == "stripe"
+    place = next(p for p, v in body["outfits"][0]["pieces"].items() if v == "~candidate")
+    trousers = upload(client, key="t").json()
+    client.patch(f"/api/items/{trousers['id']}", json={"category": "trousers", "color": "grey"})
+
+    def drawn(piece) -> str:
+        r = client.post("/api/outfits/figure", json={place: "~candidate", "bottom": trousers["id"], "piece": piece})
+        assert r.status_code == 200, r.text
+        return r.text
+
+    assert "<image href=\"data:image/jpeg" in drawn(body["piece"])   # the shirt's stripes, as a tile
+    assert "<image" not in drawn({**body["piece"], "pattern": "solid"})

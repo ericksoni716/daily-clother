@@ -31,7 +31,7 @@ import sqlite3
 from dataclasses import replace
 
 from . import details, drawing, kinds, wouldwork
-from .drawing import added, drawnside, sideshoe, stored
+from .drawing import added, drawnside, sideshoe, stored, wordpattern
 from .drawing import item as draw
 from .drawing.figure import PLACES, Piece, as_worn, figure
 from .drawing.traced import TracedShoe
@@ -135,15 +135,17 @@ def describe(row, extra: dict | None = None) -> Piece:
 
 def new_piece(piece) -> Piece:
     """A piece not in the closet (a find, a piece checked with "Would this work?"), drawn from its described values
-    as a new item with them would be: its category, colour word and shape, in its colour word's colour, with no
-    pattern (that would come from a photo). When its name says one of its category's kinds in so many words
+    as a new item with them would be: its category, colour word and shape, in its colour word's colour. A striped or
+    plaid piece is drawn with a plain, typical pattern of that word (`wordpattern.fill_for`; a measured pattern
+    would come from a photo, which it has none of). When its name says one of its category's kinds in so many words
     (`kinds.from_words`: "Brown suede chelsea boots"), it is drawn as that kind, as the kind picker draws one.
     `piece` is a description as `wouldwork.parse_piece` gives it."""
     category, color = piece["category"], piece["color"]
     silhouette = dict(piece.get("silhouette") or {})
     kind = kinds.from_words(piece.get("name"), category)
+    fill = wordpattern.fill_for(category, color, piece.get("pattern"), piece.get("name"), kind)
     if kind is None:
-        return Piece(category, None, None, color, None, silhouette)
+        return Piece(category, None, None, color, None, silhouette, fill=fill)
     found = Details.plain().model_dump(mode="json")
     if kind in kinds.GARMENTS:
         found["garment"] = kind
@@ -154,7 +156,7 @@ def new_piece(piece) -> Piece:
         "silhouette": {k: silhouette.get(k) for k in SILHOUETTE_FIELDS}, "silhouette_confidence": 1,
         "details": kinds.conform(found, kind, None, {}), "details_confidence": 1, "brand": None, "size": None,
         "material": None, "needs_shot": None}
-    return Piece(category, answer, None, color, None, silhouette)
+    return Piece(category, answer, None, color, None, silhouette, fill=fill)
 
 
 def added_of(row) -> tuple:

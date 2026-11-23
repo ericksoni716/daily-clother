@@ -29,7 +29,7 @@ OUT = ROOT / "tools" / "out" / "outfit-figures.svg"   # git-ignored; nothing new
 
 # caption, then the demo items by name for each place
 OUTFITS = [
-    ("Cold: tee, open chore jacket, open overcoat", dict(base="White tee", mid="Tan chore jacket", outer="Black overcoat",
+    ("Cold: tee, chore jacket, open overcoat", dict(base="White tee", mid="Tan chore jacket", outer="Black overcoat",
                                                           bottom="Dark indigo jeans", shoes="Brown boots")),
     ("Cold: shirt, cable sweater, open overcoat", dict(base="Blue oxford shirt", mid="Burgundy cable sweater",
                                                         outer="Black overcoat", bottom="Brown corduroy trousers",

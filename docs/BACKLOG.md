@@ -70,12 +70,17 @@ only here); take a line out when it is done.
   on a sale pick makes a sale look. The 15% line is a guess to revisit with the owner.
 
 - **See it with your clothes** (23 November; DECISIONS, the section of that name). Looked at for a coat, a cardigan,
-  chinos and chelsea boots on the demo closet. Found and not fixed (older than it, and a decision of "The outfit as
-  worn"): an open cardigan or other open mid layer under an open jacket is drawn almost wholly hidden, only its hem
-  showing, because both are worn open and the jacket's fronts cover the cardigan's; Today does the same with the
-  owner's own cardigans. A find's pattern (stripes, plaid) is not drawn, only its colour, and its kind only when its
-  name says it in so many words; the shop's picture is not used for the drawing. Would this work? shows no shop
-  picture beside its outfits (it has none). Not tried on a real phone.
+  chinos and chelsea boots on the demo closet. Put right on 23 November: the open layer under an open jacket
+  (DECISIONS, "The outfit as worn": a mid layer that fastens is drawn fastened under an open coat) and a find's
+  pattern (a striped or plaid find is drawn with a plain, typical stripe or plaid; DECISIONS, "See it with your
+  clothes"). Still left: a find is drawn as its kind only when its name says it in so many words; the shop's picture
+  is not used for the drawing; florals, camouflage and prints on a find are drawn in its colour; a striped or plaid
+  accessory (a tie, a scarf) found in a shop is drawn plain. Would this work? shows no shop picture beside its
+  outfits (it has none). Not tried on a real phone.
+- **The figure: a layer under an open coat** (23 November; DECISIONS, "The outfit as worn"). On Today, dressed a
+  layer at a time, a cardigan or blazer is drawn open with the base top and then buttoned when the coat comes on,
+  because each layer is the whole outfit up to it. Only a shirt stays open under an open coat; a chore jacket or
+  overshirt filed as a jacket is buttoned. Looked at on made-up outfits and the demo closet only.
 - **Telling the search who you are** (23 November; DECISIONS, "What the search is told about you").
   Not tried with the real Claude: whether the block changes what it finds, and how much longer the
   prompt makes a search through the API key. The style conversation does not ask for sizes, and an
@@ -465,7 +470,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 - [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
 - [ ] **The closet at a glance**: three across as a choice, a search box that takes the row, the Photos or Drawings switch in words, and search that finds a shade, a brand, a material or a note.
 - [ ] **Would this work? by hand**: kind and colour first, the rest behind "More about it".
-- [ ] **The figure: an open layer under an open jacket** shows its fronts, not a thin strip (changes "The outfit as worn" in DECISIONS; say so).
+- [x] **The figure: an open layer under an open jacket** shows its fronts, not a thin strip (changes "The outfit as worn" in DECISIONS; say so).
 
 **Every day**
 - [ ] **Dress for another day**: on Today, tomorrow or a date you choose, with that day's forecast and a word about the day ("dinner at eight"). "Wear this on Saturday" keeps the outfit; that morning Today opens on it, and its pieces are kept out of the laundry's way.
@@ -482,7 +487,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 - [x] **Your nines** (the owner's idea): the nine pieces worn most, three by three.
 - [x] **What your clothes cost you**: what you spent by year from prices and dates, what the wishlist would cost, and the pieces that have earned their price.
 - [x] **Worth buying, folded**: each card a title, how much it helps and one line, opening on a tap.
-- [ ] **A find's pattern is drawn**, so a striped shirt in "See it with your clothes" is striped.
+- [x] **A find's pattern is drawn**, so a striped shirt in "See it with your clothes" is striped.
 
 **Trips**
 - [x] **A trip for tennis or golf**, and a way back to "follow the weather" for swimming.

@@ -49,8 +49,12 @@ shape=)`); the item drawings themselves do not change:
   arm the sleeve's cloth between them is pressed flat (PRESSED_EASE_CM). An oversized top
   with a ribbed hem and cuffs falls straight, its hem band and cuffs gathering
   it in. A hood lies on the shoulders behind the neck. The base top is closed. A mid or outer layer
-  that opens all the way down the front is worn open over what is under it;
-  one that does not (a pullover, a hoodie) is worn closed, and of what is under
+  that opens all the way down the front is worn open over what is under it,
+  except a mid layer under an outer layer worn open (`_worn_closed`): a
+  cardigan, a zip hoodie, a waistcoat or a blazer is fastened under an open
+  coat, so its front shows between the coat's; a shirt stays open, its fronts
+  nearer the middle and the coat's further out (MID_APART, OUTER_APART). One
+  that does not open (a pullover, a hoodie) is worn closed, and of what is under
   it only what would really show is drawn: below its hem, above its neck,
   inside its neck opening, and the under sleeves where its own sleeves are
   shorter. Three layers nest the same way.
@@ -137,6 +141,10 @@ PLACE_TEMPLATE = {"base": "top", "mid": "top", "outer": "top", "bottom": "pants"
 PLACE_CATEGORIES = {"base": item.TOPS, "mid": item.TOPS, "outer": item.TOPS, "bottom": item.BOTTOMS, "shoes": item.SHOES}
 # fronts that open all the way down; worn as a mid or outer layer they are drawn open
 OPENS = ("buttons", "french", "hidden", "double", "zip")
+# ...and then its fronts hang a little closer together (MID_APART, a share of half its width from the middle) and the
+# outer layer's, resting on them with more ease, further apart (OUTER_APART), so a band of the shirt shows either side
+MID_APART, OUTER_APART = 0.14, 0.42
+OPEN_UNDER = ("shirt",)        # a mid layer of these is worn open under an open outer layer too; any other is fastened
 SLEEVE_RANK = {"none": 0, "short": 1, "elbow": 2, "three-quarter": 3, "long": 4}
 
 # the wearer: an adult man 7.5 heads tall, standing front-on, drawn in the garments' own line and flat fills. He
@@ -482,10 +490,17 @@ def plan(pieces: Mapping[str, Piece | None] | None) -> Layout:
         made = _placed(place, pieces.get(place), shoes)
         if made is not None:
             out.pieces.append(made)
+    closed = _worn_closed(out, pieces)
+    if closed:   # fastened under an open outer layer: placed again, closed
+        out.pieces = [(_placed(p.place, pieces.get(p.place), shoes, closed=True) or p) if p.place in closed else p
+                      for p in out.pieces]
     out.spread = _spread([p for p in out.pieces if p.place in TOP_PLACES])
     if out.spread:   # every sleeve goes round the same arm: the tops again, round arms held out by the fullest
-        out.pieces = [(_placed(p.place, pieces.get(p.place), shoes, out.spread) or p) if p.place in TOP_PLACES else p
-                      for p in out.pieces]
+        out.pieces = [(_placed(p.place, pieces.get(p.place), shoes, out.spread, p.place in closed) or p)
+                      if p.place in TOP_PLACES else p for p in out.pieces]
+    mid, outer = out.get("mid"), out.get("outer")
+    if mid is not None and outer is not None and mid.open and outer.open:   # an overshirt open inside an open coat
+        mid.shape.apart, outer.shape.apart = MID_APART, OUTER_APART
     if shoes is not None:
         try:
             out.pieces.append(_stand(shoes, out))
@@ -503,6 +518,19 @@ def plan(pieces: Mapping[str, Piece | None] | None) -> Layout:
             out.pieces.append(made)
     out.fit()
     return out
+
+
+def _worn_closed(out: Layout, pieces: Mapping) -> set[str]:
+    """The layers worn fastened although they could be worn open: a mid layer under an outer layer worn open, unless
+    it is a shirt (an overshirt or a flannel shirt hangs open over the tee, inside the outer layer's fronts). A
+    cardigan, a zip hoodie, a waistcoat, a chore jacket or a blazer is buttoned or zipped under an open coat, as it is
+    worn, so its front shows between the coat's with its own neckline and fastenings; worn open under it, the coat's
+    fronts would lie over its fronts and only its hem would show."""
+    mid, outer = out.get("mid"), out.get("outer")
+    if mid is None or outer is None or not mid.open or not outer.open:
+        return set()
+    piece = pieces.get("mid")
+    return set() if isinstance(piece, Piece) and piece.category in OPEN_UNDER else {"mid"}
 
 
 # ------------------------------------------------------------------ pieces
@@ -576,9 +604,10 @@ def _spread(tops: list[Placed]) -> float:
     return round(max([0.0] + [p.holds for p in tops]), 2)
 
 
-def _placed(place: str, piece, shoes: Placed | None = None, spread: float = 0.0) -> Placed | None:
+def _placed(place: str, piece, shoes: Placed | None = None, spread: float = 0.0, closed: bool = False) -> Placed | None:
     """The piece placed in the figure; the plainest drawing of its category if its own cannot be drawn;
-    None if it is not something this place shows, or nothing can be drawn. Trousers are put on `shoes`."""
+    None if it is not something this place shows, or nothing can be drawn. Trousers are put on `shoes`. A top
+    `closed` is worn fastened even if it could be worn open (`_worn_closed`)."""
     if not isinstance(piece, Piece) or piece.category not in PLACE_CATEGORIES[place]:
         return None
     for make in (_spec, _plainest):
@@ -586,7 +615,7 @@ def _placed(place: str, piece, shoes: Placed | None = None, spread: float = 0.0)
             spec = make(piece)
             if spec.template == PLACE_TEMPLATE[place]:
                 return _place(place, spec, piece.category, shoes.front if shoes is not None else None,
-                              made=_drawing_of(piece) if place == "shoes" else None, spread=spread)
+                              made=_drawing_of(piece) if place == "shoes" else None, spread=spread, closed=closed)
         except Exception:
             log.exception("drawing a %s for an outfit failed", piece.category)
     return None
@@ -605,11 +634,11 @@ def _drawing_of(piece: Piece) -> drawn.Stored | None:
 
 
 def _place(place: str, spec: Spec, category: str | None = None, shoe: FrontShoe | None = None,
-           made: drawn.Stored | None = None, spread: float = 0.0) -> Placed:
+           made: drawn.Stored | None = None, spread: float = 0.0, closed: bool = False) -> Placed:
     if spec.template == "top":
         spec.params.pop("state", None)
         opened = False
-        if place != "base" and spec.params.get("front") in OPENS:
+        if place != "base" and not closed and spec.params.get("front") in OPENS:
             worn_open = replace(spec, params={**spec.params, "state": "open"})
             shape = _shape(worn_open)
             if shape.fronts:

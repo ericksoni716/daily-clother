@@ -60,7 +60,8 @@ describe('checking a new item', () => {
     expect(kindWho({ kind: 'polo', kind_by: 'owner', kind_confidence: null })).toBe('Set by you');
     expect(kindWho({ kind: 'polo', kind_by: 'claude', kind_confidence: 0.8 })).toBe("Claude's guess · Claude was 80% sure");
     expect(kindWho({ kind: 'polo', kind_by: 'claude', kind_confidence: null })).toBe("Claude's guess");
-    expect(kindWho({ kind: null, kind_by: null, kind_confidence: null })).toBe('Kind not said yet');
+    // with no kind the row says what the piece is (from its category, as the summary line does), and nothing contradicts it
+    expect(kindWho({ kind: null, kind_by: null, kind_confidence: null })).toBe('');
   });
 
   it('starts the boxes from what the item has', () => {

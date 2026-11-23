@@ -306,9 +306,7 @@ only here); take a line out when it is done.
   - The details one by one are still a view in the sheet, not a route (`/item/<id>/details`),
     and the old notes boxes are only emptied once you edit the one box; a closet keeps them
     until then.
-  - "What is it?" still says "Kind not said yet" and shows the group in place of a kind the
-    assessment called jargon; the Details rows for formality and season are rarely changed and
-    could go further down.
+  - The Details rows for formality and season are rarely changed and could go further down.
   - The phone check shows the item page with its folds closed; there is no picture of them
     open except from a browser test run by hand.
 - **Settings regrouped** (step 6 of the order of work, done 20 November). Left:

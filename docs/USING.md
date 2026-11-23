@@ -221,7 +221,8 @@ panel. On a phone it opens as its own page.
 or drawing, and for some pieces the back), with a small mark on the drawing that lists what it
 leaves out, and the name, which you type over in place. Straight under the name: **What is it?**
 (the kind, with who said it, a sheet of kinds on a phone; for a shoe, the kind of shoe set in
-Fix the details counts too), the brand and the price, each saved as you leave it. Changing any of these counts as having checked the piece, so it leaves the review.
+Fix the details counts too; until a kind is chosen, what its category says, the same word as the
+line under About it), the brand and the price, each saved as you leave it. Changing any of these counts as having checked the piece, so it leaves the review.
 
 Then "Wearing and washing": Wore it today, put in the laundry or mark clean, where the piece is,
 and recent wears. Where it is is one sentence ("In your closet", "At the cleaner's until Friday 27

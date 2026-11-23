@@ -255,6 +255,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   as before and the piece you chose stays where it was on the screen, instead of the grid folding to
   three across and showing other clothes. The panel has **Close**, Escape closes it, and Back closes
   it too; focus goes into the panel as it opens and back to the piece when it closes.
+- **A piece is called one thing on its page.** Until you choose its exact kind, "What is it?" says
+  what the line under its name says ("Polo · Tees & polos"), on the piece's page and in the review,
+  instead of "Kind not said yet" beside a piece the page calls a polo. A long kind wraps instead of
+  being cut off.
 - **A wish made from a link is named at once.** It shows the product's name as soon as Nines has read
   its page, not only when Claude has finished describing it.
 - **A trip under way stays as it is.** Opening a trip on its third day no longer says the forecast

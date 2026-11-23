@@ -14,7 +14,7 @@ const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
  * screen. The item page saves the choice at once; the review keeps it until "That's right".
  */
 export function WhatItIs({ item, groups, disabled, busy = false, onPick }: {
-  item: KindItem & Pick<Item, 'kind_name' | 'kind_by' | 'kind_confidence'>;
+  item: KindItem & Pick<Item, 'kind_name' | 'category' | 'kind_by' | 'kind_confidence'>;
   groups: KindGroup[] | undefined;
   disabled: boolean;
   busy?: boolean;
@@ -24,7 +24,8 @@ export function WhatItIs({ item, groups, disabled, busy = false, onPick }: {
   const button = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const shown = open && !disabled && !!onPick;
-  const line = kindLine(item, groups) || 'Not said';
+  const said = kindLine(item, groups);
+  const line = said || 'Not said';
   const who = kindWho(item);
   return (
     <div className={`detail-row kind-row${shown ? ' is-open' : ''}`}>
@@ -32,10 +33,10 @@ export function WhatItIs({ item, groups, disabled, busy = false, onPick }: {
         aria-label={`What is it?: ${line}${who ? `. ${who}` : ''}`} disabled={disabled || !onPick}
         title={disabled ? OFFLINE_TITLE : undefined} data-testid="what-is-it" onClick={() => setOpen(!shown)}>
         <span className="detail-row-label">What is it?</span>{' '}
-        <span className={`detail-row-value${item.kind ? '' : ' is-empty'}`}>
+        <span className={`detail-row-value${said ? '' : ' is-empty'}`}>
           {item.kind && <img className="kind-row-pic" src={kindDrawing(item.kind, item.color_hex)} alt="" data-testid="kind-pic" />}
           <span className="kind-row-words">
-            <span className="detail-row-text">{line}</span>{' '}
+            <span className="detail-row-text is-wrapping">{line}</span>{' '}
             {who && <span className="kind-row-sure">{who}</span>}
           </span>
         </span>

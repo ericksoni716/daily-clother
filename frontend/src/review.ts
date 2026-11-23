@@ -50,11 +50,12 @@ export function reviewChanges(rows: ReviewRow[], chosen: Record<string, string>)
   return { changes, confirm };
 }
 
-/** Who said what it is, beside the kind: "Set by you", "Claude's guess · Claude was 80% sure", or nothing to say. */
+/** Who said what it is, beside the kind: "Set by you", "Claude's guess · Claude was 80% sure", or nothing to say. With
+ * no kind the row says what the category says, as the summary line does, and adds nothing that would contradict it. */
 export function kindWho(item: Pick<Item, 'kind' | 'kind_by' | 'kind_confidence'>): string {
   if (item.kind_by === 'owner') return 'Set by you';
   if (item.kind_by === 'claude') return `Claude's guess${item.kind_confidence != null ? ` · ${sureText(item.kind_confidence)}` : ''}`;
-  return item.kind ? '' : 'Kind not said yet';
+  return '';
 }
 
 /** What you typed in the review's name, brand and price boxes. */

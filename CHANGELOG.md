@@ -15,7 +15,7 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - **Nines tells you when a price on your wishlist goes down.** A banner at the top of every
   screen says "A tan rain coat is down to $150.00 at Example Shop, from $177.00.", with **See it**
   (opens the wish) and **Got it**; when several went down it counts them, and **See them** opens
-  the Wardrobe. It says so once: opening the wish or tapping Got it is enough, on your phone or
+  your wishlist. It says so once: opening the wish or tapping Got it is enough, on your phone or
   your computer alike. It needs Nines to be running, and the demo closet never shows it.
 - **Shades**, on an item's page: under **Details**, the Colour row now offers the shades of the
   piece's colour under the colours, each with its swatch (Green has Sage, Mint, Forest green,
@@ -45,6 +45,13 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **The wishlist has a page of its own**, one tap from the Wardrobe. Under **Thinking of buying
+  something?**, next to **Would this work?**, the **Wishlist** row says how many things are on it
+  and how many prices went down, and opens the list with **Add a link** and **Add by hand**. A
+  wish's page, and the page a link shared from another app opens, go back to it with
+  **‹ Wishlist**, and **Remove from the list** ends there. The Wardrobe page is shorter for it.
+  The list, and each wish, now show as soon as the wishes are in, without waiting for what is
+  worth buying.
 - **A wish's page leads with what you are watching**: the pages you sent first, then what Claude
   found, then one sentence saying Nines checks the price once a day and tells you when it goes
   down, with when it last checked and **Check now** (was Check prices). Find more and Add a link

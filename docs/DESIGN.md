@@ -89,10 +89,11 @@ one button.
 
 The app has four places and Add: Today (with Worn and Trips one level down), Closet (with
 the review and Archived), Wardrobe (what to buy and how the closet is used, with Would this
-work? and each wish one level down) and Settings (with Advanced). Everything is two taps or
-fewer from the tab bar. A new thing is first a card, a fold or a sheet on the screen whose job
-it serves; a page one level down comes next, inside its place (lit as that place, with a
-"‹ Place" back link). A new place in the tab bar needs a reason none of the four can hold.
+work?, the wishlist and each wish one level down) and Settings (with Advanced). Everything is
+two taps or fewer from the tab bar. A new thing is first a card, a fold or a sheet on the
+screen whose job it serves; a page one level down comes next, inside its place (lit as that
+place, with a "‹ Place" back link). A new place in the tab bar needs a reason none of the four
+can hold.
 
 On a page that has grown, the shared pieces keep it short: `ShowMore` shows the first few on
 a phone, `Fold` keeps what is occasional closed ("More numbers"), and `HowItWorks` holds the

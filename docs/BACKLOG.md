@@ -14,15 +14,15 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The wishlist's own page** (23 November; DECISIONS, "The wishlist's own page"). Would this work?
+  opened from a wish ("Would it go with my clothes?") still goes back to the Wardrobe, not to the wish
+  or the wishlist. The toast after "I'll look for this" cannot open the list: toasts take no action.
 - **The gap list worked out once at a time** (23 November; DECISIONS, of that name). What is left of a
   search's wait is "Would this work?" itself: each find runs the outfit engine over the 40 kinds of day
   with the piece (about 3 s of one core on the demo's closet, nearly all in `outfits._search`), so the
   browser tests' search for two finds is still about 7 s of work, each price check the same. On a runner
   much slower than the slowest seen so far it could reach its 30 s wait again; making the engine's search
   quicker is the way, not a longer wait.
-- **The wish page and price news** (23 November; DECISIONS, "The wish page and price news"). "See
-  them" on the banner opens the Wardrobe at its top; on a phone the wishlist is below Worth buying.
-  (Telling the owner on their phone when Nines is not open is not wanted: the owner said no.)
 - **Choosing a shade** (22 November; DECISIONS, "Choosing a shade"). The review's question about
   a doubtful colour and Would this work?'s colour still offer the colour words only, and the
   closet's search does not find a piece by its shade's name.

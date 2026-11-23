@@ -250,6 +250,12 @@ measures a layout, such as a button above the tab bar, should leave room, and so
 layout. To run a spec with the wide font, hide Inter from the browser with `e2e/wide-font.conf`:
 `FONTCONFIG_FILE=$PWD/e2e/wide-font.conf npm run e2e -- e2e/10-today.spec.ts` (in `frontend/`).
 
+The tests' own calls (`page.request`, `request`) each go on a connection of their own
+(`asThePage` in `fixtures.ts`): the server closes a connection idle for 5 seconds, and a call
+sent on a kept one in that moment fails with a reset connection that the owner never meets.
+A screen must not wait for a run to end to show what the server already knows: a wish is
+named as soon as its link's page is read, while Claude is still describing it.
+
 There is nothing to log in to. A spec that opens the page by a Tailscale name gives the headers
 Tailscale Serve would (`extraHTTPHeaders`, as `18-phone-qr.spec.ts` does); without them the
 page is refused, as it would be.

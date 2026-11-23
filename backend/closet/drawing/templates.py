@@ -50,6 +50,9 @@ class Shape:
     # neck to below the hem; how its buttonholes are cut, "vertical" or "horizontal"). The other front is its
     # mirror image. The renderer builds the two fronts from this and swings them open.
     fronts: tuple[list, str] | None = None
+    # worn open: how far from the middle each front's edge ends up, as a share of half the body's width (the figure
+    # opens an outer layer further over a layer worn open under it, and that one less)
+    apart: float = 0.21
     tailored: bool = False   # a tailored jacket or coat: its buttons and inside are drawn to stand out on any cloth
 
 

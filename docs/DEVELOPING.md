@@ -177,8 +177,9 @@ Some backend tests carry the `slow` marker: pure image tests that take seconds e
 not depend on the computer they run on. Today that is all of `test_patterns.py` (measuring
 stripes, plaid and prints), the image tests in `test_trace.py` that take over a second
 (shoe tracing; a few cheap ones stay unmarked so every pull request still traces a shoe),
-`test_shoedrawing_turned.py` (shoes drawn by Claude), and the few tests in `test_turned.py`
-and `test_surface.py` that take seconds. A whole file is marked with
+`test_shoedrawing_turned.py` (shoes drawn by Claude), `test_figure_layers.py` (how much of a
+layer under an open coat shows, read from the figure as a picture), and the few tests in
+`test_turned.py` and `test_surface.py` that take seconds. A whole file is marked with
 `pytestmark = pytest.mark.slow` at the top; a single test with `@pytest.mark.slow`.
 
 A test gets the marker only when it is an image algorithm with no platform code in it, it

@@ -184,7 +184,7 @@ jobs:
         run: |
           # The test files are the ones that carry the marker, so a newly marked file is covered without editing this.
           tests=$( (grep -l "pytest.mark.slow" backend/tests/*.py || true) | sed 's/[.]/[.]/g; s/$/$/' | paste -sd '|' -)
-          code='backend/closet/patterns/|backend/closet/drawing/(trace|traced|drawn|drawnside|turned)[.]py$|backend/closet/tagger/shoedrawing[.]py$|backend/tests/shoe_photos[.]py$'
+          code='backend/closet/patterns/|backend/closet/drawing/(trace|traced|drawn|drawnside|turned|figure)[.]py$|backend/closet/tagger/shoedrawing[.]py$|backend/tests/shoe_photos[.]py$'
           other='backend/requirements[^/]*[.]txt$|backend/pyproject[.]toml$|[.]github/workflows/ci[.]yml$'
           pattern="^(${code}|${other}${tests:+|}${tests})"
           if [ "$EVENT" = workflow_dispatch ]; then

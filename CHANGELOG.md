@@ -130,6 +130,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **A layer under an open coat shows as itself.** On Today's As worn, a cardigan, zip hoodie,
+  knit vest, chore jacket or blazer you wear under an open jacket or coat is drawn buttoned or
+  zipped, as you would wear it, so its colour, neckline and buttons show between the coat's fronts
+  instead of only a strip at the hem. A shirt worn open over a tee stays open, and the coat now
+  opens wider over it so you see the shirt inside the coat's fronts. Worn on its own, a cardigan
+  or overshirt is still drawn open.
 - **The Wardrobe is about half as long.** Each thing worth buying is a closed card: its name, how
   much it helps and one line of why. Tap it to open it in place with everything it showed before.
   "I'll look for this" no longer folds the card and moves the page: the card stays where it is and

@@ -69,7 +69,10 @@ choose, and outfits to swipe through (or reach by the dots under them), each dra
 laid out as pieces, four to a row on a phone) with "I'm wearing this" under it, then "Why this
 works", which starts with who chose it and, for Claude's, its reading of the day, and, when
 there is something to watch for, "Be aware". On the smallest iPhone the first screen holds an
-outfit of five pieces and its button. The rules choose outfits at once; when Claude may choose,
+outfit of five pieces and its button. As worn, a jacket or coat that opens is drawn open, and what you wear
+under it that buttons or zips (a cardigan, a zip hoodie, a knit vest, a blazer) is drawn
+fastened, its front showing between the coat's; a shirt worn open over a tee stays open inside
+the coat's fronts. The rules choose outfits at once; when Claude may choose,
 the outfits on the page stay there, dimmed, under a card saying Claude is choosing, until its
 outfits replace them ("Show Nines' own picks meanwhile" lets you use the rules' outfits). "I'm
 wearing this" records the outfit and its wears, and ends building around a piece. A piece's ⋯

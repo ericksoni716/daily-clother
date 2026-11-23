@@ -120,6 +120,54 @@ def test_a_layer_that_opens_only_partly_is_worn_closed():
     assert not plan(dict(base=SHIRT)).get("base").open        # the base top is always closed
 
 
+CARDIGAN = Piece("sweater", answer("sweater", {"neck": "v"}, garment="cardigan", neckline="v_neck", placket="front_placket",
+                                   placket_buttons=5), "#c0392b")
+ZIP_HOODIE = Piece("hoodie", answer("hoodie", garment="hoodie", neckline="hood", placket="zip_full"), "#c0392b")
+VEST = Piece("sweater", answer("sweater", garment="sweater_vest", neckline="v_neck", sleeve_length="sleeveless",
+                               placket="front_placket", placket_buttons=5), "#c0392b")
+BLAZER = Piece("jacket", answer("jacket", garment="blazer", collar="notch_lapel", placket="front_placket",
+                                placket_buttons=2), "#c0392b")
+FASTENED_MIDS = {"cardigan": CARDIGAN, "zip hoodie": ZIP_HOODIE, "knit vest": VEST, "blazer": BLAZER}
+
+
+@pytest.mark.parametrize("outer", [COAT, JACKET], ids=["coat", "jacket"])
+@pytest.mark.parametrize("mid", list(FASTENED_MIDS))
+def test_a_mid_layer_that_fastens_is_worn_fastened_under_an_open_outer_layer(mid, outer):
+    """A cardigan, a zip hoodie, a waistcoat or a blazer is buttoned or zipped under an open jacket or coat, as it is
+    worn (the decision of 23 November): its front shows between the outer layer's fronts. On its own over a tee it
+    is still worn open, and the outer layer is open either way."""
+    under = FASTENED_MIDS[mid]
+    layout = plan(dict(base=TEE, mid=under, outer=outer, bottom=JEANS))
+    assert layout.get("outer").open and not layout.get("mid").open
+    assert plan(dict(base=TEE, mid=under, bottom=JEANS)).get("mid").open
+
+
+def test_an_overshirt_hangs_open_inside_an_open_coat_its_fronts_nearer_the_middle():
+    """A shirt worn open over a tee stays open under an open coat; the coat, resting on it with more ease, opens
+    further and the shirt's fronts hang nearer the middle, so a band of the shirt shows inside each of the coat's."""
+    usual = templates.Shape(outline="").apart
+    layout = plan(dict(base=TEE, mid=OVERSHIRT, outer=COAT, bottom=JEANS))
+    mid, outer = layout.get("mid"), layout.get("outer")
+    assert mid.open and outer.open
+    assert mid.shape.apart == fig.MID_APART < usual < outer.shape.apart == fig.OUTER_APART
+    assert plan(dict(base=TEE, mid=OVERSHIRT, bottom=JEANS)).get("mid").shape.apart == usual   # on its own, as before
+
+
+@pytest.mark.parametrize("mid", list(FASTENED_MIDS) + ["overshirt"])
+def test_a_layer_worn_fastened_or_open_under_a_coat_sits_where_it_sits_on_its_own(mid):
+    """Fastening a layer under a coat changes nothing of where it sits: its neck, shoulder points and hem, the
+    trousers' waist and the shoes' ground are where they are with the layer worn on its own."""
+    under = FASTENED_MIDS.get(mid, OVERSHIRT)
+    worn_under = plan(dict(base=TEE, mid=under, outer=COAT, bottom=JEANS, shoes=BOOTS))
+    alone = plan(dict(base=TEE, mid=under, bottom=JEANS, shoes=BOOTS))
+    a, b = worn_under.get("mid"), alone.get("mid")
+    for anchor in ("neck", "shoulder_l", "shoulder_r", "hem"):
+        assert a.point(a.shape.anchors[anchor]) == pytest.approx(b.point(b.shape.anchors[anchor]), abs=0.5), anchor
+    for place, anchor in (("bottom", "waist"), ("shoes", "ground")):
+        p, q = worn_under.get(place), alone.get(place)
+        assert p.point(p.shape.anchors[anchor]) == pytest.approx(q.point(q.shape.anchors[anchor]), abs=0.5), place
+
+
 @pytest.mark.parametrize("top", [TEE, SHIRT, SWEATER, HOODIE, JACKET, Piece("sweater", None, "#888888", silhouette={"top_length": "cropped"}),
                                  Piece("tee", None, "#888888", silhouette={"top_length": "cropped", "fit": "slim"})],
                          ids=["tee", "shirt", "sweater", "hoodie", "jacket", "cropped sweater", "cropped slim tee"])

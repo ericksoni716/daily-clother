@@ -70,10 +70,8 @@ only here); take a line out when it is done.
   on a sale pick makes a sale look. The 15% line is a guess to revisit with the owner.
 
 - **See it with your clothes** (23 November; DECISIONS, the section of that name). Looked at for a coat, a cardigan,
-  chinos and chelsea boots on the demo closet. Found and not fixed (older than it, and a decision of "The outfit as
-  worn"): an open cardigan or other open mid layer under an open jacket is drawn almost wholly hidden, only its hem
-  showing, because both are worn open and the jacket's fronts cover the cardigan's; Today does the same with the
-  owner's own cardigans. A find's pattern (stripes, plaid) is not drawn, only its colour, and its kind only when its
+  chinos and chelsea boots on the demo closet. The open layer under an open jacket was put right on 23
+  November (DECISIONS, "The outfit as worn": a mid layer that fastens is drawn fastened under an open coat). A find's pattern (stripes, plaid) is not drawn, only its colour, and its kind only when its
   name says it in so many words; the shop's picture is not used for the drawing. Would this work? shows no shop
   picture beside its outfits (it has none). Not tried on a real phone.
 - **Telling the search who you are** (23 November; DECISIONS, "What the search is told about you").
@@ -465,7 +463,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 - [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
 - [ ] **The closet at a glance**: three across as a choice, a search box that takes the row, the Photos or Drawings switch in words, and search that finds a shade, a brand, a material or a note.
 - [ ] **Would this work? by hand**: kind and colour first, the rest behind "More about it".
-- [ ] **The figure: an open layer under an open jacket** shows its fronts, not a thin strip (changes "The outfit as worn" in DECISIONS; say so).
+- [x] **The figure: an open layer under an open jacket** shows its fronts, not a thin strip (changes "The outfit as worn" in DECISIONS; say so).
 
 **Every day**
 - [ ] **Dress for another day**: on Today, tomorrow or a date you choose, with that day's forecast and a word about the day ("dinner at eight"). "Wear this on Saturday" keeps the outfit; that morning Today opens on it, and its pieces are kept out of the laundry's way.

@@ -298,7 +298,7 @@ function SeeWorn({ find, image, locked, byId }: { find: Find; image: string | nu
       </button>
       {open && (
         <SeeItWorn title="With your clothes" piece={outfits.data?.piece ?? find.piece} outfits={outfits.data?.outfits ?? null}
-          image={image} note={drawnFromWords('shop')} error={outfits.error ? wornError(outfits.error) : null} byId={byId} keep={button}
+          image={image} note={drawnFromWords('shop', (outfits.data?.piece ?? find.piece)?.pattern)} error={outfits.error ? wornError(outfits.error) : null} byId={byId} keep={button}
           onClose={() => setOpen(false)} />
       )}
     </div>

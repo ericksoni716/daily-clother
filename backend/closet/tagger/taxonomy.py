@@ -1800,6 +1800,19 @@ COVERAGE["tie_patterns"] = {
     "dots": (D, "small dots in the second colour"),
     "club_motif": (A_, "a small shield repeated stands in for whatever the club's motif is"),
 }
+# a piece not in the closet (a find, a piece typed into "Would this work?"): its pattern word, drawn from the words
+# alone (`drawing.wordpattern`); the owner's own pieces are drawn with the pattern measured or described from the photo
+COVERAGE["described_patterns"] = {
+    "solid": (D, "the piece in its colour"),
+    "stripe": (A_, "a plain, typical stripe in its colour and a quiet neighbour of it: across a knit, down anything "
+                   "woven, unless its name says which way; not this product's stripe"),
+    "plaid": (A_, "a plain plaid in its colour and a quiet neighbour (a windowpane check on a blazer, a gingham when "
+                  "its name says so); not this product's plaid"),
+    "floral": (N_, "no photo to draw a print from: drawn in its colour"),
+    "camo": (N_, "no photo to draw a print from: drawn in its colour"),
+    "graphic": (N_, "no photo to lift a print from: drawn in its colour"),
+    "other": (N_, "the words do not say what the pattern looks like: drawn in its colour"),
+}
 COVERAGE["eyewear_lenses"] = {v: (D, "the lenses in that tint, from the tagger's words") for v in ("grey", "green", "brown")}
 COVERAGE["eyewear_lenses"].update({
     "mirrored": (A_, "a pale blue tint with a glint: the mirror's reflection is not drawn"),

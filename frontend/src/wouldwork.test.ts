@@ -139,6 +139,12 @@ describe('a piece drawn with your clothes', () => {
     expect(drawnFromWords('photo')).toContain("Claude's description of your photo");
     expect(drawnFromWords('by_hand')).toContain('your description');
   });
+  it('says the pattern is rough too when the piece is drawn striped or plaid', () => {
+    expect(drawnFromWords('shop', 'stripe')).toBe("This piece is drawn from the shop's description, so it shows roughly its shape, colour and pattern, not how it really looks.");
+    expect(drawnFromWords('by_hand', 'plaid')).toContain('roughly its shape, colour and pattern');
+    expect(drawnFromWords('shop', 'floral')).toContain('roughly its shape and colour,');
+    expect(drawnFromWords('shop', 'solid')).toContain('roughly its shape and colour,');
+  });
   it('counts the outfits from one', () => {
     expect(outfitStep(0, 3)).toBe('Outfit 1 of 3');
   });

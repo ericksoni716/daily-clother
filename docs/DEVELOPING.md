@@ -64,7 +64,7 @@ note), `stylist.py` (the outfits, and the style conversation), `shopping.py` (sh
 
 `drawing/` draws. `templates.py` (the garment shapes), `illustrate.py` and `fills.py` (shape
 plus fill), `added.py` (the parts Claude drew onto a drawing, read safely; the grid and the shape in words it is shown), `item.py` (one item, as the app calls it), `stored.py` (a measured pattern as a
-fill), `accessories.py`; the figure: `figure.py`, `fitting.py`, `worn.py`; shoes: `trace.py`,
+fill), `wordpattern.py` (a plain stripe or plaid from a find's pattern word), `accessories.py`; the figure: `figure.py`, `fitting.py`, `worn.py`; shoes: `trace.py`,
 `traced.py`, `sideshoe.py` (traced from the side), `frontshoe.py` (the template seen from the
 front), `drawn.py`, `turned.py`, `photocheck.py` (drawn by Claude), with worked examples in
 `shoe_examples/`, and `drawnside.py` (the side drawn by Claude: its frame on the card, made

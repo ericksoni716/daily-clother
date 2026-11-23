@@ -36,10 +36,15 @@ export interface WouldExample { day: WouldDay; pieces: OutfitPieces; score: numb
 /** Where the description a piece not in the closet is drawn from came from. */
 export type DrawnFrom = 'shop' | 'by_hand' | 'photo';
 
-/** The one line beside a piece drawn from words, saying it is a rough idea and not its real look (DESIGN, principle 7). */
-export function drawnFromWords(from: DrawnFrom): string {
+/** The patterns drawn from words alone, as a plain, typical one (`drawing/wordpattern.py`); any other is drawn in its colour. */
+export const PATTERNS_DRAWN = ['stripe', 'plaid'];
+
+/** The one line beside a piece drawn from words, saying it is a rough idea and not its real look (DESIGN, principle 7).
+ * A striped or plaid piece is drawn with a typical pattern of that kind, so the line says the pattern is rough too. */
+export function drawnFromWords(from: DrawnFrom, pattern?: string | null): string {
   const source = from === 'shop' ? "the shop's description" : from === 'photo' ? "Claude's description of your photo" : 'your description';
-  return `This piece is drawn from ${source}, so it shows roughly its shape and colour, not how it really looks.`;
+  const what = pattern && PATTERNS_DRAWN.includes(pattern) ? 'shape, colour and pattern' : 'shape and colour';
+  return `This piece is drawn from ${source}, so it shows roughly its ${what}, not how it really looks.`;
 }
 
 /** "For a cool, rainy casual day": what an example outfit is for, as a sentence's start. */

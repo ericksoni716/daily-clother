@@ -371,7 +371,7 @@ function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; by
                 <h4 className="gap-label">For example</h4>
                 <SegmentedControl label="Show the example outfits" small className="today-view" value={view} options={VIEW_OPTIONS} onChange={setView} />
               </div>
-              {view === 'worn' && <p className="hint wouldwork-drawn">{drawnFromWords(check.way === 'photo' ? 'photo' : 'by_hand')}</p>}
+              {view === 'worn' && <p className="hint wouldwork-drawn">{drawnFromWords(check.way === 'photo' ? 'photo' : 'by_hand', answer.piece?.pattern)}</p>}
               <ul className="wouldwork-outfits">
                 {answer.goes_with.examples.map((ex) => (
                   <li key={ex.day.words} data-testid="would-work-outfit">

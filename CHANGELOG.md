@@ -130,6 +130,13 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **A striped or plaid find is drawn striped or plaid.** In **See it with your clothes** and in
+  **Would this work?**'s outfits drawn **As worn**, a piece described as striped or plaid is now
+  drawn with a plain, typical stripe or plaid in its colour and a quieter shade of it, instead of
+  one flat colour. It is a sketch of the pattern, not the product's own, and the line above the
+  drawing now says it shows roughly its shape, colour and pattern. Florals, camouflage and prints
+  are still drawn in their colour. Your own pieces keep the pattern measured from their photo.
+
 - **A layer under an open coat shows as itself.** On Today's As worn, a cardigan, zip hoodie,
   knit vest, chore jacket or blazer you wear under an open jacket or coat is drawn buttoned or
   zipped, as you would wear it, so its colour, neckline and buttons show between the coat's fronts

@@ -131,6 +131,11 @@ test.describe('phone', () => {
     expect(await filter.evaluate((b) => b.scrollWidth <= b.clientWidth + 1)).toBe(true);
     const chip = (await toolbar.getByRole('button', { name: 'Remove filter: In the laundry' }).boundingBox())!;
     expect(chip.y).toBeGreaterThanOrEqual(search.y + search.height);
+    // the row as laid out, printed with a failure below (CI's newer browser measures an input differently)
+    const layout = JSON.stringify(await toolbar.locator('.closet-toolbar-row').evaluate((row) => {
+      const rect = (el: Element) => { const r = el.getBoundingClientRect(); return { left: r.left, width: r.width, top: r.top }; };
+      return { ua: navigator.userAgent, innerWidth, row: rect(row), children: [...row.children].map((c) => ({ cls: c.className, ...rect(c) })) };
+    }));
     // nothing on the row goes past it, with room to spare in a wide font
     const fitted = await toolbar.locator('.closet-toolbar-row').evaluate((el) => {
       const r = el.getBoundingClientRect();
@@ -141,19 +146,21 @@ test.describe('phone', () => {
       return { row: r.width, search: search.width, least, filter: filter.width, spare: search.width - least,
         past: r.right - filter.right < -0.5, overflows: el.scrollWidth > el.clientWidth };
     });
-    expect(fitted, JSON.stringify(fitted)).toMatchObject({ overflows: false, past: false });
-    expect(fitted.spare, JSON.stringify(fitted)).toBeGreaterThanOrEqual(8);
+    expect(fitted, `${JSON.stringify(fitted)} ${layout}`).toMatchObject({ overflows: false, past: false });
+    expect(fitted.spare, `${JSON.stringify(fitted)} ${layout}`).toBeGreaterThanOrEqual(8);
     // its word is shown whole; what was measured is printed if it is not
     const word = await box.evaluate((input: HTMLInputElement) => {
       const s = getComputedStyle(input);
       const ctx = document.createElement('canvas').getContext('2d')!;
       ctx.font = `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
-      const room = input.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+      // from layout, not clientWidth: a newer Chromium gives an input's clientWidth without its padding
+      const box = input.getBoundingClientRect().width;
+      const room = box - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth) - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
       const width = ctx.measureText(input.placeholder).width;
-      return { connected: input.isConnected, width, clientWidth: input.clientWidth, paddingLeft: s.paddingLeft,
-        paddingRight: s.paddingRight, room, font: ctx.font, fits: width <= room };
+      return { connected: input.isConnected, width, box, clientWidth: input.clientWidth, offsetWidth: input.offsetWidth,
+        paddingLeft: s.paddingLeft, paddingRight: s.paddingRight, room, font: ctx.font, fits: width <= room };
     });
-    expect(word, JSON.stringify(word)).toMatchObject({ connected: true, fits: true });
+    expect(word, `${JSON.stringify(word)} ${layout}`).toMatchObject({ connected: true, fits: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
     await page.screenshot({ path: test.info().outputPath('closet-320-search.png') });
     await page.getByRole('button', { name: 'Remove filter: In the laundry' }).click();

@@ -250,6 +250,10 @@ measures a layout, such as a button above the tab bar, should leave room, and so
 layout. To run a spec with the wide font, hide Inter from the browser with `e2e/wide-font.conf`:
 `FONTCONFIG_FILE=$PWD/e2e/wide-font.conf npm run e2e -- e2e/10-today.spec.ts` (in `frontend/`).
 
+CI's Chromium is the build Playwright's version asks for, and can be newer than the one on this machine. An input's
+`clientWidth` differs between them (a newer one leaves out the padding), so a test measures boxes with
+`getBoundingClientRect`.
+
 The tests' own calls (`page.request`, `request`) each go on a connection of their own
 (`asThePage` in `fixtures.ts`): the server closes a connection idle for 5 seconds, and a call
 sent on a kept one in that moment fails with a reset connection that the owner never meets.

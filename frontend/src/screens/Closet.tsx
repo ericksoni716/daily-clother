@@ -153,9 +153,10 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
             )}
             <div className="filter-wrap">
               <button ref={filterButton} type="button" className={`btn filter-button${filters ? ' has-filters' : ''}`} aria-expanded={filtering}
-                aria-haspopup="dialog" aria-label={filters > 0 ? `Filter, ${filters} on` : undefined} onClick={() => setFiltering((f) => !f)}>
+                aria-haspopup="dialog" onClick={() => setFiltering((f) => !f)}>
                 <FilterIcon /><span className="filter-text">Filter</span>
-                {filters > 0 && <span className="filter-count" aria-hidden="true">{filters}</span>}
+                {/* heard as "Filter, 1 on": the count is part of the name, as it is seen */}
+                {filters > 0 && <><span className="visually-hidden">, </span><span className="filter-count">{filters}</span><span className="visually-hidden"> on</span></>}
               </button>
               {filtering && (
                 <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" onClose={() => setFiltering(false)}>

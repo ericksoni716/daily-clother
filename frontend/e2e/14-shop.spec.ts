@@ -19,7 +19,9 @@ test.describe('shopping for a wish', () => {
     test.setTimeout(150_000);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(backend.url + '/');
-    await expect(page.locator('#closet-title')).toBeVisible();
+    // a closet that can dress you opens on Today (src/landing.ts), depending on whether its clothes or its title come
+    // first: either means the page is up (fixtures.ts's goToCloset waits the same way)
+    await expect(page.locator('#closet-title').or(page.locator('#today-title'))).toBeVisible();
 
     await page.goto(backend.url + '/wardrobe');
     const wishlist = page.getByTestId('wishlist');
@@ -56,7 +58,9 @@ test.describe('shopping for a wish', () => {
     await wish.getByTestId('find-some').click();
     await expect(wish.getByRole('status').filter({ hasText: 'Claude is searching shops' })).toBeVisible();
     const finds = wish.getByTestId('find');
-    await expect(finds).toHaveCount(2, { timeout: 30_000 });   // the one without a web address is not kept
+    // the search checks each find against the closet on 40 kinds of day: about 15 seconds on a busy computer, and over
+    // 30 on a slow CI runner (23 November), so it has a minute
+    await expect(finds).toHaveCount(2, { timeout: 60_000 });   // the one without a web address is not kept
     await expect(wish).not.toContainText('Not a real link');
 
     const coat = finds.filter({ hasText: 'Tan gabardine rain coat' });

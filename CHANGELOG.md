@@ -12,6 +12,16 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Where a piece is.** On a piece's page, under Wearing and washing, one row says where it is: in
+  your closet, at the cleaner's, at the tailor's or lent out, with the day you expect it back and a
+  note of your own if you like (the note stays on your computer; Claude never reads it). **Change**
+  opens the choices; while it is away the row offers **It's back**. Back from the cleaner's it is
+  clean; back from the tailor's it no longer needs mending; you can undo either. A piece that needs
+  mending has **Take it to the tailor's** in one tap. While a piece is away, Today does not offer it,
+  a trip packs it only if you expect it back before you leave (and says it counts on that), and
+  "not worn" leaves it alone; What's missing and Would this work? still count it as yours. The
+  closet's line says how many are away ("2 away, 1 expected back"); tapping it lists them, soonest
+  back first, with **It's back** beside each. Wearing a piece that is away today brings it back.
 - **Your nines, in the Wardrobe.** The nine pieces you wore most, as a square of three by three
   of their pictures (photos or drawings, as Settings says), each with how many times you wore it
   and opening the piece. Choose the last 30 days, 90 days or all time. It takes the place of the

@@ -11,7 +11,8 @@ made-up pattern tiles for the items drawn from their tags) and are kept as they
 are while the drawing code's version is the one they were made with. Outfits
 worn in the last three weeks, most of them rated, two wishes with stand-in
 finds from made-up shops (one has dropped in price) and a saved trip planned
-for weather given in advance come with it too: nothing is looked up. Two of
+for weather given in advance come with it too, with two outfits kept and one planned a few days ahead: nothing
+is looked up. Two of
 its shoes are drawn from traces made in advance of made-up side-on photos, so
 a traced shoe can be seen and its drawing fixed; they are never traced again.
 Its boot carries a drawing as Claude draws a shoe from its photos, made in
@@ -26,12 +27,13 @@ from datetime import timedelta
 
 from PIL import Image
 
-from . import db, illustrations, images, savedtrips, tracejobs, wears, wouldwork
+from . import db, illustrations, images, kept, plans, savedtrips, tracejobs, wears, wouldwork
 from .config import Config, bundle_dir
 
 FIELDS = ("name", "category", "color", "color_hex", "pattern", "formality", "season", "brand", "size", "material",
           "location", "rating", "rating_reason", "price_cents", "acquired_on", "notes", "illustration_svg")
 WORN_OUTFITS_MIGRATION = 10  # the migration that added worn outfits
+KEPT_MIGRATION = 51          # the migration that added outfits kept and days planned ahead
 
 
 def ensure(cfg: Config) -> int:
@@ -49,12 +51,15 @@ def ensure(cfg: Config) -> int:
             _drawings(conn, data)  # and one made before shoes were drawn for the figure gets its drawn shoe
             if WORN_OUTFITS_MIGRATION in applied:
                 _outfits(conn, data)   # and one made before worn outfits were remembered gets those, once
+            if KEPT_MIGRATION in applied:
+                _kept(conn, data)      # and one made before outfits were kept gets those and its plan, once
             return _grow(cfg, conn, data)   # and one made before the demo had about 40 items gets the rest, once
         added = _add_items(cfg, conn, data, data["items"])
         _answers(conn, data)
         _outfits(conn, data)
         _wishes(conn, data)
         _trip(conn, data)
+        _kept(conn, data)
         return added
     except Exception:
         if conn.in_transaction:
@@ -250,6 +255,26 @@ def _outfits(conn, data: dict, more: bool = False) -> None:
             if conn.execute("INSERT OR IGNORE INTO wears (item_id, worn_on, created_at) VALUES (?, ?, ?)", (item_id, day, t)).rowcount:
                 conn.execute("UPDATE items SET wears_since_wash = wears_since_wash + 1 WHERE id = ? AND (washed_at IS NULL OR washed_at < ?)",
                              (item_id, t))
+    conn.execute("COMMIT")
+
+
+def _kept(conn, data: dict) -> None:
+    """The outfits kept and the day planned a few days from today, when the demo has none yet and their pieces are
+    all in it."""
+    known = {r[0] for r in conn.execute("SELECT id FROM items")}
+    t = db.now()
+    conn.execute("BEGIN IMMEDIATE")
+    if conn.execute("SELECT 1 FROM kept_outfits LIMIT 1").fetchone() is None:
+        for n, k in enumerate(data.get("kept", [])):
+            if set(plans.ids_of(k["pieces"])) <= known:
+                at = _ago(n + 1)   # kept on the days before, newest first as they are listed
+                conn.execute("INSERT INTO kept_outfits (id, name, pieces, same, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                             (k["id"], k.get("name"), json.dumps(k["pieces"]), kept.same_key(k["pieces"]), at, at))
+    p = data.get("plan")
+    if p and set(plans.ids_of(p["pieces"])) <= known and conn.execute("SELECT 1 FROM day_plans LIMIT 1").fetchone() is None:
+        day = (wears.today() + timedelta(days=p["in_days"])).isoformat()
+        conn.execute("INSERT INTO day_plans (day, pieces, occasion, mood, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, ?)",
+                     (day, json.dumps(p["pieces"]), p.get("occasion"), t, t))
     conn.execute("COMMIT")
 
 

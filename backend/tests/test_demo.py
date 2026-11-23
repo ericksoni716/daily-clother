@@ -2,6 +2,7 @@
 open-licence ones, nothing sent to Claude, nothing looked up."""
 import json
 import shutil
+from datetime import timedelta
 
 from closet import db, demo, illustrations, shop, wears
 from closet.config import bundle_dir
@@ -105,6 +106,14 @@ def test_the_demo_has_a_saved_trip_planned_without_looking_anything_up(client):
     trip = client.get(f"/api/trips/{listed[0]['id']}").json()
     assert {d["source"] for d in trip["weather"]} == {"given"} and trip["plan"]["uncovered"] == []
     assert trip["packed"] and all(line.startswith("basic:") for line in trip["packed"])
+
+
+def test_the_demo_keeps_two_outfits_and_plans_a_day_a_few_days_ahead(client):
+    client.post("/api/profile", json={"profile": "demo"})
+    kept = client.get("/api/outfits/kept").json()["outfits"]
+    assert [o["name"] for o in kept] == ["Lunch in the sun", None] and all(o["gone"] == [] for o in kept)
+    planned = client.get("/api/plans").json()["plans"]
+    assert [p["day"] for p in planned] == [(wears.today() + timedelta(days=3)).isoformat()]
 
 
 def test_an_older_demo_closet_is_given_the_new_items_once(cfg, tmp_path, monkeypatch):

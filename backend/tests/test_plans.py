@@ -147,8 +147,8 @@ def test_the_morning_of_the_day_today_opens_on_the_plan(client, clock):
     answer = suggest(client)
     assert answer["context"]["plan"] == {"day": SATURDAY.isoformat(), "kept": [ids["tee2"], ids["jeans"], ids["sneakers"]],
                                          "unavailable": [], "note": None}
-    first = answer["outfits"][0]["pieces"]
-    assert (first["base"], first["bottom"], first["shoes"]) == (ids["tee2"], ids["jeans"], ids["sneakers"])
+    # exactly as planned: no layer added to a place it left empty, though it is a cool day and a jacket is clean
+    assert answer["outfits"][0]["pieces"] == outfit_of(ids, "tee2")
     # other outfits instead, on the owner's word
     assert "plan" not in suggest(client, planned=False)["context"]
     assert client.post("/api/outfits/today", json={"planned": "no"}).status_code == 422

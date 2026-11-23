@@ -321,6 +321,9 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         word = daynote.dated(state, on_day)
         planned["note"] = word.get("text") if word else None
         ctx = dataclasses.replace(ctx, keep=tuple(planned["kept"]))
+        if not planned["unavailable"]:   # every piece can be worn: the outfit as planned, with no place filled in
+            others = sorted({r["id"] for r in rows} - set(planned["kept"]) - set(ctx.leave_out))
+            ctx = dataclasses.replace(ctx, leave_out=(*ctx.leave_out, *others))
     # planned pieces kept out of the laundry's way: not offered when wearing them now leaves them in the laundry then
     held = plans.held(rows, upcoming, on_day, wears.policy())
     asked = {ctx.build_around, *ctx.keep}

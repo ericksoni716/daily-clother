@@ -32,10 +32,11 @@ price check anyway, or typed by the owner. Nines works out the price after the
 code and keeps it with every price seen (`price_with`, `_add_point`); a drop,
 the news and "within your price" count it when there is one (`paid`). A code
 read from a page goes when the page stops showing it; a typed one stays until
-the owner removes it, and saving it marks the wish's news seen. The demo closet is never
-sent to Claude and has no news: it cannot
-search, a link's page is read there by Nines alone, and the daily round only
-ever opens the real closet.
+the owner removes it, and saving it marks the wish's news seen.
+
+The demo closet is never sent to Claude and has no news: it cannot search, a
+link's page is read there by Nines alone, and the daily round only ever opens
+the real closet.
 
 Searches, price checks and reading a link run in the background on a thread of
 their own; how each is getting on is held in memory only. Nothing about a wish, a product or

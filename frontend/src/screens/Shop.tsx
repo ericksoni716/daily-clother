@@ -13,9 +13,9 @@ import {
 } from '../shop';
 import { aboutUsd } from '../spend';
 import { queryKeys } from '../queryKeys';
-import './Shop.css';
 import { useApp } from '../store';
 import { verdictTone } from '../wouldwork';
+import './Shop.css';
 
 const DEMO_TITLE = 'The demo closet never sends anything to Claude, so it cannot search shops';
 

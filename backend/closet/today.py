@@ -130,16 +130,19 @@ def worn_days_ago(conn) -> dict[str, int]:
 
 
 def again_of(outfit: dict, rows: list[dict], leave_out: set[str]) -> dict:
-    """Which pieces of an outfit worn before come back today: those that can be worn (not in the laundry,
-    archived, disliked or left out). Places it left empty, and those whose piece cannot be worn, are open."""
+    """Which pieces of an outfit worn before come back today: those that can be worn, by the engine's own list of
+    what cannot (`outfits._unavailable`: in the laundry, archived, waiting to be mended, disliked or left out). A piece
+    Nines never chooses by itself (tennis shoes, swim trunks, lounge pants) comes back: the owner asks for it by name,
+    as when building around it. Places the outfit left empty, and those whose piece cannot be worn, are open."""
     by_id = {r["id"]: r for r in rows}
+    today_ = outfits.Context(0, 0, leave_out=tuple(leave_out))   # only what is left out is read from it
     kept, unavailable = [], []
     for place in outfits.PLACES:
         pid = outfit["pieces"].get(place)
         if not pid:
             continue
         r = by_id.get(pid)
-        if r is None or r.get("status") == "archived" or outfits._in_laundry(r) or r.get("rating") == "dislike" or pid in leave_out:
+        if r is None or outfits._unavailable(r, today_) not in (None, *outfits.ASKED_FOR_ONLY):
             unavailable.append(pid)
         else:
             kept.append(pid)

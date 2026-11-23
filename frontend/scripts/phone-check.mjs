@@ -180,6 +180,10 @@ async function setUp(base) {
     await call('/api/style/lines', 'POST', { text: LONG.line });
     await call('/api/style/talk', 'POST', { say: 'I always feel warm on the bus, even in winter' });
     for (let i = 0; i < 40 && (await call('/api/style/talk')).answering; i++) await new Promise((r) => setTimeout(r, 250));
+    // You might like: one look (the backend's stand-in answers in a second, with long names), so the Wardrobe's card
+    // shows its three picks
+    await call('/api/picks/look', 'POST');
+    for (let i = 0; i < 40 && (await call('/api/picks')).run?.state === 'running'; i++) await new Promise((r) => setTimeout(r, 250));
     // Your sizes: each kind's as long as a size may be but one (the rest is offered from the closet's own), and a brand
     // with a long name that fits differently
     await call('/api/sizes/tops', 'PUT', { size: 'XL Tall (EU 54/56)' });

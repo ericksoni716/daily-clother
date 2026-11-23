@@ -6,6 +6,7 @@ import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
 import type { FindOutfits, FindsAnswer, PriceNews } from './shop';
+import type { PicksAnswer } from './picks';
 import type { Life } from './life';
 import type { Check, WouldPiece } from './wouldwork';
 import type { FigurePieces } from './figure';
@@ -415,6 +416,17 @@ export const api = {
   /** These wishes' news has been seen (their page opened, or the banner dismissed); answers with what news is left. */
   newsSeen: (wishIds: string[]) =>
     request<{ news: PriceNews[] }>('/api/wishlist/news/seen', { method: 'POST', body: { wish_ids: wishIds } }).then((r) => r.news),
+  // You might like: a look starts and answers later
+  picks: () => request<PicksAnswer>('/api/picks'),
+  lookForPicks: () => request<PicksAnswer>('/api/picks/look', { method: 'POST' }),
+  moreLikePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/more`, { method: 'POST' }),
+  /** A wish made from the pick, with the product as its first find; answers with its id as `wish_id`. */
+  savePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/save`, { method: 'POST' }),
+  refusePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/refuse`, { method: 'POST' }),
+  unrefusePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/refuse`, { method: 'DELETE' }),
+  setPicksWeekly: (weekly: boolean) => request<PicksAnswer>('/api/picks/weekly', { method: 'PUT', body: { weekly } }),
+  answerPickOffer: (id: string, answer: { save?: boolean; undo?: boolean }) =>
+    request<PicksAnswer>(`/api/picks/offer/${encodeURIComponent(id)}`, { method: 'POST', body: answer }),
   // Would this work?: a check starts and answers later; the photo is not kept
   checkByHand: (piece: Partial<WouldPiece>) => request<Check>('/api/would-this-work', { method: 'POST', body: { piece } }),
   checkPhoto: (photo: Blob, filename: string) => {

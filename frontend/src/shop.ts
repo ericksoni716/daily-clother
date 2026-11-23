@@ -422,6 +422,12 @@ export function typedPrice(text: string): number | null | undefined {
   return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
 
-/** What a search sends to Claude, said under "Find some" (DECISIONS, "What the search is told about you"); the demo
- * closet searches nothing, so it is not said there. */
-export const SEARCH_SENDS = 'A search sends Claude the wish, your style, what you tend to wear, the brands you own and your size, never a photo or a note.';
+/** What the closet tells Claude about you when it looks for something, never more (DECISIONS, "What the search is told
+ * about you"): the one wording, said under "Find some" and on You might like. */
+const SENDS_ABOUT_YOU = 'your style, what you tend to wear, the brands you own and your size, never a photo or a note.';
+
+/** What a search sends to Claude, said under "Find some"; the demo closet searches nothing, so it is not said there. */
+export const SEARCH_SENDS = `A search sends Claude the wish, ${SENDS_ABOUT_YOU}`;
+
+/** What a look for things you might like sends to Claude: the same, without a wish. */
+export const LOOK_SENDS = `A look sends Claude ${SENDS_ABOUT_YOU}`;

@@ -28,6 +28,7 @@ import {
 import { sharedLink } from '../shop';
 import { LinkForm } from './Shop';
 import { WouldWork } from './WouldWork';
+import { YouMightLike } from './YouMightLike';
 import './Missing.css';
 
 const OFFLINE_EMPTY = "You're offline, and nothing was saved on this device yet. Your wardrobe shows here once Nines on your computer can be reached.";
@@ -267,6 +268,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
             about={phase.data.gaps.context && <LifeAbout context={phase.data.gaps.context} />}
             demo={profile === 'demo'} onSaved={async () => { setSituation('all'); await touch(qc, 'settings'); toast('Your answers are saved'); }}
             onClose={() => setLifeOpen(false)} />}
+          <YouMightLike locked={locked} />
           {!wide && thinking}
           {usage.kind === 'ready' && <Usage answer={usage.data} byId={byId} locked={offline || usage.savedAt !== null} />}
           {usage.kind === 'error' && (

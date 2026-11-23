@@ -69,6 +69,8 @@ export const queryKeys = {
   /** `GET /api/would-this-work/{id}`: a check, while it is answered. */
   wouldWork: (checkId: string) => ['wouldWork', checkId] as const,
   insights: () => ['insights'] as const,
+  /** `GET /api/picks`: You might like, the card in the Wardrobe. */
+  picks: () => ['picks'] as const,
 
   // Settings and the program
   settings: () => ['settings'] as const,
@@ -125,6 +127,9 @@ export const TOUCHES = {
   wish: ['wishlist', 'gaps', 'finds', 'news', 'findOutfits'],
   /** A find's checkout code saved or removed: the wish's finds, its row's price, and its news (saving marks it seen). */
   findCode: ['finds', 'wishlist', 'news'],
+  /** You might like: a look started, a pick saved (a wish made from it) or turned down, the weekly switch, a line kept
+   * in Your style. */
+  pick: ['picks', 'wishlist', 'gaps', 'news', 'styleProfile', 'settings'],
   /** The note about the day. */
   day: ['day'],
   /** Any of the settings (the place, the laundry and rewear rules, how Claude is reached, its monthly limit…). */

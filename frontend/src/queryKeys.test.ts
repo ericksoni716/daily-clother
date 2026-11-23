@@ -29,6 +29,7 @@ const SAMPLE: { [K in KeyName]: () => readonly unknown[] } = {
   news: () => queryKeys.news(),
   wouldWork: () => queryKeys.wouldWork('c1'),
   insights: () => queryKeys.insights(),
+  picks: () => queryKeys.picks(),
   settings: () => queryKeys.settings(),
   pictures: () => queryKeys.pictures(),
   styleProfile: () => queryKeys.styleProfile(),

@@ -90,14 +90,14 @@ and "Would this work? by hand". Each rule's test is in its module's own test fil
 | A5. On a computer, opening an item rearranges the grid; no Close | The grid keeps its rows and the piece its place; Close, Escape and Back close the panel, and focus goes into it | #324 |
 | A6. A failed call shows raw words and no Try again | Every screen named says what failed, with Try again | #322 |
 | A7. "All clean" has no Undo and leaves a wrong empty screen | Undo in the line under the search puts each piece back as it was; an empty laundry says so; showing the laundry moves nothing | #324 |
-| A8. "Stop watching" removes a find at once | In the next batch | |
+| A8. "Stop watching" removes a find at once | The find stays in its place with Undo, which puts it back with its price history | this batch |
 | A9. Record an outfit is a very long panel of every piece | A sheet with search and groups | #318 |
 | A10. A piece opened from Worn goes back to Today | Goes back to Worn | #318 |
 | A11. A trip leads with warnings; a failed forecast said eleven times | Leads with what to pack; said once | #318 |
 | A12. The outfit card has a blank band | As tall as the outfit in front | #318 |
 | A13. Filter has three lists for what a piece is | One list, What it is: the groups, opening to their categories and kinds; one chip | #324 |
 | P1. Dates and colour codes in History and Advanced | One way to write dates; History names the shade | #322 |
-| P2. "Kind not said yet" on a piece called a polo | In the next batch (item page) | |
+| P2. "Kind not said yet" on a piece called a polo | One word for what it is, from its kind or else its category, on the row and the line under the name | this batch |
 | P3. Words: grammar, things said twice, one thing named two ways | Partly: the Wardrobe's words (#317, #319), "Build around", "Where you are" (#318), the banner, Add and Advanced (#322). Left: "wears looked at", "the kinds of day the closet is tried on", names capitalised mid-sentence, Would this work? saying a thing twice | #317, #318, #319, #322 |
 | P4. "How was yesterday's outfit?" cuts its pieces off | Every piece shows | #318 |
 | P5. The "Saved" toast covers what you use next | Toasts at the top; faults in a row are one toast | #322 |
@@ -107,10 +107,10 @@ and "Would this work? by hand". Each rule's test is in its module's own test fil
 | P9. The search box shrinks to "S" | Never narrower than its word; it also finds a shade, brand, material or note | #324 |
 | P10. The page behind a phone sheet scrolls | Held still | #322 |
 | P11. Reasons after a rating do not follow it | They follow it | #318 |
-| P12. Reload forgets | Partly: Today's changes kept (#318); the closet's search, filters and place in the list kept in its address (#324); Would this work? in the next batch | #318, #324 |
+| P12. Reload forgets | Partly: Today's changes kept (#318); the closet's search, filters and place in the list kept in its address (#324); Would this work? keeps what was typed and the answer for the day (this batch) | #318, #324, this batch |
 | P13. "Asking again…" wraps the heading | Said over the outfits | #318 |
 | P14. Offline, the same sentence on each card | Said once | #318 |
-| P15. Choosing a colour chooses a shade | In the next batch (item page) | |
+| P15. Choosing a colour chooses a shade | A colour alone is kept as the colour, with no shade lit until you choose one; the chosen chip's swatch shows | this batch |
 | P16. Smaller things the accessibility check reports | Heading level, the weather strip by keyboard, spoken names fixed | #322 |
 | P17. Text sizes ignore the browser's text size | Type follows the browser's text size (not yet the iPhone's own setting) | #322 |
 

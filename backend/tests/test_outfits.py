@@ -513,3 +513,193 @@ def test_an_outfit_with_a_piece_between_two_levels_reads_at_the_days_level():
     knit = outfits._piece(item("polo", "polo", "navy", "smart_casual", formality_also="casual"))
     assert any(isinstance(s, outfits._Hard) for s in outfits._outfit_problems([runners, polo], [runners, polo]))
     assert not any(isinstance(s, outfits._Hard) for s in outfits._outfit_problems([runners, knit], [runners, knit]))
+
+
+# ---------------------------------------------------------------- the logic review of 23 November: sentences that must
+# be true of the outfit shown, and outfits a person would wear (findings 13 to 25 of the review)
+def small_closet(*more):
+    return [item("tee", "tee", "white", "casual", name="White tee"), item("jeans", "jeans", "navy", "casual", name="Dark jeans"),
+            item("sneakers", "sneakers", "white", "casual", name="White sneakers"), *more]
+
+
+def cold_closet():
+    return [item("henley", "tee", "cream", "casual", "cool", name="Oatmeal henley", silhouette={"sleeve": "long"}),
+            item("fleece", "sweater", "grey", "casual", "cool", name="Grey fleece pullover", weight_class="heavyweight"),
+            item("parka", "coat", "tan", "casual", "cool", name="Khaki parka", weight_class="super_heavy"),
+            item("jeans", "jeans", "navy", "casual", name="Dark jeans", weight_class="heavyweight"),
+            item("boots", "boots", "brown", "casual", name="Brown boots"),
+            item("beanie", "hat", "yellow", "casual", "cool", name="Mustard beanie"),
+            item("scarf", "scarf", "orange", "casual", "cool", name="Rust wool scarf")]
+
+
+def test_one_layer_is_not_called_enough_on_a_day_it_is_too_cold_for():
+    # with no sweater or coat to offer at 0 to 6°C the card said "A single layer on top is enough" under a warning
+    # that it will be cold; nor is a middle layer said to be missing when the closet has none
+    o = outfits.suggest(small_closet(), day(0, 6), 1)["outfits"][0]
+    assert any("this will be cold" in w for w in o["warnings"])
+    assert not any("is enough" in r for r in o["reasons"])
+    assert not any("middle layer" in w for w in o["warnings"])
+    # on a day it is true, it is still said
+    mild = outfits.suggest(small_closet(), day(20, 23), 1)["outfits"][0]
+    assert "A single layer on top is enough for 20°C to 23°C." in mild["reasons"]
+
+
+def test_suede_boots_are_not_said_to_stand_up_to_the_rain():
+    boots = item("boots", "boots", "brown", "casual", name="Suede chukka boots")
+    closet = [i for i in small_closet(boots, item("jacket", "jacket", "navy", "casual", name="Navy jacket")) if i["id"] != "sneakers"]
+    o = outfits.suggest(closet, day(12, 18, rain=True), 1)["outfits"][0]
+    assert any("which the rain spoils" in w for w in o["warnings"])
+    assert not any("stand up to the rain" in r for r in o["reasons"])
+    leather = [{**i, "name": "Brown leather boots"} if i["id"] == "boots" else i for i in closet]
+    o = outfits.suggest(leather, day(12, 18, rain=True), 1)["outfits"][0]
+    assert "The brown leather boots stand up to the rain." in o["reasons"]
+
+
+def test_all_neutral_colours_is_not_said_of_an_outfit_with_a_mustard_beanie():
+    # the colour sentence was worked out before the hat and scarf were added and never looked at them
+    o = outfits.suggest(cold_closet(), day(-8, -2), 1)["outfits"][0]
+    assert "beanie" in o["pieces"]["accessories"]
+    assert "All neutral colours, so everything goes together." not in o["reasons"]
+    assert not any(r.startswith("One colour") for r in o["reasons"]), o["reasons"]
+
+
+def test_the_scarf_is_worn_on_a_freezing_day_that_is_short_of_warm():
+    # the hat was chosen first and a rust scarf "competed" with a mustard beanie, so the warmer of the two stayed home;
+    # on a day short of warm both go on, and the card says why their colours were let be (at -8 to -2°C the scarf now
+    # makes the outfit warm enough, so the day is taken a little colder to show it still short with both)
+    o = outfits.suggest(cold_closet(), day(-12, -6), 1)["outfits"][0]
+    assert any("No coat warm enough" in w for w in o["warnings"])
+    assert sorted(o["pieces"]["accessories"]) == ["beanie", "scarf"]
+    assert any("for the cold" in r for r in o["reasons"]), o["reasons"]
+    # on a day warm enough the colour rule still holds: one accent, not two
+    warm_enough = cold_closet() + [item("down", "coat", "black", "casual", "cool", name="Black down coat",
+                                        weight_class="super_heavy", material="down")]
+    for x in warm_enough:
+        if x["id"] == "henley":
+            x["weight_class"] = "heavyweight"
+    o = outfits.suggest(warm_enough, day(2, 3), 1)["outfits"][0]
+    assert not {"beanie", "scarf"} <= set(o["pieces"]["accessories"]), (o["pieces"], o["warnings"])
+
+
+def test_a_freezing_wet_day_gets_the_parka_not_the_thin_mac():
+    # snow counts as rain; the mac was the only outer layer the rain rule let in, and the fleece went with the parka
+    closet = cold_closet() + [item("mac", "coat", "navy", "smart_casual", name="Navy mac", weight_class="lightweight")]
+    o = outfits.suggest(closet, day(-8, -2, rain=True), 1)["outfits"][0]
+    assert o["pieces"]["outer"] == "parka" and o["pieces"]["mid"] == "fleece", o["warnings"]
+    assert any("umbrella" in w for w in o["warnings"])
+    # where the mac is warm enough for the day it is still the only outer layer offered in rain
+    mild = outfits.suggest(closet, day(12, 17, rain=True), 3)["outfits"]
+    assert mild and all(x["pieces"]["outer"] in ("mac", None) for x in mild)
+
+
+def test_an_athletic_day_is_not_dressed_in_jeans_and_called_right_for_sport():
+    # What's missing holds that jeans and a button-up shirt are not exercise clothes (`life.eligible`); Today agrees
+    from closet import life
+    closet = [item("tee", "tee", "white", "casual", name="White tee"), item("shirt", "shirt", "light_blue", "casual", name="Blue oxford shirt"),
+              item("jeans", "jeans", "navy", "casual", name="Dark jeans"),
+              item("joggers", "trousers", "grey", "athletic", name="Grey joggers", kind="joggers", laundry="laundry"),
+              item("runners", "sneakers", "grey", "athletic", name="Grey runners", kind="running_shoe")]
+    by_id = {i["id"]: i for i in closet}
+    assert not life.eligible(by_id["jeans"], "exercise")
+    found = outfits.suggest(closet, day(15, 21, occasion="athletic"), 3)["outfits"]
+    assert found
+    for o in found:
+        worn_ = [by_id[i] for i in o["pieces"].values() if isinstance(i, str)]
+        makeshift = [i["name"] for i in worn_ if not life.eligible(i, "exercise")]
+        assert makeshift and any("not made for sport" in w for w in o["warnings"]), (makeshift, o["warnings"])
+        assert not any("right for sport" in r for r in o["reasons"]), o["reasons"]
+    assert found[0]["pieces"]["base"] == "tee"   # the tee is for sport; the oxford shirt is not
+    # with the joggers clean, the outfit is right for sport and says so
+    clean = [{**i, "laundry": "clean"} for i in closet]
+    o = outfits.suggest(clean, day(15, 21, occasion="athletic"), 1)["outfits"][0]
+    assert o["pieces"]["bottom"] == "joggers" and not any("not made for sport" in w for w in o["warnings"])
+    assert any("right for sport" in r for r in o["reasons"])
+
+
+def test_no_leather_belt_is_added_to_joggers():
+    # joggers, sweatpants and lounge pants are filed as trousers, but have a drawstring waist and no belt loops
+    closet = small_closet(item("joggers", "trousers", "grey", "athletic", name="Heather grey joggers", kind="joggers"),
+                          item("belt", "belt", "brown", name="Brown leather belt"))
+    o = outfits.suggest(closet, day(15, 21, build_around="joggers"), 1)["outfits"][0]
+    assert o["pieces"]["bottom"] == "joggers" and o["pieces"]["accessories"] == []
+    named = small_closet(item("sweats", "trousers", "grey", "casual", name="Grey sweatpants"), item("belt", "belt", "brown"))
+    assert outfits.suggest(named, day(15, 21, build_around="sweats"), 1)["outfits"][0]["pieces"]["accessories"] == []
+    o = outfits.suggest(closet, day(15, 21), 1)["outfits"][0]   # jeans still get the belt
+    assert o["pieces"]["bottom"] == "jeans" and o["pieces"]["accessories"] == ["belt"]
+
+
+def test_the_warmest_you_have_is_not_said_of_a_jacket_once_the_parka_is_set_aside():
+    # the parka was only set aside for today ("Not this piece"), or is waiting to be mended
+    closet = cold_closet() + [item("bomber", "jacket", "navy", "casual", "cool", name="Navy bomber jacket")]
+    o = outfits.suggest(closet, day(-8, -2, leave_out=("parka",)), 1)["outfits"][0]
+    assert o["pieces"]["outer"] == "bomber"
+    assert not any("is the warmest you have" in w for w in o["warnings"]), o["warnings"]
+    assert "No coat warm enough for -8°C to -2°C; the navy bomber jacket is the warmest you can wear today." in o["warnings"]
+    mending = [{**i, "condition": "needs_repair"} if i["id"] == "parka" else i for i in closet]
+    o = outfits.suggest(mending, day(-8, -2), 1)["outfits"][0]
+    assert any("is the warmest you can wear today" in w for w in o["warnings"]), o["warnings"]
+
+
+def test_plural_pieces_are_spoken_of_as_plural():
+    # "The dark jeans is more casual than a formal occasion calls for."
+    closet = [item("shirt", "shirt", "white", "business", name="White dress shirt"), item("jeans", "jeans", "navy", "casual", name="Dark jeans"),
+              item("shoes", "dress_shoes", "black", "business", name="Black oxfords")]
+    o = outfits.suggest(closet, day(15, 21, occasion="formal"), 1)["outfits"][0]
+    said = " ".join(o["warnings"])
+    assert "The dark jeans are more casual than a formal occasion calls for." in said
+    assert "jeans is " not in said
+    tee = outfits._piece(item("tee", "tee", "white", "casual", name="White tee"))
+    oxfords = outfits._piece(closet[2])
+    assert outfits._outfit_problems([tee, oxfords], [tee, oxfords]) == [
+        "The black oxfords are a lot dressier than the white tee."]
+    laundry = small_closet(item("joggers", "trousers", "grey", "athletic", name="Heather grey joggers", laundry="laundry"))
+    assert outfits.suggest(laundry, day(15, 21, build_around="joggers"))["missing"] == [
+        "The heather grey joggers are in the laundry, so there is nothing to build around them."]
+
+
+def test_the_kinds_without_belt_loops_are_the_taxonomys_elastic_waists():
+    garments = json.loads((Path(__file__).parents[2] / "docs" / "menswear-taxonomy.json").read_text(encoding="utf-8"))["garments"]
+    elastic = {k for k, g in garments.items() if g.get("app_category", "trousers") in ("trousers", "shorts")
+               and any(v in ("elastic_drawcord_waist", "elastic_waist", "elastic_drawcord")
+                       for vs in g.values() if isinstance(vs, list) for v in vs)}
+    assert elastic - set(outfits.LOUNGE_KINDS) <= outfits.NO_BELT_KINDS, elastic - outfits.NO_BELT_KINDS
+
+
+# ---------------------------------------------------------------- decided, then changed on 23 November
+def wide_closet():
+    return small_closet(item("shorts", "shorts", "tan", "casual", "warm", name="Tan shorts"),
+                        item("overshirt", "jacket", "olive", "casual", "cool", name="Olive overshirt", weight_class="midweight"),
+                        item("parka", "coat", "tan", "casual", "cool", name="Khaki parka", weight_class="super_heavy"))
+
+
+def test_a_wide_day_carries_one_light_layer_for_the_cool_morning():
+    # out from 5°C to 28°C: the band taken from the high alone forbade every layer while the card said to take one
+    found = outfits.suggest(wide_closet(), day(5, 28), 3)["outfits"]
+    layers = [[o["pieces"][k] for k in ("mid", "outer") if o["pieces"][k]] for o in found]
+    assert layers[0] == ["overshirt"]
+    for o, layer in zip(found, layers, strict=True):
+        assert layer in (["overshirt"], [])   # never the parka, never two layers
+        assert not any("take another layer" in w for w in o["warnings"]), o["warnings"]
+    assert "The olive overshirt is for the cool morning; take it off as it warms up to 28°C." in found[0]["reasons"]
+    # the edges: the owner's bands ask for a light layer under a high of 21°C ("base + light mid or light outer"), and
+    # allow none from 27°C ("base only")
+    assert outfits.wide(day(20.5, 28)) and not outfits.wide(day(21, 28)) and not outfits.wide(day(5, 26.5))
+    assert all(not o["pieces"]["mid"] and not o["pieces"]["outer"] for o in outfits.suggest(wide_closet(), day(21, 28), 3)["outfits"])
+    # a heavy layer is still not offered
+    heavy = [i for i in wide_closet() if i["id"] != "overshirt"]
+    bare = outfits.suggest(heavy, day(5, 28), 3)["outfits"]
+    assert all(not o["pieces"]["mid"] and not o["pieces"]["outer"] for o in bare)
+    assert ("This is light for the cool morning at 5°C, but anything warmer would be too hot once it reaches 28°C."
+            in bare[0]["warnings"])
+
+
+def test_a_hot_day_says_when_the_jeans_are_too_warm_and_puts_lighter_bottoms_first():
+    loved = small_closet(item("chinos", "trousers", "tan", "casual", name="Tan linen trousers", material="linen"))
+    loved[1].update(weight_class="heavyweight", rating="love")   # the dark jeans
+    first = outfits.suggest(loved, day(24, 31), 3)["outfits"]
+    assert first[0]["pieces"]["bottom"] == "chinos"
+    jeans = next(o for o in first if o["pieces"]["bottom"] == "jeans")
+    assert "The dark jeans are heavy for a high of 31°C; nothing lighter went with the rest." in jeans["warnings"]
+    # under 30°C they are not said to be too warm
+    cooler = outfits.suggest(loved, day(22, 29), 3)["outfits"]
+    assert not any("heavy for a high" in w for o in cooler for w in o["warnings"])

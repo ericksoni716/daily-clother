@@ -249,3 +249,24 @@ def test_proportions_score_but_never_exclude():
 def test_the_rules_survive_a_round_trip_through_json():
     outfit, colors = owner_file()
     assert outfit_rules.parse(json.loads(json.dumps(outfit)), colors) == outfits.rules()
+
+
+def test_a_slim_top_suits_a_tapered_leg_and_a_roomy_one_still_fights_it():
+    # (changed 23 November) the owner's "slim top with slim or straight bottom" names no tapered leg, so a slim dress
+    # shirt over tapered wool trousers carried "the proportions fight a little"; a tapered leg is a slim leg
+    slim, roomy = (outfits._piece(item(i, "shirt", "white", silhouette={"fit": f}, name="white shirt"))
+                   for i, f in (("s", "slim"), ("r", "oversized")))
+    tapered = outfits._piece(item("t", "trousers", "grey", silhouette={"leg": "tapered"}, name="grey trousers"))
+    wide = outfits._piece(item("w", "trousers", "grey", silhouette={"leg": "wide"}, name="grey trousers"))
+    score, _, warnings = outfits._style(slim, None, None, tapered, None, explain=True)
+    assert score > 0 and warnings == []
+    assert outfits._style(slim, None, None, wide, None, explain=True)[2] == [
+        "The white shirt is slim and the grey trousers are wide: the proportions fight a little."]
+    assert outfits._style(roomy, None, None, tapered, None, explain=True)[2] == [
+        "The white shirt is roomy and the grey trousers are tapered: the proportions fight a little."]
+
+
+def test_the_bands_say_which_ask_for_a_layer_over_the_base():
+    # from the owner's file: "base + light mid or light outer" asks for one of the two; "optional ..." and "base only" do not
+    asks = {b.high_min: b.asks_layer for b in outfits.rules().bands}
+    assert asks == {27: False, 21: False, 16: True, 10: True, 4: True, -99: True}

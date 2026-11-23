@@ -318,10 +318,12 @@ def test_a_piece_between_two_levels_of_formality_is_checked_as_either(closet):
     with pytest.raises(wouldwork.PieceError, match="next to each other"):
         wouldwork.parse_piece({"category": "jeans", "color": "navy", "formality": "casual", "formality_also": "business"})
     # dark jeans that can be smart casual as well still do the same job as the casual ones you have, and as smart
-    # casual they also do for the business days the closet has no trousers for (casual jeans alone: have_it)
+    # casual they also do for the hot business days the closet has no light trousers for (casual jeans alone:
+    # have_it). (Until 23 November they also freed a mild rainy formal day of "Smart trousers"; since a tapered leg
+    # suits a slim shirt, that day no longer rests on the grey wool trousers, so there is nothing there to free.)
     a = check(closet, p)
     assert {r["id"] for r in a["repeats"]["items"]} == ids_of(closet, "jeans")
-    assert {f["gap_id"] for f in a["fills"]} == {"trousers-business", "trousers-business-light"}
+    assert {f["gap_id"] for f in a["fills"]} == {"trousers-business-light"}
 
 
 # ------------------------------------------------------------------ the example outfits alone ("See it with your clothes")

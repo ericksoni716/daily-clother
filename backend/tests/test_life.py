@@ -25,8 +25,10 @@ def climate(band=None, wet=0.3):
 def test_unanswered_demo_is_the_original_analysis_exactly():
     original = gaps.find_gaps(demo_items(), options={"max_gaps": 100})
     assert [(g["id"], g["score"]) for g in original["gaps"]] == [
-        ("outer-rain", 71), ("outer", 35), ("outer-warm", 35), ("trousers-business-light", 35),
+        ("outer-rain", 71), ("outer-warm", 42), ("trousers-business-light", 36), ("outer", 35),
         ("dress_shoes-business", 34), ("trousers-business", 34), ("shirt-business", 32), ("sweater-business", 5)]
+    # (23 November) cold sport days now rest on the parka (pieces not made for sport are a makeshift there), and hot
+    # business days count heavy wool trousers as too warm: outer-warm was 35 and trousers-business-light 35
     personalized = life.analyse(demo_items(), [], None, climate("hot"))
     assert personalized.pop("taste") == {"used": False, "summary": None}
     for gap in personalized["gaps"]:

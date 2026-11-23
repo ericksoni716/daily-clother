@@ -498,7 +498,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* ---------------------------------------------------------------- grid & tiles */
 .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
 @media (min-width: 560px) { .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 22px 16px; } }
-@media (min-width: 1000px) { .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } }
+@media (min-width: 1000px) {
+  .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  /* as many to a row as fit the closet's whole width, worked out on the page: the same with a piece's panel open */
+  .grid.has-columns { grid-template-columns: repeat(var(--columns), minmax(0, 1fr)); }
+}
 
 .tile { display: flex; flex-direction: column; text-decoration: none; color: var(--ink); border-radius: var(--radius-md); }
 .tile-card {
@@ -638,6 +642,8 @@ html.sheet-open, html.sheet-open body { overflow: hidden; overscroll-behavior: n
   /* The closet's panel opens only for a chosen item and scrolls with the page: no scrollbar of its own. */
   .closet-layout.has-panel { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: var(--space-7); align-items: start; }
   .closet-panel { position: static; max-height: none; overflow: visible; padding: var(--space-5); }
+  .closet-panel:focus { outline: none; }
+  .closet-panel-head { display: flex; justify-content: flex-end; margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-3)) 0 0; }
 }
 
 .detail { max-width: 40rem; margin: 0 auto; }

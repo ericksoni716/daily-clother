@@ -126,4 +126,60 @@ test.describe('computer', () => {
     await page.waitForLoadState('networkidle');
     await page.screenshot({ path: test.info().outputPath(`item-computer.png`) });
   });
+
+  test('opening a piece far down the grid keeps the grid still; the panel closes with Close, Escape and Back', async ({ page }) => {
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    await page.goto('/');
+    const tiles = page.getByTestId('tile');
+    await expect(tiles.first()).toBeVisible();
+    const columns = () => page.locator('ul.grid').evaluate((g) => getComputedStyle(g).gridTemplateColumns.split(' ').length);
+    const before = await columns();
+    expect(before).toBeGreaterThanOrEqual(4);
+    // a few rows down, the last tile of its row
+    const tile = tiles.nth(before * 3 - 1);
+    await tile.scrollIntoViewIfNeeded();
+    await page.mouse.wheel(0, 120);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
+    const at = (await tile.boundingBox())!;
+    const href = (await tile.getAttribute('href'))!;
+
+    await tile.click();
+    const panel = page.getByRole('complementary', { name: 'Item details' });
+    await expect(panel.getByRole('textbox', { name: 'Name' })).toBeVisible();
+    // the grid keeps its columns, and the piece chosen stays where it was on the screen
+    expect(await columns()).toBe(before);
+    const now = (await tile.boundingBox())!;
+    expect(Math.abs(now.y - at.y)).toBeLessThan(3);
+    // the panel opens level with the top of the screen, and focus goes into it
+    const box = (await panel.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeLessThan(40);
+    await expect.poll(() => panel.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    await page.screenshot({ path: test.info().outputPath('computer-panel-holds-still.png') });
+
+    // Close closes it, the address is the closet's again, and focus is back on the piece
+    await panel.getByRole('button', { name: 'Close' }).click();
+    await expect(panel).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(tile).toBeFocused();
+    expect(await columns()).toBe(before);
+
+    // Escape closes it too
+    await tile.click();
+    await expect(panel).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`${href}$`));
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+
+    // and so does the browser's Back
+    await tile.click();
+    await expect(panel).toBeVisible();
+    await page.goBack();
+    await expect(panel).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+    // Close and Escape went Back rather than adding a page, so the closet is still the first page of this visit
+    expect(await page.evaluate(() => (history.state as { idx: number }).idx)).toBe(0);
+  });
 });

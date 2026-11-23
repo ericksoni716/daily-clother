@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { CloseIcon, DrawingIcon, FilterIcon, HangerIcon, ImagesIcon, SearchIcon } from '../components/Icons';
 import { StepMark } from '../components/Progress';
 import { WorkingLine } from '../components/WorkingLine';
@@ -8,7 +8,8 @@ import { gridViewOf, smallPicture, useShowDrawings, type GridView, type MomentVi
 import { setLaundryMany } from '../laundry';
 import { groupsIn, groupTitle, kindsOf, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
-import { itemPath, Link, navigate } from '../router';
+import { goBack, itemPath, Link, navigate } from '../router';
+import { columnsFor } from '../closet';
 import { progressOf } from '../progress';
 import { itemSaved, itemsQuery, progressQuery, reviewQuery, useVocab } from '../queries';
 import { useApp } from '../store';
@@ -71,6 +72,8 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const [panelTop, setPanelTop] = useState(0);
   const filterButton = useRef<HTMLButtonElement>(null);
   const layout = useRef<HTMLDivElement>(null);
+  const aside = useRef<HTMLElement>(null);
+  const [layoutWidth, setLayoutWidth] = useState(0);
 
   const categories = useMemo(() => {
     const seen = new Map<string, number>();
@@ -118,12 +121,70 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
       .finally(() => setWashing(false));
   };
   const panel = wide && selectedId !== null;
+  const closetPath = status === 'archived' ? '/archived' : '/';
 
-  // The panel scrolls with the page, so it opens level with where the owner is looking, not at the top of the grid.
-  const choose = useCallback(() => {
-    if (!wide || !layout.current) return;
-    setPanelTop(Math.max(0, Math.round(16 - layout.current.getBoundingClientRect().top)));
+  // On a computer the grid keeps as many tiles to a row as fit the whole width, the panel open or not: opening a piece
+  // makes the tiles narrower and moves none of them to another row (`columnsFor`).
+  useEffect(() => {
+    const el = layout.current;
+    if (!wide || !el) return;
+    const measure = () => setLayoutWidth(el.clientWidth);
+    measure();
+    const seen = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    seen?.observe(el);
+    return () => seen?.disconnect();
   }, [wide]);
+  const columns = wide && layoutWidth > 0 ? columnsFor(layoutWidth, TILE_MIN_WIDE, GRID_GAP_WIDE) : null;
+
+  // The piece chosen stays where it was on the screen while the panel opens beside the grid, and the panel opens level
+  // with the top of the screen, so a tile far down does not open a panel out of sight.
+  const anchor = useRef<{ id: string; top: number } | null>(null);
+  const choose = useCallback((id: string, tile: HTMLElement) => {
+    if (wide) anchor.current = { id, top: tile.getBoundingClientRect().top };
+  }, [wide]);
+  useLayoutEffect(() => {
+    const el = layout.current;
+    if (!panel || !el) return;
+    const kept = anchor.current;
+    anchor.current = null;
+    const tile = kept && kept.id === selectedId ? el.querySelector<HTMLElement>(`[data-id="${CSS.escape(kept.id)}"]`) : null;
+    if (kept && tile) {
+      const moved = tile.getBoundingClientRect().top - kept.top;
+      if (Math.abs(moved) >= 1) window.scrollBy(0, moved);
+    }
+    setPanelTop(Math.max(0, Math.round(16 - el.getBoundingClientRect().top)));
+  }, [panel, selectedId]);
+
+  // Focus goes into the panel as it opens, and back to the piece once it closes.
+  const lastOpen = useRef<string | null>(null);
+  useEffect(() => {
+    if (panel && selectedId) {
+      lastOpen.current = selectedId;
+      aside.current?.focus({ preventScroll: true });
+      return;
+    }
+    const id = lastOpen.current;
+    lastOpen.current = null;
+    const now = document.activeElement;
+    if (id && (!now || now === document.body || !now.isConnected)) {
+      layout.current?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+    }
+  }, [panel, selectedId]);
+
+  // Close and Escape go back to the closet: Back, when the page before is the closet, so history does not grow.
+  const closePanel = useCallback(() => goBack(closetPath), [closetPath]);
+  useEffect(() => {
+    if (!panel) return;
+    const key = (e: KeyboardEvent) => {
+      // a sheet open over the page, or a field being typed in, takes Escape first
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      e.preventDefault();
+      closePanel();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [panel, closePanel]);
 
   const grid = (
     <section className="closet-main" aria-labelledby="closet-title">
@@ -224,7 +285,8 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
             failed={(m) => toast(m, 'error')}
             onReturned={(id, back) => setReturned((r) => { const n = new Set(r); if (back) n.add(id); else n.delete(id); return n; })} />
         ) : (
-          <ul className="grid" aria-label="Clothes">
+          <ul className={`grid${columns ? ' has-columns' : ''}`} aria-label="Clothes"
+            style={columns ? { '--columns': columns } as CSSProperties : undefined}>
             {shown.map((it) => (
               <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} progress={progressOf(it, work)} view={gridView} onChoose={choose} /></li>
             ))}
@@ -238,7 +300,10 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
     <div ref={layout} className={`closet-layout${panel ? ' has-panel' : ''}`}>
       {grid}
       {panel && (
-        <aside className="detail-panel closet-panel" aria-label="Item details" style={{ marginTop: panelTop }}>
+        <aside ref={aside} tabIndex={-1} className="detail-panel closet-panel" aria-label="Item details" style={{ marginTop: panelTop }}>
+          <div className="closet-panel-head">
+            <Button variant="ghost" small onClick={closePanel}><CloseIcon /> Close</Button>
+          </div>
           <ItemDetail key={selectedId} id={selectedId} status={status} inPanel />
         </aside>
       )}
@@ -247,6 +312,9 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
 }
 
 const LAUNDRY: Record<Laundry, string> = { clean: 'Clean', laundry: 'In the laundry' };
+/** The grid's smallest tile and the room between tiles on a computer (styles.css, "grid & tiles"). */
+const TILE_MIN_WIDE = 180;
+const GRID_GAP_WIDE = 16;
 
 const NEEDS_CHECK = 'Needs a check';
 const AWAY = 'Away';
@@ -384,13 +452,14 @@ function FilterChoices({ status, categories, category, laundry, away, groups, gr
 /** One tile of the grid. Memoised: a poll or a save that changes one item draws that item's tile only. `progress` is
  * how far the work on it has got (progress.ts), shown as the step's small mark. */
 const Tile = memo(function Tile({ item, status, selected, progress, view, onChoose }: {
-  item: ItemSummary; status: 'active' | 'archived'; selected: boolean; progress: Progress | null; view: GridView; onChoose(): void;
+  item: ItemSummary; status: 'active' | 'archived'; selected: boolean; progress: Progress | null; view: GridView;
+  onChoose(id: string, tile: HTMLElement): void;
 }) {
   const name = item.name || label('category', item.category) || 'New item';
   const caption = tileCaption(item.category, item.color);
   return (
     <Link to={itemPath(item.id, status)} className={`tile${selected ? ' is-selected' : ''}`} aria-current={selected ? 'true' : undefined}
-      data-testid="tile" onClick={onChoose}>
+      data-testid="tile" data-id={item.id} onClick={(e) => onChoose(item.id, e.currentTarget)}>
       <div className="tile-card">
         <TilePicture item={item} view={view} />
         {progress && <StepMark progress={progress} />}

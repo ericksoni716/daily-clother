@@ -167,8 +167,9 @@ it waits, a warning sign when a step failed. A piece away has a small round mark
 corner. While anything is being worked on, one line,
 "Working on 3 items", floats above the grid and the tab bar; tapping it lists those pieces,
 each with what is happening to it, and says once why they wait when it is something you can
-see to in Settings. On a computer, choosing a piece opens it in a panel beside the grid; on a
-phone it opens as its own page.
+see to in Settings. On a computer, choosing a piece opens it in a panel beside the grid; the grid keeps
+as many pieces to a row and the piece stays where it was, and **Close**, Escape or Back closes the
+panel. On a phone it opens as its own page.
 
 ## An item
 

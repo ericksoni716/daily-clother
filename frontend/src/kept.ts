@@ -1,6 +1,6 @@
 /** Outfits you keep: the shape the server sends, finding one by its pieces, and the words on their cards. */
 import { sameOutfit } from './today';
-import { localDay, whenWorn } from './wears';
+import { dayOf, localDay, whenWorn } from './wears';
 import { wornIds, type WornPieces } from './worn';
 
 /** An outfit kept without wearing it (`GET /api/outfits/kept`). */
@@ -36,8 +36,8 @@ export function keptToast(answer: Pick<KeptAnswer, 'already'>): string {
 
 /** "Kept today", "Kept on Tuesday", "Kept on 3 Nov": when an outfit was kept, by this device's calendar. */
 export function keptWhen(o: Pick<KeptOutfit, 'created_at'>, today: string = localDay()): string {
-  const d = new Date(o.created_at);
-  return Number.isNaN(d.getTime()) ? 'Kept' : `Kept ${whenWorn(localDay(d), today)}`;
+  const day = dayOf(o.created_at);
+  return day ? `Kept ${whenWorn(day, today)}` : 'Kept';
 }
 
 /** The line on an outfit whose piece has left the closet; null when every piece is there. */

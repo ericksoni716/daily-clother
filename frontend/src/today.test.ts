@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  addDays, dayMonth, dayName, daysAhead, onDay, weekdayOf,
+  addDays, dayName, daysAhead, onDay, weekdayOf,
   canDress, closetKey, dayParts, newestOn, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
   parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, whatToAddFirst, wornOrder,
   type DayContext, type Outfit, type SavedOutfits, wornNow, type WornToday, shortDate,
 } from './today';
 import type { ItemSummary } from './types';
+import { dayMonth } from './wears';
 
 class MemoryStorage {
   data = new Map<string, string>();
@@ -259,8 +260,7 @@ describe('days ahead', () => {
     expect(addDays('2026-11-30', 2)).toBe('2026-12-02');
     expect(daysAhead('2026-11-25', '2026-12-01')).toBe(6);
     expect(weekdayOf('2026-11-28')).toBe('Saturday');
-    expect(dayMonth('2026-11-28')).toBe('28 November');
-    expect(dayMonth('2026-11-28', true)).toBe('28 Nov');
+    expect(dayMonth('2026-11-28', '2026-11-25')).toBe('28 Nov');
     expect(dayName('2026-11-26', '2026-11-25')).toBe('Tomorrow');
     expect(dayName('2026-12-01', '2026-11-25')).toBe('Tuesday');
     expect(dayName('2026-12-02', '2026-11-25')).toBe('Wed 2 Dec');

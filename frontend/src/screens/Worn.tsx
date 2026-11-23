@@ -524,15 +524,17 @@ function KeptList() {
   const byId = useAllItems();
   const plans = useQuery(plansQuery(profile)).data;
   const trips = useQuery(tripsQuery(profile)).data;
+  // as What you wore: offline with nothing kept on this device, one sentence; any other failed read, the shared one
   const error = read.error && !list
-    ? ((read.error as ApiError).status === 0 ? "You're offline. The outfits you keep show here once Nines on your computer can be reached." : read.error.message)
+    ? ((read.error as ApiError).status === 0 ? "You're offline. The outfits you keep show here once Nines on your computer can be reached." : 'failed')
     : null;
   return (
     <div className="worn">
       <PageHeader title="Worn" back={{ to: '/today', label: 'Today' }}
         count={list && <>{list.length} kept</>} />
       <WornSwitch kept />
-      {error && <p className={offline ? 'notice' : 'form-error'} role="alert">{error}</p>}
+      {error === 'failed' ? <Failed query={read} what="the outfits you keep" />
+        : error ? <p className="notice" role="alert">{error}</p> : list && <Failed query={read} what="the outfits you keep" />}
       {list === null && !error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading…</p>}
       {list && list.length === 0 && (
         <EmptyState icon={<HangerIcon />} title="No outfits kept yet" body={KEPT_EMPTY} testId="kept-empty" />

@@ -310,9 +310,17 @@
 /* on a day ahead: one line of fixed height, so the outfit under it holds still whatever the line says */
 .today-plan-ahead { height: 1.45em; margin-bottom: var(--space-1); white-space: nowrap; overflow-wrap: normal; }
 .today-ahead .today-outfits-head { margin-bottom: 0; }
-.today-ahead .today-outfits-head .count { white-space: nowrap; }   /* "1 of 3" wraps whole, never "1 of" and "3" */
+/* on a phone, Today's and a day ahead's: the words whole ("Best for today", "Best for Wed"), and the count on its own
+   smaller line under them, on purpose, so neither breaks inside at any width from 320 */
+@media (max-width: 599px) {
+  .today-outfits-head h2 { line-height: 1.2; white-space: nowrap; }
+  .today-outfits-head .count { display: block; font-size: var(--text-xs); }
+  .today-count-dot { display: none; }
+}
 /* "Planned" beside Remove the plan, on one row like the button it takes the place of */
 .today-worn.today-planned { min-width: 0; }
+/* under the outfit's button: a planned piece swapped, or one counted on being back; here a longer sentence moves nothing */
+.today-plan-note { flex-basis: 100%; margin: 0; font-size: var(--text-sm); color: var(--ink-2); }
 /* the plans of the coming week, one line on Today */
 .today-soon { margin: var(--space-4) 0 0; font-size: var(--text-sm); color: var(--ink-2); }
 .today-trip-day { margin-top: var(--space-2); }

@@ -92,6 +92,8 @@ export interface DayContext {
   held?: Record<string, string>;
   /** A day dressed ahead (Dress for another day), not today. */
   ahead?: boolean;
+  /** A day ahead: the pieces away now that it counts as back by then (expected back before it), as a trip packs them. */
+  expected?: string[];
   /** A day ahead with no weather: whether trying again may find it (the weather service could not be reached). */
   retry?: boolean;
   /** A day ahead inside a saved trip, which has that day's outfit. */
@@ -289,52 +291,8 @@ export function dayParts(c: DayContext): string[] {
 // the days are written by the one family of dates (wears.ts); Today and a trip read them from here too
 export { clock as timeOf, longDate, shortDate } from './wears';
 
-// --------------------------------------------------------------------- days ahead
-
-function utc(day: string): Date {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d));
-}
-
-/** "2026-11-28" from "2026-11-25" and 3. */
-export function addDays(day: string, n: number): string {
-  const d = utc(day);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-/** How many days `day` is after `today` (0 for today, negative before). */
-export function daysAhead(today: string, day: string): number {
-  return Math.round((utc(day).getTime() - utc(today).getTime()) / 86_400_000);
-}
-
-const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
-  'November', 'December'];
-
-/** "Saturday" from "2026-11-28". */
-export function weekdayOf(day: string): string {
-  return WEEKDAYS[utc(day).getUTCDay()];
-}
-
-/** "28 November" (or "28 Nov", `short`) from "2026-11-28": the day's heading, after its weekday. */
-export function dayMonth(day: string, short = false): string {
-  const d = utc(day);
-  return `${d.getUTCDate()} ${(short ? MONTHS : LONG_MONTHS)[d.getUTCMonth()]}`;
-}
-
-/** A day ahead by its name: "Tomorrow", "Saturday" within the week, "Sat 12 Dec" further off. */
-export function dayName(day: string, today: string): string {
-  const n = daysAhead(today, day);
-  if (n === 1) return 'Tomorrow';
-  if (n > 1 && n < 7) return weekdayOf(day);
-  return shortDate(day);
-}
-
-/** The same in a sentence: "tomorrow", "on Saturday", "on Sat 12 Dec". */
-export function onDay(day: string, today: string): string {
-  const name = dayName(day, today);
-  return name === 'Tomorrow' ? 'tomorrow' : `on ${name}`;
-}
+// days ahead (Dress for another day): written by the family too
+export { addDays, dayName, daysAhead, onDay, weekdayOf } from './wears';
 
 /** A temperature typed by hand ("5", "-3", "12.5", "12°"); null if it is not a number this app plans for. */
 export function parseTemp(text: string): number | null {

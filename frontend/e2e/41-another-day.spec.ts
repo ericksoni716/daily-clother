@@ -70,17 +70,21 @@ test('another day: the sheet, the day in Today\'s layout, "Wear this tomorrow", 
   await wear.click();
   await expect(page.locator('.toast', { hasText: 'Planned for tomorrow. That morning, Today opens on it.' })).toBeVisible();
   await expect(current(page).getByTestId('planned-day')).toHaveText('Planned');   // the heading names the day
-  await expect(planLine(page)).toContainText('Planned for tomorrow. Remove the plan');
-  expect(await offset()).toBe(before);   // the page holds still
+  // one thing, one home: the planned outfit has Remove the plan, and the line over it is the way to other outfits
+  await expect(planLine(page)).toHaveText('See other outfits');
+  await expect(page.getByRole('button', { name: 'Remove the plan' })).toHaveCount(1);
+  // the page holds still (once the day has opened on its plan)
+  await expect.poll(offset).toBe(before);
   // a plan, not a wear: nothing worn today
   const worn = (await (await page.request.get('/api/outfits/worn?limit=1')).json()).outfits as { worn_on: string }[];
   expect(worn[0]?.worn_on).not.toBe(localDay(1));
 
-  await planLine(page).getByRole('button', { name: 'Remove the plan' }).click();
+  await current(page).getByRole('button', { name: 'Remove the plan' }).click();
   await expect(planLine(page)).toContainText('The plan for tomorrow is gone.');
-  expect(await offset()).toBe(before);
+  await expect.poll(offset).toBe(before);
   await planLine(page).getByRole('button', { name: 'Undo' }).click();
-  await expect(planLine(page)).toContainText('Planned for tomorrow. Remove the plan');
+  await expect(current(page).getByTestId('planned-day')).toHaveText('Planned');
+  await expect(page.getByRole('button', { name: 'Remove the plan' })).toHaveCount(1);
 
   // back to today, where the plans of the coming week are one line leading to each day
   await page.getByRole('link', { name: 'Today' }).first().click();
@@ -163,6 +167,57 @@ async function firstOutfit(page: Page) {
   return (await r.json()).outfits[0].pieces as Record<string, unknown>;
 }
 
+test('the outfit heading never breaks inside its words, on Today and a day ahead, from 320 to 430', async ({ page }) => {
+  // at 375 it read "Best for this / day · 1 of 3"; the words and the count each stay whole, whatever the width
+  await openDemo(page);
+  const whole = async (where: string) => {
+    const head = page.locator('.today-outfits-head h2');
+    await expect(head).toBeVisible();
+    const lines = await head.evaluate((h2) => [...h2.childNodes].map((n) => {
+      const r = document.createRange();
+      r.selectNodeContents(n);
+      const tops = new Set([...r.getClientRects()].filter((b) => b.width > 1).map((b) => Math.round(b.top)));
+      return { text: n.textContent ?? '', lines: tops.size };
+    }));
+    for (const l of lines) expect(l.lines, `${where}: "${l.text}" breaks inside`).toBeLessThanOrEqual(1);
+  };
+  for (const width of [320, 375, 393, 430]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/today');
+    await whole(`Today at ${width}`);
+    await page.goto(`/today/day/${localDay(2)}`);
+    await whole(`a day ahead at ${width}`);
+  }
+});
+
+test('a planned piece that is away is swapped without moving the outfit, and a piece due back first is counted on in one line', async ({ page }) => {
+  await openDemo(page);
+  const day = localDay(2);
+  const pieces = await firstOutfit(page) as Record<string, string | null>;
+  const away = (pieces.bottom ?? pieces.base)!;
+  try {
+    // lent out with no day said: not back by then, so the plan's place is filled and the piece is named with where it is
+    await page.request.put(`/api/items/${away}/away`, { data: { place: 'lent' } });
+    await page.request.put(`/api/plans/${day}`, { data: { pieces } });
+    await page.goto(`/today/day/${day}`);
+    await expect(current(page).getByTestId('plan-swapped')).toContainText('lent out, so another piece takes its place.');
+    const lines = await planLine(page).evaluate((el) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
+    expect(lines).toBeLessThan(1.5);   // the line over the outfit keeps its one line
+    await expect(planLine(page)).toHaveText('See other outfits');
+
+    // expected back the day before: offered again, and the day says it counts on it being back
+    const before = localDay(1);
+    await page.request.put(`/api/items/${away}/away`, { data: { place: 'cleaner', until: before } });
+    await page.reload();
+    await expect(current(page).getByTestId('planned-day')).toBeVisible();
+    await expect(current(page).getByTestId('plan-swapped')).toHaveCount(0);
+    const counts = current(page).getByTestId('counts-on');
+    await expect(counts).toHaveText(/^This counts on your .+ being back by then\.$/);
+  } finally {
+    await page.request.post(`/api/items/${away}/back`);
+  }
+});
+
 test('another day: a word about the day says what is sent, as today\'s does', async ({ page }) => {
   await openDemo(page);
   await page.goto(`/today/day/${localDay(2)}`);
@@ -195,7 +250,8 @@ test('the morning of a planned day: Today opens on the plan, says a piece was sw
   await useProfile(page, 'demo');
   await page.goto('/today');
   await expect(planLine(page)).toContainText('You planned this outfit for today. “Dinner at eight”');
-  await expect(planLine(page)).toContainText("can't be worn today, so another piece takes its place.");
+  // the swapped piece is said under the outfit's button, where a longer sentence moves nothing
+  await expect(current(page).getByTestId('plan-swapped')).toContainText("can't be worn today, so another piece takes its place.");
   await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('morning-of-a-planned-day.png') });
   // a planned piece Today keeps out of the laundry's way says so, asked for by name

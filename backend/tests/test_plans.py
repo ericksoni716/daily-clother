@@ -219,7 +219,10 @@ def test_a_day_ahead_offers_a_piece_away_only_when_it_is_expected_back_before_th
     send_away(client, ids["tee1"], "cleaner", SATURDAY + timedelta(days=1))
     assert suggest(client, day=day)["outfits"] == []
     send_away(client, ids["tee1"], "cleaner", SATURDAY - timedelta(days=1))   # back the day before
-    assert {o["pieces"]["base"] for o in suggest(client, day=day)["outfits"]} == {ids["tee1"]}
+    answer = suggest(client, day=day)
+    assert {o["pieces"]["base"] for o in answer["outfits"]} == {ids["tee1"]}
+    assert answer["context"]["expected"] == [ids["tee1"]]   # the day says it counts on it being back
+    assert "expected" not in suggest(client)["context"]   # today counts on nothing coming back
     # today it is still away
     assert all(o["pieces"]["base"] != ids["tee1"] for o in suggest(client)["outfits"])
 

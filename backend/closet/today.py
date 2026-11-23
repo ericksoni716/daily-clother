@@ -307,7 +307,9 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         request["occasion"] = on["occasion"]
     ctx, count = outfits.parse_request({**request, **day, "worn_days_ago": worn_days_ago(conn, on_day)})
     rows = closet_rows(conn)
+    expected: list[str] = []   # pieces away now that a day ahead counts as back by then
     if other is not None:
+        expected = sorted(r["id"] for r in rows if plans.back_before(r, other))
         rows = plans.back_by(clean_by(rows, today_, other), other)
     if ctx.build_around and not any(r["id"] == ctx.build_around for r in rows):
         raise outfits.ContextError("The item to build around is not in this closet.")
@@ -370,6 +372,8 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         context["ahead"] = True
         if mild:
             context["retry"] = retry
+        if expected:   # the page says when an outfit counts on one being back, as a trip's plan does
+            context["expected"] = expected
         stylist = None   # another day is dressed by the rules: Claude chooses for today only
     answer = outfits.suggest(rows, ctx, count, feedback)
     if planned is not None and not planned["unavailable"] and answer["outfits"]:

@@ -130,6 +130,13 @@ export function swapLine(given: Swapped[], day: string, today: string): string |
   return lines.join(' ');
 }
 
+/** A day ahead that counts on pieces away now being back (expected back before it, as a trip counts them): "This
+ * counts on your navy blazer being back by then."; null when it counts on none. */
+export function countsOnLine(names: string[]): string | null {
+  if (!names.length) return null;
+  return `This counts on ${joinWords(names.map((n) => `your ${midName(n)}`))} being back by then.`;
+}
+
 /** In a planned piece's sheet: why Today does not offer it now. */
 export function heldLine(day: string, today: string): string {
   return `${plannedFor(day, today).replace('Planned', 'You planned this')}. Wearing it now would leave it in the laundry by then.`;

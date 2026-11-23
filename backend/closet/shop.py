@@ -22,7 +22,10 @@ A wish's finds can have their prices looked up again on demand and, while the
 program runs, at most once a day (`PriceScheduler`): a link's page read by Nines
 first, Claude asked about the rest. Every price seen is kept, and a find whose
 latest price is below the highest seen before shows a drop, on the wish and on
-its row in the wishlist. The demo closet is never sent to Claude: it cannot
+its row in the wishlist. A price that came down since the owner last looked at
+the wish (migration 0045), to no more than the most they would pay when they
+said, is news (`news`): the page's banner tells them. The demo closet is never
+sent to Claude and has no news: it cannot
 search, a link's page is read there by Nines alone, and the daily round only
 ever opens the real closet.
 
@@ -39,14 +42,14 @@ import sqlite3
 import threading
 import traceback
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import db, gaps, productpage, spend, wishlist, wouldwork
 from .config import Config
@@ -62,6 +65,7 @@ CHECK_EVERY = 3600.0            # seconds between looks at whether a round is du
 FIRST_WAIT = 120.0              # seconds after the program starts before the first look
 PRICE_FINDS_MAX = 12            # the newest finds still for sale whose prices are looked up, per wish
 HISTORY_MAX = 30                # prices shown per find, newest last
+SEEN_MAX = 200                  # wishes marked seen in one request (the banner's "Got it" marks every one it told)
 URL_MAX = productpage.URL_MAX   # 2000
 NAME_MAX = 200
 # a wish made from a link is named from its product, cut at a word to this: the wish's name is its page's heading, and
@@ -272,28 +276,91 @@ def list_finds(conn: sqlite3.Connection, wish_id: str) -> list[dict]:
                                                  (wish_id,))]
 
 
-def on_the_list(conn: sqlite3.Connection) -> dict[str, dict]:
-    """What the wishlist shows on each open wish's row, by wish: `link`, its newest find sent as a link ({shop, price,
-    currency, available}), and `drop`, the biggest drop among its finds ({from, to, currency, percent, shop}); None for
-    either when there is none."""
+def _open_finds(conn: sqlite3.Connection) -> tuple[list[sqlite3.Row], dict[str, list[dict]]]:
+    """The finds of the wishes still wanted, the newest first, and every price each was seen at, by find."""
     finds = conn.execute(
-        "SELECT f.id, f.wish_id, f.shop, f.price, f.currency, f.available, f.link FROM finds f JOIN wishes w "
+        "SELECT f.id, f.wish_id, f.name, f.shop, f.price, f.currency, f.available, f.link FROM finds f JOIN wishes w "
         "ON w.id = f.wish_id WHERE w.bought_at IS NULL ORDER BY f.found_at DESC, f.rowid").fetchall()
     history: dict[str, list[dict]] = {}
     for r in conn.execute("SELECT p.find_id, p.at, p.price, p.currency, p.available FROM find_prices p "
                           "JOIN finds f ON f.id = p.find_id JOIN wishes w ON w.id = f.wish_id "
                           "WHERE w.bought_at IS NULL ORDER BY p.at, p.id"):
         history.setdefault(r["find_id"], []).append(_point(r))
+    return finds, history
+
+
+def on_the_list(conn: sqlite3.Connection) -> dict[str, dict]:
+    """What the wishlist shows on each open wish's row, by wish: `link`, its newest find sent as a link ({name, shop,
+    price, currency, available}), and `drop`, the biggest drop among its finds ({from, to, currency, percent, shop});
+    None for either when there is none."""
+    finds, history = _open_finds(conn)
     out: dict[str, dict] = {}
     for f in finds:
         row = out.setdefault(f["wish_id"], {"link": None, "drop": None})
         if f["link"] and row["link"] is None:
-            row["link"] = {"shop": f["shop"], "price": f["price"], "currency": f["currency"],
+            row["link"] = {"name": f["name"], "shop": f["shop"], "price": f["price"], "currency": f["currency"],
                            "available": bool(f["available"])}
         d = drop(history.get(f["id"], []))
         if d and (row["drop"] is None or d["percent"] > row["drop"]["percent"]):
             row["drop"] = {**d, "shop": f["shop"]}
     return out
+
+
+def came_down(history: list[dict]) -> dict | None:
+    """The drop a find's newest price is (`drop`), with `at`, the moment the price came down to it: the first of the
+    latest prices seen at that price, the price seen before them being higher. None when the newest price is no drop,
+    is sold out, or went up to it from a lower one. A price checked again each day at the same price stays one drop,
+    with one moment."""
+    d = drop(history)
+    if d is None or not history[-1]["available"]:
+        return None
+    same = [h for h in history if h["price"] is not None and h["currency"] == d["currency"]]
+    i = len(same) - 1
+    while i > 0 and abs(same[i - 1]["price"] - d["to"]) < 0.005:
+        i -= 1
+    if i == 0 or same[i - 1]["price"] < d["to"]:
+        return None
+    return {**d, "at": same[i]["at"]}
+
+
+def at_price(wish: Mapping, currency: str, price: float) -> bool | None:
+    """Whether a price is no more than the most the owner would pay for the wish (`price_max`): None when they set
+    none, or set it in another currency (prices are never converted)."""
+    if wish["price_max"] is None or (wish["price_currency"] or wishlist.CURRENCY_DEFAULT) != currency:
+        return None
+    return price <= wish["price_max"] + 0.005
+
+
+def news(conn: sqlite3.Connection) -> list[dict]:
+    """The price news the owner has not seen, a wish at a time: an open wish one of whose finds' price came down
+    (`came_down`) after the owner last saw the wish's news (`news_seen_at`), to no more than the most they would pay
+    when they set it in that find's currency. A price first seen already low is no news, only a price that came down
+    is. Each: {wish_id, name, shop, from, to, currency, percent, at, at_price}, the biggest drop of the wish's when
+    several came down; the newest first. Never asked of the demo closet (the route)."""
+    wishes = {r["id"]: r for r in conn.execute(
+        "SELECT id, name, price_max, price_currency, news_seen_at FROM wishes WHERE bought_at IS NULL")}
+    finds, history = _open_finds(conn)
+    out: dict[str, dict] = {}
+    for f in finds:
+        w = wishes[f["wish_id"]]
+        d = came_down(history.get(f["id"], []))
+        if d is None or (w["news_seen_at"] and d["at"] <= w["news_seen_at"]):
+            continue
+        under = at_price(w, d["currency"], d["to"])
+        if under is False:
+            continue
+        best = out.get(w["id"])
+        if best is None or d["percent"] > best["percent"]:
+            out[w["id"]] = {"wish_id": w["id"], "name": w["name"], "shop": f["shop"], **d, "at_price": bool(under)}
+    return sorted(out.values(), key=lambda n: n["at"], reverse=True)
+
+
+def mark_seen(conn: sqlite3.Connection, wish_ids: list[str]) -> None:
+    """The owner has seen these wishes' price news (opened the wish's page, or dismissed the banner). Wishes no longer
+    kept are passed over."""
+    t = db.now()
+    for wish_id in dict.fromkeys(wish_ids):
+        conn.execute("UPDATE wishes SET news_seen_at = ? WHERE id = ?", (t, wish_id))
 
 
 def save_finds(conn: sqlite3.Connection, wish_id: str, finds: list[dict], verdicts: list[dict]) -> int:
@@ -896,6 +963,11 @@ class LinkBody(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class SeenBody(BaseModel):
+    wish_ids: list[str] = Field(max_length=SEEN_MAX)   # the wishes whose price news the owner has seen
+    model_config = {"extra": "forbid"}
+
+
 def router(shopper: Shopper, state: State, conn_dep: Callable) -> APIRouter:
     r = APIRouter()
 
@@ -953,6 +1025,20 @@ def router(shopper: Shopper, state: State, conn_dep: Callable) -> APIRouter:
             return await start(wish_id, lambda profile, wid: shopper.add_link_to(profile, wid, body.url))
         except productpage.PageError as e:
             raise HTTPException(422, str(e)) from None
+
+    def news_now(conn) -> dict:
+        # the demo closet has no news: its prices are only ever read when the owner asks there
+        return {"news": [] if state.get("profile") == "demo" else news(conn)}
+
+    @r.get("/api/wishlist/news")
+    def get_news(conn=Depends(conn_dep)):
+        return news_now(conn)
+
+    @r.post("/api/wishlist/news/seen")
+    def news_seen(body: SeenBody, conn=Depends(conn_dep)):
+        if state.get("profile") != "demo":
+            mark_seen(conn, body.wish_ids)
+        return news_now(conn)
 
     @r.delete("/api/wishlist/{wish_id}/finds/{find_id}", status_code=204)
     def delete_find(wish_id: str, find_id: str, conn=Depends(conn_dep)):

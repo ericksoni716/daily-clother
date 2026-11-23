@@ -1,20 +1,21 @@
 import { queryOptions, useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { api, ApiError } from '../api';
-import { ChevronIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
+import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
 import { Pic } from '../components/ItemPic';
-import { Button, Card, EmptyState, ItemThumb, PageHeader, SaveStatus, ShowMore, trapTab, useSaveStatus } from '../components/ui';
+import { BackLink, Button, buttonClass, Card, EmptyState, ItemThumb, PageHeader, SaveStatus, Sheet, ShowMore, useSaveStatus } from '../components/ui';
 import { label } from '../labels';
 import { setLaundryMany } from '../laundry';
 import { touch, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
+import { ItemDetail } from './ItemDetail';
 import { useApp } from '../store';
 import { occasionLabel } from '../today';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
 import {
-  contextWords, joinPages, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, loadSavedWorn, pieceName, saveWorn, withOutfit,
+  contextWords, joinPages, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, loadSavedWorn, pieceName, recordGroups, saveWorn, withOutfit,
   withoutOutfit, withRecorded, wornDay, wornIds, type Rating, type Reason, type WornOutfit, type WornPage,
 } from '../worn';
 
@@ -25,7 +26,8 @@ import './Worn.css';
 const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
 export const RATE_OFFLINE = "You're offline, so rating has to wait until Nines on your computer can be reached.";
 
-/** The three answers, then the reasons; each tap is saved straight away. Used by the Worn list and by Today's question. */
+/** The three answers, then the reasons that fit the answer; each tap is saved straight away. Used by the Worn list and by
+ * Today's question. Offline the answers are off; the list they are in says why, once. */
 export function RateOutfit({ outfit, offline, onRated, compact }: {
   outfit: WornOutfit; offline: boolean; onRated(o: WornOutfit): void; compact?: boolean;
 }) {
@@ -57,7 +59,7 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
         {RATINGS.map((r) => (
           <button key={r} type="button" className={`chip${outfit.rating === r ? ' is-on' : ''}`} aria-pressed={outfit.rating === r}
             disabled={locked} title={title}
-            onClick={() => void save(outfit.rating === r ? null : r, outfit.rating === r ? [] : reasons, note.trim() || null)}>
+            onClick={() => void save(outfit.rating === r ? null : r, outfit.rating === r ? [] : reasons.filter((x) => reasonsFor(r).includes(x)), note.trim() || null)}>
             {ratingLabel(r)}
           </button>
         ))}
@@ -84,13 +86,16 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
           )}
         </>
       )}
-      {offline ? <p className="hint rate-offline">{RATE_OFFLINE}</p> : <SaveStatus state={status.state} onRetry={status.retry} className="rate-status" />}
+      {!offline && <SaveStatus state={status.state} onRetry={status.retry} className="rate-status" />}
     </div>
   );
 }
 
-/** The pieces of a worn outfit, each opening its item unless `linked` is false (a small preview, as on Today's question). */
-export function OutfitPics({ outfit, byId, linked = true }: { outfit: WornOutfit; byId: Map<string, ItemSummary>; linked?: boolean }) {
+/** The pieces of a worn outfit, each opening its item unless `linked` is false (a small preview, as on Today's question).
+ * `from` is the page it is on, whose own address the item opens at, so the item's back link goes back there. */
+export function OutfitPics({ outfit, byId, linked = true, from = '/today' }: {
+  outfit: WornOutfit; byId: Map<string, ItemSummary>; linked?: boolean; from?: '/today' | '/today/worn';
+}) {
   const ids = wornIds(outfit.pieces);
   return (
     <ul className="worn-pics" aria-label="Pieces">
@@ -104,7 +109,7 @@ export function OutfitPics({ outfit, byId, linked = true }: { outfit: WornOutfit
               <ItemThumb className={`worn-pic${deleted ? ' is-gone' : item?.status === 'archived' ? ' is-archived' : ''}`} title={name}
                 picture={<Pic item={deleted ? undefined : item} alt={name} />} />
             ) : (
-              <ItemThumb to={item?.status === 'archived' ? `/archived/item/${encodeURIComponent(id)}` : `/today/item/${encodeURIComponent(id)}`}
+              <ItemThumb to={item?.status === 'archived' ? `/archived/item/${encodeURIComponent(id)}` : `${from}/item/${encodeURIComponent(id)}`}
                 className={`worn-pic${item?.status === 'archived' ? ' is-archived' : ''}`} title={name} picture={<Pic item={item} alt={name} />} />
             )}
           </li>
@@ -128,6 +133,7 @@ export function RecentOutfits({ outfits, byId, offline, children }: {
   return (
     <section className="recent" aria-labelledby="recent-title" data-testid="recent-outfits">
       <h2 id="recent-title" className="recent-title">Recent outfits</h2>
+      {offline && <p className="hint rate-offline">{RATE_OFFLINE}</p>}
       {children}
       {outfits.length === 0 ? (
         <p className="muted recent-none">The outfits you wear show here, to say how each one went.{' '}
@@ -204,11 +210,26 @@ export function changePages(qc: QueryClient, change: (page: WornPage) => WornPag
   });
 }
 
-export function WornScreen() {
+export function WornScreen({ itemId }: { itemId: string | null }) {
+  if (itemId) {
+    return (
+      <div className="today-item">
+        <div className="detail-top">
+          <BackLink to="/today/worn" className="btn btn-ghost back-link"><ChevronLeftIcon /> Worn</BackLink>
+        </div>
+        <ItemDetail key={itemId} id={itemId} status="active" inPanel />
+      </div>
+    );
+  }
+  return <WornList />;
+}
+
+function WornList() {
   const { profile, offline, toast } = useApp();
   const qc = useQueryClient();
   const items = useItems('active').data ?? null;
   const [adding, setAdding] = useState(false);
+  const recordButton = useRef<HTMLButtonElement>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
   // The pages shown: the first, then each asked for with the cursor of the page before it as it now stands, so a
@@ -246,15 +267,17 @@ export function WornScreen() {
   return (
     <div className="worn">
       <PageHeader title="Worn" back={{ to: '/today', label: 'Today' }} count={list && <>{list.length}{next ? '+' : ''} {list.length === 1 ? 'outfit' : 'outfits'}</>}
-        secondary={!adding && (
-          <Button disabled={offline} title={offline ? OFFLINE_TITLE : undefined} onClick={() => setAdding(true)}>
+        secondary={(
+          <button ref={recordButton} type="button" className={buttonClass({})} disabled={offline} title={offline ? OFFLINE_TITLE : undefined}
+            aria-haspopup="dialog" aria-expanded={adding} onClick={() => setAdding(true)}>
             <PlusIcon /> Record an outfit
-          </Button>
+          </button>
         )} />
       <p className="hint worn-intro">Outfits you wore, newest first. Say how each one went and the outfits Today offers learn from it.</p>
+      {offline && list && list.length > 0 && <p className="hint rate-offline">{RATE_OFFLINE}</p>}
 
       {adding && (
-        <RecordByHand items={items ?? []} onCancel={() => setAdding(false)}
+        <RecordByHand items={items ?? []} anchor={recordButton} onCancel={() => setAdding(false)}
           onDone={(o) => {
             setAdding(false);
             qc.setQueryData<WornRead>(queryKeys.worn(), (d) => d && { ...d, page: withRecorded(d.page, o) });
@@ -334,7 +357,7 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
           onLaundry={washable.length ? () => void toLaundry() : undefined}
           onRemove={() => setConfirm(true)} />
       </div>
-      <OutfitPics outfit={outfit} byId={byId} />
+      <OutfitPics outfit={outfit} byId={byId} from="/today/worn" />
       {outfit.rating ? (
         <button type="button" className={`chip worn-rating is-${outfit.rating}`} data-testid="worn-rating" aria-expanded={rating}
           aria-label={`${ratingSummary(outfit)}. Change rating`} onClick={() => setRating(!rating)}>
@@ -361,85 +384,49 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
   );
 }
 
-/** The less used actions on a worn outfit, behind a ⋯ button. Escape closes the menu and puts focus back on the button. */
+/** The less used actions on a worn outfit, behind a ⋯ button, in a sheet. Escape closes it and puts focus back on the button. */
 function OutfitMenu({ offline, onAgain, onLaundry, onRemove }: { offline: boolean; onAgain(): void; onLaundry?(): void; onRemove(): void }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
   const title = offline ? OFFLINE_TITLE : undefined;
-
-  useEffect(() => {
-    if (!open) return;
-    // the first thing that can be chosen; the menu itself when nothing can (offline), so Escape still closes it
-    (menu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? menu.current)?.focus();
-    const outside = (e: PointerEvent) => {
-      if (!menu.current?.contains(e.target as Node) && !button.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
-  }, [open]);
-
-  const close = () => {
-    setOpen(false);
-    button.current?.focus();
-  };
   const choose = (act: () => void) => () => {
-    close();
+    setOpen(false);
     act();
   };
-
-  function onKey(e: ReactKeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      close();
-      return;
-    }
-    // Tab stays in the menu, as in a dialog
-    trapTab(e, menu.current);
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
-    e.preventDefault();
-    const all = [...(menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
-    if (!all.length) return;
-    if (e.key === 'Home') return all[0].focus();
-    if (e.key === 'End') return all[all.length - 1].focus();
-    const at = all.indexOf(document.activeElement as HTMLButtonElement);
-    all[(at + (e.key === 'ArrowDown' ? 1 : all.length - 1)) % all.length]?.focus();
-  }
 
   return (
     <div className="worn-menu">
       <button ref={button} type="button" className="btn btn-icon btn-ghost worn-menu-button" aria-label="More for this outfit"
-        aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>
         <MoreIcon />
       </button>
       {open && (
-        <div ref={menu} className="worn-menu-list" role="menu" aria-label="This outfit" tabIndex={-1} onKeyDown={onKey}>
-          <button type="button" role="menuitem" className="worn-menu-item" disabled={offline} title={title} onClick={choose(onAgain)}>
-            Wear this again
-          </button>
-          {onLaundry && (
-            <button type="button" role="menuitem" className="worn-menu-item" disabled={offline} title={title} onClick={choose(onLaundry)}>
-              Put these in the laundry
-            </button>
-          )}
-          <button type="button" role="menuitem" className="worn-menu-item is-danger" disabled={offline} title={title} onClick={choose(onRemove)}>
-            Remove
-          </button>
-        </div>
+        <Sheet title="This outfit" anchor={button} onClose={() => setOpen(false)} className="worn-menu-sheet" testId="worn-menu">
+          <div className="worn-menu-list">
+            <Button block disabled={offline} title={title} onClick={choose(onAgain)}>Wear this again</Button>
+            {onLaundry && <Button block disabled={offline} title={title} onClick={choose(onLaundry)}>Put these in the laundry</Button>}
+            <Button block variant="danger-quiet" disabled={offline} title={title} onClick={choose(onRemove)}>Remove</Button>
+          </div>
+        </Sheet>
       )}
     </div>
   );
 }
 
-function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCancel(): void; onDone(o: WornOutfit): void }) {
+/** "Record an outfit", in a sheet: the day, then the pieces in four groups (most recently worn first) with a search. */
+function RecordByHand({ items, anchor, onCancel, onDone }: {
+  items: ItemSummary[]; anchor: RefObject<HTMLElement | null>; onCancel(): void; onDone(o: WornOutfit): void;
+}) {
   const { offline } = useApp();
   const recorded = useEdit('outfit');
   const today = localDay();
   const [day, setDay] = useState(today);
   const [chosen, setChosen] = useState<string[]>([]);
+  const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const usable = items.filter((i) => i.status !== 'archived' && i.category);
+  const words = (i: ItemSummary) => [nameOf(i, false), label('category', i.category), label('color', i.color)].join(' ');
+  const groups = recordGroups(items, query, words);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -453,34 +440,48 @@ function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCan
     }
   }
 
+  const tile = (i: ItemSummary) => {
+    const on = chosen.includes(i.id);
+    return (
+      <button type="button" className={`worn-record-item${on ? ' is-on' : ''}`} aria-pressed={on}
+        onClick={() => setChosen((c) => (on ? c.filter((x) => x !== i.id) : [...c, i.id]))}>
+        <Pic item={i} alt="" />
+        <span>{nameOf(i, false)}</span>
+      </button>
+    );
+  };
+
   return (
-    <Card as="form" className="worn-record" onSubmit={submit} aria-label="Record an outfit">
-      <h2>Record an outfit</h2>
-      <p className="hint">For a day you got dressed without Nines. Choose what you wore; the wears are recorded too.</p>
-      <label className="field worn-record-day">
-        <span>Day</span>
-        <input type="date" value={day} max={today} required onChange={(e) => setDay(e.target.value)} />
-      </label>
-      <div className="worn-record-items" role="group" aria-label="What you wore">
-        {usable.map((i) => {
-          const on = chosen.includes(i.id);
-          return (
-            <button key={i.id} type="button" className={`worn-record-item${on ? ' is-on' : ''}`} aria-pressed={on}
-              onClick={() => setChosen((c) => (on ? c.filter((x) => x !== i.id) : [...c, i.id]))}>
-              <Pic item={i} alt={nameOf(i, false)} />
-              <span>{nameOf(i, false)}</span>
-            </button>
-          );
-        })}
-      </div>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="row">
-        <button className="btn btn-primary" disabled={busy || offline || chosen.length < 2} title={offline ? OFFLINE_TITLE : undefined}>
-          Record {chosen.length > 0 ? `${chosen.length} pieces` : 'outfit'}
-        </button>
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-      </div>
-    </Card>
+    <Sheet title="Record an outfit" anchor={anchor} closeLabel="Cancel" onClose={onCancel} className="worn-record-sheet" testId="record-sheet">
+      <form className="worn-record" onSubmit={submit} aria-label="Record an outfit">
+        <p className="hint">For a day you got dressed without Nines. The wears are recorded too.</p>
+        <div className="worn-record-find">
+          <label className="field worn-record-day">
+            <span>Day</span>
+            <input type="date" value={day} max={today} required onChange={(e) => setDay(e.target.value)} />
+          </label>
+          <label className="field worn-record-search">
+            <span>Find a piece</span>
+            <input type="search" value={query} placeholder="Name or colour" autoComplete="off" onChange={(e) => setQuery(e.target.value)} />
+          </label>
+        </div>
+        <div role="group" aria-label="What you wore">
+          {groups.length === 0 && <p className="muted">Nothing in your closet matches “{query.trim()}”.</p>}
+          {groups.map((g) => (
+            <section key={g.group} className="worn-record-group" aria-label={g.label}>
+              <h3 className="chip-group-title">{g.label}</h3>
+              <ShowMore items={g.pieces} first={query.trim() ? g.pieces.length : 8} keyOf={(i) => i.id} render={tile} className="worn-record-items" />
+            </section>
+          ))}
+        </div>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="worn-record-bar">
+          <Button variant="primary" block type="submit" disabled={busy || offline || chosen.length < 2} title={offline ? OFFLINE_TITLE : undefined}>
+            {chosen.length < 2 ? 'Choose at least two pieces' : `Record ${chosen.length} pieces`}
+          </Button>
+        </div>
+      </form>
+    </Sheet>
   );
 }
 

@@ -43,6 +43,9 @@
 .trip-laundry .field { margin-bottom: 0; }
 .trip-laundry .hint { margin: 0; }
 .trip-swim { margin: 0 0 14px; max-width: 30rem; }
+.trip-swim-auto { margin-top: 2px; }
+.trip-sport { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; max-width: 30rem; }
+.trip-sport .hint { margin: 0; }
 .trip-big-button { min-height: 52px; font-size: var(--text-md); }
 .trip-save { max-width: 30rem; margin: 18px 0 8px; }
 
@@ -56,7 +59,7 @@
 .trip-progress strong { flex: none; }
 .trip-progress .progress { max-width: none; }
 .trip-options { margin: 24px 0 10px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 10px; max-width: 46rem; }
-.trip-options .trip-laundry, .trip-options .trip-swim { margin: 0; }
+.trip-options .trip-laundry, .trip-options .trip-swim, .trip-options .trip-sport { margin: 0; }
 /* a grid item widens to its content unless told otherwise: without these the occasion chips (Today's `flex: none`
    row) made the saved trip wider than a phone instead of scrolling sideways inside their row */
 .trip-options > *, .trip-options .today-choice > .chips-scroll { min-width: 0; }
@@ -68,7 +71,7 @@
 .trip-weather-run.is-forecast .trip-weather-source { color: var(--accent); }
 .trip-weather ol { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; }
 .trip-weather-day {
-  width: 74px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; text-align: center;
+  min-width: 74px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; text-align: center;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--text-sm);
 }
 .trip-weather-run.is-usual .trip-weather-day { border-style: dashed; }
@@ -78,7 +81,12 @@
 .trip-weather-rain { color: var(--ink-3); }
 .trip-weather-day.is-rainy .trip-weather-rain { color: var(--focus); font-weight: var(--weight-label); }
 
-.trip-uncovered { margin-bottom: 14px; }
+/* what the days have to say, each once, in a line: the weather that could not be had, days with no outfit, and the
+   days with something to watch for behind one line that opens */
+.trip-problem { margin: 0 0 var(--space-3); padding: 0; list-style: none; color: var(--warn); font-size: var(--text-sm); font-weight: var(--weight-label); line-height: 1.45; }
+.trip-problem li + li { margin-top: var(--space-1); }
+.trip-watch { margin: 0 0 var(--space-3); }
+.trip-watch ul { margin: 0; padding-left: 1.2em; display: grid; gap: var(--space-1); font-size: var(--text-sm); }
 .trip-plan.is-asking .trip-columns { opacity: 0.55; transition: opacity var(--dur-move) var(--ease-out); }
 
 /* ---------------------------------------------------------------- what to pack */
@@ -111,7 +119,8 @@
 }
 .trip-line-replan { margin: 0 12px 8px; }
 .trip-more[aria-expanded='true'] { color: var(--accent); }
-.trip-menu { flex: 0 0 100%; margin: 0 8px 8px; }
+.trip-menu-list { display: grid; gap: var(--space-2); }
+.sheet-popover .trip-menu-list .btn { justify-content: flex-start; }
 .trip-take { margin: 2px 0 16px; }
 .trip-take .field select { width: 100%; }
 .trip-notes { padding-left: 1.2em; }
@@ -132,10 +141,14 @@
 .trip-day-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 8px; }
 .trip-day-occasion { padding: 1px 8px; border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-heading); }
 .trip-day-problem { margin: 0 0 8px; color: var(--warn); font-weight: var(--weight-label); }
-.trip-day-pieces { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.trip-day-pieces li { width: 64px; display: flex; flex-direction: column; gap: 3px; }
+.trip-day-pieces {
+  list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2) 6px; max-width: 380px;
+}
+.trip-day-pieces[data-cols='3'] { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 228px; }
+.trip-day-pieces[data-cols='4'] { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 304px; }
+.trip-day-pieces li { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .trip-day-pic {
-  position: relative; display: block; width: 64px; height: 74px; border-radius: var(--radius-sm); overflow: hidden; background: var(--card);
+  position: relative; display: block; width: 100%; aspect-ratio: 64 / 74; border-radius: var(--radius-sm); overflow: hidden; background: var(--card);
   box-shadow: inset 0 0 0 1px var(--card-edge);
 }
 .trip-day-pic > img, .trip-day-pic > .pic-placeholder, .trip-day-pic > div { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -145,5 +158,5 @@
 }
 .trip-day-warnings { margin: 8px 0 0; padding-left: 1.2em; color: var(--warn); font-size: var(--text-sm); }
 .trip-day-why { margin-top: 4px; }
-.trip-day-why summary { min-height: 36px; font-size: var(--text-sm); }
+.trip-day-why summary { font-size: var(--text-sm); }
 .trip-day-why ul { margin: 0; padding-left: 1.2em; font-size: var(--text-sm); display: grid; gap: 4px; }

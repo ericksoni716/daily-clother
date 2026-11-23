@@ -244,6 +244,11 @@ A new spec file:
   starts its own with `startBackend` from `server.ts` in a `beforeAll` and stops it in
   `afterAll`, as `16-several.spec.ts` does.
 
+CI's system font (DejaVu Sans) is wider than a developer's may be (Inter, say), so a test that
+measures a layout, such as a button above the tab bar, should leave room, and so should the
+layout. To run a spec with the wide font, hide Inter from the browser with `e2e/wide-font.conf`:
+`FONTCONFIG_FILE=$PWD/e2e/wide-font.conf npm run e2e -- e2e/10-today.spec.ts` (in `frontend/`).
+
 There is nothing to log in to. A spec that opens the page by a Tailscale name gives the headers
 Tailscale Serve would (`extraHTTPHeaders`, as `18-phone-qr.spec.ts` does); without them the
 page is refused, as it would be.
@@ -259,7 +264,9 @@ tests, with a copy of the demo closet as the owner's closet), gives a few things
 opens every screen at 375, 393, 402, 430 and 440px wide, light and once dark, and takes a
 full-page picture of each into `frontend/phone-shots/`, then opens the sheets of Settings → Your
 style (the conversation, every line), an item's Colour row (its colours and the shades of its
-colour), a wish's most you'd pay and its find's checkout code, and pictures those. It fails when a screen is wider than
+colour), a wish's most you'd pay and its find's checkout code, Today's sheets (a piece's choices, and where you are behind
+Change), Worn's (an outfit's choices and Record an outfit) and a packed piece's choices on a trip, and pictures
+those. It fails when a screen is wider than
 the phone or throws an error. `CLOSET_PYTHON` names the Python with the backend's
 requirements, as for the browser tests. A new screen is added to its list of routes.
 

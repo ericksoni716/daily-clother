@@ -424,23 +424,23 @@ def _repeats(c: gaps._Closet, cand: outfits.Piece) -> dict:
     out = {"items": items, "disliked": [p.id for p in disliked], "text": None, "disliked_text": None}
     if disliked:
         one = len(disliked) == 1
-        out["disliked_text"] = (f"{'It does' if one else 'They do'} the same job as {_names(disliked)}, "
+        out["disliked_text"] = (f"It does the same job as {_names(disliked)}, "
                                 f"but you rated {'it' if one and not gaps._plural(disliked[0]) else 'them'} dislike.")
         if not same:
             out["disliked_text"] = (f"The only {'piece' if one else 'pieces'} you own doing the same job "
-                                    f"{'is' if one else 'are'} {_names(disliked)}, and you rated "
+                                    f"{outfits.be(disliked)} {_names(disliked)}, and you rated "
                                     f"{'it' if one and not gaps._plural(disliked[0]) else 'them'} dislike.")
     if not same:
         return out
     n = len(same)
     hardly = sum(1 for i in items if i["hardly_worn"])
     text = f"You have {_count(n)} like it ({_names(same)})"
+    they = "they are" if n > 1 or outfits.plural(same[0]) else "it is"   # jeans and shoes are "they"
     if not log:
-        text += ", and the wear log is too short yet to say how often they are worn." if n > 1 else \
-            ", and the wear log is too short yet to say how often it is worn."
+        text += f", and the wear log is too short yet to say how often {they} worn."
     elif n == 1:
         worn = items[0]["worn"]
-        text += ", and it is hardly worn." if hardly else f", worn {_count(worn)} time{'' if worn == 1 else 's'} in the log."
+        text += f", and {they} hardly worn." if hardly else f", worn {_count(worn)} time{'' if worn == 1 else 's'} in the log."
     elif hardly:
         text += f", and {_count(hardly)} of them {'is' if hardly == 1 else 'are'} hardly worn."
     else:

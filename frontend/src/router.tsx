@@ -218,7 +218,7 @@ export function usePath(): string {
 export type Route =
   | { name: 'closet'; status: 'active' | 'archived'; itemId: string | null }
   | { name: 'today'; itemId: string | null }
-  | { name: 'worn' }
+  | { name: 'worn'; itemId: string | null }
   | { name: 'wardrobe'; itemId: string | null; check: boolean; wishId: string | null; wish: string | null; link?: boolean; wishlist?: boolean }
   | { name: 'add' }
   | { name: 'several'; id: string }
@@ -238,7 +238,9 @@ export function parseRoute(path: string): Route {
   if (several) return { name: 'several', id: decodeURIComponent(several[1]) };
   if (path === '/settings') return { name: 'settings' };
   if (path === '/settings/advanced') return { name: 'advanced' };
-  if (path === '/today/worn') return { name: 'worn' };
+  // Worn, and a piece opened from it, whose back link goes back to Worn
+  const worn = path.match(/^\/today\/worn(?:\/item\/([^/]+))?\/?$/);
+  if (worn) return { name: 'worn', itemId: id(worn[1]) };
   const today = path.match(/^\/today(?:\/item\/([^/]+))?\/?$/);
   if (today) return { name: 'today', itemId: id(today[1]) };
   if (path === '/review') return { name: 'review' };

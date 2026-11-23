@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test';
+import { axeViolations } from './a11y';
 import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 const BROOKLYN = 'Brooklyn, New York, United States';
@@ -109,7 +110,7 @@ test("today: \"I'm wearing this\" records a wear for every piece, and undo remov
   await expect.poll(lastWorn).toEqual(before);
 });
 
-test('today: "Not this piece" leaves it out, "Start from this piece" builds around it, and both clear', async ({ page }) => {
+test('today: "Not this piece" leaves it out, "Build around this piece" builds around it, and both clear', async ({ page }) => {
   const asked = await fakeWeather(page);
   await openToday(page);
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
@@ -117,8 +118,9 @@ test('today: "Not this piece" leaves it out, "Start from this piece" builds arou
   const [name] = await pieceNames(page);
 
   const answer = page.waitForResponse('**/api/outfits/today');
+  // a piece's choices open in a sheet over the page, named for the piece
   await current(page).getByRole('button', { name: `Choices for ${name}` }).click();
-  await current(page).getByRole('button', { name: 'Not this piece' }).click();
+  await page.getByRole('dialog', { name }).getByRole('button', { name: 'Not this piece' }).click();
   const outfits = (await (await answer).json()).outfits as { pieces: Record<string, unknown> }[];
   expect(asked.at(-1)?.leave_out).toEqual([first]);
   expect(outfits.length).toBeGreaterThan(0);
@@ -131,14 +133,53 @@ test('today: "Not this piece" leaves it out, "Start from this piece" builds arou
   const [, second] = await pieceIds(page);
   const [, secondName] = await pieceNames(page);
   await current(page).getByRole('button', { name: `Choices for ${secondName}` }).click();
-  await current(page).getByRole('button', { name: 'Start from this piece' }).click();
+  await page.getByRole('dialog', { name: secondName }).getByRole('button', { name: 'Build around this piece' }).click();
   await expect.poll(() => asked.at(-1)).toMatchObject({ build_around: second, leave_out: [first] });
   await expect(page.getByRole('button', { name: `Stop building around ${secondName}` })).toBeVisible();
   await expect(current(page).locator('.today-piece.is-base')).toContainText(secondName);
 
+  // both are kept for the rest of the day, a reload included
+  await page.reload();
+  await expect(page.getByRole('button', { name: `Stop building around ${secondName}` })).toBeVisible();
+  await expect(putBack).toBeVisible();
+  await expect.poll(() => asked.at(-1)).toMatchObject({ build_around: second, leave_out: [first] });
+
   await page.getByRole('button', { name: 'Clear all' }).click();
   await expect.poll(() => asked.at(-1)).toEqual({ occasion: 'casual', mood: 'usual' });
   await expect(putBack).toHaveCount(0);
+  await page.reload();
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  await expect(putBack).toHaveCount(0);
+});
+
+test("today: wearing an outfit built around a piece shows what you are wearing, not \"No outfit today yet\"", async ({ page }) => {
+  // found in the review: a tee is washed after one wear, so the outfits asked for next were built around a piece in the
+  // laundry, and Today said there was no outfit and offered Add clothes
+  await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const names = await pieceNames(page);
+  const ids = await pieceIds(page);
+  const items = (await (await page.request.get('/api/items?status=active')).json()).items as { id: string; category: string }[];
+  const top = ids.findIndex((id) => ['tee', 'shirt', 'polo'].includes(items.find((i) => i.id === id)!.category));
+  expect(top).toBeGreaterThanOrEqual(0);
+  let worn: string | undefined;
+  try {
+    await current(page).getByRole('button', { name: `Choices for ${names[top]}` }).click();
+    await page.getByRole('dialog', { name: names[top] }).getByRole('button', { name: 'Build around this piece' }).click();
+    await expect(page.getByRole('button', { name: `Stop building around ${names[top]}` })).toBeVisible();
+    await expect(current(page).locator('.today-piece.is-base')).toBeVisible();
+    const wore = page.waitForResponse((r) => r.url().endsWith('/api/wears') && r.request().method() === 'POST');
+    await current(page).getByRole('button', { name: "I'm wearing this" }).click();
+    worn = (await (await wore).json()).outfit.id;
+    await expect(page.getByText(/^You're wearing this today/).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: `Stop building around ${names[top]}` })).toHaveCount(0);
+    await expect(page.getByText('No outfit today yet')).toHaveCount(0);
+    await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  } finally {
+    if (worn) await page.request.delete(`/api/outfits/worn/${worn}`);
+    for (const id of ids) await page.request.post(`/api/items/${id}/laundry`, { data: { state: 'clean' } });
+  }
 });
 
 test('today on a phone: swipe to another outfit, open a piece, and come back to the same outfit', async ({ page }) => {
@@ -148,14 +189,15 @@ test('today on a phone: swipe to another outfit, open a piece, and come back to 
   await expect(page.locator('nav.tabbar').getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
 
-  // the outfit leads: its pieces are big enough to see and "I'm wearing this" is on the first screen, above the tab bar
+  // the outfit leads: its pieces are big enough to see (four to a row) and "I'm wearing this" is on the first screen,
+  // above the tab bar
   const wear = current(page).getByRole('button', { name: "I'm wearing this" });
   const box = (await wear.boundingBox())!;
   const tabbar = (await page.locator('nav.tabbar').boundingBox())!;
   expect(box.y + box.height).toBeLessThanOrEqual(tabbar.y);
   expect(box.width).toBeGreaterThan(300);
   for (const w of await current(page).locator('.today-piece-card').evaluateAll((cards) => cards.map((c) => c.getBoundingClientRect().width))) {
-    expect(w).toBeGreaterThanOrEqual(100);
+    expect(w).toBeGreaterThanOrEqual(72);
   }
   // a swipe or a dot reaches the other outfits (the arrows are gone): each dot is a 44px target
   const dots = page.getByRole('group', { name: 'Choose an outfit' }).getByRole('button');
@@ -183,6 +225,43 @@ test('today on a phone: swipe to another outfit, open a piece, and come back to 
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
+
+for (const weather of ['a forecast', 'no forecast']) {
+  test(`today on the smallest phone, with ${weather}: five pieces and "I'm wearing this" are on the first screen`, async ({ page }) => {
+    // the phone check's smallest phone (an iPhone 13 mini with Safari's bars: 375x629); before, with five pieces in Pieces
+    // view, the button was under the tab bar on it, and on a 393px phone too
+    await page.setViewportSize({ width: 375, height: 629 });
+    // a mild day (from a forecast, or for want of one), and only its outfits of five pieces
+    await page.route('**/api/outfits/today', async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      const response = await route.fetch(weather === 'a forecast' ? { postData: { ...body, low_c: 14, high_c: 20, rain: false } } : undefined);
+      const json = await response.json();
+      if (response.ok()) {
+        json.outfits = json.outfits.filter((o: { pieces: Record<string, unknown> }) => Object.values(o.pieces).flat().filter(Boolean).length === 5);
+        if (weather === 'a forecast') Object.assign(json.context, { source: 'forecast', place: BROOKLYN, rain_chance: 10, old: false, message: null });
+      }
+      await route.fulfill({ response, json });
+    });
+    await openToday(page);
+    await expect(current(page).getByTestId('piece')).toHaveCount(5);
+    await expect(page.getByTestId('no-weather')).toHaveCount(weather === 'a forecast' ? 0 : 1);
+    const tabbar = (await page.locator('nav.tabbar').boundingBox())!;
+    const wear = (await current(page).getByRole('button', { name: "I'm wearing this" }).boundingBox())!;
+    expect(wear.y + wear.height).toBeLessThanOrEqual(tabbar.y);
+    for (const piece of await current(page).getByTestId('piece').all()) {
+      const b = (await piece.boundingBox())!;
+      expect(b.y + b.height).toBeLessThanOrEqual(wear.y);
+    }
+    await page.screenshot({ path: test.info().outputPath(`today-first-screen-${weather.replace(' ', '-')}.png`) });
+    // a piece's choices: a sheet over the page, above the tab bar
+    const name = (await current(page).locator('.today-piece-name').first().textContent())!.trim();
+    await current(page).getByRole('button', { name: `Choices for ${name}` }).click();
+    const sheet = page.getByRole('dialog', { name });
+    const notThis = (await sheet.getByRole('button', { name: 'Not this piece' }).boundingBox())!;
+    expect(notThis.y + notThis.height).toBeLessThanOrEqual(629);
+    expect(await axeViolations(page)).toEqual([]);
+  });
+}
 
 test('today on a phone on a Wednesday: the longest day name still fits on one line, so the outfit is not pushed down', async ({ page }) => {
   // found on Wednesday 18 November: "Wednesday 18 Nov" wrapped beside Worn and Trips and pushed "I'm wearing this"
@@ -314,11 +393,11 @@ test('a wear response arriving after midnight keeps the day it was started', asy
 });
 
 
-test('today when the forecast cannot be fetched: an outfit for a mild day, a notice, and typed temperatures behind it', async ({ page }) => {
+test('today when the forecast cannot be fetched: an outfit for a mild day, one line about it, and typed temperatures behind it', async ({ page }) => {
   // no faked weather: the test backend never reaches the weather service, so the forecast for New York fails
   await openToday(page);
   const notice = page.getByTestId('no-weather');
-  await expect(notice).toContainText('The weather could not be fetched');
+  await expect(notice).toContainText('No forecast.');
   await expect(page.getByTestId('day-line')).toContainText('a mild day');
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
   await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeVisible();
@@ -328,8 +407,12 @@ test('today when the forecast cannot be fetched: an outfit for a mild day, a not
   await retried;
   await expect(notice).toBeVisible();
 
+  // one line, said once: the day line says it is a mild day, and the line beside it what to do about it
+  expect((await notice.boundingBox())!.height).toBeLessThanOrEqual(48);
+  await expect(page.getByText('No forecast.')).toHaveCount(1);
+
   await notice.getByRole('button', { name: 'Type temperatures' }).click();
-  const panel = page.getByRole('region', { name: 'Where are you?' });
+  const panel = page.getByRole('dialog', { name: 'Where you are' });
   await expect(panel.getByText('Using: New York, United States')).toBeVisible();
   await panel.getByLabel('Low °C').fill('18');
   await panel.getByLabel('High °C').fill('26');
@@ -341,8 +424,16 @@ test('today when the forecast cannot be fetched: an outfit for a mild day, a not
   await expect(page.getByTestId('no-weather')).toHaveCount(0);
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
 
-  // "Use the forecast again" goes back to the forecast (still the mild day here)
-  await page.getByRole('button', { name: 'Change', exact: true }).click();
+  await expect(panel).toHaveCount(0);
+
+  // "Use the forecast again" goes back to the forecast (still the mild day here); Escape closes the sheet
+  const change = page.getByRole('button', { name: 'Change', exact: true });
+  await change.click();
+  await expect(panel).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+  await expect(change).toBeFocused();
+  await change.click();
   await panel.getByRole('button', { name: 'Use the forecast again' }).click();
   await expect(page.getByTestId('day-line')).toContainText('a mild day');
 });

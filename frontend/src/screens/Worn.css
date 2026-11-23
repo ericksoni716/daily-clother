@@ -17,19 +17,13 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .chip.worn-rating[aria-expanded='true'] .worn-rating-chevron { transform: rotate(-90deg); }
 .worn-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: var(--text-sm); }
 
-/* the ⋯ menu: wear again, remove */
-.worn-menu { position: relative; flex: none; margin: -8px -8px 0 0; }
-.worn-menu-list {
-  position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 12rem; padding: 6px; display: grid;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-hover);
-}
-.worn-menu-item {
-  min-height: var(--tap); padding: 0 12px; border: none; border-radius: var(--radius-sm); background: none; color: var(--ink);
-  font: inherit; text-align: left; cursor: pointer;
-}
-.worn-menu-item:hover:not(:disabled), .worn-menu-item:focus-visible { background: var(--surface-2); }
-.worn-menu-item:disabled { cursor: not-allowed; color: var(--ink-3); }
-.worn-menu-item.is-danger { color: var(--danger); }
+/* the ⋯ button and its sheet: wear again, the laundry, remove */
+.worn-menu { flex: none; margin: -8px -8px 0 0; }
+/* the shared button's padding would leave the three dots a few pixels wide: the button is the tap's size, the icon 28px */
+.btn.worn-menu-button { width: var(--tap); padding: 0; }
+.btn.worn-menu-button svg { flex: none; width: 28px; height: 28px; }
+.worn-menu-list { display: grid; gap: var(--space-2); }
+.sheet-popover .worn-menu-list .btn { justify-content: flex-start; }
 .worn-more { margin-top: 16px; }
 
 /* small pictures of an outfit's pieces */
@@ -37,16 +31,24 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .worn-pic { width: 52px; height: 60px; }
 .worn-pic > .pic-cutout { padding: 4px; filter: none; }
 
-/* recording an outfit by hand */
-.worn-record { padding: 14px; margin-bottom: 16px; }
-.worn-record h2 { margin: 0 0 4px; font-size: var(--text-md); }
-.worn-record-day { max-width: 14rem; }
+/* recording an outfit by hand, in a sheet: the day and a search, then the pieces in four groups, and the button kept in sight */
+.worn-record-sheet.sheet-popover { width: min(30rem, calc(100vw - 32px)); max-height: min(44rem, 80dvh); }
+.worn-record .hint { margin: 0 0 var(--space-2); }
+.worn-record-find { display: grid; grid-template-columns: minmax(0, 10rem) minmax(0, 1fr); gap: 0 var(--space-3); }
+.worn-record-find .field input { width: 100%; }
+.worn-record-group { margin-bottom: var(--space-3); }
+.worn-record-group .chip-group-title { margin: 0 0 var(--space-2); }
 .worn-record-items {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; margin-bottom: 12px;
-  max-height: 22rem; overflow-y: auto; padding: 2px;
+  list-style: none; margin: 0; padding: 2px; display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: var(--space-2);
 }
+.worn-record-group .show-more { margin-top: var(--space-1); padding-left: 0; }
+.worn-record-bar {
+  position: sticky; bottom: calc(-1 * var(--space-4)); margin: 0 calc(-1 * var(--space-4)); padding: var(--space-3) var(--space-4);
+  background: var(--surface-raised); border-top: 1px solid var(--line-soft);
+}
+.sheet-phone .worn-record-bar { bottom: calc(-1 * (var(--space-6) + env(safe-area-inset-bottom))); padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom)); }
 .worn-record-item {
-  display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 4px; font: inherit; font-size: var(--text-xs); color: inherit;
+  width: 100%; height: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 4px; font: inherit; font-size: var(--text-xs); color: inherit;
   text-align: center; background: none; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer;
 }
 .worn-record-item > img, .worn-record-item > .pic-placeholder {
@@ -65,12 +67,14 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 
 /* Today's question about the last outfit worn: a slim card above the outfit */
 .worn-question { margin: 0 0 var(--space-3); padding: 10px 12px; background: var(--tint-coral); }   /* a soft tint */
-.worn-question-head { display: flex; align-items: center; gap: var(--space-2); }
-.worn-question-head h3 { margin: 0; font-size: var(--text-md); flex: 1; min-width: 0; }
-.worn-question-head .worn-pics { margin: 0; flex-wrap: nowrap; overflow: hidden; min-width: 0; }   /* the pieces give way to the question */
-.worn-question-head h3 { min-width: 8em; }
+/* the question on one line with Not now beside it, and every piece of the outfit under it, none cut off */
+.worn-question-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title close' 'pics pics'; align-items: center; column-gap: var(--space-2);
+}
+.worn-question-head h3 { grid-area: title; margin: 0; font-size: var(--text-md); min-width: 0; }
+.worn-question-head .worn-pics { grid-area: pics; margin: var(--space-1) 0 0; }
 .worn-question-head .worn-pic { width: 30px; height: 35px; }
-.worn-question-close { flex: none; }
+.worn-question-close { grid-area: close; flex: none; margin: -6px -6px -6px 0; }
 .worn-question .rate { margin-top: 6px; }
 .worn-question .row { margin-top: 6px; }
 
@@ -78,8 +82,6 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .worn-pic.is-gone {
   opacity: 0.55;
 }
-/* the ⋯ was drawn at the shared button's small icon size, three specks easy to miss; same size as Today's */
-.worn-menu-button svg { width: 28px; height: 28px; }
 
 /* ---------------------------------------------------------------- Recent outfits, on Today */
 .recent { margin-top: var(--space-6); min-width: 0; }

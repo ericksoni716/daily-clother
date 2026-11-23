@@ -1,16 +1,16 @@
 /* The Today screen. Uses the tokens and shared classes in styles.css; only what is new to this screen is here. */
 
 .today { max-width: 72rem; min-width: 0; }
-.page-header.today-header { margin-bottom: var(--space-2); flex-wrap: nowrap; }
+.page-header.today-header { margin-bottom: var(--space-1); flex-wrap: nowrap; }
 .today-header .page-title-row { min-width: 0; flex-wrap: wrap; column-gap: var(--space-2); }
 /* two tones: the day after the title, as large and light, in the title's second colour */
 .today-header .count { font-size: var(--text-2xl); font-weight: var(--weight-body); letter-spacing: -0.02em; line-height: 1.1; color: var(--ink-tone); }
 @media (min-width: 700px) { .today-header .count { font-size: var(--text-3xl); } }
 .today-header .count { white-space: nowrap; }
 .today-header .date-short { display: none; }
-/* on a phone the date goes under the title, a size smaller */
+/* on a phone the date stays beside the title, a size smaller, so the outfit and its button are on the first screen */
 @media (max-width: 599px) {
-  .today-header .page-title-row { flex-direction: column; align-items: flex-start; gap: 0; }
+  .today-header .page-title-row { flex-wrap: nowrap; align-items: baseline; }
   .today-header .count { font-size: var(--text-lg); }
   /* the day stays on one line whatever its name: "Wed 25 Nov", not "Wednesday 25 Nov" */
   .today-header .date-long { display: none; }
@@ -23,13 +23,16 @@
 .inline-icon { width: 1.15em; height: 1.15em; vertical-align: -0.25em; }
 
 /* ---------------------------------------------------------------- the day: one line, then the choices */
-.today-day { margin-bottom: var(--space-1); min-width: 0; }
+.today-day { margin-bottom: 0; min-width: 0; }
+/* the summary takes the room there is and wraps inside it; Change stays at the end of its first line */
 .today-day-line {
-  margin: 0; min-height: var(--tap); display: flex; flex-wrap: wrap; align-items: center; row-gap: 0;
+  margin: 0; min-height: var(--tap); display: flex; align-items: baseline;
   font-size: var(--text-md); font-weight: var(--weight-label);
 }
+.today-day-parts { flex: 1 1 auto; min-width: 0; min-height: var(--tap); display: flex; flex-wrap: wrap; align-items: baseline; align-content: center; }
 /* the dot follows each part, so a line that wraps never starts with one */
-.today-day-line > span:not(:last-child)::after { content: '·'; color: var(--ink-3); padding: 0 0.4em; font-weight: var(--weight-body); }
+.today-day-parts > span:not(:last-child)::after { content: "·"; color: var(--ink-3); padding: 0 0.3em; font-weight: var(--weight-body); }
+.today-day-change { flex: none; }
 .today-day-change .btn-link { min-height: var(--tap); padding: 0 4px; font-size: var(--text-md); }
 .today-day-old { margin: 0 0 var(--space-2); color: var(--warn); font-size: var(--text-sm); }
 
@@ -48,6 +51,8 @@
 .today-day-next { margin-top: var(--space-5); }
 
 .today-day-panel { padding: var(--space-4); margin-bottom: var(--space-4); max-width: 40rem; }
+/* the same, in the sheet behind "Change": a little wider than other popovers on a computer, for the search row */
+.today-day-sheet.sheet-popover { width: min(28rem, calc(100vw - 32px)); }
 .today-day-panel h2 { font-size: var(--text-lg); margin-bottom: var(--space-1); }
 .today-typed-title { font-size: var(--text-md); margin: var(--space-5) 0 var(--space-2); }
 .today-day-why { margin: 0 0 var(--space-3); font-weight: var(--weight-label); }
@@ -61,7 +66,7 @@
 .today-day-panel .hint .btn-link { padding: 0; min-height: 0; }
 
 /* occasion and mood: one row of chips that scrolls sideways on a phone */
-.chips-scroll.today-choices { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); min-width: 0; }
+.chips-scroll.today-choices { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); min-width: 0; }
 .today-choice { display: flex; gap: var(--space-2); flex: none; }
 .today-choices-sep { flex: none; width: 1px; height: 24px; background: var(--line); margin: 0 var(--space-1); }
 @media (min-width: 1000px) {
@@ -71,25 +76,37 @@
 .today-changes { margin: -2px 0 14px; align-items: center; }
 .chip-change { background: var(--accent-soft); border-color: transparent; max-width: 100%; }
 .chip-change > span { font-size: var(--text-md); line-height: 1; }
-.today-no-weather-why { color: var(--ink-2); }
+/* the weather could not be fetched: one line, with what to do about it beside it (in body weight, so it stays one line on a 375px phone in a wide font) */
+.today-no-weather { margin: 0 0 var(--space-1); font-size: var(--text-sm); line-height: 1.45; color: var(--warn); font-weight: var(--weight-body); }
+.today-no-weather .inline-icon { margin-right: 2px; }
+/* a link in a line of text: as tall as the text, with a 44px hit area that does not push the lines apart */
+.btn-link.today-inline-action { position: relative; display: inline; min-height: 0; padding: 0; font-size: var(--text-sm); font-weight: inherit; }
+.btn-link.today-inline-action::after { content: ''; position: absolute; inset: calc((var(--tap) - 100%) / -2) -4px; }
 
 /* ---------------------------------------------------------------- the outfits */
 .today-outfits { min-width: 0; }
 .today-outfits.is-asking .today-track { opacity: 0.55; transition: opacity var(--dur-move) var(--ease-out); }
-.today-outfits-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); min-height: var(--tap); }
+.today-outfits-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); min-height: var(--tap); }
 .today-outfits-head h2 { margin: 0; font-size: var(--text-md); flex: 1; min-width: 0; }
 .today-outfits-head .count { font-weight: var(--weight-body); }
-.today-asking { display: inline-flex; align-items: center; }
 .btn-icon { width: var(--tap); padding: 0; }
 
+/* Asking again, or Claude choosing: said over the outfits, which stay where they are, dimmed, so nothing moves */
+.today-stage { position: relative; }
+.today-asking {
+  position: absolute; top: var(--space-3); left: 50%; transform: translateX(-50%); z-index: 2; margin: 0;
+  display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); white-space: nowrap;
+  border-radius: var(--radius-pill); background: var(--surface-raised); box-shadow: var(--shadow-pop); font-size: var(--text-sm); color: var(--ink-2);
+}
+
 .today-track {
-  display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
+  display: flex; align-items: flex-start; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
   scrollbar-width: none; outline: none; border-radius: var(--radius-md);
 }
 .today-track::-webkit-scrollbar { display: none; }
 .today-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; container-type: inline-size; }
 
-.today-card { display: grid; gap: var(--space-3); height: 100%; padding: var(--space-3); align-content: start; }
+.today-card { display: grid; gap: var(--space-3); padding: var(--space-3); align-content: start; }
 .today-card-pieces, .today-card-why { min-width: 0; }
 /* why it works, on a soft green */
 .today-card-why { background: var(--tint-green); border-radius: var(--radius-sm); padding: var(--space-3); }
@@ -117,10 +134,9 @@
 }
 .today-piece-more[aria-expanded='true'] svg { background: var(--accent-bg); color: var(--accent-ink); }
 
-.today-piece-menu {
-  margin-top: 12px; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-2);
-}
-.today-piece-menu p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.today-piece-choices { display: grid; gap: var(--space-2); }
+.sheet-popover .today-piece-choices .btn { justify-content: flex-start; }
+.today-piece-sheet .sheet-title { overflow-wrap: anywhere; min-width: 0; }
 
 /* "I'm wearing this", straight under the pieces */
 .today-wear { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
@@ -157,9 +173,15 @@
   .today-card-why { grid-area: why; }
   .today-pieces { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 18px 12px; }
 }
-/* Narrow card (a phone): square pictures and the name only (the place is still read out), so the button stays on the first screen. */
+/* Narrow card (a phone): four square pictures to a row and the name only (the place is still read out), so five pieces
+   and "I'm wearing this" are on the first screen of the smallest phone, with or without the line about the weather. */
 @container (max-width: 639px) {
+  .today-card { padding: var(--space-2) 10px 10px; gap: var(--space-2); }
+  .today-pieces { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2) 6px; }
   .today-piece-card { aspect-ratio: 1; }
+  .today-piece-name { font-size: var(--text-xs); }
+  .today-piece-more { top: -4px; right: -4px; }
+  .today-piece-more svg { width: 24px; height: 24px; padding: 2px; }
   .today-piece-place {
     position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
   }
@@ -193,7 +215,9 @@
 .today-worn-note > svg { color: var(--accent); }
 .today-worn-note > div { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .today-error .row { margin-top: 10px; }
-.today-loading .muted { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.today-loading > .muted { display: flex; align-items: center; gap: 8px; min-height: var(--tap); margin: 0 0 var(--space-1); }
+.today-loading .tile-skeleton { aspect-ratio: 1; }
+.today-loading .today-wear-skeleton { aspect-ratio: auto; height: var(--tap); border-radius: var(--radius-pill); }
 .today-empty .empty-title { text-wrap: balance; }
 .today-missing { text-align: center; padding: 28px 12px; max-width: 32rem; margin: 0 auto; }
 .today-missing-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
@@ -237,7 +261,9 @@
 
 /* Claude choosing the outfits (stylejobs.py): a calm card in place of the outfits while it chooses, who chose each
    outfit, and one line below the outfits with Claude's sentence (or why it could not choose) and "Ask Claude again". */
-.today-stylist-wait { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-4); margin-bottom: var(--space-3); }
+.today-stylist-wait { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-4); margin: var(--space-2) 0 var(--space-3); }
+/* over the dimmed outfits, at the top of the card, while they cannot be used yet */
+.today-stylist-wait.is-over { position: absolute; top: var(--space-2); left: var(--space-2); right: var(--space-2); z-index: 2; margin: 0; box-shadow: var(--shadow-pop); }
 .today-stylist-wait h2 { margin: 0 0 var(--space-1); font-size: var(--text-md); }
 .today-stylist-wait p { margin: 0 0 var(--space-3); font-size: var(--text-sm); line-height: 1.4; }
 .today-stylist-wait p:last-child { margin-bottom: 0; }

@@ -6,6 +6,7 @@ import { locate } from '../location';
 import { settingsSaved, weatherQuery } from '../settings';
 import type { Place, Settings } from '../types';
 import { weatherLine } from '../weather';
+import { Fold } from './ui';
 
 type Toast = (m: string, k?: 'ok' | 'error') => void;
 
@@ -96,12 +97,16 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
     );
   }
 
+  const sent = (
+    <p className="hint">
+      Nines uses today's weather to choose outfits. To look it up it sends Open-Meteo (open-meteo.com) only the place name you search for here and the saved place's location; nothing about your clothes.
+      {' '}"Use my location" asks your browser where you are, only when you tap it, and sends OpenStreetMap only that position, rounded to about a kilometre, to name the town.
+    </p>
+  );
   return (
     <>
-      <p className="hint">
-        Nines uses today's weather to choose outfits. To look it up it sends Open-Meteo (open-meteo.com) only the place name you search for here and the saved place's location; nothing about your clothes.
-        {' '}"Use my location" asks your browser where you are, only when you tap it, and sends OpenStreetMap only that position, rounded to about a kilometre, to name the town.
-      </p>
+      {/* on Today, in the sheet behind Change, the controls come first and what is sent is one tap away */}
+      {!inline && sent}
       {saved}
       {!offline && (
         <>
@@ -132,6 +137,7 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
           )}
         </>
       )}
+      {inline && <Fold title="What is sent to look up the weather" className="where-sent">{sent}</Fold>}
     </>
   );
 }

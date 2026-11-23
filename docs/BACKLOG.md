@@ -14,18 +14,31 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Wears, laundry and trips after the logic review** (23 November; DECISIONS, Stop C, "What is in
+  the bag", "A trip under way", "Loungewear and sport on a trip"). A wear filled in for a day before
+  a laundry day counts as washed only from the wears of the week before that laundry day; wears
+  carried over from earlier weeks are not followed. A wear may be dated the computer's tomorrow
+  (a phone a time zone ahead); Today and Worn were not checked for how such a wear shows on the
+  computer before its midnight. On a trip under way the days still to come are dressed only from
+  the bag: swim trunks or sport shoes turned on mid-trip and left at home are said "1 at home".
+  Would this work? still calls the piece being checked "it" when it is a pair of jeans ("It does
+  not suit…"); only the sentences about the owner's own pieces were made plural. The demo closet
+  has no tennis or golf shoes, so the phone check does not show Playing on the trip packing one.
+- **Today's rules after the logic review** (23 November; DECISIONS, "The owner's outfit rules"). The
+  wide-day layer is chosen from the owner's bands at the low; a day read with no hours (typed
+  temperatures) uses the typed low the same way.
+- **The review of Today, Worn and Trips** (23 November; DECISIONS, "Today's first screen, and a piece's choices in a
+  sheet"). Left: a trip cannot have its temperatures typed when the forecast fails, as Today's can; the rules' and
+  Claude's reasons still write "14°C to 20°C" (the server's sentences, `outfits.py`); with nine or more pieces Today's
+  pieces take a third row and the button can fall under the tab bar on the smallest phone; while Claude
+  chooses on the first visit of a day the rules' outfits stand in under the card and Claude's may be shorter; the
+  trip's day outfit shows four or five to a row only in Pieces, not As worn. Looked at in headless Chromium only.
 - **What you wear at home, and words and dates** (23 November; DECISIONS, What's missing and Insights). Worn most and
   cost per wear still count lounge pants and swim trunks (they were worn; only Not worn leaves them out). "You might
   like" is still told what you have plenty of by kind, lounge pants included, as a reason not to buy more of them.
   Not worn after a shorter break (weeks, not 90 days with nothing recorded) can still list pieces last worn before
   it. Dates outside the Wardrobe and wishes (Settings, the item page, backups) still use the browser's own format
   (`labels.formatDateTime`).
-- **Today's rules after the logic review** (23 November; DECISIONS, "The owner's outfit rules"). Trips
-  and Would this work? still write a few sentences of their own with "is" for jeans and shoes; they
-  could use `outfits.be` as Today and What's missing now do. A trip's day card does not yet pass
-  `owned_outers` or `closet_mids` to `outfits._explain`, so a coat left at home for the trip (in the
-  wash, waiting to be mended) is not compared with: its card still says "the warmest you have". The wide-day layer is chosen from the owner's bands at the low; a day
-  read with no hours (typed temperatures) uses the typed low the same way.
 - **You might like** (23 November; DECISIONS, the section of that name). Built and tested with Claude
   stood in for; what a real look costs and how long it takes through the plan and the API key were
   not measured (the card says the search's estimate), nor whether its picks are any good on the
@@ -82,8 +95,7 @@ only here); take a line out when it is done.
   is always one level, even for "another like your loafers". Not yet tried with Claude's real answers:
   how often it gives a second level, and for which pieces.
 - **Tennis and golf shoes** (22 November; DECISIONS, "Tennis and golf shoes"). The demo closet has
-  none, so the demo and the phone check show them only once a shoe is said to be one. A trip has
-  no "Tennis" or "Golf" choice to pack them by itself (only "I want to take this"). The rules build
+  none, so the demo and the phone check show them only once a shoe is said to be one. The rules build
   an outfit around a pair when asked (`build_around`), but Today's screen offers building around
   only a piece already in one of its outfits, so a pair it leaves out (like swim trunks or
   loungewear) cannot be built around from the page; a "Build today's outfit around it" on the
@@ -103,9 +115,7 @@ only here); take a line out when it is done.
 
 - **Swim trunks** (22 November; DECISIONS, "Swim trunks"). The demo closet has no swim trunks, so
   the demo and the phone check show a trip packing them only when a piece is said to be swim trunks
-  (a demo item needs a full `tools/make_demo.py` run with the cutout model). Once the owner has
-  turned "Swimming or the beach" on or off, the screen offers no way back to following the weather
-  (the API takes `swim: null`). Board shorts and other swimwear are not kinds; the picker's search
+  (a demo item needs a full `tools/make_demo.py` run with the cutout model). Board shorts and other swimwear are not kinds; the picker's search
   finds swim trunks for them.
 
 - **Claude adds to a garment's drawing** (22 November; DECISIONS, "Claude adds to a garment's
@@ -424,6 +434,9 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 
 **First, what is already there made right**
 - [ ] **The review's findings** (`docs/assessment/` gets a short report of the two reviews of 23 November, the screens and the rules; the fixes go in small batches, each fault shown with a failing test first).
+- [ ] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
+- [x] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
+- [ ] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
 - [x] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
 - [ ] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
 - [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.
@@ -449,7 +462,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 - [ ] **A find's pattern is drawn**, so a striped shirt in "See it with your clothes" is striped.
 
 **Trips**
-- [ ] **A trip for tennis or golf**, and a way back to "follow the weather" for swimming.
+- [x] **A trip for tennis or golf**, and a way back to "follow the weather" for swimming.
 - [ ] **A trip covers today**: Today dresses for where you are without a note.
 
 **Later, and only if the owner wants it** (each needs a decision that is theirs): reading a calendar for the day's events (what would be sent to Claude); the colours reworked; a year in clothes.

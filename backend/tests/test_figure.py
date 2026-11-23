@@ -1,4 +1,5 @@
 """The outfit drawn as worn (closet/drawing/figure.py) and the route that draws it (POST /api/outfits/figure)."""
+import logging
 import math
 import re
 import subprocess
@@ -1386,6 +1387,14 @@ def test_as_worn_tells_fit_length_and_sleeves_and_leaves_out_what_was_not_told()
     assert fig.as_worn(Piece("shorts", answer("shorts", inseam=7), "#6f7550")) == [
         {"part": "length", "value": "short", "field": "inseam"}]
     assert fig.as_worn(SNEAKERS) == [] and fig.as_worn(Piece("hat", None, "#222222")) == []
+
+
+def test_how_a_piece_with_no_category_or_of_category_other_is_worn_is_nothing_and_quiet(caplog):
+    # every new upload has no category yet, and a tie or a watch is Other: opening or listing them logged a traceback
+    with caplog.at_level(logging.WARNING):
+        assert fig.as_worn(Piece(None, None, "#888888")) == []
+        assert fig.as_worn(Piece("other", None, "#888888")) == []
+    assert caplog.records == []
 
 
 HEM_SHOES = {

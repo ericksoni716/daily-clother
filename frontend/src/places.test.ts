@@ -14,6 +14,7 @@ describe('the place each address belongs to', () => {
     ['/review', 'closet'],
     ['/today', 'today'],
     ['/today/item/abc', 'today'],
+    ['/today/worn/item/abc', 'today'],
     ['/today/worn', 'today'],
     ['/trips', 'today'],
     ['/trips/new', 'today'],

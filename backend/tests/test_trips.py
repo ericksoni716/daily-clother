@@ -788,3 +788,197 @@ def test_migration_0023_keeps_i_can_wash_there_as_laundry_every_three_days(tmp_p
     rows = dict(conn.execute("SELECT id, laundry FROM trips").fetchall())
     assert rows == {"washing": '{"every": 3}', "not": None}
     conn.close()
+
+
+# ---------------------------------------------------------------------- a trip under way, and what goes beside the days
+def steady_weather(url: str) -> bytes:
+    """Open-Meteo with the same weather whenever it is asked: every forecast day 10 to 16°C and dry, every day in the
+    archive 5 to 12°C and dry. So nothing about the weather changes between two looks."""
+    import json
+    from urllib.parse import parse_qs, urlsplit
+    parts = urlsplit(url)
+    params = {k: v[0] for k, v in parse_qs(parts.query).items()}
+    if parts.netloc == "api.open-meteo.com":
+        days_ = [wears.today() + timedelta(days=i) for i in range(int(params["forecast_days"]))]
+        low, high = 10, 16
+    else:
+        start, end = date.fromisoformat(params["start_date"]), date.fromisoformat(params["end_date"])
+        days_ = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+        low, high = 5, 12
+    daily = {"time": [d.isoformat() for d in days_], "temperature_2m_min": [low] * len(days_),
+             "temperature_2m_max": [high] * len(days_), "precipitation_probability_max": [10] * len(days_),
+             "weather_code": [1] * len(days_), "precipitation_sum": [0.0] * len(days_)}
+    return json.dumps({"daily": daily}).encode()
+
+
+@pytest.fixture
+def moving_clock(monkeypatch):
+    """The computer's date, moved by the test (`moving_clock[0] = ...`), with the weather service always the same."""
+    now = [TODAY]
+    monkeypatch.setattr(wears, "today", lambda: now[0])
+    monkeypatch.setattr(weather, "fetch", steady_weather)
+    monkeypatch.setattr(weather, "_now", lambda: 1_794_500_000.0 + (now[0] - TODAY).days * 86400)
+    return now
+
+
+def test_a_trip_under_way_is_not_said_to_have_new_weather_every_time_it_is_opened(client, moving_clock):
+    # a five-day trip planned from the forecast; on its third day the forecast for the days to come is what it was.
+    # The two days gone keep their weather: they are not "usually, on these dates", and nothing changed
+    client.post("/api/profile", json={"profile": "demo"})
+    r = client.post("/api/trips", json={"place": NYC, "first_day": TODAY.isoformat(),
+                                        "last_day": (TODAY + timedelta(days=4)).isoformat()})
+    assert r.status_code == 201, r.text
+    trip = r.json()
+    assert [d["source"] for d in trip["weather"]] == ["forecast"] * 5
+    moving_clock[0] = TODAY + timedelta(days=2)
+    check = client.get(f"/api/trips/{trip['id']}/weather").json()
+    assert check["checked"] is True and check["changed"] is False
+    assert check["days"][:2] == trip["weather"][:2]
+    # planning again keeps the days gone as they were, weather and outfits
+    again = client.patch(f"/api/trips/{trip['id']}", json={"replan": True}).json()
+    assert again["weather"][:2] == trip["weather"][:2]
+    assert again["plan"]["days"][:2] == trip["plan"]["days"][:2]
+
+
+def test_a_saved_trip_keeps_its_ticks_and_its_days_gone_through_its_whole_life(client, moving_clock):
+    """Planned a week ahead, opened the day before, on day one, mid-trip after a wear and a wash, on the last day and
+    after it ended: every tick the owner made stays, and a day gone keeps the outfit it was dressed in."""
+    client.post("/api/profile", json={"profile": "demo"})
+    first = TODAY + timedelta(days=7)
+    trip = client.post("/api/trips", json={"place": NYC, "first_day": first.isoformat(),
+                                           "last_day": (first + timedelta(days=4)).isoformat()}).json()
+    tid = trip["id"]
+    ticks = list(trip["lines"])   # the owner packs everything
+    assert client.patch(f"/api/trips/{tid}", json={"ticks": dict.fromkeys(ticks, True)}).status_code == 200
+
+    def worn_on(trip, n):   # what day n (1 is the first) is dressed in
+        p = trip["plan"]["days"][n - 1]["outfit"]["pieces"]
+        return [p[k] for k in CORE if p[k]] + list(p["accessories"])
+
+    def look(when, change):
+        moving_clock[0] = when
+        check = client.get(f"/api/trips/{tid}/weather").json()
+        assert check["changed"] is False, (when, check)
+        before = client.get(f"/api/trips/{tid}").json()
+        r = client.patch(f"/api/trips/{tid}", json=change)
+        assert r.status_code == 200, r.text
+        after = r.json()
+        assert set(ticks) <= set(after["packed"]), (when, set(ticks) - set(after["packed"]))
+        gone = (when - first).days
+        assert after["plan"]["days"][:max(0, gone)] == before["plan"]["days"][:max(0, gone)], when
+        return after
+
+    trip = look(first - timedelta(days=1), {"replan": True})            # the day before
+    trip = look(first, {"replan": True})                                 # day one, before leaving
+    day_one = worn_on(trip, 1)
+    assert client.post("/api/outfits/worn", json={"item_ids": day_one, "worn_on": first.isoformat()}).status_code == 201
+    moving_clock[0] = first + timedelta(days=1)
+    assert any(client.get(f"/api/items/{i}").json()["laundry"] == "laundry" for i in day_one)   # the tee went in by itself
+    trip = look(first + timedelta(days=1), {"swim": True})               # day two: a choice changed
+    assert worn_on(trip, 1) == day_one and all(f"item:{i}" in trip["lines"] for i in day_one)
+    day_two = worn_on(trip, 2)
+    assert client.post("/api/outfits/worn", json={"item_ids": day_two,
+                                                  "worn_on": (first + timedelta(days=1)).isoformat()}).status_code == 201
+    trip = look(first + timedelta(days=2), {"laundry": {"day": 3}})      # mid-trip, a wash on day three
+    assert [worn_on(trip, 1), worn_on(trip, 2)] == [day_one, day_two]
+    trip = look(first + timedelta(days=4), {"replan": True})             # the last day
+    ended = first + timedelta(days=6)
+    moving_clock[0] = ended
+    assert client.get(f"/api/trips/{tid}/weather").json()["checked"] is False
+    last = client.patch(f"/api/trips/{tid}", json={"replan": True}).json()   # after it ended: nothing moves
+    assert last["plan"]["days"] == trip["plan"]["days"] and last["weather"] == trip["weather"]
+    assert set(ticks) <= set(last["packed"])
+
+
+def test_changing_a_trip_under_way_does_not_unpack_what_was_worn_yesterday():
+    # day two: the tee worn on day one went in the laundry by itself. Planned again, it is still in the suitcase
+    closet = basic_closet() + [item("tee2", "tee", "grey", "casual"), item("tee3", "tee", "navy", "casual")]
+    trip = days(3)
+    before = trips.plan(closet, trip, {}, None, today=FIRST - timedelta(days=7))
+    worn_first = before["days"][0]["outfit"]["pieces"]["base"]
+    for i in closet:
+        if i["id"] == worn_first:
+            i["laundry"] = "laundry"
+    after = trips.plan(closet, trip, {"swim": True}, None, today=FIRST + timedelta(days=1),
+                       kept={trip[0]["date"]: before["days"][0]}, carried=[p["id"] for p in before["packed"]], under_way=True)
+    assert worn_first in [x["id"] for x in after["packed"]]
+    assert after["days"][0] == before["days"][0]
+    # nothing at home is packed once the trip has begun, and what was packed stays on the list
+    assert {p["id"] for p in after["packed"]} >= {p["id"] for p in before["packed"]}
+    assert {p["id"] for p in after["packed"] if p["group"] != "swim"} <= {p["id"] for p in before["packed"]}
+
+
+def test_a_month_away_with_one_early_wash_takes_more_than_one_set_of_sleepwear():
+    # one set for every seven nights of the longest stretch between washes: 29 nights, 5; a wash on day 2, still 4
+    closet = basic_closet()
+
+    def sleepwear(options, n=30):
+        return next(b["count"] for b in trips.plan(closet, days(n, lows=(12,), rain_every=99), options)["basics"]
+                    if b["key"] == "sleepwear")
+    assert sleepwear({}) == 5
+    assert sleepwear({"laundry": {"day": 2}}) == 4
+    assert sleepwear({"laundry": {"every": 7}}) == 1
+    assert sleepwear({"laundry": {"day": 4}}, n=7) == 1
+
+
+def test_pinned_loungewear_is_packed_beside_the_days_and_never_worn_in_them():
+    # "I want to take this" on lounge pants: they go in the bag, but no day's outfit wears them out
+    lounge = item("lounge", "trousers", "red", "casual", "cool", "plaid", name="Tartan lounge pants", kind="lounge_pants")
+    result = trips.plan(basic_closet() + [lounge], days(5), {"pin": ["lounge"]})
+    assert next(p for p in result["packed"] if p["id"] == "lounge") == {"id": "lounge", "group": "bottoms", "days": 0,
+                                                                         "pinned": True}
+    assert all("lounge" not in worn(d) for d in result["days"] if d["outfit"])
+    assert not any("lounge" in n.lower() for n in result["notes"])
+
+
+def test_tennis_or_golf_on_the_trip_packs_their_shoes_beside_the_days():
+    sport = [item("tennis", "sneakers", "white", "athletic", kind="tennis_shoe", name="Tennis shoes", rating="like"),
+             item("tennis_old", "sneakers", "grey", "athletic", kind="tennis_shoe", name="Old tennis shoes"),
+             item("golf", "sneakers", "white", "athletic", kind="golf_shoe", name="Golf shoes", laundry="laundry")]
+    closet = basic_closet() + sport
+    plain = trips.plan(closet, days(4))
+    assert not {p["id"] for p in plain["packed"]} & {"tennis", "tennis_old", "golf"}
+    played = trips.plan(closet, days(4), {"sport": ["tennis"]})
+    assert next(p for p in played["packed"] if p["id"] == "tennis") == {"id": "tennis", "group": "shoes", "days": 0,
+                                                                          "pinned": False}
+    assert "tennis_old" not in {p["id"] for p in played["packed"]}   # one pair, the better liked
+    assert all(not {"tennis", "tennis_old"} & set(worn(d)) for d in played["days"] if d["outfit"])
+    # the pair asked for comes first
+    asked = trips.plan(closet, days(4), {"sport": ["tennis"], "pin": ["tennis_old"]})
+    assert {p["id"] for p in asked["packed"]} & {"tennis", "tennis_old"} == {"tennis_old"}
+    # golf, with the only pair in the wash: said, not packed
+    golf = trips.plan(closet, days(4), {"sport": ["golf"]})
+    assert "golf" not in {p["id"] for p in golf["packed"]}
+    assert "None of your golf shoes can be packed: 1 in the laundry." in golf["notes"]
+    assert "You have no golf shoes in your closet." in trips.plan(basic_closet(), days(4), {"sport": ["golf"]})["notes"]
+    with pytest.raises(trips.PlanError, match="tennis, golf"):
+        trips.parse_options({"sport": ["polo"]}, [])
+
+
+def test_a_trip_day_does_not_call_a_jacket_the_warmest_you_have_while_a_warmer_coat_is_at_home():
+    # the coat is in the wash and the trip starts tomorrow: the jacket is the warmest that can go, not the warmest owned
+    closet = [i for i in basic_closet() if i["id"] != "coat1"] + [
+        item("parka", "coat", "olive", "casual", "cool", name="Olive parka", material="down", laundry="laundry")]
+    cold = [{**d, "low_c": -8, "high_c": -2, "rain": False} for d in days(2)]
+    result = trips.plan(closet, cold, {}, None, today=FIRST - timedelta(days=1))
+    said = " ".join(w for d in result["days"] if d["outfit"] for w in d["outfit"]["warnings"])
+    assert "the warmest you have" not in said
+
+
+def test_the_plan_speaks_of_trousers_and_shoes_as_plural():
+    closet = basic_closet()
+    closet[7]["laundry"] = "laundry"   # the jeans
+    result = trips.plan(closet, days(2), {"pin": ["jeans1"]})
+    assert any(n.endswith("are in the laundry, so they are not packed.") for n in result["notes"]), result["notes"]
+
+
+def test_the_sport_on_a_saved_trip_is_kept_and_changed(client, clock):
+    client.post("/api/profile", json={"profile": "demo"})
+    trip = client.post("/api/trips", json=body(sport=["golf"])).json()
+    assert trip["sport"] == ["golf"]
+    assert client.get(f"/api/trips/{trip['id']}").json()["sport"] == ["golf"]
+    r = client.patch(f"/api/trips/{trip['id']}", json={"sport": ["tennis", "golf"]})
+    assert r.status_code == 200 and r.json()["sport"] == ["tennis", "golf"]
+    assert client.patch(f"/api/trips/{trip['id']}", json={"sport": []}).json()["sport"] == []
+    r = client.patch(f"/api/trips/{trip['id']}", json={"sport": "tennis"})
+    assert r.status_code == 422 and "sports on a trip" in r.json()["detail"]

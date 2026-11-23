@@ -362,3 +362,14 @@ def test_would_this_work_does_not_say_you_have_it_already_because_of_lounge_pant
     assert answer["verdict"] == "adds", answer["reasons"]
     coat = {"category": "coat", "color": "navy", "formality": "casual"}
     assert wouldwork.check(full_closet() + [robe], [], coat) == wouldwork.check(full_closet(), [], coat)
+
+
+def test_one_pair_of_jeans_like_it_is_spoken_of_as_they(closet):
+    # "your dark jeans, and it is hardly worn" was said of jeans: they are a pair
+    items, wears, _ = closet
+    jeans = sorted(ids_of(closet, "jeans"))
+    keep = [i for i in items if i["id"] not in jeans[1:]]
+    log = [w for w in wears if w["item_id"] != jeans[0]]   # the one pair left is never worn
+    a = wouldwork.check(keep, log, {"category": "jeans", "color": "navy", "formality": "casual"})
+    assert a["repeats"]["text"].startswith("You have one like it ("), a["repeats"]["text"]
+    assert a["repeats"]["text"].endswith(", and they are hardly worn."), a["repeats"]["text"]

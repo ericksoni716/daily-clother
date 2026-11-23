@@ -224,11 +224,15 @@ export function sameOutfit(a: string[], b: string[]): boolean {
   return b.every((id) => set.has(id));
 }
 
-const deg = (n: number) => `${Math.round(n)}°C`;
-
-/** "3°C to 10°C" or "About 22°C". */
+/**
+ * A day's temperatures, the one way they are written on Today, Worn and a trip: "8–15°C", "-3 to 4°C" (a dash after a
+ * minus would read as another minus), or "About 22°C" when the low and the high round to the same degree.
+ */
 export function temps(low: number, high: number): string {
-  return Math.round(low) === Math.round(high) ? `About ${deg(high)}` : `${deg(low)} to ${deg(high)}`;
+  const l = Math.round(low);
+  const h = Math.round(high);
+  if (l === h) return `About ${h}°C`;
+  return l < 0 ? `${l} to ${h}°C` : `${l}–${h}°C`;
 }
 
 /** "Rain likely (70%)", "No rain expected (10%)", "Rain likely", "No rain expected". */
@@ -242,11 +246,6 @@ export function shortPlace(name: string | null | undefined): string {
   return (name ?? '').split(',')[0].trim();
 }
 
-/** "8–15°C" or "About 22°C": the compact form for Today's weather line. */
-export function tempRange(low: number, high: number): string {
-  return Math.round(low) === Math.round(high) ? `About ${deg(high)}` : `${Math.round(low)}–${deg(high)}`;
-}
-
 /**
  * Today's weather line: ["8–15°C", "no rain", "New York"]. The last part says where the day came from: the place's
  * forecast, "your temperatures" when they were typed in, or "a mild day" when no forecast could be had.
@@ -256,9 +255,9 @@ export function dayParts(c: DayContext): string[] {
   const d = c.detail;
   // with the forecast's hours: what the hours ahead feel like, when the rain falls, and the wind and sun if they matter
   const parts = d
-    ? [d.feels_apart ? `feels like ${tempRange(d.feels_low_c, d.feels_high_c).replace(/^A/, 'a')}` : tempRange(d.temp_low_c, d.temp_high_c),
+    ? [d.feels_apart ? `feels like ${temps(d.feels_low_c, d.feels_high_c).replace(/^A/, 'a')}` : temps(d.temp_low_c, d.temp_high_c),
       ...(d.rain ? [] : ['no rain']), ...d.words.slice(1)]
-    : [tempRange(c.low_c, c.high_c), c.rain ? (known ? `rain ${c.rain_chance}%` : 'rain likely') : 'no rain'];
+    : [temps(c.low_c, c.high_c), c.rain ? (known ? `rain ${c.rain_chance}%` : 'rain likely') : 'no rain'];
   if (c.source === 'mild') parts.push('a mild day');
   else if (c.place) parts.push(shortPlace(c.place));
   else if (c.source === 'given') parts.push('your temperatures');
@@ -443,6 +442,13 @@ function forToday<T extends { day: string }>(value: T | null, today: string): T 
   return value && value.day === today ? value : null;
 }
 
+/** The outfits changed today: the piece every outfit is built around, and the pieces left out ("Not this piece"). */
+export interface TodayChanges {
+  day: string;
+  build_around: string | null;
+  leave_out: string[];
+}
+
 /** What this screen keeps per closet; each is only given back on the day it was kept. */
 export function keptFor(profile: string, kv: KV | null = local()) {
   return {
@@ -452,6 +458,8 @@ export function keptFor(profile: string, kv: KV | null = local()) {
     setOutfits: (value: SavedOutfits | null) => write(keyFor('outfits', profile), value, kv),
     worn: (today: string) => forToday(read<WornToday>(keyFor('worn', profile), kv), today),
     setWorn: (value: WornToday | null) => write(keyFor('worn', profile), value, kv),
+    changes: (today: string) => forToday(read<TodayChanges>(keyFor('changes', profile), kv), today),
+    setChanges: (value: TodayChanges | null) => write(keyFor('changes', profile), value, kv),
   };
 }
 

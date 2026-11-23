@@ -220,7 +220,8 @@ def wear(conn, item_ids: object, worn_on: str | None, outfit: object) -> dict:
 
 
 def place_pieces(rows: list) -> dict:
-    """Pieces chosen by hand, put in their places by category: tops are layered lightest first."""
+    """Pieces chosen by hand, put in their places by category: tops are layered lightest first; accessories and pieces
+    of category Other (a tie, a watch, gloves, socks) go with the accessories."""
     pieces: dict = {pl: None for pl in PLACES}
     pieces["accessories"] = []
     tops = []
@@ -233,7 +234,7 @@ def place_pieces(rows: list) -> dict:
             if pieces[place]:
                 raise _err("Choose one pair of shoes." if place == "shoes" else "Choose one thing for your legs.")
             pieces[place] = r["id"]
-        elif cat in outfits.ACCESSORY_CATEGORIES:
+        elif cat in outfits.ACCESSORY_CATEGORIES or cat == "other":   # a tie, a watch, gloves, socks: worn with it
             pieces["accessories"].append(r["id"])
         else:
             raise _err(f"The {name} has no category an outfit can use. Set its category first.")

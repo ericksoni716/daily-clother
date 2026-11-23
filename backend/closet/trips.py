@@ -28,7 +28,16 @@ cannot be covered otherwise.
 Swim trunks are never worn in a day's outfit. When the trip has swimming (the
 owner's "Swimming or the beach", on by itself when a day's high reaches
 SWIM_HOT_C), they are packed as well: one pair for a trip of up to SWIM_WEEK
-days, two for a longer one, never more than can be packed.
+days, two for a longer one, never more than can be packed. Tennis or golf on
+the trip (`Options.sport`) packs a pair of the matching shoes beside the days,
+as "I want to take this" packs shoes for a sport or loungewear: worn on no day.
+
+A saved trip is planned again around what has happened. What is in the bag
+already (`carried`: what the owner ticked as packed, and on a trip under way
+everything the saved plan packed) can be worn whatever the laundry at home
+says, and stays on the list. On a trip under way (`under_way`) the days already
+gone keep their outfits (`kept`), and the days still to come are dressed only
+from what is in the bag, and what the owner pins: the rest is at home.
 
 The engine's rules are read from `outfits.py` (its pieces, its search, its
 accessories and its explanations); nothing there is changed.
@@ -42,7 +51,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from . import outfits
-from .tagger.taxonomy import GARMENT_CATEGORIES, SWIM_KINDS
+from .tagger.taxonomy import GARMENT_CATEGORIES, SPORT_SHOES, SWIM_KINDS
 
 # ------------------------------------------------------------------ re-wearing
 # The kinds of clothing the owner says how often to wear before washing (Settings, "Before it needs washing"), each
@@ -67,7 +76,7 @@ SCORE_SLACK = 10             # an outfit of packed pieces is taken when it score
 
 # ------------------------------------------------------------------ basics (not items in the closet)
 SPARE = 1                    # underwear and socks: what the days need plus this many
-SLEEPWEAR_NIGHTS = 7         # one set of sleepwear for every this many nights (one in all with laundry)
+SLEEPWEAR_NIGHTS = 7         # one set of sleepwear for every this many nights of the longest stretch between washes
 GLOVES_MAX_C = 2             # gloves when a day is dressed for at or below this (°C)
 
 # ------------------------------------------------------------------ swimming
@@ -77,6 +86,13 @@ SWIM_HOT_C = 27              # a day is hot enough to swim when its high reaches
 SWIM_WEEK = 7                # one pair of swim trunks for a trip of up to this many days, two for a longer one
 SWIM_GROUP = "swim"
 _RATED_FIRST = {"love": 0, "like": 1, None: 2, "meh": 3}   # which swim trunks are taken when there are more than needed
+
+# ------------------------------------------------------------------ a sport on the trip
+# Tennis or golf on the trip: one pair of the matching shoes (taxonomy.SPORT_SHOES) is packed beside the days, those
+# asked for first, then the best rated. Each sport: its kind of shoe, and what a pair is called.
+SPORTS = {"tennis": ("tennis_shoe", "tennis shoes"), "golf": ("golf_shoe", "golf shoes")}
+assert all(SPORT_SHOES[kind] == sport for sport, (kind, _) in SPORTS.items())
+AT_HOME = "at home"          # a piece the saved plan did not pack, on a trip under way
 
 # ------------------------------------------------------------------ what to pack, grouped
 # Each closet category in one group, by its kind of clothing (KINDS, from the taxonomy), whatever place the outfit
@@ -108,6 +124,7 @@ class Options:
     leave_out: tuple[str, ...] = ()
     pin: tuple[str, ...] = ()
     swim: bool | None = None   # "Swimming or the beach": the owner's word; None: on when a day is hot (`hot_days`)
+    sport: tuple[str, ...] = ()   # the sports played on the trip (keys of SPORTS): their shoes are packed
 
 
 def hot_days(days: Iterable[Mapping]) -> int:
@@ -208,8 +225,11 @@ def parse_options(data: Mapping, dates: Iterable[str]) -> Options:
     swim = data.get("swim")
     if swim is not None and not isinstance(swim, bool):
         raise PlanError("Swimming or the beach must be true, false, or null to follow the forecast.")
+    sport = data.get("sport") or []
+    if not isinstance(sport, list) or not all(isinstance(x, str) and x in SPORTS for x in sport):
+        raise PlanError(f"The sports on a trip must be a list of: {', '.join(SPORTS)}.")
     return Options(occasion, {k: days[k] for k in sorted(days) if days[k] != occasion}, laundry, lists["leave_out"], lists["pin"],
-                   swim)
+                   swim, tuple(s for s in SPORTS if s in sport))
 
 
 # ====================================================================== helpers
@@ -344,8 +364,12 @@ class _Reference:
 
 
 class _Planner:
-    def __init__(self, items: list, days: list[_Day], opts: Options, rewear: Mapping, washed_by_then: bool = False):
+    def __init__(self, items: list, days: list[_Day], opts: Options, rewear: Mapping, washed_by_then: bool = False,
+                 kept: Mapping[str, Mapping] | None = None, carried: Iterable[str] = (), under_way: bool = False):
         self.opts = opts
+        self.kept = {k: v for k, v in (kept or {}).items() if isinstance(v, Mapping)}
+        self.carried = frozenset(carried)
+        self.under_way = under_way
         self.rewear = dict(rewear)
         self.days = days
         self.notes: list[str] = []
@@ -359,27 +383,38 @@ class _Planner:
         pins = set(opts.pin)
         pool = []
         self.trunks: list[tuple[outfits.Piece, str | None]] = []   # swim trunks not archived, and why one cannot be packed
-        self.sport_packed: list[outfits.Piece] = []   # shoes for a sport the owner asked to take: packed, worn on no day
+        self.sport_shoes: list[tuple[outfits.Piece, str | None, str]] = []   # shoes for a sport, not archived: why not, kind
+        self.beside: list[outfits.Piece] = []   # loungewear and shoes for a sport the owner asked to take: worn on no day
+        carried = self.carried
         for p, it in everything:
             swim = it.get("kind") in SWIM_KINDS
-            # swim trunks never go in the pool the days are dressed from: they are packed for swimming (`pack_trunks`)
-            why = outfits._unavailable({**it, "kind": None} if swim else it, out)
-            if why == "in the laundry" and washed_by_then:   # the trip is far enough off for the wash to be done
-                why = None
+            sport = it.get("kind") in outfits.FOR_SPORT
+            # swim trunks and shoes for a sport never go in the pool the days are dressed from: they are packed for
+            # swimming (`pack_trunks`) or for their sport (`pack_sport`)
+            why = outfits._unavailable({**it, "kind": None} if swim or sport else it, out)
+            if why == "in the laundry" and (washed_by_then or p.id in carried):
+                why = None   # washed by the time the trip starts, or in the bag already
             if why == "rated dislike" and p.id in pins:
                 why = None
-            if swim:
-                if why != "archived":
+            if why is None and under_way and p.id not in carried and p.id not in pins:
+                why = AT_HOME   # the trip has begun: what was not packed stayed at home
+            if swim or sport:
+                if why != "archived" and swim:
                     self.trunks.append((p, why))
+                elif why != "archived":
+                    self.sport_shoes.append((p, why, it["kind"]))
                 if why and p.id in pins:
-                    self.notes.append(f"{_the(p, True)} is {why}, so it is not packed.")
-            elif why is None or (why == outfits.FOR_HOME and p.id in pins):
+                    self._not_packed(p, why)
+                elif sport and (p.id in pins or p.id in carried):   # tennis or golf shoes asked for: beside the days
+                    self.beside.append(p)
+            elif why is None:
                 pool.append(p)
-            elif why in outfits.FOR_SPORT.values() and p.id in pins:   # tennis or golf shoes asked for: beside the days
-                self.sport_packed.append(p)
+            elif why == outfits.FOR_HOME and p.id in pins:   # loungewear asked for: beside the days, not worn out
+                self.beside.append(p)
             elif p.id in pins:
-                self.notes.append(f"{_the(p, True)} is {why}, so it is not packed.")
+                self._not_packed(p, why)
         self.pool = pool
+        self.all_by_id = {p.id: p for p, _ in everything}
         self.by_id = {p.id: p for p in pool}
         known = {p.id for p, _ in everything}
         for pid in opts.pin:
@@ -393,9 +428,39 @@ class _Planner:
         self.acc_used: dict[str, int] = {}
         self.packed: dict[str, outfits.Piece] = {pid: self.by_id[pid] for pid in opts.pin if pid in self.by_id}
         self.outers = [p for p in pool if outfits._fits(p, "outer")]
+        self.mids = [p for p in pool if outfits._fits(p, "mid")]
+        # every coat and jacket the owner has to go out in, as Today counts them; on a trip under way, those with them
+        self.owned_outers = self.outers if under_way else [
+            p for p, it in everything if outfits._fits(p, "outer") and outfits._unavailable(it, out) in outfits.OWNED_REASONS]
         self._refs: dict[tuple, _Reference | str] = {}
         self.swim: dict = {}
         self.swim_packed: list[outfits.Piece] = []
+
+    def _not_packed(self, p: outfits.Piece, why: str) -> None:
+        self.notes.append(f"{_the(p, True)} {outfits.be([p])} {why}, so {'they are' if outfits.plural(p) else 'it is'} "
+                          "not packed.")
+
+    # ------------------------------------------------------------ a sport
+    def pack_sport(self) -> None:
+        """A pair of shoes for each sport on the trip, beside the days: one asked for, else the best rated that can be
+        packed. Says when there is none."""
+        for sport in self.opts.sport:
+            kind, words = SPORTS[sport]
+            mine = [(p, why) for p, why, k in self.sport_shoes if k == kind]
+            free = sorted((p for p, why in mine if why is None),
+                          key=lambda p: (p not in self.beside, _RATED_FIRST.get(p.rating, 2), p.label.lower(), p.id))
+            if free:
+                if free[0] not in self.beside:
+                    self.beside.append(free[0])
+                continue
+            if not mine:
+                self.notes.append(f"You have no {words} in your closet.")
+            else:
+                why: dict[str, int] = {}
+                for _, w in mine:
+                    w = "left out" if w == "left out today" else str(w)
+                    why[w] = why.get(w, 0) + 1
+                self.notes.append(f"None of your {words} can be packed: {_and([f'{n} {w}' for w, n in sorted(why.items())])}.")
 
     # ------------------------------------------------------------ swimming
     def pack_trunks(self) -> None:
@@ -406,8 +471,8 @@ class _Planner:
         on = hot > 0 if self.opts.swim is None else self.opts.swim   # the owner's word, else whether a day is hot
         pins = set(self.opts.pin)
         free = [p for p, why in self.trunks if why is None]
-        chosen = [p for p in free if p.id in pins]
-        rest = sorted((p for p in free if p.id not in pins), key=lambda p: (_RATED_FIRST.get(p.rating, 2), p.label.lower(), p.id))
+        chosen = [p for p in free if p.id in pins or p.id in self.carried]
+        rest = sorted((p for p in free if p not in chosen), key=lambda p: (_RATED_FIRST.get(p.rating, 2), p.label.lower(), p.id))
         need = swim_pairs(self.n_days) if on else 0
         self.swim_packed = chosen + rest[:max(0, need - len(chosen))]
         missing = None
@@ -557,23 +622,50 @@ class _Planner:
             self.acc_used[x.piece.id] = self.acc_used.get(x.piece.id, 0) + 1
 
     # ------------------------------------------------------------ the whole trip
+    def wear_kept(self, d: _Day) -> None:
+        """A day already gone: its outfit stays as the saved plan had it, and its pieces count as packed and worn."""
+        outfit = self.kept[d.date].get("outfit")
+        pieces = outfit.get("pieces") if isinstance(outfit, Mapping) else None
+        if not isinstance(pieces, Mapping):
+            return
+        for place in outfits.PLACES:
+            p = self.all_by_id.get(pieces.get(place))
+            if p is not None:
+                self.packed.setdefault(p.id, p)
+                self.used[p.id] = self.used.get(p.id, 0) + 1
+                self.worn_on.setdefault(p.id, set()).add(d.index)
+        for pid in pieces.get("accessories") or []:
+            p = self.all_by_id.get(pid)
+            if p is not None:
+                self.packed.setdefault(p.id, p)
+                self.acc_used[p.id] = self.acc_used.get(p.id, 0) + 1
+
     def run(self) -> dict:
         known = [d for d in self.days if d.weather.get("source") != "unknown"]
         for d in self.days:
             if d not in known:
-                d.problem = "The weather for this day is not known yet, so nothing was chosen for it. Try again later."
+                if d.date not in self.kept:
+                    d.problem = "The weather for this day is not known yet, so nothing was chosen for it. Try again later."
                 continue
             w = d.weather
             d.ctx = outfits.Context(float(w["low_c"]), float(w["high_c"]), bool(w["rain"]), d.occasion,
                                     leave_out=self.opts.leave_out)
             d.t = outfits._design_temp(d.ctx)
-        order = sorted(known, key=lambda d: (round(d.t, 1), not d.ctx.rain, -OCCASIONS.index(d.occasion), d.date))
+        for d in self.days:
+            if d.date in self.kept:
+                self.wear_kept(d)
+        order = sorted((d for d in known if d.date not in self.kept),
+                       key=lambda d: (round(d.t, 1), not d.ctx.rain, -OCCASIONS.index(d.occasion), d.date))
         for d in order:
             self.dress(d)
         for d in order:
             if d.outfit is not None:
                 self.accessorize(d)
+        for p in self.pool:   # what is in the bag stays on the list, worn again or not
+            if p.id in self.carried:
+                self.packed.setdefault(p.id, p)
         self.pack_trunks()
+        self.pack_sport()
         return self.answer(order)
 
     def answer(self, order: list[_Day]) -> dict:
@@ -581,8 +673,13 @@ class _Planner:
         for d in self.days:
             entry = {"date": d.date, "occasion": d.occasion, "weather": d.weather, "outfit": None, "problem": d.problem,
                      "warning": d.warning, "laundry": d.index in self.washes}
-            if d.outfit is not None:
-                score, reasons, warnings = outfits._explain(d.outfit, d.ctx, d.t, None, self.outers)
+            if d.date in self.kept:   # a day already gone, as it was planned
+                kept = self.kept[d.date]
+                entry.update(occasion=kept.get("occasion", d.occasion), outfit=kept.get("outfit"),
+                             problem=kept.get("problem"), warning=kept.get("warning"))
+            elif d.outfit is not None:
+                score, reasons, warnings = outfits._explain(d.outfit, d.ctx, d.t, None, self.outers,
+                                                            owned_outers=self.owned_outers, closet_mids=self.mids)
                 entry["warning"] = d.warning or (warnings[0] if warnings else None)
                 pieces = {place: (getattr(d.outfit, place).piece.id if getattr(d.outfit, place) else None)
                           for place in outfits.PLACES}
@@ -594,16 +691,18 @@ class _Planner:
             worn = self.used.get(pid, 0) + self.acc_used.get(pid, 0)
             packed.append({"id": pid, "group": GROUP_OF.get(p.category, "accessories"), "days": worn,
                            "pinned": pid in self.opts.pin})
-            if not worn:
-                self.notes.append(f"You asked to take {_the(p)}; no day's outfit uses it.")
+            if not worn and pid in self.opts.pin:
+                self.notes.append(f"You asked to take {_the(p)}; no day's outfit uses {'them' if outfits.plural(p) else 'it'}.")
         for p in self.swim_packed:   # for swimming, in no day's outfit
             packed.append({"id": p.id, "group": SWIM_GROUP, "days": 0, "pinned": p.id in self.opts.pin})
-        for p in self.sport_packed:   # for their sport, with the shoes, in no day's outfit
-            packed.append({"id": p.id, "group": GROUP_OF.get(p.category, "shoes"), "days": 0, "pinned": True})
-        extras = self.swim_packed + self.sport_packed
+        for p in self.beside:   # loungewear, and shoes for a sport, with their own group, in no day's outfit
+            if p.id not in self.packed:
+                packed.append({"id": p.id, "group": GROUP_OF.get(p.category, "accessories"), "days": 0,
+                               "pinned": p.id in self.opts.pin})
+        extras = self.swim_packed + self.beside
         labels = {pid: p.label.lower() for pid, p in [*self.packed.items(), *((p.id, p) for p in extras)]}
         packed.sort(key=lambda x: (GROUP_ORDER.index(x["group"]), -x["days"], labels[x["id"]], x["id"]))
-        basics = self.basics(order)
+        basics = self.basics()
         swim = self.swim_count()
         return {
             "packed": packed,
@@ -618,7 +717,16 @@ class _Planner:
             "swim": self.swim,
         }
 
-    def basics(self, order: list[_Day]) -> list[dict]:
+    def _rain_ready(self, d: _Day) -> bool:
+        """Whether the day's outfit has an outer layer that keeps the rain off (a day gone: as the saved plan had it)."""
+        if d.date in self.kept:
+            outfit = self.kept[d.date].get("outfit")
+            pieces = outfit.get("pieces") if isinstance(outfit, Mapping) else None
+            outer = self.all_by_id.get(pieces.get("outer")) if isinstance(pieces, Mapping) else None
+            return outer is not None and outfits._rain_friendly(outer)
+        return d.outfit is not None and d.outfit.outer is not None and outfits._rain_friendly(d.outfit.outer.piece)
+
+    def basics(self) -> list[dict]:
         n = self.n_days
         cap = self.rewear.get("basics") or n
         need = _needed(cap, self.washes, self.hot)
@@ -641,12 +749,16 @@ class _Planner:
             {"key": "socks", "name": "Pairs of socks", "count": need + SPARE, "why": why},
         ]
         if nights:
-            sleep = 1 if self.washes else math.ceil(nights / SLEEPWEAR_NIGHTS)
+            # one set for every seven nights of the longest stretch between washes (a wash on day w, index w - 1)
+            marks = [0, *sorted(self.washes), n - 1]
+            longest = max(b - a for a, b in zip(marks, marks[1:], strict=False))
+            sleep = max(1, math.ceil(longest / SLEEPWEAR_NIGHTS))
             out.append({"key": "sleepwear", "name": "Sleepwear", "count": sleep})
-        rainy = [d for d in order if d.ctx.rain and not outfits.bare(d.ctx)]
-        if any(d.outfit is None or d.outfit.outer is None or not outfits._rain_friendly(d.outfit.outer.piece) for d in rainy):
+        known = [d for d in self.days if d.ctx is not None]
+        rainy = [d for d in known if d.ctx.rain and not outfits.bare(d.ctx)]
+        if any(not self._rain_ready(d) for d in rainy):
             out.append({"key": "umbrella", "name": "Umbrella", "count": 1})
-        if any(d.t <= GLOVES_MAX_C for d in order):
+        if any(d.t <= GLOVES_MAX_C for d in known):
             out.append({"key": "gloves", "name": "Gloves", "count": 1})
         return out
 
@@ -718,7 +830,8 @@ CLEAN_BY_DAYS = 3
 
 
 def plan(items: Iterable[object], days: list[Mapping], options: Options | Mapping | None = None,
-         rewear: Mapping | None = None, today: date | None = None) -> dict:
+         rewear: Mapping | None = None, today: date | None = None, kept: Mapping[str, Mapping] | None = None,
+         carried: Iterable[str] = (), under_way: bool = False) -> dict:
     """The packing plan for a trip.
 
     `days` are the trip's days in order, each {date, low_c, high_c, rain, source, ...} (source `unknown` when the
@@ -728,6 +841,11 @@ def plan(items: Iterable[object], days: list[Mapping], options: Options | Mappin
     "counts": [{kind, count, words}], "washes": [{day, date, words}], "uncovered": [{date, reason}],
     "warnings": [{date, reason}], "notes": [sentences], "swim": {on, hot_days, hot_c, missing}}. Swim trunks are packed
     in the group "swim", worn on no day; `missing` says why none are when swimming is on.
+
+    A saved trip planned again: `carried` is what is in the bag already, worn whatever the laundry says and kept on
+    the list. `under_way`: the trip has begun, so the days still to come are dressed only from `carried` and the
+    pins; `kept` maps each day already gone to its day as the saved plan has it, which stays as it was (its pieces
+    count as worn and packed).
     """
     dates = [str(d.get("date")) for d in days]
     opts = options if isinstance(options, Options) else parse_options(options or {}, dates)
@@ -737,7 +855,8 @@ def plan(items: Iterable[object], days: list[Mapping], options: Options | Mappin
         far = today is not None and bool(dates) and (date.fromisoformat(dates[0]) - today).days >= CLEAN_BY_DAYS
     except ValueError:
         far = False
-    return _Planner(list(items), trip, opts, check_rewear(rewear), washed_by_then=far).run()
+    return _Planner(list(items), trip, opts, check_rewear(rewear), washed_by_then=far, kept=kept, carried=carried,
+                    under_way=under_way).run()
 
 
 def lines(result: Mapping) -> list[str]:

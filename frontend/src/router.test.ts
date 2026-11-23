@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 // the router listens for the browser's back button as it loads; these tests run without a browser
 vi.stubGlobal('window', { addEventListener: () => undefined });
-const { arrivalScroll, backGoesTo, entryOf, pushedEntry, readPositions, replacedEntry, startsAtTop, writePositions } = await import('./router');
+const { arrivalScroll, backGoesTo, entryOf, parseRoute, pushedEntry, readPositions, replacedEntry, startsAtTop, writePositions } = await import('./router');
 
 describe('the app\'s own history entries', () => {
   it('counts each push from the page the app was opened on, and remembers the address before', () => {
@@ -103,5 +103,13 @@ describe('where a new page opens', () => {
     expect(startsAtTop('/wardrobe', '/wardrobe/check', true)).toBe(true);
     expect(startsAtTop('/wardrobe', '/wardrobe/wishlist', true)).toBe(true);
     expect(startsAtTop('/wardrobe/wishlist', '/wardrobe/wish/w1', true)).toBe(true);
+  });
+});
+
+describe('the addresses of Today\'s pages', () => {
+  it('opens a piece from Worn on Worn\'s own address, so its back link goes back to Worn', () => {
+    expect(parseRoute('/today/worn')).toEqual({ name: 'worn', itemId: null });
+    expect(parseRoute('/today/worn/item/a%20b')).toEqual({ name: 'worn', itemId: 'a b' });
+    expect(parseRoute('/today/item/abc')).toEqual({ name: 'today', itemId: 'abc' });
   });
 });

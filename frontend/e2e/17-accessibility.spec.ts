@@ -207,14 +207,14 @@ test.describe('by keyboard', () => {
     await expect(filter).toBeFocused();
   });
 
-  test('the ⋯ menu keeps focus inside and Escape returns it to the button', async ({ page }) => {
+  test('the ⋯ sheet keeps focus inside and Escape returns it to the button', async ({ page }) => {
     await goToCloset(page);
     await useProfile(page, 'demo');
     await page.goto('/today/worn');
     const more = page.getByRole('button', { name: 'More for this outfit' }).first();
     await more.focus();
     await page.keyboard.press('Enter');
-    const menu = page.getByRole('menu', { name: 'This outfit' });
+    const menu = page.getByRole('dialog', { name: 'This outfit' });
     await expect(menu).toBeVisible();
     for (let i = 0; i < 6; i++) {
       await page.keyboard.press('Tab');

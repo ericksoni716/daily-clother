@@ -88,8 +88,40 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   never puts them in an outfit, not even on an athletic day, and What's missing does not count
   them as everyday sneakers. On a trip they are packed only when you choose to take them, and are
   worn on no day.
+- **Tennis or golf on a trip.** Beside "Swimming or the beach", **Playing on the trip** has Tennis
+  and Golf. Choose one and a pair of your tennis or golf shoes is packed with the shoes, worn on no
+  day, without "I want to take this"; with none that can go, the trip says why.
+- **Follow the forecast again.** Once you have turned "Swimming or the beach" on or off, a link
+  under it gives the choice back to the forecast.
 
 ### Changed
+
+- **Today's first screen holds the outfit and its button** on the smallest iPhone, with five
+  pieces: the pieces are four to a row on a phone, the date sits beside "Today", and when the
+  weather cannot be fetched that is one line, "No forecast.", with **Try again** and **Type
+  temperatures** instead of a box that said it twice. The weather line keeps **Change** at its
+  end instead of moving it to a line of its own when the font is wide.
+- **A piece's choices open in a sheet** over the page, from the bottom on a phone (beside the
+  piece on a computer), on Today, Worn and a trip, instead of under the pieces where the tab bar
+  hid them. On Today the choice is now **Build around this piece** (was Start from this piece),
+  the name the page already used everywhere else.
+- **Change, beside the weather, opens a sheet** titled Where you are, as in Settings, instead of
+  a panel above the outfits. The controls come first; what is sent to look up the weather is one
+  tap away. Escape closes it.
+- **While Claude chooses again, the outfits stay on the page**, dimmed under "Claude is choosing
+  today's outfits…", and keep their space until Claude's are in. Asking again says "Asking
+  again…" over the outfits instead of beside the heading.
+- **Record an outfit opens a sheet** with the day, a search, and your pieces in four groups (tops,
+  bottoms, shoes and extras), the ones worn most recently first, instead of every piece in a long
+  panel above the list.
+- **A trip leads with what to pack.** The days with something to watch for are one line that
+  opens, with days that share a sentence said together, and a forecast that could not be had is
+  said once rather than for every day. A day's outfit fits five pieces in one row on a phone.
+- **"Not this piece" and "Build around" are kept for the rest of the day**, a reload included.
+- **Temperatures are written one way** on Today, Worn and a trip: "9–16°C".
+- **The reasons offered after a rating follow it**: after "Loved it" only Got compliments and
+  Other, after "Not again" no Got compliments.
+- Offline, why rating has to wait is said once above the outfits, not on every one.
 
 - **The wishlist has a page of its own**, one tap from the Wardrobe. Under **Thinking of buying
   something?**, next to **Would this work?**, the **Wishlist** row says how many things are on it
@@ -114,6 +146,39 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **A trip under way stays as it is.** Opening a trip on its third day no longer says the forecast
+  changed when only the days already gone have left the forecast, and "Plan again" no longer dresses
+  those days again for "usual" weather they never had. The days gone keep their outfits, the days
+  to come are dressed from what you packed, and what you have ticked stays on the list: a tee worn
+  yesterday that went in the laundry by itself is still in your suitcase, not swapped for one at
+  home.
+- **Filling in an outfit from last week leaves the closet alone.** An outfit recorded for a day the
+  pieces have been washed since (before Sunday's laundry, or before you marked them clean) goes in
+  the log, but no longer sends clean clothes to the laundry as if worn today.
+- **Record an outfit takes a tie, a watch, gloves or socks.** Pieces of category Other go with the
+  outfit's accessories instead of being refused for having "no category an outfit can use".
+- **Record an outfit works from a phone in a later time zone.** When your phone's today is already
+  the computer's tomorrow, it is taken as today instead of "That date is in the future".
+- **A month away with one wash takes enough sleepwear**: one set for every week of the longest
+  stretch between washes, not one set as soon as there is any laundry.
+- **Lounge pants you take on a trip stay for the evenings.** "I want to take this" on loungewear
+  packs it beside the days, as for tennis shoes, instead of wearing it as the trousers of a day out.
+- **A trip day says "the warmest you have" only when it is.** With a warmer coat in the wash at
+  home, the jacket is "the warmest you can wear today". Would this work? and a trip's notes speak of
+  jeans and shoes as "they".
+- Opening a new piece, or one of category Other, no longer writes an error to the log each time.
+- **Wearing an outfit built around a piece** no longer leaves Today saying "No outfit today yet"
+  and offering Add clothes when the piece went in the laundry. Wearing it ends building around the
+  piece, and Today shows what you are wearing. When your own changes are why no outfit can be made,
+  the button is **Clear your changes**, not Add clothes.
+- **The ⋯ button on each Worn card** is drawn at its size again; it was squeezed to a speck.
+- **A piece opened from Worn goes back to Worn** with **‹ Worn**, where you left it, instead of
+  to Today.
+- **"How was yesterday's outfit?"** shows every piece of the outfit on a phone, under the question,
+  instead of cutting the last ones off.
+- **The outfit card ends with its reasons**: it no longer keeps the height of the tallest outfit,
+  which left a blank band of up to 340px.
+- A trip's **Why this works** rows are a whole tap high.
 - **What you wear at home is no longer a reason to buy.** Worth buying asked for "Another pair of
   trousers like your tartan lounge pants", showed the lounge pants among the pieces a suggestion is
   based on, called a bath robe "your warmest outer layer", let pyjamas stand in for a plain tee, and

@@ -4,7 +4,7 @@
  * `queryClient.ts`. The recipe: docs/DEVELOPING.md, "Reading and saving data".
  */
 import { queryOptions, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { api, ApiError, connection } from './api';
 import { loadSavedPlans, savePlans } from './plans';
 import { queryKeys, touched, type EditKind, type ItemStatus, type KeyName } from './queryKeys';
@@ -235,4 +235,11 @@ export function usePoll(ms: number | null, tick: () => void): void {
     }, ms);
     return () => window.clearInterval(t);
   }, [ms]);
+}
+
+/** Every item in the closet by id, archived ones too: a worn outfit may hold a piece archived since. */
+export function useAllItems(): Map<string, ItemSummary> {
+  const active = useItems('active').data;
+  const archived = useItems('archived').data;
+  return useMemo(() => new Map([...(archived ?? []), ...(active ?? [])].map((i) => [i.id, i])), [active, archived]);
 }

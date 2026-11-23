@@ -250,7 +250,7 @@ a wear on a day you recorded an outfit with it shows that outfit's pieces (each 
 the day, and how it went; the same outfit worn on several days is one row ("3 times, last on 12
 Nov"); a wear with no outfit is a plain dated line. Three rows are on the page; "All 5 outfits" opens
 the rest in a sheet. A row's ⋯ holds **Wear this again** (Today starts from that outfit, as from
-Worn) and removing a wear, one button for each day.
+Worn), then the days you wore it, newest first, each with a quiet Remove.
 About it holds how you feel about it and one box, Notes for you and Claude, which Claude reads
 when it chooses your outfits; it shows every note kept about the piece, and once you change it
 the whole text is kept there.

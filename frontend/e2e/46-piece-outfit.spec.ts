@@ -146,13 +146,21 @@ test('the outfits a piece was worn in: the same outfit once, three on the page, 
   const plain = list.getByTestId('worn-in-row').first();
   const words = (await plain.locator('.worn-in-when').textContent())!;
   await plain.getByRole('button', { name: `More for the wear: ${words}` }).click();
-  await page.getByTestId('worn-in-menu').getByRole('button', { name: 'Remove this wear' }).click();
+  await page.getByTestId('worn-in-menu').getByRole('button', { name: `Remove the wear: ${words}` }).click();
   await expect(page.locator('.toast', { hasText: 'Wear removed' })).toBeVisible();
   await expect(list.getByRole('button', { name: `More for the wear: ${words}` })).toHaveCount(0);
 
-  // Wear this again does what it does on Worn
+  // an outfit's sheet: Wear this again, then its days as plain rows, newest first, each with a quiet Remove
   await list.getByTestId('worn-in-row').filter({ hasText: /^2 times/ }).getByRole('button', { name: /^More for the outfit/ }).click();
-  await page.getByTestId('worn-in-menu').getByRole('button', { name: 'Wear this again' }).click();
+  const menu = page.getByTestId('worn-in-menu');
+  await expect(menu.getByRole('heading', { name: 'The days you wore it' })).toBeVisible();
+  await expect(menu.getByTestId('worn-in-day')).toHaveCount(2);
+  await expect(menu.getByRole('button', { name: /^Remove the wear: / })).toHaveCount(2);
+  await expect(menu.locator('.btn-danger-quiet')).toHaveCount(0);
+  for (const remove of await menu.getByRole('button', { name: /^Remove the wear: / }).all()) {
+    expect((await remove.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+  await menu.getByRole('button', { name: 'Wear this again' }).click();
   await expect(page).toHaveURL(/\/today$/);
   await expect(page.getByRole('group', { name: 'Wearing again' })).toContainText('Starting from an outfit you wore');
   await page.goBack();

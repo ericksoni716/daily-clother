@@ -161,6 +161,23 @@ def test_item_worn_yesterday_is_passed_over_for_an_equal_one():
         assert worn not in ids_of(result["outfits"][0])
 
 
+def test_a_piece_worn_lately_is_said_plainly_when_you_asked_for_it():
+    tee = item("tee1", "tee", "white", "casual", "warm", name="white tee", silhouette={"sleeve": "short"})
+    items = [i for i in basic_closet() if i["id"] != "tee1"] + [tee,
+             item("tee2", "tee", "grey", "casual", "warm", name="grey tee", silhouette={"sleeve": "short"})]
+    worn = {"tee1": 1}
+    said = lambda found: [w for o in found for w in o["warnings"] if w.startswith("You wore the white tee")]  # noqa: E731
+    # chosen by Nines with nothing better to offer: it says so, as before
+    only = outfits.suggest([i for i in items if i["category"] not in ("tee", "shirt", "polo") or i["id"] == "tee1"],
+                           day(27, worn_days_ago=worn), 3)["outfits"]
+    assert "You wore the white tee yesterday; nothing else suited as well." in said(only)
+    # built around it, or kept from an outfit worn again: you asked for it, so only what is true is said
+    for ctx in (day(27, worn_days_ago=worn, build_around="tee1"), day(27, worn_days_ago=worn, keep=("tee1",))):
+        found = outfits.suggest(items, ctx, 3)["outfits"]
+        assert found and all("tee1" in ids_of(o) for o in found)
+        assert said(found) and set(said(found)) == {"You wore the white tee yesterday."}
+
+
 def test_nothing_is_worn_over_something_heavier_or_bulkier():
     items = [
         item("tee1", "tee", "white", "casual"),

@@ -26,10 +26,6 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .sheet-popover .worn-menu-list .btn { justify-content: flex-start; }
 .worn-more { margin-top: 16px; }
 
-/* small pictures of an outfit's pieces */
-.worn-pics { list-style: none; margin: 10px 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-.worn-pic { width: 52px; height: 60px; }
-.worn-pic > .pic-cutout { padding: 4px; filter: none; }
 
 /* recording an outfit by hand, in a sheet: the day and a search, then the pieces in four groups, and the button kept in sight */
 .worn-record-sheet.sheet-popover { width: min(30rem, calc(100vw - 32px)); max-height: min(44rem, 80dvh); }
@@ -78,10 +74,6 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .worn-question .rate { margin-top: 6px; }
 .worn-question .row { margin-top: 6px; }
 
-.worn-pic.is-archived,
-.worn-pic.is-gone {
-  opacity: 0.55;
-}
 
 /* ---------------------------------------------------------------- Recent outfits, on Today */
 .recent { margin-top: var(--space-6); min-width: 0; }

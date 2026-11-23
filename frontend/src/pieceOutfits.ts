@@ -61,6 +61,11 @@ export function wornInWords(row: Pick<WornIn, 'days' | 'rating'>, today: string 
   return row.rating ? `${when} · ${ratingLabel(row.rating)}` : when;
 }
 
+/** The accessible name of the Remove beside one day in a row's sheet: "Remove the wear: Friday 20 Nov". */
+export function removeWearName(day: string, today: string = localDay()): string {
+  return `Remove the wear: ${wearDay(day, today)}`;
+}
+
 /** The row that opens every row in a sheet: "All 5 outfits", "All 4 wears" when none was an outfit, or "All 5 outfits
  * and wears" when both are there. */
 export function allRowsLabel(rows: readonly Pick<WornIn, 'outfit_id'>[]): string {

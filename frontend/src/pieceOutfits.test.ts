@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { againPath, allRowsLabel, aroundOffer, aroundPath, piecesFrom, wornInWords } from './pieceOutfits';
+import { againPath, allRowsLabel, aroundOffer, aroundPath, piecesFrom, removeWearName, wornInWords } from './pieceOutfits';
 
 const TODAY = '2026-11-23';   // a Monday
 
@@ -56,5 +56,13 @@ describe('allRowsLabel', () => {
     expect(allRowsLabel([{ outfit_id: 'a' }, { outfit_id: 'b' }, { outfit_id: 'c' }, { outfit_id: 'd' }])).toBe('All 4 outfits');
     expect(allRowsLabel([{ outfit_id: null }, { outfit_id: null }, { outfit_id: null }, { outfit_id: null }])).toBe('All 4 wears');
     expect(allRowsLabel([{ outfit_id: 'a' }, { outfit_id: null }, { outfit_id: 'c' }, { outfit_id: 'd' }])).toBe('All 4 outfits and wears');
+  });
+});
+
+describe('the days in a row\'s sheet', () => {
+  it('names each wear its Remove takes away, in the wear lists\' words', () => {
+    expect(removeWearName('2026-11-20', TODAY)).toBe('Remove the wear: Friday 20 Nov');
+    expect(removeWearName('2026-11-06', TODAY)).toBe('Remove the wear: 6 Nov');
+    expect(removeWearName('2026-11-23', TODAY)).toBe('Remove the wear: Today');
   });
 });

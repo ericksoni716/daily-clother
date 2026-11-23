@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import { Button, Sheet } from './ui';
 import { MoreIcon } from './Icons';
-import { OutfitPics, useAllItems } from '../screens/Worn';
+import { OutfitPics } from './OutfitPics';
+import { useAllItems } from '../queries';
 import { navigate } from '../router';
-import { againPath, allRowsLabel, aroundOffer, aroundPath, ON_PAGE, piecesFrom, wornInWords, type WornIn } from '../pieceOutfits';
+import { againPath, allRowsLabel, aroundOffer, aroundPath, ON_PAGE, piecesFrom, removeWearName, wornInWords, type WornIn } from '../pieceOutfits';
 import type { Item, ItemSummary } from '../types';
-import { localDay, sinceDay } from '../wears';
+import { localDay, wearDay } from '../wears';
 import './PieceOutfits.css';
 
 const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
@@ -93,17 +94,21 @@ function WornInRow({ row, byId, from, disabled, onUnwear }: {
       {open && (
         <Sheet title={row.pieces ? 'This outfit' : 'This wear'} anchor={button} onClose={() => setOpen(false)} className="worn-menu-sheet"
           testId="worn-in-menu">
-          <div className="worn-menu-list">
-            {row.outfit_id && (
+          {row.outfit_id && (
+            <div className="worn-menu-list">
               <Button block disabled={disabled} title={title} onClick={choose(() => navigate(againPath(row.outfit_id!)))}>Wear this again</Button>
-            )}
+            </div>
+          )}
+          {row.pieces && <h3 className="chip-group-title worn-in-days-title">The days you wore it</h3>}
+          <ul className="worn-in-days">
             {row.days.map((day) => (
-              <Button key={day} block variant="danger-quiet" disabled={disabled} title={title}
-                onClick={choose(() => onUnwear(day, 'Wear removed'))}>
-                {row.days.length === 1 ? 'Remove this wear' : `Remove the wear from ${sinceDay(day, today)}`}
-              </Button>
+              <li key={day} className="worn-in-day" data-testid="worn-in-day">
+                <span>{wearDay(day, today)}</span>
+                <button type="button" className="btn btn-link worn-in-remove" disabled={disabled} title={title}
+                  aria-label={removeWearName(day, today)} onClick={choose(() => onUnwear(day, 'Wear removed'))}>Remove</button>
+              </li>
             ))}
-          </div>
+          </ul>
         </Sheet>
       )}
     </li>

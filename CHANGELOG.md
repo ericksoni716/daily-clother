@@ -20,7 +20,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   the same outfit worn on several days is shown once ("3 times, last on 12 Nov"), and a day you wore
   the piece without recording an outfit is a plain line. The first three are on the page, the rest
   behind "All 5 outfits". Each one's ⋯ offers **Wear this again**, as on Worn, and removing a wear,
-  which used to be the Remove links under Recent wears.
+  which used to be the Remove links under Recent wears. Today no longer says "nothing else suited as
+  well" of a piece you wore lately when it is in the outfit because you asked for it.
 - **Give it an outing.** Now and then, Today builds its last outfit around a piece you love or like and
   have not worn in a while, and says so in one sentence under its button ("An outing for your tweed
   jacket: you love it and have not worn it since 2 Oct."). The best outfit for the day stays first. It

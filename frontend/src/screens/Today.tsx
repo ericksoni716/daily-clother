@@ -12,7 +12,7 @@ import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../fi
 import { label } from '../labels';
 import { keptToast, keptWith } from '../kept';
 import { awayClause, countsOnLine, heldLine, planFor, planLine, plannedFor, plannedToast, plansSoon, swapLine, tripLine, wearOn, type Plan } from '../plans';
-import { keptQuery, plansQuery, touch, useEdit, useItems, writeItem } from '../queries';
+import { keptQuery, plansQuery, touch, useAllItems, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
 import { settingsQuery } from '../settings';
@@ -30,7 +30,8 @@ import { dismiss, loadDismissed, pendingQuestion, pieceName, questionFor, withou
 import { tripComingUp } from '../trips';
 import { ItemDetail } from './ItemDetail';
 import { tripsQuery } from './Trips';
-import { changePages, OutfitPics, RateOutfit, RecentOutfits, useAllItems, wornQuery } from './Worn';
+import { changePages, RateOutfit, RecentOutfits, wornQuery } from './Worn';
+import { OutfitPics } from '../components/OutfitPics';
 import './Today.css';
 
 const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';

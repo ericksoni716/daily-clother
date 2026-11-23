@@ -1456,7 +1456,10 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
     for x in every:
         days = ctx.worn_days_ago.get(x.piece.id)
         if days is not None and days < RECENT_WEAR_DAYS and x.place in ("base", "mid"):
-            warnings.append(f"You wore {_the(x.piece)} {_days_words(days)}; nothing else suited as well.")
+            # a piece you asked for (built around, or kept from an outfit worn again) is there because you asked
+            asked = (forced and x.piece.id == forced[0].id) or x.piece.id in ctx.keep
+            warnings.append(f"You wore {_the(x.piece)} {_days_words(days)}." if asked
+                            else f"You wore {_the(x.piece)} {_days_words(days)}; nothing else suited as well.")
     for x in every:
         if x.piece.in_storage:
             warnings.append(f"{_the(x.piece, True)} {_is(x.piece)} in storage; get {'them' if plural(x.piece) else 'it'} out first.")

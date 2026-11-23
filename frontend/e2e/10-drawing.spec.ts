@@ -49,13 +49,17 @@ test.describe('the drawing, with a stand-in for Claude', () => {
     const svg = await page.request.get(backend.url + (await drawing.getAttribute('src'))!);
     expect((await svg.text()).toLowerCase()).toContain('#b8322e');
 
-    // the grid can show drawings instead of photos for the moment; opened again, it starts from the setting (off)
-    const show = page.getByRole('group', { name: 'Show' });
+    // the grid can show drawings instead of photos for the moment (the choice is in the Filter sheet); opened again,
+    // it starts from the setting (off)
+    await page.getByRole('button', { name: /^Filter/ }).click();
+    const show = page.getByRole('dialog', { name: 'Filter' }).getByRole('group', { name: 'Show' });
     await expect(show.getByRole('button', { name: 'Photos' })).toHaveAttribute('aria-pressed', 'true');
     await show.getByRole('button', { name: 'Drawings' }).click();
     await expect(tile.getByRole('img', { name: 'Navy polo, drawing' })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Photos' })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: /^Filter/ }).click();
+    await expect(show.getByRole('button', { name: 'Photos' })).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('Escape');
     await expect(page.getByTestId('tile').first().getByRole('img', { name: 'Navy polo', exact: true })).toBeVisible();
   });
 });

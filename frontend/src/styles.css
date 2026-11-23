@@ -467,14 +467,14 @@ button, input, textarea, select { font: inherit; color: inherit; }
   display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-pill);
   background: var(--accent-bg); color: var(--accent-ink); font-size: var(--text-xs);
 }
-.grid-view { flex: none; margin-left: auto; }
-.grid-view > * { gap: 6px; padding: 0 14px; }
-.grid-view svg { width: 18px; height: 18px; flex: none; }
-@media (max-width: 699px) {
-  .grid-view .seg-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .grid-view > * { padding: 0 10px; }
-}
-.active-filters { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* what the grid shows, in the Filter sheet: photos or drawings, in words, a whole tap high */
+.view-choices { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.view-choice > * { min-height: var(--tap); }
+/* the filters that are on, beside Filter: in one line that scrolls sideways on a phone, wrapping on a wider screen */
+.active-filters { list-style: none; flex: 1 1 auto; min-width: 0; margin: 0; padding: 3px 0; display: flex; gap: var(--space-2);
+  overflow-x: auto; scrollbar-width: none; }
+.active-filters::-webkit-scrollbar { display: none; }
+@media (min-width: 700px) { .active-filters { flex-wrap: wrap; overflow: visible; } }
 .chip-remove { text-decoration: none; padding-right: 10px; }
 .chip-remove svg { width: 16px; height: 16px; color: var(--ink-3); }
 .filter-choices { display: flex; flex-direction: column; gap: var(--space-4); }

@@ -130,6 +130,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **Photos or drawings, in words.** The closet's switch between photos and drawings was two small
+  pictures. It is now a choice of **Photos** or **Drawings**, in words, at the top of the Filter
+  sheet under **Show**. The filters you have on now sit beside the Filter button.
 - **The closet's search has a row of its own and finds more.** It no longer shrinks to "Sear" or
   "S" beside the buttons on a narrow phone: Filter sits under it. It finds a piece by its shade
   ("navy"), brand, material ("linen") or a word of your own notes, as well as by its name, what it

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { CloseIcon, DrawingIcon, FilterIcon, HangerIcon, ImagesIcon, SearchIcon } from '../components/Icons';
+import { CloseIcon, FilterIcon, HangerIcon, SearchIcon } from '../components/Icons';
 import { StepMark } from '../components/Progress';
 import { WorkingLine } from '../components/WorkingLine';
 import { Button, buttonClass, EmptyState, Failed, PageHeader, SegmentedControl, Sheet } from '../components/ui';
@@ -223,53 +223,47 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
               </label>
             )}
             <div className="closet-toolbar-row">
-            <div className="filter-wrap">
-              <button ref={filterButton} type="button" className={`btn filter-button${filters ? ' has-filters' : ''}`} aria-expanded={filtering}
-                aria-haspopup="dialog" onClick={() => setFiltering((f) => !f)}>
-                <FilterIcon /><span className="filter-text">Filter</span>
-                {/* heard as "Filter, 1 on": the count is part of the name, as it is seen */}
-                {filters > 0 && <><span className="visually-hidden">, </span><span className="filter-count">{filters}</span><span className="visually-hidden"> on</span></>}
-              </button>
-              {filtering && (
-                <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" onClose={() => setFiltering(false)}>
-                  <FilterChoices status={status} laundry={activeLaundry} away={activeAway} onAway={setAway} onLaundry={setLaundry}
-                    choices={choices} what={activeWhat} onWhat={(level, id) => setWhat(chooseWhat(activeWhat, level, id))} />
-                </Sheet>
+              <div className="filter-wrap">
+                <button ref={filterButton} type="button" className={`btn filter-button${filters ? ' has-filters' : ''}`} aria-expanded={filtering}
+                  aria-haspopup="dialog" onClick={() => setFiltering((f) => !f)}>
+                  <FilterIcon /><span className="filter-text">Filter</span>
+                  {/* heard as "Filter, 1 on": the count is part of the name, as it is seen */}
+                  {filters > 0 && <><span className="visually-hidden">, </span><span className="filter-count">{filters}</span><span className="visually-hidden"> on</span></>}
+                </button>
+                {filtering && (
+                  <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" onClose={() => setFiltering(false)}>
+                    <FilterChoices status={status} laundry={activeLaundry} away={activeAway} onAway={setAway} onLaundry={setLaundry}
+                      view={list && !empty ? gridView : null}
+                      onView={(value) => { gridMoment = { view: value, setting: showDrawings }; setMoment(gridMoment); }}
+                      choices={choices} what={activeWhat} onWhat={(level, id) => setWhat(chooseWhat(activeWhat, level, id))} />
+                  </Sheet>
+                )}
+              </div>
+              {filters > 0 && (
+                <ul className="active-filters" aria-label="Filters on">
+                  {status === 'archived' && (
+                    <li><Link to="/" className="chip chip-remove" aria-label="Remove filter: Archived">Archived<CloseIcon /></Link></li>
+                  )}
+                  {whatOn && (
+                    <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${whatName(list ?? [], vocab?.kind_groups, activeWhat)}`}
+                      onClick={() => setWhat(ANY)}>{whatName(list ?? [], vocab?.kind_groups, activeWhat)}<CloseIcon /></button></li>
+                  )}
+                  {activeLaundry && (
+                    <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${LAUNDRY[activeLaundry]}`}
+                      onClick={() => setLaundry(null)}>{LAUNDRY[activeLaundry]}<CloseIcon /></button></li>
+                  )}
+                  {activeCheck && (
+                    <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${NEEDS_CHECK}`}
+                      onClick={() => setCheck(false)}>{NEEDS_CHECK}<CloseIcon /></button></li>
+                  )}
+                  {activeAway && (
+                    <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${AWAY}`}
+                      onClick={() => setAway(false)}>{AWAY}<CloseIcon /></button></li>
+                  )}
+                </ul>
               )}
-            </div>
-            {list && !empty && (
-              <SegmentedControl label="Show" className="grid-view" value={gridView}
-                options={[
-                  { value: 'photos', label: <><ImagesIcon /><span className="seg-text">Photos</span></> },
-                  { value: 'drawings', label: <><DrawingIcon /><span className="seg-text">Drawings</span></> },
-                ]}
-                onChange={(value) => { gridMoment = { view: value, setting: showDrawings }; setMoment(gridMoment); }} />
-            )}
             </div>
           </div>
-          {filters > 0 && (
-            <ul className="active-filters" aria-label="Filters on">
-              {status === 'archived' && (
-                <li><Link to="/" className="chip chip-remove" aria-label="Remove filter: Archived">Archived<CloseIcon /></Link></li>
-              )}
-              {whatOn && (
-                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${whatName(list ?? [], vocab?.kind_groups, activeWhat)}`}
-                  onClick={() => setWhat(ANY)}>{whatName(list ?? [], vocab?.kind_groups, activeWhat)}<CloseIcon /></button></li>
-              )}
-              {activeLaundry && (
-                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${LAUNDRY[activeLaundry]}`}
-                  onClick={() => setLaundry(null)}>{LAUNDRY[activeLaundry]}<CloseIcon /></button></li>
-              )}
-              {activeCheck && (
-                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${NEEDS_CHECK}`}
-                  onClick={() => setCheck(false)}>{NEEDS_CHECK}<CloseIcon /></button></li>
-              )}
-              {activeAway && (
-                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${AWAY}`}
-                  onClick={() => setAway(false)}>{AWAY}<CloseIcon /></button></li>
-              )}
-            </ul>
-          )}
           {status === 'active' && activeCheck && (toReview ?? 0) > 0 && (
             <p className="closet-next" data-testid="review-notice">
               <span className="muted">Claude wasn't sure of a detail on {toReview === 1 ? 'this piece' : 'these'}.</span>
@@ -381,8 +375,11 @@ function StatusLine({ toCheck, inLaundry: n, checking, washing, onCheck, onLaund
   );
 }
 
-function FilterChoices({ status, laundry, away, onLaundry, onAway, choices, what, onWhat }: {
+function FilterChoices({ status, laundry, away, onLaundry, onAway, choices, what, onWhat, view, onView }: {
   status: 'active' | 'archived';
+  /** what the grid shows, photos or drawings (null while there is nothing to show) */
+  view: GridView | null;
+  onView(view: GridView): void;
   laundry: Laundry | null;
   away: boolean;
   onLaundry(l: Laundry | null): void;
@@ -407,6 +404,15 @@ function FilterChoices({ status, laundry, away, onLaundry, onAway, choices, what
   );
   return (
     <div className="filter-choices">
+      {view && (
+        <div className="filter-group">
+          <h3 className="chip-group-title">Show</h3>
+          <div className="view-choices">
+            <SegmentedControl label="Show" className="view-choice" value={view} onChange={onView}
+              options={[{ value: 'photos', label: 'Photos' }, { value: 'drawings', label: 'Drawings' }]} />
+          </div>
+        </div>
+      )}
       <div className="filter-group">
         <h3 className="chip-group-title">Which clothes</h3>
         <SegmentedControl label="Which clothes" small value={status}

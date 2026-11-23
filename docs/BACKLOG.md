@@ -14,11 +14,9 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
-- **The wish page and price news** (23 November; DECISIONS, "The wish page and price news"). Telling
-  the owner on their phone when Nines is not open (a push notification or an email) is not built and
-  awaits the owner: it needs Nines reachable from outside, or a service holding the phone's address
-  or an email password. "See them" on the banner opens the Wardrobe at its top; on a phone the
-  wishlist is below Worth buying.
+- **The wish page and price news** (23 November; DECISIONS, "The wish page and price news"). "See
+  them" on the banner opens the Wardrobe at its top; on a phone the wishlist is below Worth buying.
+  (Telling the owner on their phone when Nines is not open is not wanted: the owner said no.)
 - **Choosing a shade** (22 November; DECISIONS, "Choosing a shade"). The review's question about
   a doubtful colour and Would this work?'s colour still offer the colour words only, and the
   closet's search does not find a piece by its shade's name.

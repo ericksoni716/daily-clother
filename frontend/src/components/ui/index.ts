@@ -4,6 +4,7 @@ export { Card, Section } from './Card';
 export { ChipGroup } from './Chips';
 export { EmptyState } from './EmptyState';
 export { CRASH, ErrorBoundary } from './ErrorBoundary';
+export { earlierLine, Failed, FAILED, failedReason, failedTitle, type FailedRead } from './Failed';
 export { Fold } from './Fold';
 export { HowItWorks } from './HowItWorks';
 export { ItemThumb } from './ItemThumb';

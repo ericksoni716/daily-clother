@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { api, type ApiError } from '../api';
-import { Card, ChipGroup, EmptyState, ItemThumb, PageHeader, SegmentedControl } from '../components/ui';
+import { Card, ChipGroup, EmptyState, Failed, ItemThumb, PageHeader, SegmentedControl, type FailedRead } from '../components/ui';
 import { CameraIcon, CheckIcon, HangerIcon, ImagesIcon, PlusIcon, WarnIcon } from '../components/Icons';
 import { FormalityChips } from '../components/FormalityChips';
 import { itemName, Pieces } from '../components/ItemPic';
@@ -9,7 +9,7 @@ import { WornOutfit } from '../components/WornWith';
 import { useTodayView, VIEW_OPTIONS } from '../figure';
 import type { Wish } from '../gaps';
 import { navigate } from '../router';
-import { useVocab } from '../queries';
+import { vocabQuery } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
 import { placeLabel, wornOrder } from '../today';
@@ -69,7 +69,8 @@ export interface WouldWorkProps {
 
 export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, onBought, wide = false }: WouldWorkProps) {
   const { profile, toast } = useApp();
-  const vocab = useVocab();
+  const vocabRead = useQuery(vocabQuery());
+  const vocab = vocabRead.data ?? null;
   const remembered = memory && memory.profile === profile && memory.wishId === wishId ? memory : null;
   const [draft, setDraft] = useState<Partial<WouldPiece>>(remembered?.draft ?? pieceFromWish(wish));
   const [held, setStage] = useState<Stage>(() => openingStage(remembered));
@@ -174,7 +175,7 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
 
   const describe = (stage.kind === 'form' || wide) && (
     <Describe draft={draft} setDraft={setDraft} error={stage.kind === 'form' ? stage.error : null} demo={demo} locked={locked}
-      kinds={checkKinds(vocab?.category ?? [])} vocab={vocab} onPhoto={photo} onSubmit={byHand} />
+      kinds={checkKinds(vocab?.category ?? [])} vocab={vocab} vocabRead={vocabRead} onPhoto={photo} onSubmit={byHand} />
   );
 
   const answer = (
@@ -247,9 +248,9 @@ function Waiting({ words }: { words: string }) {
 
 // ------------------------------------------------------------------ describing the piece
 
-function Describe({ draft, setDraft, error, demo, locked, kinds, vocab, onPhoto, onSubmit }: {
+function Describe({ draft, setDraft, error, demo, locked, kinds, vocab, vocabRead, onPhoto, onSubmit }: {
   draft: Partial<WouldPiece>; setDraft(d: Partial<WouldPiece>): void; error: string | null; demo: boolean; locked: boolean;
-  kinds: string[]; vocab: Vocab | null; onPhoto(e: ChangeEvent<HTMLInputElement>): void; onSubmit(e: FormEvent): void;
+  kinds: string[]; vocab: Vocab | null; vocabRead: FailedRead; onPhoto(e: ChangeEvent<HTMLInputElement>): void; onSubmit(e: FormEvent): void;
 }) {
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);
@@ -303,7 +304,8 @@ function Describe({ draft, setDraft, error, demo, locked, kinds, vocab, onPhoto,
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             </label>
           </>
-        ) : <div className="missing-skeleton missing-skeleton-small" aria-hidden="true" />}
+        ) : vocabRead.error ? <Failed query={vocabRead} what="the words to describe a piece" />
+          : <div className="missing-skeleton missing-skeleton-small" aria-hidden="true" />}
         <div className="row">
           <button className="btn btn-primary" type="submit" disabled={locked || !!missing || !vocab} title={locked ? OFFLINE_TITLE : undefined}>
             Would it work?

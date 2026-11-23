@@ -14,7 +14,7 @@ import { LineWords, StyleLines } from '../components/StyleLines';
 import { StyleTalk } from '../components/StyleTalk';
 import { StatusLine, Toggle } from '../components/Toggle';
 import { UpdatesLine } from '../components/Updates';
-import { Button, buttonClass, confirmKeys, Fold, Notice, PageHeader, Section as UiSection, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
+import { Button, buttonClass, confirmKeys, Failed, Fold, Notice, PageHeader, Section as UiSection, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { Link } from '../router';
 import { touch } from '../queries';
 import { queryKeys } from '../queryKeys';
@@ -400,12 +400,7 @@ export function SettingsScreen({ version }: { version: string }) {
       <div className="settings">
         <PageHeader title="Settings" />
         {offline ? <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>
-          : read.error ? (
-            <>
-              <p className="form-error" role="alert">{read.error.message}</p>
-              <button className="btn" onClick={() => void read.refetch()}>Try again</button>
-            </>
-          ) : <p className="hint" aria-busy="true">Opening your settings…</p>}
+          : read.error ? <Failed query={read} what="your settings" /> : <p className="hint" aria-busy="true">Opening your settings…</p>}
         {offline && (
           <div className="settings-groups">
             <LookSection offline={offline} />
@@ -446,7 +441,7 @@ export function SettingsScreen({ version }: { version: string }) {
     <div className="settings">
       <PageHeader title="Settings" />
       {offline && <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>}
-      {!offline && read.error && <p className="form-error" role="alert">{read.error.message}</p>}
+      {!offline && <Failed query={read} what="your settings" />}
       <div className="settings-groups">
         {mainGroups(phoneShows, device === 'phone' && keepPhoneLine(settings.background) !== null).map((g) => group[g])}
       </div>

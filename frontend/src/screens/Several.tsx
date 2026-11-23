@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { api, ApiError } from '../api';
 import { CheckIcon, ImagesIcon } from '../components/Icons';
-import { Button, Card, ItemThumb, Notice, PageHeader } from '../components/ui';
+import { Button, Card, Failed, ItemThumb, Notice, PageHeader } from '../components/ui';
 import { Link, navigate } from '../router';
 import {
   addLabel, boxStyle, CORNERS, cropStyle, differsFromFound, foundVersion, moveBox, moveCorner, newBox, pieceName, pointAt, putBack,
@@ -165,7 +165,7 @@ export function SeveralScreen({ id }: { id: string }) {
     return (
       <section className="several" aria-labelledby="several-title">
         {header}
-        <Notice tone="error" testId="several-error">{error}</Notice>
+        <Failed query={query} what="this photo's pieces" testId="several-error" />
       </section>
     );
   }

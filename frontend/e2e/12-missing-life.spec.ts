@@ -320,7 +320,8 @@ for (const [layout, viewport] of [
     const basis = page.getByTestId('life-basis');
     await openLife(page);
     await expect(questions.getByRole('link', { name: 'Where you are in Settings' })).toBeVisible();
-    await questions.getByRole('button', { name: 'Cancel' }).click();
+    // on a phone How you live is a sheet, with Cancel beside its title; on a computer it is in place, Cancel beside Save
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(questions).toHaveCount(0);
     await expect(basis).toContainText('work 4 days a week, smart casual');
     await expect(basis).toContainText('everyday 4 days a week');

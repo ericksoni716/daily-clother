@@ -8,9 +8,23 @@ import { trapTab } from './focus';
 /** Below this width choices open as a sheet from the bottom of the screen. */
 export const PHONE = '(max-width: 699px)';
 
+/** The sheets open now, the latest last: Escape closes the latest only, wherever focus is. */
+const open: object[] = [];
+/** How many phone sheets hold the page behind them still. */
+let held = 0;
+
+/** While a phone sheet is open, the page behind it does not scroll, even when you drag on the dimmed part. */
+function holdPage(on: boolean) {
+  held += on ? 1 : -1;
+  if (typeof document !== 'undefined') document.documentElement.classList.toggle('sheet-open', held > 0);
+}
+
 /**
  * Choices that open on demand: a sheet from the bottom on a phone; on a wider screen a popover under the button that
- * opened it (`popover`) or simply in place in the page. Escape closes it, and so do a tap outside a sheet or a popover.
+ * opened it (`popover`) or simply in place in the page. Escape closes it from wherever focus is (the latest one open,
+ * when one opened from another; something inside that takes Escape for itself, such as a line being changed, calls
+ * `preventDefault` and keeps it open), and so do a tap outside a sheet or a popover. A phone sheet holds the page
+ * behind it still.
  * While a sheet or a popover is open, Tab stays inside it; once it closes, focus goes back to what opened it.
  * `anchor` (the button that opened it) is for choices opened from inside something that clips or contains what it
  * holds (a carousel's slide, a card): the sheet is put at the end of the page, and on a wider screen it floats beside
@@ -37,6 +51,28 @@ export function Sheet({ title, onClose, popover, keep, anchor, closeLabel = 'Don
   useEffect(() => {
     close.current = onClose;
   });
+
+  // Escape, wherever focus is: the latest sheet open takes it, unless something inside it took it first
+  useEffect(() => {
+    const me = {};
+    open.push(me);
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || open[open.length - 1] !== me) return;
+      e.preventDefault();
+      close.current();
+    };
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('keydown', key);
+      open.splice(open.indexOf(me), 1);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!phone) return;
+    holdPage(true);
+    return () => holdPage(false);
+  }, [phone]);
 
   useEffect(() => {
     if (!floating) return;
@@ -67,9 +103,6 @@ export function Sheet({ title, onClose, popover, keep, anchor, closeLabel = 'Don
         tabIndex={floating ? -1 : undefined} data-testid={testId} style={place}
         onKeyDown={(e) => {
           if (floating) trapTab(e, ref.current);
-          if (e.key !== 'Escape') return;
-          e.stopPropagation();
-          onClose();
         }}>
         {floating && (
           <div className="sheet-head">

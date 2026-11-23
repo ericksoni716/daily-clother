@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { writePart } from '../settings';
 import { lineSource, lineText, removedWords } from '../style';
@@ -46,6 +46,13 @@ export function StyleLines({ lines, offline, toast }: { lines: StyleLine[]; offl
   }
 
   const locked = offline || busy;
+  const list = useRef<HTMLOListElement>(null);
+  /** Stops changing a line (Cancel, or Escape: only that edit is dropped, the sheet around it stays) and puts focus
+   * back on its Change button. */
+  const stopEditing = (id: number) => {
+    setEditing(null);
+    requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-change="${id}"]`)?.focus());
+  };
   return (
     <div className="style-lines" data-testid="style-lines">
       {removed && (
@@ -55,13 +62,17 @@ export function StyleLines({ lines, offline, toast }: { lines: StyleLine[]; offl
             onClick={() => void run(() => api.restoreStyleLine(removed.id), () => setRemoved(null))}>Undo</Button>
         </div>
       )}
-      <ol className="style-line-list" aria-label="The lines of your style">
+      <ol ref={list} className="style-line-list" aria-label="The lines of your style">
         {lines.map((line) => (
           <li key={line.id} className="style-line" data-testid="style-line">
             {editing === line.id ? (
               <form className="style-line-edit" onSubmit={(e: FormEvent) => {
                 e.preventDefault();
-                void run(() => api.editStyleLine(line.id, draft), () => setEditing(null));
+                void run(() => api.editStyleLine(line.id, draft), () => stopEditing(line.id));
+              }} onKeyDown={(e) => {
+                if (e.key !== 'Escape') return;
+                e.preventDefault();   // the sheet around it leaves Escape to this
+                stopEditing(line.id);
               }}>
                 <label className="field">
                   <span className="visually-hidden">Change this line</span>
@@ -69,14 +80,14 @@ export function StyleLines({ lines, offline, toast }: { lines: StyleLine[]; offl
                 </label>
                 <div className="style-line-actions">
                   <Button small variant="primary" type="submit" disabled={locked || !draft.trim()}>Save</Button>
-                  <Button small variant="ghost" disabled={busy} onClick={() => setEditing(null)}>Cancel</Button>
+                  <Button small variant="ghost" disabled={busy} onClick={() => stopEditing(line.id)}>Cancel</Button>
                 </div>
               </form>
             ) : (
               <>
                 <p className="style-line-words"><LineWords line={line} /></p>
                 <div className="style-line-actions">
-                  <Button small variant="ghost" disabled={locked} aria-label={`Change “${lineText(line.text)}”`}
+                  <Button small variant="ghost" disabled={locked} aria-label={`Change “${lineText(line.text)}”`} data-change={line.id}
                     onClick={() => { setEditing(line.id); setDraft(lineText(line.text)); }}>Change</Button>
                   <Button small variant="ghost" disabled={locked} aria-label={`Remove “${lineText(line.text)}”`}
                     onClick={() => void run(() => api.removeStyleLine(line.id), (p) => {

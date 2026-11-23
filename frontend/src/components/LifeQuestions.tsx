@@ -1,10 +1,15 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../api';
 import { FREQUENCIES, frequencyWords, newLife, SITUATIONS, type Life } from '../life';
 import type { Settings } from '../types';
 import { useMediaQuery } from '../router';
+import { PHONE, Sheet } from './ui';
 import './LifeQuestions.css';
 
+/**
+ * How you live, as a `Sheet` like every other set of choices: from the bottom on a phone, with Cancel beside its title
+ * (Done when there is nothing to save), and in place on a computer, with Cancel beside Save.
+ */
 export function LifeQuestions({ initial, locked, demo, about, onSaved, onClose }: {
   initial: Life | null; locked: boolean; demo: boolean;
   /** Shown under the questions: what's missing passes what its suggestions are based on. */
@@ -16,12 +21,10 @@ export function LifeQuestions({ initial, locked, demo, about, onSaved, onClose }
   const [error, setError] = useState<string | null>(null);
   const id = useId();
   const disabled = locked || demo || busy;
-  const phone = useMediaQuery('(max-width: 680px)');
-  const dialog = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    if (phone && dialog.current && !dialog.current.open) dialog.current.showModal();
-  }, [phone]);
+  const phone = useMediaQuery(PHONE);
+  const close = () => {
+    if (!busy) onClose();
+  };
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -40,9 +43,10 @@ export function LifeQuestions({ initial, locked, demo, about, onSaved, onClose }
   }
 
   const form = (
-    <form className="life-questions" aria-labelledby={`${id}-title`} onSubmit={(e) => void save(e)}>
+    <form className="life-questions" aria-label="How you live" onSubmit={(e) => void save(e)}>
       <header className="life-heading">
-        <div><p className="life-eyebrow">YOUR DAYS, YOUR CLOSET</p><h2 id={`${id}-title`}>How you live</h2></div>
+        {/* on a phone the sheet's own title names it */}
+        <div><p className="life-eyebrow">YOUR DAYS, YOUR CLOSET</p>{!phone && <h2>How you live</h2>}</div>
         <span className="life-minute">About 1 minute</span>
       </header>
       <p className="life-intro">Days can overlap. For vacation, count days per week while away, not across the whole year.</p>
@@ -98,14 +102,15 @@ export function LifeQuestions({ initial, locked, demo, about, onSaved, onClose }
       {error && <p role="alert" className="form-error">{error}</p>}
       <div className="row life-actions">
         {!demo && <button className="btn btn-primary" type="submit" disabled={disabled}>{busy ? 'Saving…' : 'Save my answers'}</button>}
-        <button className="btn btn-ghost" type="button" disabled={busy} onClick={onClose}>{locked || demo ? 'Close' : 'Cancel'}</button>
+        {!phone && <button className="btn btn-ghost" type="button" disabled={busy} onClick={onClose}>{locked || demo ? 'Close' : 'Cancel'}</button>}
       </div>
       {about}
     </form>
   );
 
-  return phone ? <dialog ref={dialog} className="life-dialog" aria-label="How you live"
-    onCancel={(e) => { e.preventDefault(); if (!busy) onClose(); }}>
-    {form}
-  </dialog> : form;
+  return (
+    <Sheet title="How you live" closeLabel={locked || demo ? 'Done' : 'Cancel'} className="life-sheet" testId="life-sheet" onClose={close}>
+      {form}
+    </Sheet>
+  );
 }

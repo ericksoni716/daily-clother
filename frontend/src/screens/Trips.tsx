@@ -4,7 +4,7 @@ import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { OutfitFigure } from '../components/OutfitFigure';
 import { Toggle } from '../components/Toggle';
-import { BackLink, Button, buttonClass, Card, EmptyState, Fold, PageHeader, SegmentedControl, Sheet } from '../components/ui';
+import { BackLink, Button, buttonClass, Card, EmptyState, Failed, Fold, PageHeader, SegmentedControl, Sheet } from '../components/ui';
 import { useShowDrawings, type GridView } from '../drawing';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
@@ -128,7 +128,7 @@ function TripList() {
   const trips = query.data ?? kept;
   const error = !query.error ? null : (query.error as ApiError).status === 0
     ? "You're offline, and the list of trips was not saved on this device. It shows here once Nines on your computer can be reached."
-    : query.error.message;
+    : null;
 
   const planButton = offline
     ? <span className="btn btn-primary is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Plan a trip</span>
@@ -140,8 +140,9 @@ function TripList() {
       <PageHeader title="Trips" titleId="trips-title" back={{ to: '/today', label: 'Today' }}
         primary={trips && trips.length > 0 && planButton} />
       <p className="hint trips-intro">Nines says what to pack: the fewest pieces from your closet that dress every day of a trip, for the weather there.</p>
-      {error && <p className={trips ? 'form-error' : 'notice'} role="alert">{error}</p>}
-      {!trips && !error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading your trips…</p>}
+      {error ? <p className={trips ? 'form-error' : 'notice'} role="alert">{error}</p>
+        : <Failed query={{ ...query, data: trips ?? undefined }} what="your trips" />}
+      {!trips && !query.error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading your trips…</p>}
       {trips && trips.length === 0 && (
         <EmptyState big icon={<SuitcaseIcon />} title="No trips yet"
           body="Choose where you're going and when, and Nines works out what to take." action={planButton} />
@@ -440,7 +441,7 @@ function SavedTrip({ id }: { id: string }) {
   }, [query.data]);
   const error = !query.error ? null : (query.error as ApiError).status === 0
     ? "You're offline, and this trip was not saved on this device. It shows here once Nines on your computer can be reached."
-    : query.error.message;
+    : null;
   const [busy, setBusy] = useState(false);
   // Its days may have come into the forecast since it was planned: say so, but never change the plan by itself.
   const newWeather = useQuery({
@@ -514,8 +515,9 @@ function SavedTrip({ id }: { id: string }) {
     return (
       <div className="trips">
         <BackToTrips />
-        {error && !trip ? <p className={offline ? 'notice' : 'form-error'} role="alert">{error}</p>
-          : <p className="muted"><span className="spinner" aria-hidden="true" /> Loading the trip…</p>}
+        {error && !trip ? <p className="notice" role="alert">{error}</p>
+          : query.error && !trip ? <Failed query={query} what="this trip" />
+            : <p className="muted"><span className="spinner" aria-hidden="true" /> Loading the trip…</p>}
       </div>
     );
   }
@@ -543,6 +545,7 @@ function SavedTrip({ id }: { id: string }) {
           <span>You're offline: this is the copy saved on this device. Ticking and changes wait until Nines on your computer can be reached.</span>
         </p>
       )}
+      <Failed query={{ ...query, data: trip }} what="this trip" />
       {newWeather && !locked && (
         <div className="notice notice-warn trip-new-weather" role="status">
           <WarnIcon />
@@ -724,7 +727,7 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
               onClick={() => changes.unpin(x)}>Taking {itemName(byId.get(x))} <span aria-hidden="true">×</span></button>
           ))}
           {changes.leaveOut.map((x) => (
-            <button key={x} className="chip chip-change" disabled={changes.locked} title={title} aria-label={`Put back ${itemName(byId.get(x))}`}
+            <button key={x} className="chip chip-change" disabled={changes.locked} title={title} aria-label={`Without ${itemName(byId.get(x))}, put it back`}
               onClick={() => changes.unswap(x)}>Without {itemName(byId.get(x))} <span aria-hidden="true">×</span></button>
           ))}
         </div>
@@ -882,7 +885,8 @@ function TakeSomethingElse({ byId, packed, changes }: { byId: Map<string, ItemSu
 
 function WeatherStrip({ days }: { days: TripDay[] }) {
   return (
-    <section className="trip-weather" aria-label="The weather">
+    // it scrolls sideways when the days do not fit, so the keyboard can reach it too (arrow keys scroll it)
+    <section className="trip-weather" aria-label="The weather" tabIndex={0}>
       {sourceRuns(days).map((run) => (
         <div key={run.days[0].date} className={`trip-weather-run is-${run.source}`}>
           <h2 className="trip-weather-source" data-testid="weather-source">{run.label}</h2>

@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { ChevronLeftIcon, WarnIcon } from '../components/Icons';
 import { LifeQuestions } from '../components/LifeQuestions';
-import { BackLink, EmptyState, Notice, PageHeader } from '../components/ui';
+import { BackLink, EmptyState, Failed, Notice, PageHeader } from '../components/ui';
 import { savedWhen, saveGaps, type Wish } from '../gaps';
 import { saveInsights } from '../insights';
 import { goBack, navigate, WISHLIST_PATH, wishPath } from '../router';
@@ -201,12 +201,8 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
         {wishShown.kind === 'ready' && wishShown.savedAt && <SavedEarlier at={wishShown.savedAt} />}
         {wishShown.kind === 'ready' ? <Wishlist wishes={wishShown.data} actions={actions} />
           : wishShown.kind === 'loading' ? <div className="missing-skeleton" aria-hidden="true" />
-            : (
-              <div className={wishShown.offline ? 'notice' : 'form-error missing-error'} role="alert">
-                <p>{wishShown.message}</p>
-                {!wishShown.offline && <div className="row"><button className="btn btn-small" onClick={() => void wishesQ.refetch()}>Try again</button></div>}
-              </div>
-            )}
+            : wishShown.offline ? <p className="notice" role="alert">{wishShown.message}</p>
+              : <Failed query={wishesQ} what="your wishlist" />}
       </section>
     );
   }
@@ -220,7 +216,8 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
         {wishShown.kind === 'ready' && wishShown.savedAt && <SavedEarlier at={wishShown.savedAt} />}
         {shown ? <WishCard key={shown.id} wish={shown} actions={actions} onNote={saveNote} onRemoved={() => goBack(WISHLIST_PATH)} />
           : wishShown.kind === 'loading' ? <div className="missing-skeleton" aria-hidden="true" />
-            : wishShown.kind === 'error' ? <p className={wishShown.offline ? 'notice' : 'form-error'} role="alert">{wishShown.message}</p>
+            : wishShown.kind === 'error' ? (wishShown.offline ? <p className="notice" role="alert">{wishShown.message}</p>
+              : <Failed query={wishesQ} what="this wish" />)
               : <EmptyState title="This wish is not on your list any more" body="It may have been bought or removed on another device." />}
       </section>
     );
@@ -253,12 +250,8 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
           <p className="muted"><span className="spinner" aria-hidden="true" /> Looking at your closet. This can take a few seconds…</p>
         </div>
       )}
-      {phase.kind === 'error' && (
-        <div className={phase.offline ? 'notice' : 'form-error missing-error'} role="alert">
-          <p>{phase.offline ? phase.message : `Couldn't work out what's worth buying: ${phase.message}`}</p>
-          {!phase.offline && <div className="row"><button className="btn btn-small" onClick={retry}>Try again</button></div>}
-        </div>
-      )}
+      {phase.kind === 'error' && (phase.offline ? <p className="notice" role="alert">{phase.message}</p>
+        : <Failed query={{ error: failed, refetch: retry, isFetching: asking }} what="what's worth buying" />)}
       {phase.kind === 'ready' && !waiting && (
         <>
           <WorthBuying gaps={phase.data.gaps} byId={byId} actions={actions} offline={offline}
@@ -273,12 +266,8 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
           <YouMightLike locked={locked} />
           {!wide && thinking}
           {usage.kind === 'ready' && <Usage answer={usage.data} byId={byId} locked={offline || usage.savedAt !== null} />}
-          {usage.kind === 'error' && (
-            <div className={usage.offline ? 'notice' : 'form-error'} role="alert">
-              <p>{usage.message}</p>
-              {!usage.offline && <button className="btn btn-small" onClick={() => void insightsQ.refetch()}>Try again</button>}
-            </div>
-          )}
+          {usage.kind === 'error' && (usage.offline ? <p className="notice" role="alert">{usage.message}</p>
+            : <Failed query={insightsQ} what="how your closet is used" />)}
         </>
       )}
     </div>

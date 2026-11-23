@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CloseIcon, DrawingIcon, FilterIcon, HangerIcon, ImagesIcon, SearchIcon } from '../components/Icons';
 import { StepMark } from '../components/Progress';
 import { WorkingLine } from '../components/WorkingLine';
-import { Button, buttonClass, EmptyState, PageHeader, SegmentedControl, Sheet } from '../components/ui';
+import { Button, buttonClass, EmptyState, Failed, PageHeader, SegmentedControl, Sheet } from '../components/ui';
 import { gridViewOf, smallPicture, useShowDrawings, type GridView, type MomentView } from '../drawing';
 import { setLaundryMany } from '../laundry';
 import { groupsIn, groupTitle, kindsOf, type KindGroup } from '../kinds';
@@ -44,7 +44,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const vocab = useVocab();
   const [washing, setWashing] = useState(false);
   const list = items.data ?? null;
-  const loadError = items.error ? items.error.message : null;
+  const loadError = !!items.error;
   const memoryKey = `${profile}:${status}`;
   const kept = filterMemory.get(memoryKey) ?? NO_FILTERS;
   const [category, setCategory] = useState<string | null>(kept.category);
@@ -139,7 +139,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
       {status === 'active' && <WorkingLine />}
 
       {list === null && !loadError && <div className="grid grid-skeleton" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <div key={i} className="tile-skeleton" />)}</div>}
-      {list === null && loadError && <p className="form-error" role="alert">{loadError}</p>}
+      <Failed query={items} what={status === 'archived' ? 'what you archived' : 'your closet'} />
 
       {list ? (
         <>
@@ -153,9 +153,9 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
             )}
             <div className="filter-wrap">
               <button ref={filterButton} type="button" className={`btn filter-button${filters ? ' has-filters' : ''}`} aria-expanded={filtering}
-                aria-haspopup="dialog" onClick={() => setFiltering((f) => !f)}>
+                aria-haspopup="dialog" aria-label={filters > 0 ? `Filter, ${filters} on` : undefined} onClick={() => setFiltering((f) => !f)}>
                 <FilterIcon /><span className="filter-text">Filter</span>
-                {filters > 0 && <><span className="filter-count" aria-hidden="true">{filters}</span><span className="visually-hidden">, {filters} on</span></>}
+                {filters > 0 && <span className="filter-count" aria-hidden="true">{filters}</span>}
               </button>
               {filtering && (
                 <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" onClose={() => setFiltering(false)}>

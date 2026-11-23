@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObje
 import { api, ApiError } from '../api';
 import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
 import { Pic } from '../components/ItemPic';
-import { BackLink, Button, buttonClass, Card, EmptyState, ItemThumb, PageHeader, SaveStatus, Sheet, ShowMore, useSaveStatus } from '../components/ui';
+import { BackLink, Button, buttonClass, Card, EmptyState, Failed, ItemThumb, PageHeader, SaveStatus, Sheet, ShowMore, useSaveStatus } from '../components/ui';
 import { label } from '../labels';
 import { setLaundryMany } from '../laundry';
 import { touch, useEdit, useItems, writeItem } from '../queries';
@@ -247,7 +247,7 @@ function WornList() {
   const list = first.data ? joinPages(pages.map((p) => p.data?.page)) : null;
   const next = pages[pages.length - 1].data?.page.next ?? null;
   const error = first.error && !first.data
-    ? ((first.error as ApiError).status === 0 ? "You're offline, and the worn outfits were not saved on this device yet." : first.error.message)
+    ? ((first.error as ApiError).status === 0 ? "You're offline, and the worn outfits were not saved on this device yet." : 'failed')
     : null;
 
   async function more() {
@@ -286,7 +286,8 @@ function WornList() {
           }} />
       )}
 
-      {error && <p className={offline ? 'notice' : 'form-error'} role="alert">{error}</p>}
+      {error === 'failed' ? <Failed query={first} what="your worn outfits" />
+        : error ? <p className="notice" role="alert">{error}</p> : first.data && <Failed query={first} what="your worn outfits" />}
       {list === null && !error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading…</p>}
       {list && list.length === 0 && (
         <EmptyState icon={<HangerIcon />} title="No outfits worn yet" body={'Tap "I\'m wearing this" on Today, or record one here.'} />

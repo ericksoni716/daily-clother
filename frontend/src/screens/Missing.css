@@ -104,6 +104,8 @@
 .gap-thumb:hover { box-shadow: inset 0 0 0 1px var(--card-edge), 0 0 0 2px var(--accent); }
 .gap-thumb-more { font-size: var(--text-sm); padding-left: 4px; }
 
+/* Search Google Shopping: a link on its own line, so it never moves the card's two buttons */
+.gap-search { margin: 0; font-size: var(--text-sm); line-height: 1.45; }
 .gap-actions .btn svg { width: 20px; height: 20px; }
 /* A narrow card keeps both buttons on one row. */
 @container (max-width: 459px) {
@@ -195,6 +197,8 @@
 .wish-shop-line { margin: 4px 0; font-size: var(--text-sm); line-height: 1.45; }
 .find-list { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: 10px; }
 .find-card { display: flex; gap: var(--space-3); padding: var(--space-3); }
+/* "See it with your clothes": its popover opens under it on a computer */
+.find-worn { position: relative; margin: var(--space-1) 0 var(--space-2); }
 .wish-shop-notice { margin: var(--space-1) 0; }
 .find-image { flex: none; width: 76px; height: 96px; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface); }
 .find-body { min-width: 0; flex: 1; }

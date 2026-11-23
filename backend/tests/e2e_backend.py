@@ -22,14 +22,16 @@ real API route talking to `conftest.FakeApi`).
 
 Searching shops for a wish is a stand-in too (`FakeShop`): after a second it "finds" a tan rain-proof coat, a
 navy polo and a product with a link that is not a web address (which the app drops), and a price check sees every
-price 20% lower. With CLOSET_E2E_SEED=demo the owner's own closet starts as a copy of the demo closet, so what is
+price 20% lower. "You might like" is the same stand-in (`FakeShop.picks`): after a second, a trench coat, a chore jacket, a
+sweater, trousers and a striped shirt with long names, on new pages at each look. With CLOSET_E2E_SEED=demo the owner's own closet starts as a copy of the demo closet, so what is
 found is checked against a closet with something in it (the demo closet itself never searches).
 
 A product's page sent as a link is never fetched from the web, with or without the other stand-ins (`ShopPages`):
 shop.example is the only name that can be found, and its made-up pages are a linen shirt whose structured data gives
 its price ($68.00 the first time it is read, then 20% lower each time it is read again), a shirt with a very long
 name and a shirt whose banner shows a checkout code, 40% off (the same prices), and a page with no price, which goes
-to Claude's stand-in (a price check, $80.00).
+to Claude's stand-in (a price check, $80.00). Once a page has given a name, Claude's stand-in describes it after a
+second: a white casual linen shirt, whatever the page.
 
 Finding the pieces in a photo of several is a stand-in too: after a second it gives the boxes of
 `conftest.GARMENT_BOXES` (a red piece left, a blue one in the middle, a green one right), whatever the photo.
@@ -93,7 +95,7 @@ from closet import apikey, app, cli, demo, productpage, tracejobs, weather
 from closet.tagger import routes as tagger_routes
 from closet.tagger import shoedrawing
 from closet.tagger.correcting import CorrectionResult
-from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
+from closet.tagger.shopping import Described, Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import TaggingError, TagResult, Unreachable
 
 from .conftest import (
@@ -259,6 +261,40 @@ class FakeShop:
         time.sleep(1)
         return PriceAnswer(prices=[PriceSeen(url=f["url"], price=round((f["price"] or 100) * 0.8, 2),
                                              currency=f["currency"], available=True) for f in finds])
+
+    def __init__(self):
+        self.looks = 0
+
+    def picks(self, asked, routes):
+        """Things you might like: after a second, six products of different kinds with long names (against a closet
+        like the demo's the coat fills a gap, the jacket, sweater and trousers add something, the striped shirt repeats
+        one, and the last has no web address), each look's on pages of their own, so a look never offers one shown
+        before."""
+        time.sleep(1)   # long enough for the page to show Claude searching
+        self.looks += 1
+        n = self.looks
+        return ShopAnswer(note="", finds=[
+            _found(name="Water-repellent cotton gabardine single-breasted trench coat with a removable warm lining",
+                   url=f"https://shop.example/pick-{n}-coat", price=320.0, category="coat", color="tan",
+                   season="cool", material="cotton gabardine"),
+            _found(name="Garment-dyed heavyweight cotton canvas chore jacket with four patch pockets and corozo buttons",
+                   url=f"https://shop.example/pick-{n}-chore", price=148.0, category="jacket", color="olive",
+                   formality="casual", material="cotton canvas"),
+            _found(name="Brushed merino and cashmere blend crewneck sweater in a relaxed fit with ribbed cuffs and hem",
+                   shop="Example Knitwear Company of Long Names", url=f"https://shop.example/pick-{n}-sweater",
+                   price=129.5, category="sweater", color="grey", formality="smart_casual", season="cool",
+                   material="merino and cashmere"),
+            _found(name="Pleated wide-leg wool flannel trousers with side adjusters and a high rise",
+                   url=f"https://shop.example/pick-{n}-trousers", price=210.0, category="trousers", color="grey",
+                   formality="smart_casual", season="cool", material="wool flannel"),
+            _found(name="Striped oxford cloth button-down shirt", url=f"https://shop.example/pick-{n}-shirt",
+                   price=89.0, category="shirt", color="blue", pattern="stripe", formality="smart_casual"),
+            _found(name="Not a real link", url="javascript:alert(1)", price=10.0, category="tee", color="white")])
+
+    def describe(self, product, routes):
+        time.sleep(1)   # long enough for the page to show Claude describing it
+        return Described(clothing=True, category="shirt", color="white", formality="casual", season="warm",
+                         pattern="solid", weight_class="lightweight", rain_proof=False, material="linen")
 
 
 SHOP_PAGE_NAMES = {

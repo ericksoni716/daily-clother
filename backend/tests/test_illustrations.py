@@ -11,6 +11,7 @@ import pytest
 from closet import db, drawing, illustrations
 from closet.config import bundle_dir
 from closet.drawing import item as draw
+from closet.drawing.figure import plan
 from closet.tagger.schema import NAMED_HEX
 
 from .conftest import ANSWER, upload
@@ -348,3 +349,33 @@ def test_two_drawings_are_the_same_only_when_their_pictures_are():
     assert not same(drawing((40, 20, 30, 255)), kept, "win32")
     assert not same(drawing((10, 20, 30, 255), size=(4, 5)), kept, "win32")
     assert not same(drawing((11, 20, 30, 255), text="b"), kept, "win32")
+
+
+# ------------------------------------------------------------------ a piece not in the closet, drawn from its description
+def test_a_found_piece_is_drawn_from_its_described_values_as_a_new_item_would_be():
+    plain = illustrations.new_piece({"category": "trousers", "color": "olive", "name": "Grey wool trousers",
+                                     "silhouette": {"leg": "wide"}})
+    assert plain.answer is None and plain.color == "olive" and plain.silhouette == {"leg": "wide"}
+    boots = illustrations.new_piece({"category": "boots", "color": "brown", "name": "Brown suede chelsea boots"})
+    assert boots.answer["details"]["shoe_style"] == "chelsea_boot" and boots.answer["color"] == "brown"
+    # the kind's own drawing, in the colour word's colour, as the kind picker draws it
+    assert draw.svg_from_answer(boots.answer) and NAMED_HEX["brown"] in draw.svg_from_answer(boots.answer)
+
+
+@pytest.mark.parametrize("place, piece", [
+    ("outer", {"category": "coat", "color": "tan", "name": "Tan gabardine trench coat"}),
+    ("base", {"category": "shirt", "color": "white"}),
+    ("bottom", {"category": "trousers", "color": "olive", "name": "Olive chinos"}),
+    ("shoes", {"category": "boots", "color": "brown", "name": "Brown suede chelsea boots"}),
+    ("accessories", {"category": "bag", "color": "brown"}),
+])
+def test_a_found_piece_takes_its_place_among_the_owners_layers(place, piece):
+    own = {"base": illustrations.new_piece({"category": "tee", "color": "white"}),
+           "bottom": illustrations.new_piece({"category": "jeans", "color": "navy"}),
+           "shoes": illustrations.new_piece({"category": "sneakers", "color": "white"})}
+    new = illustrations.new_piece(piece)
+    layout = plan({**own, place: [new] if place == "accessories" else new})
+    placed = [p.place for p in layout.pieces]
+    assert (place in placed) if place != "accessories" else ("bag" in placed)
+    if place == "outer":   # over the owner's tee, which is drawn before it
+        assert placed.index("base") < placed.index("outer")

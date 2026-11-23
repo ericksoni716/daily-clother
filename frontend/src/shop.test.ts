@@ -4,10 +4,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseRoute } from './router';
 import {
-  atYourPrice, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, historyWords, lastChecked,
-  linkIn, linkLine, linkWords, newsWords, offWords, typedCode,
-  priceWords, rangeWords, runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shopPoll, type ShopRun, typedPrice,
-  watchWords, webLink, wishlistWords, withinWords,
+  atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, googleShoppingLink,
+  historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
+  runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, typedPrice, watchWords,
+  webLink, wishlistWords, withinWords,
 } from './shop';
 import { timeOf } from './today';
 
@@ -109,6 +109,8 @@ describe('a product sent as a link', () => {
     expect(runWords({ kind: 'prices', step: 'page' })).toBe('Nines is reading the pages you sent…');
     expect(runWords({ kind: 'prices', step: null })).toBe('Claude is checking the prices…');
     expect(runWords({ kind: 'find' })).toBe('Claude is searching shops. This can take a few minutes…');
+    expect(runWords({ kind: 'link', step: 'describe' })).toBe('Claude is describing it…');
+    expect(runWords({ kind: 'prices', step: 'describe' })).toBe('Claude is describing the pages you sent…');
     const run = (r: Partial<ShopRun>): ShopRun => ({ kind: 'link', state: 'done', message: null, added: 1, started_at: '', finished_at: '', ...r });
     expect(runDoneWords(run({}), 'A shirt')).toBe('Nines read its price, and checks it again once a day.');
     expect(runDoneWords(run({ message: 'The page doesn’t give its price.', added: 0 }), 'A shirt')).toBe('The page doesn’t give its price.');
@@ -257,5 +259,59 @@ describe('a checkout code', () => {
     expect(typedCode('TAKE20', 'amount', 'twenty')).toBe('Type the amount off as a number, like 20.');
     // the rest is checked by Nines, which says what is wrong
     expect(typedCode('SAVE95', 'percent', '95')).toEqual({ code: 'SAVE95', percent: 95 });
+  });
+});
+
+describe('a link checked against the closet, and a search on Google Shopping', () => {
+  it('says in one sentence why a link is not checked against your closet', () => {
+    expect(notJudgedWords({ not_judged: null }, false)).toBeNull();
+    expect(notJudgedWords({ not_judged: 'unread' }, false)).toBeNull();   // the link's own line says it is not read yet
+    expect(notJudgedWords({}, false)).toBeNull();
+    expect(notJudgedWords({ not_judged: 'no_name' }, false)).toBe("Nines couldn't read its name from the page, so it isn't checked against your closet.");
+    expect(notJudgedWords({ not_judged: 'unclear' }, false)).toBe("Claude couldn't tell what kind of piece it is, so it isn't checked against your closet.");
+    expect(notJudgedWords({ not_judged: 'waiting' }, false)).toBe('Nines checks it against your closet once Claude can describe it.');
+    expect(notJudgedWords({ not_judged: 'waiting' }, true)).toBe("The demo closet never sends anything to Claude, so it isn't checked against your closet.");
+  });
+
+  const look = { category: 'coat', formality: 'smart_casual', season: 'cool', weight_class: 'heavyweight', colors: ['navy', 'grey'],
+    pattern: 'solid', material: 'wool', fit: 'slim', avoid_patterns: ['plaid'] };
+
+  it('searches for the first colour and the kind of piece, and nothing else from what to look for', () => {
+    expect(shoppingWords({ name: 'A warm winter coat', look_for: look })).toBe("men's navy smart casual coat");
+    expect(shoppingWords({ name: 'Plain sneakers', look_for: { ...look, category: 'dress_shoes', formality: 'business', colors: [] } }))
+      .toBe("men's business dress shoes");
+    expect(shoppingWords({ name: 'A training tee', look_for: { ...look, category: 'tee', formality: null, colors: ['white'], kind: 'a training tee' } }))
+      .toBe("men's white training tee");
+  });
+
+  it('searches for a wish with nothing to look for by its own name', () => {
+    expect(shoppingWords({ name: 'Brown suede loafers', look_for: null })).toBe("men's Brown suede loafers");
+    expect(shoppingWords({ name: 'A pair of white sneakers', look_for: null })).toBe("men's white sneakers");
+    expect(shoppingWords({ name: "Men's linen shirt", look_for: null })).toBe("Men's linen shirt");
+  });
+
+  it('opens Google Shopping with only those words in the address', () => {
+    const link = new URL(googleShoppingLink({ name: 'A warm winter coat', look_for: look }));
+    expect(`${link.origin}${link.pathname}`).toBe('https://www.google.com/search');
+    expect([...link.searchParams.keys()]).toEqual(['tbm', 'q']);
+    expect(link.searchParams.get('tbm')).toBe('shop');
+    expect(link.searchParams.get('q')).toBe("men's navy smart casual coat");
+    expect(googleShoppingLink({ name: 'Shirt & tie', look_for: null })).toBe("https://www.google.com/search?tbm=shop&q=men's%20Shirt%20%26%20tie");
+  });
+});
+
+describe('seeing a find with your clothes', () => {
+  const piece = { category: 'coat', color: 'tan' };
+  it('is offered for a judged find the check made an outfit with', () => {
+    expect(canSeeWorn({ piece, verdict: 'adds', outfits: 2 })).toBe(true);
+    expect(canSeeWorn({ piece, verdict: 'hard_to_wear', outfits: 0 })).toBe(false);
+  });
+  it('is not offered before the find is judged, or when the closet was too small to say', () => {
+    expect(canSeeWorn({ piece: null, verdict: null, outfits: null })).toBe(false);
+    expect(canSeeWorn({ piece, verdict: null, outfits: null })).toBe(false);
+    expect(canSeeWorn({ piece, verdict: 'too_small', outfits: undefined })).toBe(false);
+  });
+  it('is offered for a find judged before outfits were counted', () => {
+    expect(canSeeWorn({ piece, verdict: 'have_it', outfits: undefined })).toBe(true);
   });
 });

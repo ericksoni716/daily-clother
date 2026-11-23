@@ -255,13 +255,27 @@ again (Undo does not), until the pieces are added.
 `/wardrobe`. What to buy and how your clothes are used, on one page. **Worth buying**: what
 the closet lacks, found by rule from the clothes, the wears, where you live and how you live,
 the three most helpful first and "See all N" for the rest; each with why, what to look for,
-your pieces it is based on, "I'll look for this" (onto the wishlist) and "Not for me" (hide
-it, and optionally similar ones). "Based on…" opens How you live, the same questions as
+your pieces it is based on, "Search Google Shopping" (opens Google Shopping in your browser,
+searching for "men's", the first colour and the kind of piece, nothing else), "I'll look for
+this" (onto the wishlist) and "Not for me" (hide it, and optionally similar ones). "Based on…" opens How you live, the same questions as
 Settings; once the closet has enough to suggest from and they are not answered, "Tell it how
 you live" offers them. What holds suggestions back, the days you ruled out and what you hid
 are folded at the end of the section. Swim trunks and shoes made for one sport (tennis, golf,
 studded boots) are not counted there: a pair of tennis shoes never stands in for everyday
-sneakers. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
+sneakers. **You might like**: three things Claude found on sale from what you wear and love,
+not from a gap, each with the shop's picture (a hanger until there is one), its name (which
+opens the shop's page in your browser), the shop and price, one line from the closet ("Goes
+with 6 of your pieces."), **Save** (onto the wishlist, with the product as its first find, so
+its price is checked once a day), **More like this** (a look for more like it, which joins
+the card) and **×**, Not for me (gone for good, with Undo in its place; after three alike,
+such as three bright colours, it may offer a line for Your style, kept only when you tap Save
+to Your style, with Undo). The newest three show, older ones behind "See earlier ones". Before
+the first look it says what it does, with **Look now** (and what a look costs through the API
+key, when that is on); with too little to go on it says to wear and rate a few more pieces
+and does not search; the demo closet never searches. **How Nines looks**, folded, says what a
+look sends and holds **Look for me each week**, on once you have tapped Look now, off before:
+then Nines looks by itself once a week while it is running. Nothing it shows is a product Claude
+made up; a week with nothing new says so. **Thinking of buying something?** (beside the rest on a computer): Would this work?,
 and a **Wishlist** row that opens the wishlist, saying how many things are on it ("3 things", or
 "Nothing on it yet") and, when prices went down, how many ("2 prices went down"). **Not worn**:
 pieces never worn and pieces not worn for a long time in their season, each to Archive or Keep.
@@ -289,7 +303,14 @@ nothing can be added.
 `/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wishlist" goes back. Top to bottom: what to
 look for (or "Added by hand"); what is watched, the pages you sent first ("You sent this link", and
 "Claude read its price from the page" when it did), then what Claude found, each checked against the
-closet, with "Open in shop", "Stop watching" (it goes, and with it its daily check) and, when its
+closet (a page you sent too, once Claude has described it from the page's words: its verdict, what it
+goes with, what it repeats and what gap it would fill, with the shop's picture; until then one sentence
+says why it is not checked, such as "Nines checks it against your closet once Claude can describe
+it."), with "See it with your clothes" on a judged find that an outfit can be made with (a sheet over the
+page with up to three outfits of your own pieces and the find, each drawn as worn, to step or swipe through; the
+shop's picture beside the drawing; the names of your pieces, each opening the piece; and one line saying the find is
+drawn from the shop's description, so it shows roughly its shape and colour, not how it really looks; nothing is sent
+to Claude), "Open in shop", "Stop watching" (it goes, and with it its daily check) and, when its
 price changed from one day to another, "The price was … on 3 Nov and … yesterday.". A find with a
 code at checkout says the price after it under its price ("$106.20 with code TEST40 at checkout (40%
 off)") and who saw it ("Nines saw this code on the page." or "Claude saw this code on the page.";
@@ -300,9 +321,13 @@ when the page stops showing it, and one you typed stays until you remove it. Und
 sentence, "Nines checks the price once a day while it's running and tells you when it goes down."
 (with a price, "…when it goes down to $150.00 or less."), with "Set the most you'd pay" or
 "Change", then when it was last checked and "Check now" (the pages you sent read by Nines, the rest
-by Claude). Then looking for more: "Find some" or "Find more" (Claude searches shops) and "Add a
-link" (a product's page added as a find: Nines reads its name and price from the page, and asks
-Claude only when the page gives no price); with nothing watched yet, the price is offered here
+by Claude, and a page you sent that is not described yet described by Claude). Then looking for
+more: "Find some" or "Find more" (Claude searches shops; under them, "A search sends Claude the
+wish, your style, what you tend to wear, the brands you own and your size, never a photo or a
+note.", except in the demo closet) and "Add a link" (a product's page added as
+a find: Nines reads its name and price from the page, asks Claude only when the page gives no price,
+then asks Claude once to describe it from what the page says), and "Search Google Shopping" (as on
+Worth buying, from what to look for, or the wish's name when it has none); with nothing watched yet, the price is offered here
 ("Claude looks at any price." or "Claude looks for ones up to $150.00."). Then the note (saved when
 you leave the box or tap Save note, saying "Saving…", "Saved" or "Didn't save" with Try again), and
 "Would it go with my clothes?" (Would this work? for this wish; for a page you sent it starts with
@@ -310,7 +335,8 @@ the product's name), "I bought it" (it leaves the list and Add opens) and "Remov
 (back to the wishlist). **The most you'd pay** opens in a sheet: one amount and its currency, with
 Save, Clear and Cancel; Nines tells you when a price goes down to it or less, and Claude's searches
 stay under it. A wish that still has a lowest price from
-before says so until it is changed. While a page is read the wish says who is reading it. Opening
+before says so until it is changed. While a page is read the wish says who is reading it ("Claude
+is describing it…" while Claude describes a page you sent). Opening
 the page counts as seeing its price news. Like the wishlist, it waits only for the wishes.
 
 ## Add a link
@@ -326,8 +352,12 @@ When what was shared holds no link, it says so and the box is empty.
 `/wardrobe/check` (and `/wardrobe/check/wish/<id>` from a wish), from the Wardrobe;
 "‹ Wardrobe" goes back. A piece you might buy, from a photo or described by hand, checked
 against the closet by rule: what it goes with, what it repeats, what it would fill, what
-would hold it back, when you would wear it, and example outfits. Described by hand, its
-formality can be two levels next to each other, as on the item page.
+would hold it back, when you would wear it, and example outfits. The example outfits have the
+**Pieces / As worn** switch of Today and Trips (the same remembered choice): As worn draws each one
+on the figure with the new piece among your own, its pieces named under it, and one line saying the
+new piece is drawn from your description (or Claude's description of your photo), so it shows roughly
+its shape and colour. Described by hand, its formality can be two levels next to each other, as on
+the item page.
 
 ## Settings
 
@@ -352,7 +382,15 @@ formality can be two levels next to each other, as on the item page.
   you live with **Edit my answers**; the switch **Show drawings instead of photos**, kept on the
   computer so it holds on every device: the closet, Today, Worn, trips, the Wardrobe and an
   item's page then show a piece's drawing (a piece with no drawing yet shows its photo); the
-  laundry switch and laundry day, and **Wears between washes** folded under them.
+  laundry switch and laundry day, and **Wears between washes** folded under them. Before the
+  drawings switch, **Your sizes**: one line with the sizes saved ("Your sizes: M tops · 32x32
+  trousers · 10.5 shoes", or "Your sizes are not saved yet.") and **Change**, which opens a sheet
+  with a short box for Tops, Knitwear, Trousers and jeans, Jackets and coats, and Shoes, each saved
+  as you leave it ("Saving…", "Saved" or "Didn't save" with Try again). Under an empty box, "The
+  size on most of your tops is M." with **Use it**, when your own pieces of that kind say a size.
+  **A brand that fits differently** opens a small form (the kind, the brand, your size in it, Save
+  and Cancel); each brand kept shows under its kind ("In Example Brand, L") with **Remove**.
+  "Find some" tells Claude the size for the wish's kind.
 - **Claude**: one line saying how Nines reaches Claude ("Using your Claude plan"), or one red
   sentence and Check again when it can't; **Manage** opens Advanced.
 - **Updates**: one line ("Nines 0.9.0 · up to date", or "Nines 0.9.1 is ready to install."

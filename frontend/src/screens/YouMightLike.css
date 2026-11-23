@@ -1,0 +1,50 @@
+/* You might like (YouMightLike.tsx): a small card in the Wardrobe. Uses the tokens and shared classes in styles.css. */
+
+.picks { display: grid; gap: var(--space-3); margin-bottom: var(--space-6); }
+.picks .section-head { align-items: center; }
+.picks .section-head .btn-link { min-height: var(--tap); }
+.picks-line { margin: 0; color: var(--ink-2); }
+.picks-start { display: grid; gap: var(--space-3); justify-items: start; }
+.picks-skeleton { height: 88px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.picks-notice { margin: 0; }
+.picks-small { margin: 0; font-size: var(--text-sm); }
+.picks-fold .fold-body { display: grid; gap: var(--space-2); }
+
+.pick-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
+.pick-list > li { min-width: 0; }
+.pick {
+  display: grid; grid-template-columns: 64px minmax(0, 1fr) var(--tap); column-gap: var(--space-3); row-gap: var(--space-2);
+  align-items: start;
+}
+/* the shop's picture: its space kept, so nothing moves when it loads; a hanger when there is none */
+.pick-pic {
+  grid-row: span 1; width: 64px; height: 80px; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2);
+  display: grid; place-items: center;
+}
+.pick-pic img { width: 100%; height: 100%; object-fit: cover; }
+.pick-pic svg { width: 28px; height: 28px; color: var(--ink-4); }
+.pick-body { min-width: 0; display: grid; gap: 2px; }
+.pick-name {
+  color: var(--ink); font-weight: var(--weight-label); overflow-wrap: anywhere; line-height: 1.35;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+a.pick-name { text-decoration: none; }
+a.pick-name:hover { text-decoration: underline; }
+.pick-shop, .pick-why { margin: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.pick-shop { color: var(--ink-3); }
+.pick-why { color: var(--ink-2); }
+.pick-refuse {
+  width: var(--tap); height: var(--tap); margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0 0; justify-self: end;
+  display: grid; place-items: center; border: 0; border-radius: var(--radius-pill); background: none; color: var(--ink-3);
+  cursor: pointer;
+}
+.pick-refuse:hover { color: var(--ink); background: var(--surface-2); }
+.pick-refuse:disabled { cursor: default; opacity: 0.5; }
+.pick-refuse svg { width: 18px; height: 18px; }
+.pick-actions { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pick-actions .btn { min-height: var(--tap); }
+.pick-refused { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.pick-refused p { margin: 0; color: var(--ink-2); font-size: var(--text-sm); }
+.picks-offer { display: grid; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius-sm); background: var(--surface-2); }
+.picks-offer p { margin: 0; font-size: var(--text-sm); }
+.picks-offer .row { display: flex; flex-wrap: wrap; gap: var(--space-2); }

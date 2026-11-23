@@ -46,3 +46,7 @@
 .wouldwork-worn { font-size: var(--text-xs); color: var(--ink-3); white-space: nowrap; }
 .wouldwork-worn.is-hardly { color: var(--warn); font-weight: var(--weight-label); }
 .wouldwork-actions { margin-top: 18px; }
+/* "For example" with the Pieces / As worn switch beside it (the same choice as Today's and a trip's) */
+.wouldwork-example-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+.wouldwork-example-head .gap-label { margin: 0; }
+.wouldwork-part p.wouldwork-drawn { margin: 0 0 var(--space-3); }

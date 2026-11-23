@@ -282,7 +282,10 @@ Claude. Checks are kept only while Nines is running.
 **Find some** on a wish asks Claude to search the web for up to 8 things on
 sale now that match it: what the suggestion says to look for, your note, and
 the most you'd pay if you set it (**Set the most you'd pay** on the wish: one amount, which
-also decides when Nines tells you a price went down). It takes a minute or two. Each
+also decides when Nines tells you a price went down). It also tells Claude, as leanings to rank
+by, the lines of Your style, what you love and wear in that kind of piece, the brands on your
+clothes and your size (**Your sizes** in Settings, under Everyday); never a photo, a name or a
+note. It takes a minute or two. Each
 one found shows its picture, shop and price, and how it would work with your
 clothes, with the same answers and reasons as **Would this work?**. **Open in
 shop** opens the shop's page in a new tab (from Nines' own window, in your

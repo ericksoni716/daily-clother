@@ -7,6 +7,7 @@ import { CloudflareDoor } from '../components/CloudflareDoor';
 import { KeepRunning } from '../components/KeepRunning';
 import { keepPhoneLine } from '../keepRunning';
 import { WhereYouAre } from '../components/WhereYouAre';
+import { YourSizes } from '../components/YourSizes';
 import { LifeQuestions } from '../components/LifeQuestions';
 import { LineWords, StyleLines } from '../components/StyleLines';
 import { StyleTalk } from '../components/StyleTalk';
@@ -187,7 +188,7 @@ function StyleEditor({ offline, style, toast, onClose }: { offline: boolean; sty
   );
 }
 
-/** Everyday: the weather's place, how you live, drawings or photos, and the laundry. */
+/** Everyday: the weather's place, how you live, your sizes, drawings or photos, and the laundry. */
 function EverydaySection({ offline, profile, settings, toast }: { offline: boolean; profile: Profile; settings: Settings; toast: Toast }) {
   const qc = useQueryClient();
   const [placeOpen, setPlaceOpen] = useState(false);
@@ -219,6 +220,7 @@ function EverydaySection({ offline, profile, settings, toast }: { offline: boole
             toast('Your answers are saved');
           }} onClose={() => setLifeOpen(false)} />
       )}
+      <YourSizes sizes={settings.sizes} offline={offline} />
       <DrawingsToggle settings={settings} toast={toast} disabled={offline} />
       {settings.laundry && <LaundrySection settings={settings} toast={toast} disabled={offline} />}
       {settings.rewear && <RewearSection settings={settings} toast={toast} disabled={offline} />}

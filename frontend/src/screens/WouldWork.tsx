@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { api, type ApiError } from '../api';
-import { Card, ChipGroup, EmptyState, ItemThumb, PageHeader } from '../components/ui';
+import { Card, ChipGroup, EmptyState, ItemThumb, PageHeader, SegmentedControl } from '../components/ui';
 import { CameraIcon, CheckIcon, HangerIcon, ImagesIcon, PlusIcon, WarnIcon } from '../components/Icons';
 import { FormalityChips } from '../components/FormalityChips';
 import { itemName, Pieces } from '../components/ItemPic';
+import { WornOutfit } from '../components/WornWith';
+import { useTodayView, VIEW_OPTIONS } from '../figure';
 import type { Wish } from '../gaps';
 import { navigate } from '../router';
 import { useVocab } from '../queries';
@@ -13,7 +15,7 @@ import { useApp } from '../store';
 import { placeLabel, wornOrder } from '../today';
 import type { ItemSummary, Vocab } from '../types';
 import {
-  CANDIDATE_ID, type Check, checkKinds, checkPoll, fillNote, fillWords, isDone, noteFor, pieceFromWish, pieceToSend, stillToChoose, verdictTone, waitingWords,
+  CANDIDATE_ID, type Check, checkKinds, checkPoll, drawnFromWords, fillNote, fillWords, isDone, noteFor, pieceFromWish, pieceToSend, stillToChoose, verdictTone, waitingWords,
   WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
 } from '../wouldwork';
 import './WouldWork.css';
@@ -317,6 +319,7 @@ function Describe({ draft, setDraft, error, demo, locked, kinds, vocab, onPhoto,
 
 function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; byId: Map<string, ItemSummary> }) {
   const tone = verdictTone(answer.verdict);
+  const [view, setView] = useTodayView();
   const counted = answer.fills.filter((f) => f.found_by.some((w) => w !== 'worn_most'));
   return (
     <div className="wouldwork-answer" data-testid="would-work-answer" data-verdict={answer.verdict}>
@@ -364,11 +367,16 @@ function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; by
 
           {answer.goes_with.examples.length > 0 && (
             <section className="wouldwork-part" aria-label="Example outfits">
-              <h4 className="gap-label">For example</h4>
+              <div className="wouldwork-example-head">
+                <h4 className="gap-label">For example</h4>
+                <SegmentedControl label="Show the example outfits" small className="today-view" value={view} options={VIEW_OPTIONS} onChange={setView} />
+              </div>
+              {view === 'worn' && <p className="hint wouldwork-drawn">{drawnFromWords(check.way === 'photo' ? 'photo' : 'by_hand')}</p>}
               <ul className="wouldwork-outfits">
                 {answer.goes_with.examples.map((ex) => (
                   <li key={ex.day.words} data-testid="would-work-outfit">
                     <p className="wouldwork-day">{ex.day.words.charAt(0).toUpperCase() + ex.day.words.slice(1)}</p>
+                    {view === 'worn' ? <WornOutfit example={ex} piece={answer.piece} byId={byId} compact /> : (
                     <ul className="gap-thumbs" aria-label={`An outfit for ${ex.day.words}`}>
                       {wornOrder(ex.pieces).map(({ place, id }) => (
                         <li key={`${place}-${id}`}>
@@ -381,6 +389,7 @@ function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; by
                         </li>
                       ))}
                     </ul>
+                    )}
                   </li>
                 ))}
               </ul>

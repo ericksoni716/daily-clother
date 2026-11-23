@@ -12,6 +12,43 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **You might like, in the Wardrobe.** A small card with three things on sale that Claude found
+  from what you wear and love, not from something missing: each with its picture, price and how
+  many of your pieces it goes with, and **Save** (onto the wishlist, its price watched),
+  **More like this** and **Not for me** (with Undo). Nothing that only repeats what you have,
+  and never the same product twice. Tap **Look now** the first time; after that Nines looks by
+  itself once a week while it is running, which you can turn off under **How Nines looks**. A
+  few "Not for me" alike may offer a line for Your style, kept only when you say so. The demo
+  closet never searches.
+
+- **See it with your clothes.** A find on a wish's page that has been checked against your closet
+  (one Claude found, or a link you sent) has a **See it with your clothes** button. It opens up to
+  three outfits made with it and your own pieces, each drawn as worn, with the shop's picture beside
+  the drawing and the names of your pieces (tap one to open it). The new piece is drawn from the
+  shop's description, so the sheet says once that it shows roughly its shape and colour, not how it
+  really looks. **Would this work?** shows its example outfits the same way when you switch them to
+  **As worn**. Nothing is sent to Claude for this, and it works in the demo closet.
+- **Find some knows who it is shopping for.** Besides the wish, a search now tells Claude the
+  lines of Your style, the colours, patterns and fits you wear most in that kind of piece and a
+  few of the pieces you love or wear most (said in plain words, never their photos, names or
+  notes), the brands on your clothes, and your size. Claude ranks what matches the wish by them;
+  the wish and the most you'd pay still come first. One sentence under **Find some** says what
+  is sent. The demo closet still sends nothing.
+- **Your sizes**, in Settings under Everyday: one line with the sizes you saved ("Your sizes: M
+  tops · 32x32 trousers · 10.5 shoes") and **Change**, which opens a short box for tops,
+  knitwear, trousers and jeans, jackets and coats, and shoes, each saved as you leave it. When
+  you have saved none for a kind, the size most of your own pieces of that kind carry is offered
+  with **Use it**. **A brand that fits differently** keeps a brand's own size ("In Example
+  Brand, L"). A search prefers products in stock in your size, when the shop lists sizes.
+- **A link you send to your wishlist is checked against your closet.** Once Nines has read the
+  product's name from its page, Claude describes it from what the page says (nothing about your
+  closet is sent), and the wish shows it as it shows what Claude finds: whether it would work, what
+  it goes with, what it repeats and which gap it would fill, with the shop's picture. When Claude
+  can't be reached, the limit is reached or the demo closet is open, the card says it isn't checked
+  yet, and Nines describes it at the next price check.
+- **Search Google Shopping**, on each thing worth buying and on each wish, opens Google Shopping in
+  your browser, searching for the kind of piece and its first colour (or the wish's name). Nothing
+  else about you or your closet goes into the search.
 - **Nines tells you when a price on your wishlist goes down.** A banner at the top of every
   screen says "A tan rain coat is down to $150.00 at Example Shop, from $177.00.", with **See it**
   (opens the wish) and **Got it**; when several went down it counts them, and **See them** opens

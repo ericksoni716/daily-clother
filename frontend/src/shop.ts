@@ -1,10 +1,11 @@
 /** Shopping for a wish: the products Claude found and the pages the owner sent, their prices, the news when one went
  * down, and plain words for them. */
-import type { Wish } from './gaps';
+import { kindWords, type Wish } from './gaps';
 import { plural } from './insights';
+import { label } from './labels';
 import { timeOf } from './today';
 import { localDay, whenWorn } from './wears';
-import type { Verdict, WouldPiece } from './wouldwork';
+import type { Verdict, WouldExample, WouldPiece } from './wouldwork';
 
 export interface PricePoint {
   at: string;
@@ -45,19 +46,24 @@ export interface Find {
   price: number | null;
   currency: string;
   available: boolean;
-  /** Sent by the owner as a link: its page is read by Nines first, and it is not judged against the closet. */
+  /** Sent by the owner as a link: its page is read by Nines first, then Claude describes it from the page's words. */
   link: boolean;
   /** When Nines last read the page itself (a link only), whatever it found. */
   read_at: string | null;
   /** How the latest price was read: from the page's own data, or by Claude. */
   read_by: 'page' | 'claude' | null;
-  /** Its description in the closet's words; null for a link, which is not described. */
+  /** Its description in the closet's words; null for a link Claude has not described. */
   piece: WouldPiece | null;
   piece_words: string | null;
   verdict: Verdict | null;
   verdict_words: string | null;
   reasons: string[];
   checked_at: string | null;
+  /** How many example outfits the check made with it when it was judged; null when judged before they were counted. */
+  outfits?: number | null;
+  /** Why a link is not judged against the closet yet: its page not read, the page gave no name, Claude could not tell
+   * what it is, or Claude has not been asked yet. Null when it is judged. */
+  not_judged?: 'unread' | 'no_name' | 'unclear' | 'waiting' | null;
   found_at: string;
   updated_at: string;
   history: PricePoint[];
@@ -71,8 +77,8 @@ export interface Find {
 export interface ShopRun {
   kind: 'find' | 'prices' | 'link';
   state: 'running' | 'done' | 'failed';
-  /** Who is reading now: Nines, on the shops' own pages, or Claude. */
-  step?: 'page' | 'claude' | null;
+  /** Who is reading now: Nines, on the shops' own pages, or Claude (reading a price, or describing a page you sent). */
+  step?: 'page' | 'claude' | 'describe' | null;
   message: string | null;
   added: number | null;
   started_at: string;
@@ -187,9 +193,41 @@ export function linkLine(f: Pick<Find, 'link' | 'read_at' | 'read_by' | 'history
   return 'You sent this link.';
 }
 
+/** What a link's card says when it is not checked against your closet: why, in one sentence. Null when it is, or
+ * when its page has not been read yet (`linkLine` says so). */
+export function notJudgedWords(f: Pick<Find, 'not_judged'>, demo: boolean): string | null {
+  switch (f.not_judged) {
+    case 'no_name': return "Nines couldn't read its name from the page, so it isn't checked against your closet.";
+    case 'unclear': return "Claude couldn't tell what kind of piece it is, so it isn't checked against your closet.";
+    case 'waiting': return demo
+      ? "The demo closet never sends anything to Claude, so it isn't checked against your closet."
+      : 'Nines checks it against your closet once Claude can describe it.';
+    default: return null;
+  }
+}
+
+/** A find worn with your own clothes (`GET /api/wishlist/{id}/finds/{findId}/outfits`): its piece, and the example
+ * outfits Would this work? makes with it, its place holding `CANDIDATE_ID`. */
+export interface FindOutfits {
+  piece: WouldPiece;
+  outfits: WouldExample[];
+}
+
+/**
+ * Whether a find's card offers "See it with your clothes": it is judged, and the check made at least one outfit with
+ * it. A find judged before outfits were counted offers it unless the closet was too small to say; the sheet then says
+ * when none can be made now.
+ */
+export function canSeeWorn(f: Pick<Find, 'piece' | 'verdict' | 'outfits'>): boolean {
+  if (!f.piece || !f.verdict) return false;
+  if (typeof f.outfits === 'number') return f.outfits > 0;
+  return f.verdict !== 'too_small';
+}
+
 /** What is said while a search, a price check or the reading of a link runs. */
 export function runWords(run: Pick<ShopRun, 'kind' | 'step'>): string {
   if (run.kind === 'find') return 'Claude is searching shops. This can take a few minutes…';
+  if (run.step === 'describe') return run.kind === 'link' ? 'Claude is describing it…' : 'Claude is describing the pages you sent…';
   if (run.kind === 'link') {
     return run.step === 'claude' ? "The page doesn't show its price to Nines, so Claude is reading it…" : 'Nines is reading the page…';
   }
@@ -346,6 +384,25 @@ export function newsWords(news: Pick<PriceNews, 'name' | 'shop' | 'from' | 'to' 
   return `${n.name} is down to ${priceWords(n.to, n.currency, n.code)} at ${n.shop}, from ${priceWords(n.from, n.currency)}.${price}`;
 }
 
+/** The words a Google Shopping search is made of: "men's", the first colour to look for and the kind of piece in plain
+ * words, or the wish's own name when it says nothing to look for. Nothing else about you or your closet. */
+export function shoppingWords(what: Pick<Wish, 'name' | 'look_for'>): string {
+  const bare = (words: string) => words.trim().replaceAll('_', ' ').replace(/^(a pair of|an|a|the)\s+/i, '');
+  const look = what.look_for;
+  if (look?.category) {
+    const color = look.colors?.length ? label('color', look.colors[0]).toLowerCase() : '';
+    const kind = look.kind ? bare(look.kind) : kindWords(look);
+    return ["men's", color, kind].filter(Boolean).join(' ');
+  }
+  const name = bare(what.name);
+  return /\bmen'?s\b/i.test(name) ? name : `men's ${name}`;
+}
+
+/** A Google Shopping search for a gap or a wish (`shoppingWords`), opened in your browser. */
+export function googleShoppingLink(what: Pick<Wish, 'name' | 'look_for'>): string {
+  return `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(shoppingWords(what))}`;
+}
+
 /** Only a web address may be opened or shown: anything else gives null (the server checks too). */
 export function webLink(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -364,3 +421,13 @@ export function typedPrice(text: string): number | null | undefined {
   const n = Number(t);
   return Number.isFinite(n) && n >= 0 ? n : undefined;
 }
+
+/** What the closet tells Claude about you when it looks for something, never more (DECISIONS, "What the search is told
+ * about you"): the one wording, said under "Find some" and on You might like. */
+const SENDS_ABOUT_YOU = 'your style, what you tend to wear, the brands you own and your size, never a photo or a note.';
+
+/** What a search sends to Claude, said under "Find some"; the demo closet searches nothing, so it is not said there. */
+export const SEARCH_SENDS = `A search sends Claude the wish, ${SENDS_ABOUT_YOU}`;
+
+/** What a look for things you might like sends to Claude: the same, without a wish. */
+export const LOOK_SENDS = `A look sends Claude ${SENDS_ABOUT_YOU}`;

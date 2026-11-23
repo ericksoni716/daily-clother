@@ -30,6 +30,33 @@ export interface WouldDay {
   words: string;
 }
 
+/** An example outfit made with the piece: the kind of day, and the pieces by place (the piece's own is `CANDIDATE_ID`). */
+export interface WouldExample { day: WouldDay; pieces: OutfitPieces; score: number; reasons: string[] }
+
+/** Where the description a piece not in the closet is drawn from came from. */
+export type DrawnFrom = 'shop' | 'by_hand' | 'photo';
+
+/** The one line beside a piece drawn from words, saying it is a rough idea and not its real look (DESIGN, principle 7). */
+export function drawnFromWords(from: DrawnFrom): string {
+  const source = from === 'shop' ? "the shop's description" : from === 'photo' ? "Claude's description of your photo" : 'your description';
+  return `This piece is drawn from ${source}, so it shows roughly its shape and colour, not how it really looks.`;
+}
+
+/** "For a cool, rainy casual day": what an example outfit is for, as a sentence's start. */
+export function exampleDay(ex: Pick<WouldExample, 'day'>): string {
+  return `For ${ex.day.words}`;
+}
+
+/** What the sheet says when the outfits made with a find could not be had: Nines out of reach, or why the server said no. */
+export function wornError(e: { status?: number; message: string }): string {
+  return e.status === 0 ? 'Showing it with your clothes needs Nines running on the computer.' : e.message;
+}
+
+/** "Outfit 2 of 3", for the step between example outfits. */
+export function outfitStep(index: number, count: number): string {
+  return `Outfit ${index + 1} of ${count}`;
+}
+
 export interface WouldAnswer {
   enough: boolean;
   message: string | null;
@@ -52,7 +79,7 @@ export interface WouldAnswer {
     suits: number;
     of: number;
     items: string[];
-    examples: { day: WouldDay; pieces: OutfitPieces; score: number; reasons: string[] }[];
+    examples: WouldExample[];
     text: string | null;
   };
   repeats: { items: { id: string; worn: number; hardly_worn: boolean }[]; text: string | null; disliked: string[]; disliked_text: string | null };

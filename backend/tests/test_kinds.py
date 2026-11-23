@@ -305,3 +305,16 @@ def test_an_accessorys_kind(client, services, claude, cfg):
     latest = history(client, item["id"])[0]
     back = client.post(f"/api/items/{item['id']}/history/{latest['id']}/undo").json()["item"]
     assert back["kind"] == "beanie" and back["category"] == "hat"
+
+
+@pytest.mark.parametrize("name, category, kind", [
+    ("Brown suede chelsea boots", "boots", "chelsea_boot"),
+    ("Tan gabardine trench coat", "coat", "trench_coat"),
+    ("Olive cotton chinos", "trousers", "chinos"),
+    ("Navy pique polo", "polo", "polo"),
+    ("Wool overcoat", "jacket", None),        # a kind of another category is not taken
+    ("Grey wool trousers", "trousers", None),  # names no kind: drawn as the plainest of its category
+    (None, "shirt", None),
+])
+def test_a_products_name_says_its_kind_only_in_so_many_words(name, category, kind):
+    assert kinds.from_words(name, category) == kind

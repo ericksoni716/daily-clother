@@ -62,11 +62,15 @@ export const queryKeys = {
   wishlist: () => ['wishlist'] as const,
   /** `GET /api/wishlist/{id}/finds`: finds for a wish. */
   finds: (wishId: string) => ['finds', wishId] as const,
+  /** `GET /api/wishlist/{id}/finds/{findId}/outfits`: a find worn with your own clothes, worked out from the closet. */
+  findOutfits: (wishId: string, findId: string) => ['findOutfits', wishId, findId] as const,
   /** `GET /api/wishlist/news`: prices that came down since their wish was last looked at, for the banner. */
   news: () => ['news'] as const,
   /** `GET /api/would-this-work/{id}`: a check, while it is answered. */
   wouldWork: (checkId: string) => ['wouldWork', checkId] as const,
   insights: () => ['insights'] as const,
+  /** `GET /api/picks`: You might like, the card in the Wardrobe. */
+  picks: () => ['picks'] as const,
 
   // Settings and the program
   settings: () => ['settings'] as const,
@@ -103,26 +107,29 @@ export type KeyName = keyof typeof queryKeys;
 export const TOUCHES = {
   /** Anything about one item: its fields, details, kind, a correction or undo, its photo, a shoe's photos and drawing,
    * describing it again, archiving it. */
-  item: ['items', 'item', 'itemDetails', 'history', 'review', 'insights', 'gaps', 'progress'],
+  item: ['items', 'item', 'itemDetails', 'history', 'review', 'insights', 'gaps', 'progress', 'findOutfits'],
   /** An item deleted. */
-  removeItem: ['items', 'item', 'review', 'insights', 'gaps', 'worn'],
+  removeItem: ['items', 'item', 'review', 'insights', 'gaps', 'worn', 'findOutfits'],
   /** Photos added (an upload finished), one at a time or from a photo of several pieces. */
-  upload: ['items', 'review', 'sources', 'insights', 'gaps', 'progress'],
+  upload: ['items', 'review', 'sources', 'insights', 'gaps', 'progress', 'findOutfits'],
   /** A photo of several pieces: its boxes, its pieces added, forgotten. */
   source: ['sources', 'source', 'items', 'review', 'progress'],
   /** Worn today, or a wear taken back, for one item or an outfit. */
   wear: ['items', 'item', 'history', 'worn', 'insights'],
   /** Into the laundry, or clean again. */
-  laundry: ['items', 'item', 'insights'],
+  laundry: ['items', 'item', 'insights', 'findOutfits'],
   /** An outfit worn: recorded, rated or removed. */
   outfit: ['worn', 'items', 'item', 'insights'],
   trip: ['trips', 'trip', 'tripWeather'],
   /** What's missing: a gap hidden or shown again. */
   gap: ['gaps'],
   /** The wishlist: a wish added, changed, bought or removed, and its finds. */
-  wish: ['wishlist', 'gaps', 'finds', 'news'],
+  wish: ['wishlist', 'gaps', 'finds', 'news', 'findOutfits'],
   /** A find's checkout code saved or removed: the wish's finds, its row's price, and its news (saving marks it seen). */
   findCode: ['finds', 'wishlist', 'news'],
+  /** You might like: a look started, a pick saved (a wish made from it) or turned down, the weekly switch, a line kept
+   * in Your style. */
+  pick: ['picks', 'wishlist', 'gaps', 'news', 'styleProfile', 'settings'],
   /** The note about the day. */
   day: ['day'],
   /** Any of the settings (the place, the laundry and rewear rules, how Claude is reached, its monthly limit…). */

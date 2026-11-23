@@ -12,6 +12,14 @@ describe('the outfit as worn', () => {
       .toEqual({ base: 'a', mid: null, outer: 'c', bottom: 'd', shoes: 'e', accessories: ['f', 'g'] });
   });
 
+  it('sends a piece not in the closet with the outfit, and keeps it in every layer it is dressed in', () => {
+    const piece = { category: 'coat', color: 'tan' };
+    const asked = figurePieces({ base: 'a', mid: null, outer: '~candidate', bottom: 'd', shoes: 'e', accessories: [] }, piece);
+    expect(asked.piece).toEqual(piece);
+    expect(dressingSteps(asked).every((s) => s.piece === piece)).toBe(true);
+    expect('piece' in figurePieces({ base: 'a', mid: null, outer: null, bottom: 'd', shoes: 'e', accessories: [] }, null)).toBe(false);
+  });
+
   it('asks for at most as many accessories as the server takes', () => {
     const many = Array.from({ length: 12 }, (_, i) => `x${i}`);
     expect(figurePieces({ base: 'a', mid: '', outer: '', bottom: '', shoes: '', accessories: many }).accessories)

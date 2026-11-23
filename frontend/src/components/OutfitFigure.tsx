@@ -4,6 +4,7 @@ import { api, ApiError } from '../api';
 import { dressingSteps, figurePieces, frameOf, placeIn, svgSource, type FigurePieces } from '../figure';
 import { queryKeys } from '../queryKeys';
 import type { OutfitPieces } from '../today';
+import type { WouldPiece } from '../wouldwork';
 import { HangerIcon } from './Icons';
 
 /** One drawing in the figure: the outfit up to one layer, placed in the outfit's own frame (null: it fills it). */
@@ -76,10 +77,13 @@ export function figureError(e: unknown): string {
  * One outfit drawn as worn, front view, from the server. `version` changes when any piece's drawing does; the figure
  * drawn before stays on screen while the new one is drawn. With `dress`, it is dressed a layer at a time once it is in
  * sight (each layer fading in over the last), unless the device asks for less motion: Today keeps its outfits side by
- * side, and one is dressed when it is swiped to.
+ * side, and one is dressed when it is swiped to. `piece` is a piece not in the closet (a find, a piece being checked),
+ * worn wherever a place names `CANDIDATE_ID` and drawn from its description.
  */
-export function OutfitFigure({ pieces, version, alt, dress = false }: { pieces: OutfitPieces; version: string; alt: string; dress?: boolean }) {
-  const outfit = useMemo(() => figurePieces(pieces), [pieces]);
+export function OutfitFigure({ pieces, version, alt, dress = false, piece = null }: {
+  pieces: OutfitPieces; version: string; alt: string; dress?: boolean; piece?: WouldPiece | null;
+}) {
+  const outfit = useMemo(() => figurePieces(pieces, piece), [pieces, piece]);
   const layered = dress && !lessMotion();
   const figure = useQuery({ ...figureQuery(outfit, version, layered), placeholderData: keepPreviousData });
   const box = useRef<HTMLElement>(null);

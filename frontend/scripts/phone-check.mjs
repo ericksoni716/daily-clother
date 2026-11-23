@@ -45,17 +45,21 @@ const LONG = {
   line: 'Never anything double-breasted, never anything with a crest or a logo-embroidered-chest-pocket-of-any-kind',
 };
 // Sheets opened by a button on a screen, pictured as well: the style conversation, every line of Your style, an
-// item's colours with the shades of its colour, and a wish's most you'd pay and its find's checkout code. `route` can
-// be worked out from the ids `setUp` gives; `fold` is opened first when the button is inside one.
+// item's colours with the shades of its colour, a wish's most you'd pay, its find's checkout code, and a find seen with
+// your clothes. `route` can be worked out from the ids `setUp` gives; `fold` is opened first when the button is inside
+// one; `wait` is what to wait for inside the sheet before its picture is taken.
 const SHEETS = [
   { route: '/settings', button: 'Talk to Claude about your style', sheet: 'style-talk-sheet', name: 'settings-style-talk' },
   { route: '/settings', button: /^(See all lines|Change the lines)$/, sheet: 'style-lines-sheet', name: 'settings-style-lines' },
+  { route: '/settings', button: 'Change your sizes', sheet: 'sizes-sheet', name: 'settings-sizes' },
   { route: ({ itemId }) => `/item/${encodeURIComponent(itemId)}`, fold: 'Details', button: /^Colour:/,
     sheet: 'detail-editor-color', name: 'item-colour' },
   { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: "Set the most you'd pay",
     sheet: 'price-sheet', name: 'wish-price' },
   { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: 'Change the code',
     sheet: 'code-sheet', name: 'wish-code' },
+  { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: 'See it with your clothes',
+    sheet: 'worn-sheet', name: 'wish-worn', wait: '[data-testid="outfit-figure"] img' },
 ];
 // A made-up shop's page with a long product name, which the backend's stand-in serves (never the web).
 const SHOP_PAGE = 'https://shop.example/long-name';
@@ -176,6 +180,16 @@ async function setUp(base) {
     await call('/api/style/lines', 'POST', { text: LONG.line });
     await call('/api/style/talk', 'POST', { say: 'I always feel warm on the bus, even in winter' });
     for (let i = 0; i < 40 && (await call('/api/style/talk')).answering; i++) await new Promise((r) => setTimeout(r, 250));
+    // You might like: one look (the backend's stand-in answers in a second, with long names), so the Wardrobe's card
+    // shows its three picks
+    await call('/api/picks/look', 'POST');
+    for (let i = 0; i < 40 && (await call('/api/picks')).run?.state === 'running'; i++) await new Promise((r) => setTimeout(r, 250));
+    // Your sizes: each kind's as long as a size may be but one (the rest is offered from the closet's own), and a brand
+    // with a long name that fits differently
+    await call('/api/sizes/tops', 'PUT', { size: 'XL Tall (EU 54/56)' });
+    await call('/api/sizes/trousers', 'PUT', { size: '34W x 32L, relaxed' });
+    await call('/api/sizes/shoes', 'PUT', { size: '10.5 US / 44 EU wide' });
+    await call('/api/sizes/tops/brand', 'PUT', { brand: 'Example Brand of Long-Named Outerwear', size: 'XXL Tall (EU 58)' });
     return { state: await api.storageState(), itemId: item.id, shoeId: shoe.id, tripId: trip.id, wishId: wish.id, linkedId: linked.id };
   } finally {
     await api.dispose();
@@ -286,7 +300,7 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           if (errors.length) failures.push(`${route} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
           await page.close();
         }
-        for (const { route, fold, button, sheet, name } of SHEETS) {
+        for (const { route, fold, button, sheet, name, wait } of SHEETS) {
           const page = await context.newPage();
           const errors = [];
           page.on('pageerror', (e) => errors.push(e.message));
@@ -295,6 +309,7 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           if (fold) await page.locator('details.more > summary', { hasText: fold }).first().click();
           await page.getByRole('button', { name: button }).first().click();
           await page.getByTestId(sheet).waitFor({ state: 'visible', timeout: 10_000 }).catch(() => failures.push(`${name} at ${size}px did not open`));
+          if (wait) await page.getByTestId(sheet).locator(wait).first().waitFor({ timeout: 20_000 }).catch(() => failures.push(`${name} at ${size}px showed no ${wait}`));
           await page.waitForTimeout(600);
           await page.screenshot({ path: join(OUT, `${size}-${scheme}-${name}.png`) });
           const { extra, culprits } = await page.evaluate(overflow);

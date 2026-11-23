@@ -1,11 +1,12 @@
-import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, PlainBox, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk } from './types';
+import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, PlainBox, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk, SizeKind, Sizes } from './types';
 import { forgetSaved, type DayAnswer, type RememberHow, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
 import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
-import type { FindsAnswer, PriceNews } from './shop';
+import type { FindOutfits, FindsAnswer, PriceNews } from './shop';
+import type { PicksAnswer } from './picks';
 import type { Life } from './life';
 import type { Check, WouldPiece } from './wouldwork';
 import type { FigurePieces } from './figure';
@@ -325,6 +326,10 @@ export const api = {
   styleProfile: () => request<StyleProfile>('/api/style/profile'),
   /** Keep a new version of the style profile; an empty text goes back to the starting one. */
   saveStyleProfile: (text: string) => request<StyleProfile>('/api/style/profile', { method: 'PUT', body: { text } }),
+  /** Your sizes: the usual one for a kind (empty clears it), or a brand's own (an empty size takes the brand off). */
+  putSize: (kind: SizeKind, size: string) => request<Sizes>(`/api/sizes/${kind}`, { method: 'PUT', body: { size } }),
+  putBrandSize: (kind: SizeKind, brand: string, size: string) =>
+    request<Sizes>(`/api/sizes/${kind}/brand`, { method: 'PUT', body: { brand, size } }),
   storage: () => request<Storage>('/api/storage'),
   /** Windows keeping Nines running: read from anywhere, changed only on the computer (Windows asks there). */
   background: () => request<BackgroundState>('/api/background'),
@@ -396,6 +401,9 @@ export const api = {
   /** A product's page added to a wish as a find; its page is read in the background. */
   addLinkTo: (id: string, url: string) =>
     request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/link`, { method: 'POST', body: { url } }),
+  /** A find worn with your own clothes: the example outfits made with its piece, worked out now (nothing asks Claude). */
+  findOutfits: (id: string, findId: string) =>
+    request<FindOutfits>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}/outfits`),
   removeFind: (id: string, findId: string) =>
     request<void>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}`, { method: 'DELETE' }),
   /** A checkout code you typed for a find, with its percent or its amount off (it marks the wish's news seen). */
@@ -408,6 +416,17 @@ export const api = {
   /** These wishes' news has been seen (their page opened, or the banner dismissed); answers with what news is left. */
   newsSeen: (wishIds: string[]) =>
     request<{ news: PriceNews[] }>('/api/wishlist/news/seen', { method: 'POST', body: { wish_ids: wishIds } }).then((r) => r.news),
+  // You might like: a look starts and answers later
+  picks: () => request<PicksAnswer>('/api/picks'),
+  lookForPicks: () => request<PicksAnswer>('/api/picks/look', { method: 'POST' }),
+  moreLikePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/more`, { method: 'POST' }),
+  /** A wish made from the pick, with the product as its first find; answers with its id as `wish_id`. */
+  savePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/save`, { method: 'POST' }),
+  refusePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/refuse`, { method: 'POST' }),
+  unrefusePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/refuse`, { method: 'DELETE' }),
+  setPicksWeekly: (weekly: boolean) => request<PicksAnswer>('/api/picks/weekly', { method: 'PUT', body: { weekly } }),
+  answerPickOffer: (id: string, answer: { save?: boolean; undo?: boolean }) =>
+    request<PicksAnswer>(`/api/picks/offer/${encodeURIComponent(id)}`, { method: 'POST', body: answer }),
   // Would this work?: a check starts and answers later; the photo is not kept
   checkByHand: (piece: Partial<WouldPiece>) => request<Check>('/api/would-this-work', { method: 'POST', body: { piece } }),
   checkPhoto: (photo: Blob, filename: string) => {

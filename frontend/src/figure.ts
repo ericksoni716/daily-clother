@@ -2,6 +2,7 @@
 import { useSyncExternalStore } from 'react';
 import type { OutfitPieces } from './today';
 import type { ItemSummary } from './types';
+import type { WouldPiece } from './wouldwork';
 
 /** The item in each place of an outfit, and its accessories, as `POST /api/outfits/figure` takes them. */
 export interface FigurePieces {
@@ -11,15 +12,18 @@ export interface FigurePieces {
   bottom: string | null;
   shoes: string | null;
   accessories: string[];
+  /** A piece not in the closet (a find, a piece being checked), worn wherever a place names `CANDIDATE_ID`. */
+  piece?: WouldPiece;
 }
 
 /** The server takes at most this many accessories for one figure. */
 export const MAX_ACCESSORIES = 8;
 
-export function figurePieces(p: OutfitPieces): FigurePieces {
+export function figurePieces(p: OutfitPieces, piece?: WouldPiece | null): FigurePieces {
   return {
     base: p.base || null, mid: p.mid || null, outer: p.outer || null, bottom: p.bottom || null, shoes: p.shoes || null,
     accessories: (p.accessories ?? []).filter(Boolean).slice(0, MAX_ACCESSORIES),
+    ...(piece ? { piece } : {}),
   };
 }
 
@@ -48,7 +52,7 @@ export function svgSource(svg: string): string {
  */
 export function dressingSteps(p: FigurePieces): FigurePieces[] {
   const tops = (['base', 'mid', 'outer'] as const).filter((place) => p[place]);
-  let now: FigurePieces = { base: null, mid: null, outer: null, bottom: p.bottom, shoes: p.shoes, accessories: [] };
+  let now: FigurePieces = { base: null, mid: null, outer: null, bottom: p.bottom, shoes: p.shoes, accessories: [], ...(p.piece ? { piece: p.piece } : {}) };
   if (tops.length) now = { ...now, [tops[0]]: p[tops[0]] };
   const steps: FigurePieces[] = [];
   if (now.bottom || now.shoes || tops.length) steps.push(now);

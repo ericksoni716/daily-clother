@@ -23,6 +23,11 @@ test.describe('shopping for a wish', () => {
     // first: either means the page is up (fixtures.ts's goToCloset waits the same way)
     await expect(page.locator('#closet-title').or(page.locator('#today-title'))).toBeVisible();
 
+    await page.goto(backend.url + '/wardrobe');
+    // each thing worth buying can be looked for on Google Shopping, in your browser, with only what to look for
+    const search = page.getByTestId('gap').first().getByRole('link', { name: 'Search Google Shopping' });
+    await expect(search).toHaveAttribute('href', /^https:\/\/www\.google\.com\/search\?tbm=shop&q=men's%20/, { timeout: 30_000 });
+    await expect(search).toHaveAttribute('target', '_blank');
     await page.goto(backend.url + '/wardrobe/wishlist');
     const wishlist = page.getByTestId('wishlist');
     await wishlist.getByRole('button', { name: 'Add by hand' }).click({ timeout: 30_000 });
@@ -37,6 +42,8 @@ test.describe('shopping for a wish', () => {
     // nothing watched yet: the price is offered where Claude is asked to look
     const price = wish.getByTestId('wish-price');
     await expect(price).toContainText('Claude looks at any price.');
+    await expect(wish.getByRole('link', { name: 'Search Google Shopping' }))
+      .toHaveAttribute('href', "https://www.google.com/search?tbm=shop&q=men's%20tan%20rain%20coat");
     // the most you'd pay, in a sheet over the page: one amount and its currency, and no lower limit
     await price.getByRole('button', { name: "Set the most you'd pay" }).click();
     const sheet = page.getByTestId('price-sheet');
@@ -145,6 +152,11 @@ test.describe('shopping for a wish', () => {
     await expect(find.getByTestId('find-link')).toHaveText('You sent this link.');
     await expect(page.getByRole('heading', { name: 'Linen camp-collar shirt', level: 1 })).toBeVisible();
     await expect(find.getByRole('link', { name: 'Open in shop' })).toHaveAttribute('href', 'https://shop.example/linen-shirt');
+    // Claude's stand-in describes it from the page's words, and it is checked against the closet as a search's finds are
+    await expect(find.getByTestId('find-verdict')).not.toBeEmpty({ timeout: 30_000 });
+    await expect(find.getByRole('list', { name: 'Why' }).getByRole('listitem').first()).toBeVisible();
+    await expect(find).toContainText('Claude saw: Linen camp-collar shirt, white shirt');
+    await expect(find.getByTestId('find-not-judged')).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);
 
     // read again a little cheaper: the drop on the wish, then on its row in the wishlist
@@ -199,5 +211,37 @@ test.describe('shopping for a wish', () => {
     await page.getByRole('link', { name: 'Wishlist', exact: true }).click();
     await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
     await expect(page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'A plain shirt' })).toBeVisible();
+  });
+
+  // A judged find worn with your own clothes: the outfits Would this work? makes with it, drawn as worn on this computer
+  // (nothing asks Claude), in a sheet over the wish's page, with the shop's picture beside the drawing.
+  test('see a judged find with your clothes, step through its outfits and close the sheet', async ({ page }) => {
+    test.setTimeout(120_000);
+    expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
+    const made = await page.request.post(backend.url + '/api/wishlist/link', { data: { url: 'https://shop.example/long-name' } });
+    expect(made.ok()).toBe(true);
+    const { id } = await made.json();
+    await page.setViewportSize({ width: 393, height: 760 });
+    await page.goto(backend.url + `/wardrobe/wish/${encodeURIComponent(id)}`);
+    const find = page.getByTestId('wish').getByTestId('find');
+    // Claude's stand-in describes the page, then it is judged against the closet: only then is the action offered
+    await expect(find.getByTestId('find-verdict')).not.toBeEmpty({ timeout: 60_000 });
+    await find.getByRole('button', { name: 'See it with your clothes' }).click();
+
+    const sheet = page.getByTestId('worn-sheet');
+    await expect(sheet.getByRole('heading', { name: 'With your clothes' })).toBeVisible();
+    await expect(sheet).toContainText("This piece is drawn from the shop's description, so it shows roughly its shape and colour");
+    const outfit = sheet.getByTestId('worn-outfit');
+    await expect(outfit.getByTestId('outfit-figure').locator('img')).toBeVisible({ timeout: 30_000 });
+    await expect(outfit.getByRole('list')).toContainText('This piece');
+    // the owner's own pieces in it open as elsewhere
+    await expect(outfit.getByRole('list').getByRole('link').first()).toHaveAttribute('href', /^\/wardrobe\/item\//);
+    await expect(sheet.getByText(/^Outfit 1 of [23], for an? /)).toBeVisible();
+    await sheet.getByRole('button', { name: 'The next outfit' }).click();
+    await expect(sheet.getByText(/^Outfit 2 of [23], for an? /)).toBeVisible();
+    await expect(outfit.getByTestId('outfit-figure').locator('img')).toBeVisible({ timeout: 30_000 });
+    expect(await axeViolations(page)).toEqual([]);
+    await sheet.getByRole('button', { name: 'Done' }).click();
+    await expect(sheet).toHaveCount(0);
   });
 });

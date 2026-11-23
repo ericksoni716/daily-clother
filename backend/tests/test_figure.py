@@ -12,7 +12,7 @@ from closet.drawing import figure as fig
 from closet.drawing import fitting, frontshoe, illustrate, templates, worn
 from closet.drawing.figure import CX, GROUND_Y, K_PX, LEG_CM, MARGIN, TOE_CM, WAIST_Y, Piece, figure, plan
 from closet.drawing.templates import PX_CM
-from closet.tagger.schema import Details, ItemTags, Silhouette, drawing_for
+from closet.tagger.schema import NAMED_HEX, Details, ItemTags, Silhouette, drawing_for
 
 from .conftest import upload
 
@@ -367,6 +367,20 @@ def test_the_figure_route_keeps_demo_and_main_closets_apart(client):
     client.post("/api/profile", json={"profile": "main"})
     assert client.post("/api/outfits/figure", json={"base": by_cat["tee"]}).status_code == 422
     assert client.post("/api/outfits/figure", json={"base": main_item["id"]}).status_code == 200
+
+
+def test_the_figure_route_wears_a_piece_not_in_the_closet_among_the_owners(client):
+    tee = upload(client, key="n").json()
+    client.patch(f"/api/items/{tee['id']}", json={"category": "tee", "color": "white"})
+    coat = {"category": "coat", "color": "tan", "name": "Tan gabardine trench coat"}
+    r = client.post("/api/outfits/figure", json={"base": tee["id"], "outer": "~candidate", "piece": coat})
+    assert r.status_code == 200 and r.text.startswith("<svg") and NAMED_HEX["tan"] in r.text
+    # a piece is drawn only where it is named; named with no piece, or a piece the check could not take, is refused
+    assert NAMED_HEX["tan"] not in client.post("/api/outfits/figure", json={"base": tee["id"], "piece": coat}).text
+    for body in ({"base": tee["id"], "outer": "~candidate"},
+                 {"base": tee["id"], "outer": "~candidate", "piece": {"category": "spaceship", "color": "tan"}},
+                 {"base": tee["id"], "outer": "~candidate", "piece": "a coat"}):
+        assert client.post("/api/outfits/figure", json=body).status_code == 422, body
 
 
 # ------------------------------------------------------------------ accessories

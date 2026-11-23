@@ -593,7 +593,35 @@ def _serves_text(serves: list[dict]) -> str:
     return f"It suits {gaps._join([s['label'].lower() for s in serves])}."
 
 
-# ====================================================================== entry point
+# ====================================================================== entry points
+def outfits_with(items: Iterable[object], wears: Iterable[object], piece: Mapping) -> list[dict]:
+    """The example outfits `check` gives for the piece (`goes_with.examples`), without the rest of the check: the
+    engine built around the piece on every kind of day, and the best few chosen as `check` chooses them. Empty when
+    the closet is too small to say, or when nothing makes a good outfit with it. Each is {day, pieces, score,
+    reasons}, the piece's place holding CANDIDATE_ID."""
+    piece = parse_piece(piece)
+    items, wears = list(items), list(wears)
+    c = gaps._closet(items + [candidate_row(piece)], wears)
+    clothes = [p for p in c.pieces + c.disliked if p.id != CANDIDATE_ID and p.category not in outfits.ACCESSORY_CATEGORIES]
+    if len(clothes) < gaps.MIN_ITEMS:
+        return []
+    return _examples(_try_days(c, c.by_id[CANDIDATE_ID]))
+
+
+LAYERS_OVER = {"base": ("mid", "outer"), "mid": ("outer",)}   # the places worn over a top's place
+
+
+def most_shown_first(examples: list[dict]) -> list[dict]:
+    """The example outfits with those where the piece shows most first: fewest layers worn over it (a shirt alone
+    before a shirt under a sweater and a coat), else in their own order. For showing the piece worn, where a piece
+    hidden under two layers says little about it."""
+    def over(ex: dict) -> int:
+        pieces = ex["pieces"]
+        place = next((pl for pl in outfits.PLACES if pieces.get(pl) == CANDIDATE_ID), None)
+        return sum(1 for pl in LAYERS_OVER.get(place or "", ()) if pieces.get(pl))
+    return sorted(examples, key=over)
+
+
 def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, before: Mapping | None = None,
           answers: Mapping | None = None, climate: Mapping | None = None) -> dict:
     """Would this piece work with the closet? `piece` is a description as `parse_piece` returns it (it is checked
@@ -604,7 +632,7 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
 
     Returns {"enough", "message", "verdict", "verdict_words", "reasons": [sentences], "piece", "fills": [{gap_id,
     name, score_before, score_after, gone, filled, days, of_days, found_by, rank, low, situations, counts}],
-    "goes_with": {days, suits, of, items, examples, text}, "repeats": {items: [{id, worn, hardly_worn}], text},
+    "goes_with": {days, suits, of, items, pairs, examples, text}, "repeats": {items: [{id, worn, hardly_worn}], text},
     "holds_back": [sentences], "situations": [{id, label}], "situations_text", "weighed", "checked": {items, wears,
     days}}. `situations` and `situations_text` are empty and None without answers.
     """
@@ -618,8 +646,8 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
     clothes = [p for p in owned if p.category not in outfits.ACCESSORY_CATEGORIES]
     repeats = _repeats(c, cand)
     answer = {"enough": True, "message": None, "verdict": None, "verdict_words": None, "reasons": [], "piece": piece,
-              "fills": [], "goes_with": {"days": 0, "suits": 0, "of": len(gaps.grid()), "items": [], "examples": [],
-                                         "text": None},
+              "fills": [], "goes_with": {"days": 0, "suits": 0, "of": len(gaps.grid()), "items": [], "pairs": 0,
+                                         "examples": [], "text": None},
               "repeats": repeats, "holds_back": [], "situations": [], "situations_text": None, "weighed": weighed,
               "checked": {"items": len(owned), "wears": c.wear_total, "days": 0}}
     if len(clothes) < gaps.MIN_ITEMS:
@@ -648,13 +676,15 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
     if answers is not None:
         answer["situations"] = _serves(row, c, answers, climate)
         answer["situations_text"] = _serves_text(answer["situations"])
-    partners = _partners(tried)[:PAIRS_MAX]
+    every_partner = _partners(tried)
+    partners = every_partner[:PAIRS_MAX]
     goes_text = None
     if good:
         with_words = _names([c.by_id[i] for i in partners[:2]]) if partners else ""
         goes_text = (f"It makes a good outfit on {_count(len(good))} of the {len(tried)} kinds of day the closet is "
                      f"tried on" + (f", most often with {with_words}." if with_words else "."))
-    answer["goes_with"].update(days=len(good), suits=len(suits), items=partners, examples=_examples(tried), text=goes_text)
+    answer["goes_with"].update(days=len(good), suits=len(suits), items=partners, pairs=len(every_partner),
+                               examples=_examples(tried), text=goes_text)
     answer["fills"] = fills
     answer["checked"]["days"] = len(tried)
     holds = _holds_back(c, cand, tried, fills, before, peers)

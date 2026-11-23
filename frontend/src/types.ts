@@ -459,6 +459,8 @@ export interface Settings {
   updates: UpdateStatus | null;
   /** As `GET /api/style/profile`. */
   style_profile: StyleProfile;
+  /** As `GET /api/sizes`. Absent in a copy saved before sizes were kept. */
+  sizes?: Sizes;
   /** As `GET /api/tagging/spend`. */
   tagging_spend: TaggingSpend;
 }
@@ -502,6 +504,27 @@ export interface BackgroundState {
   turning_off?: boolean;
   /** After turning it off here: where the program that carries on is, when it is not simply the one you had. */
   note?: string | null;
+}
+
+/** The kinds of piece a size is kept for (`sizes.py`, `KINDS`). */
+export type SizeKind = 'tops' | 'knitwear' | 'trousers' | 'jackets' | 'shoes';
+
+/** Your usual size for one kind of piece, as you wrote it (null: none saved), and the brands that fit differently.
+ * `suggested` is the size most common on your own items of that kind, only while none is saved. */
+export interface SizeEntry {
+  kind: SizeKind;
+  label: string;
+  size: string | null;
+  suggested: string | null;
+  brands: { brand: string; size: string }[];
+}
+
+/** Your sizes (Settings, Everyday), each kind in order, with the longest size and brand name kept. */
+export interface Sizes {
+  kinds: SizeEntry[];
+  max_size: number;
+  max_brand: number;
+  max_brands: number;
 }
 
 /** Laundry that keeps itself. `day`: Monday 0 to Sunday 6, or null for no set laundry day. */

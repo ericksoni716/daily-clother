@@ -333,7 +333,7 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
             // the script runs before the page has its <html>: set the size as soon as it does
             const set = () => document.documentElement?.style.setProperty('font-size', `${pct}%`);
             if (document.documentElement) set();
-            else new MutationObserver((_, watch) => { if (document.documentElement) { set(); watch.disconnect(); } }).observe(document, { childList: true });
+            else new globalThis.MutationObserver((_, watch) => { if (document.documentElement) { set(); watch.disconnect(); } }).observe(document, { childList: true });
           }, TEXT);
         }
         for (const route of pages) {

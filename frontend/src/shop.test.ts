@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseRoute } from './router';
 import {
-  atYourPrice, checkedWords, downWords, dropWords, findsInOrder, historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords,
+  atYourPrice, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, historyWords, lastChecked,
+  linkIn, linkLine, linkWords, newsWords, offWords, typedCode,
   priceWords, rangeWords, runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shopPoll, type ShopRun, typedPrice,
   watchWords, webLink, wishlistWords, withinWords,
 } from './shop';
@@ -205,5 +206,56 @@ describe("the Wardrobe's row to the wishlist", () => {
   it('and how many of their prices went down, as their rows in the list show', () => {
     expect(wishlistWords([{ drop }])).toEqual({ count: '1 thing', down: '1 price went down' });
     expect(wishlistWords([{ drop }, { drop: null }, { drop }])).toEqual({ count: '3 things', down: '2 prices went down' });
+  });
+});
+
+describe('a checkout code', () => {
+  const code = (over: Partial<FindCode> = {}): FindCode => ({ code: 'SAVE40', percent: 40, amount: null, by: 'page', seen_at: '', ...over });
+
+  it('says the price after the code under the find’s price, and what it takes off', () => {
+    expect(codeWords({ code: code(), with_code: 106.2, currency: 'USD' })).toBe('$106.20 with code SAVE40 at checkout (40% off)');
+    expect(codeWords({ code: code({ code: 'TAKE20', percent: null, amount: 20 }), with_code: 157, currency: 'USD' }))
+      .toBe('$157.00 with code TAKE20 at checkout ($20.00 off)');
+    expect(codeWords({ code: code({ percent: 12.5 }), with_code: 154.88, currency: 'EUR' })).toBe('€154.88 with code SAVE40 at checkout (12.5% off)');
+    // with no price to take it from, what it takes off
+    expect(codeWords({ code: code(), with_code: null, currency: 'USD' })).toBe('Code SAVE40 takes 40% off at checkout.');
+    expect(codeWords({ code: null, with_code: null, currency: 'USD' })).toBeNull();
+    expect(offWords({ percent: null, amount: 15 }, 'GBP')).toBe('£15.00 off');
+  });
+
+  it('says who saw it on the page, and nothing when you typed it', () => {
+    expect(codeFromWords(code())).toBe('Nines saw this code on the page.');
+    expect(codeFromWords(code({ by: 'claude' }))).toBe('Claude saw this code on the page.');
+    expect(codeFromWords(code({ by: 'you' }))).toBeNull();
+    expect(codeFromWords(null)).toBeNull();
+  });
+
+  it('says the price after it in the drop, on the wishlist row and in the news', () => {
+    expect(priceWords(106.2, 'USD', 'SAVE40')).toBe('$106.20 with code SAVE40');
+    expect(priceWords(null, 'USD', 'SAVE40')).toBe('Price not shown');
+    expect(dropWords({ from: 177, to: 106.2, currency: 'USD', percent: 40, code: 'SAVE40' }))
+      .toBe('Was $177.00, now $106.20 with code SAVE40 (40% less)');
+    expect(downWords({ from: 177, to: 106.2, currency: 'USD', code: 'SAVE40' })).toBe('Down from $177.00 to $106.20 with code SAVE40');
+    expect(linkWords({ shop: 'Example Shop', price: 177, currency: 'USD', available: true, code: 'SAVE40', with_code: 106.2 }))
+      .toBe('$106.20 with code SAVE40 at Example Shop');
+    expect(linkWords({ shop: 'Example Shop', price: 177, currency: 'USD', available: false, code: 'SAVE40', with_code: 106.2 }))
+      .toBe('Sold out at Example Shop');
+    const n = { name: 'A tan rain coat', shop: 'Example Shop', from: 177, to: 106.2, currency: 'USD', at_price: true, code: 'SAVE40' };
+    expect(newsWords([n])).toBe("A tan rain coat is down to $106.20 with code SAVE40 at Example Shop, from $177.00. That's within your price.");
+    // within your price counts the price after the code
+    const most = { price_min: null, price_max: 120, price_currency: 'USD' };
+    expect(withinWords({ ...most, drop: { from: 177, to: 106.2, currency: 'USD', percent: 40, shop: 'Example Shop', code: 'SAVE40' } }))
+      .toBe("That's within your price.");
+  });
+
+  it('takes a typed code upper-case with its percent or its amount, and says what is missing', () => {
+    expect(typedCode(' save40 ', 'percent', '40')).toEqual({ code: 'SAVE40', percent: 40 });
+    expect(typedCode('SAVE40', 'percent', '40%')).toEqual({ code: 'SAVE40', percent: 40 });
+    expect(typedCode('TAKE20', 'amount', '$20')).toEqual({ code: 'TAKE20', amount: 20 });
+    expect(typedCode('  ', 'percent', '40')).toBe('Type the code as the shop shows it.');
+    expect(typedCode('SAVE40', 'percent', '')).toBe('Type the percent off as a number, like 40.');
+    expect(typedCode('TAKE20', 'amount', 'twenty')).toBe('Type the amount off as a number, like 20.');
+    // the rest is checked by Nines, which says what is wrong
+    expect(typedCode('SAVE95', 'percent', '95')).toEqual({ code: 'SAVE95', percent: 95 });
   });
 });

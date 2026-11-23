@@ -154,6 +154,76 @@ def test_a_page_with_no_product_data():
     assert parse("<<<not html at all") == pp.Product()
 
 
+# ------------------------------------------------------------------ a checkout code in the page's text
+def codes(body: str, head: str = "") -> list[tuple]:
+    return [(c.code, c.percent, c.amount, c.currency) for c in parse(page(head, body)).codes]
+
+
+@pytest.mark.parametrize("body,found", [
+    ('<div class="promo">40% off with code SAVE40</div>', ("SAVE40", 40.0, None, None)),
+    ("<p>Use code SAVE40 for 40% off</p>", ("SAVE40", 40.0, None, None)),
+    ("<p>Code SAVE40: 40% off</p>", ("SAVE40", 40.0, None, None)),
+    ("<p>$20 off with code TAKE20</p>", ("TAKE20", None, 20.0, "USD")),
+    ("<p>20 € off with promo code TAKE20</p>", ("TAKE20", None, 20.0, "EUR")),
+    ("<p>Save 25% today with code <b>TEST25</b></p>", ("TEST25", 25.0, None, None)),
+    ("<p>Take an extra 30% off sale styles with promo code EXTRA_30</p>", ("EXTRA_30", 30.0, None, None)),
+    ('<div class="bar"><span>40% off</span></div><div><span>Use code SAVE-40</span></div>', ("SAVE-40", 40.0, None, None)),
+    ("<p>40% off. Use code save40 at checkout.</p>", ("save40", 40.0, None, None)),   # a digit: a code, as written
+    ("<p>12.5% OFF EVERYTHING, CODE: TEST125</p>", ("TEST125", 12.5, None, None)),
+])
+def test_a_discount_and_a_code_written_together(body, found):
+    assert codes(body) == [found]
+
+
+@pytest.mark.parametrize("body", [
+    "<p>New customers: 20% off your first order with code WELCOME20</p>",
+    "<div>New customers only</div><div>20% off with code WELCOME20</div>",   # said in the box beside it
+    "<p>Sign up for our newsletter</p><p>15% off with code HELLO15</p>",
+    "<p>Subscribe and get 10% off with code SUB10</p>",
+    "<p>App only: 20% off with code APP20</p>",
+    "<p>Download the app and take 20% off in the app with code APP20</p>",
+    "<p>Members get 30% off with code MEMBER30</p>",
+    "<p>Up to 40% off with code SAVE40</p>",              # not every product
+])
+def test_an_offer_for_only_some_people_or_up_to_an_amount_is_passed_over(body):
+    assert codes(body) == []
+
+
+@pytest.mark.parametrize("body", [
+    "<p>40% off. Use code at checkout.</p>",               # small letters, no digit: a word
+    "<p>40% OFF, USE CODE AT CHECKOUT</p>",                # plainly not a code
+    "<p>40% off, no code needed</p>",
+    "<p>40% OFF SITEWIDE, NO CODE NEEDED</p>",
+    "<p>Code SALE: 40% off</p>",
+    "<p>Use Code Summer for 40% off</p>",                  # a word written as a name, not a code
+    "<p>Ships to zip code 10001. 40% off sitewide.</p>",   # a code, not for checkout
+    "<p>40% off with code</p><p>Our story</p>",
+    "<p>40% cotton, 60% linen. Use code SAVE40 for free shipping.</p>",   # no discount with it
+    "<p>Use code SAVE40</p><p>Made from 100% linen, woven in a mill we have worked with for years, with 40% off</p>",
+])
+def test_a_word_that_is_plainly_not_a_code_or_a_code_with_no_discount_is_not_taken(body):
+    assert codes(body) == []
+
+
+def test_only_the_visible_text_is_read_never_a_script_a_style_or_the_head():
+    banner = "40% off with code SAVE40"
+    assert codes(f'<script>window.banner = "{banner}";</script><p>Our story</p>') == []
+    assert codes(f'<script type="text/template"><div>{banner}</div></script>') == []
+    assert codes(f"<style>.promo:after {{ content: '{banner}' }}</style>") == []
+    assert codes(f"<noscript>{banner}</noscript><template><p>{banner}</p></template>") == []
+    assert codes("<p>Our story</p>", head=f'<title>{banner}</title><meta name="description" content="{banner}">') == []
+    assert codes(f'<div data-code="SAVE40" title="{banner}">A linen shirt</div>') == []
+    # a head left open (HTML allows it) ends where the body starts
+    assert pp.parse(f"<html><head><title>Shirt</title><body><p>{banner}</p>", "https://shop.example/p").codes
+
+
+def test_every_code_found_is_given_each_with_its_own_discount():
+    body = ("<p>Use code SAVE20 for 20% off, or code SAVE40 for 40% off</p>"
+            "<p>40% off with code A1B. Free shipping with code SHIPIT</p>")
+    assert codes(body) == [("SAVE20", 20.0, None, None), ("SAVE40", 40.0, None, None), ("A1B", 40.0, None, None)]
+    assert codes("<p>40% off with code SAVE40</p>" * 3) == [("SAVE40", 40.0, None, None)]   # once
+
+
 # ------------------------------------------------------------------ the address
 def names(table: dict[str, list[str]] | None = None, calls: list | None = None):
     """A stand-in for the computer's name lookup: shop.example is on the internet unless the table says otherwise."""

@@ -17,6 +17,15 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   (opens the wish) and **Got it**; when several went down it counts them, and **See them** opens
   your wishlist. It says so once: opening the wish or tapping Got it is enough, on your phone or
   your computer alike. It needs Nines to be running, and the demo closet never shows it.
+- **Codes at checkout count on your wishlist.** When a shop's page says something like "40% off
+  with code TEST40" in its text, Nines picks the code up and the find says "$106.20 with code
+  TEST40 at checkout (40% off)" under its price, with "Nines saw this code on the page."; Claude
+  reports a code too when it reads a page for a price anyway. You can type one you saw with **Add
+  a code** on the find (a percent or an amount off), and remove it there. The price after the
+  code is what a price drop, the banner, the wishlist row and "within your price" count, so a code
+  that brings the price down is news, and one that goes away is not. A code read from the page
+  goes once the page stops showing it; one you typed stays until you remove it. Offers only for
+  some people (a first order, new customers, signing up, the app, members) are left out.
 - **Shades**, on an item's page: under **Details**, the Colour row now offers the shades of the
   piece's colour under the colours, each with its swatch (Green has Sage, Mint, Forest green,
   Hunter green and Teal; Navy has Navy, Midnight and Raw indigo), 55 in all. Choosing a colour keeps the

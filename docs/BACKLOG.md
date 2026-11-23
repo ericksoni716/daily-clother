@@ -17,6 +17,11 @@ only here); take a line out when it is done.
 - **The wishlist's own page** (23 November; DECISIONS, "The wishlist's own page"). Would this work?
   opened from a wish ("Would it go with my clothes?") still goes back to the Wardrobe, not to the wish
   or the wishlist. The toast after "I'll look for this" cannot open the list: toasts take no action.
+- **Checkout codes** (23 November; DECISIONS, "Checkout codes"). Nines reads a code only from a
+  page's text: text a page hides with its styles (`display: none`, `hidden`) is still read, a
+  code's end date is not, and a banner put in by a script is never seen. Claude's finds get a
+  code only from Claude's price checks. On the wishlist's row a long code can cut the shop's name
+  off with "…".
 - **The gap list worked out once at a time** (23 November; DECISIONS, of that name). What is left of a
   search's wait is "Would this work?" itself: each find runs the outfit engine over the 40 kinds of day
   with the piece (about 3 s of one core on the demo's closet, nearly all in `outfits._search`), so the

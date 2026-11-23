@@ -290,7 +290,13 @@ nothing can be added.
 look for (or "Added by hand"); what is watched, the pages you sent first ("You sent this link", and
 "Claude read its price from the page" when it did), then what Claude found, each checked against the
 closet, with "Open in shop", "Stop watching" (it goes, and with it its daily check) and, when its
-price changed from one day to another, "The price was … on 3 Nov and … yesterday."; under them one
+price changed from one day to another, "The price was … on 3 Nov and … yesterday.". A find with a
+code at checkout says the price after it under its price ("$106.20 with code TEST40 at checkout (40%
+off)") and who saw it ("Nines saw this code on the page." or "Claude saw this code on the page.";
+nothing when you typed it); **Add a code** (or "Change the code") opens a sheet with the code and
+either "% off" or an amount off, Save, "Remove the code" and Cancel. The price after the code is what
+the drop, the banner, the wishlist row and "within your price" count; a code read from the page goes
+when the page stops showing it, and one you typed stays until you remove it. Under the finds one
 sentence, "Nines checks the price once a day while it's running and tells you when it goes down."
 (with a price, "…when it goes down to $150.00 or less."), with "Set the most you'd pay" or
 "Change", then when it was last checked and "Check now" (the pages you sent read by Nines, the rest

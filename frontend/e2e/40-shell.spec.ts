@@ -85,7 +85,8 @@ test('one toast of each kind at a time, at the top of the screen, clear of what 
   const errors = page.locator('.toast-error');
   await expect(errors).toHaveCount(1);
   await expect(errors).not.toContainText('Internal Server Error');
-  expect((await errors.boundingBox())!.y).toBeLessThan(80);
+  // where toasts sit (read from the list itself: a toast leaves after a few seconds, sooner than a busy run looks)
+  expect(await page.locator('.toasts').evaluate((el) => el.getBoundingClientRect().top)).toBeLessThan(80);
 });
 
 test("Escape closes an in-place editor wherever focus is, and Your style's Escape drops only the line being changed", async ({ page }) => {

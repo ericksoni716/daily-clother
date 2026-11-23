@@ -264,20 +264,8 @@ export function dayParts(c: DayContext): string[] {
   return parts;
 }
 
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** "Thursday 12 Nov" from "2026-11-12". */
-export function longDate(day: string): string {
-  const [y, m, d] = day.split('-').map(Number);
-  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d} ${MONTHS[m - 1]}`;
-}
-
-/** "Wed 25 Nov" from "2026-11-25": the day where there is little room (Today's header on a phone). */
-export function shortDate(day: string): string {
-  const [y, m, d] = day.split('-').map(Number);
-  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()].slice(0, 3)} ${d} ${MONTHS[m - 1]}`;
-}
+// the days are written by the one family of dates (wears.ts); Today and a trip read them from here too
+export { clock as timeOf, longDate, shortDate } from './wears';
 
 /** A temperature typed by hand ("5", "-3", "12.5", "12°"); null if it is not a number this app plans for. */
 export function parseTemp(text: string): number | null {
@@ -476,13 +464,6 @@ export function forgetSaved(kv: Pick<Storage, 'length' | 'key' | 'removeItem'> |
   } catch {
     /* nothing kept */
   }
-}
-
-/** "8:05 AM" or "20:05" in the viewer's locale, for "saved at". */
-export function timeOf(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 /**

@@ -1,5 +1,8 @@
+/// <reference types="node" />
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { localDay, sinceWash, wearDay, wearSummary, whenWorn } from './wears';
+import { clock, dayAndTime, fullDate, localDay, longDate, monthYear, shortDate, sinceWash, wearDay, wearSummary, whenAt, whenWorn } from './wears';
 
 // Thursday 12 November 2026
 const TODAY = '2026-11-12';
@@ -40,5 +43,43 @@ describe('worn N times, last on …', () => {
 
   it('gives today as a local calendar day', () => {
     expect(localDay(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05');
+  });
+});
+
+describe('one way to write a date', () => {
+  const at = (h: number, m: number, day = 23) => new Date(2026, 10, day, h, m).toISOString();
+  it('writes a day, a day and a time, and a month the same everywhere', () => {
+    expect(longDate('2026-11-12')).toBe('Thursday 12 Nov');
+    expect(shortDate('2026-11-25')).toBe('Wed 25 Nov');
+    expect(fullDate('2026-11-03')).toBe('3 Nov 2026');
+    expect(monthYear('2026-11')).toBe('November 2026');
+    expect(clock(at(4, 49))).toBe('04:49');
+    expect(clock(at(14, 5))).toBe('14:05');
+    expect(whenAt(at(4, 49), '2026-11-23')).toBe('today at 04:49');
+    expect(whenAt(at(21, 0, 22), '2026-11-23')).toBe('yesterday at 21:00');
+    expect(whenAt(at(9, 41, 3), '2026-11-23')).toBe('on 3 Nov at 09:41');
+    expect(dayAndTime(at(4, 40), '2026-11-23')).toBe('Today, 04:40');
+    expect(dayAndTime(at(9, 41, 13), '2026-11-23')).toBe('13 Nov, 09:41');
+    expect(whenAt('not a time')).toBe('');
+  });
+
+  // Every date the owner reads goes through this file; a screen that formats one by itself (the browser's locale
+  // gave "Nov 23, 2026, 05:07 AM" beside "Mon 23 Nov") fails here.
+  it('is the only place a date or a time is formatted', () => {
+    const src = import.meta.dirname;
+    const files = (dir: string): string[] => readdirSync(dir).flatMap((name) => {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) return files(path);
+      return /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
+    });
+    const found = files(src).filter((f) => relative(src, f) !== 'wears.ts').flatMap((f) => {
+      const text = readFileSync(f, 'utf8');
+      const bad = [
+        ...text.matchAll(/toLocale(Date|Time)String\(|Intl\.DateTimeFormat|toLocaleString\((?!'en-US')|\.get(Hours|Minutes)\(\)(?!\))|'Jan', 'Feb'/g),
+      ];
+      return bad.map((m) => `${relative(src, f)}: ${m[0]}`);
+    });
+    // the hour of day the morning question is asked at is a number, not words for the owner (worn.ts)
+    expect(found.filter((f) => f !== 'worn.ts: .getHours()')).toEqual([]);
   });
 });

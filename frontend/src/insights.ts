@@ -2,6 +2,7 @@
 import { categoryPlural, label } from './labels';
 import { amount } from './spend';
 import { SAVED_PREFIX } from './today';
+import { fullDate } from './wears';
 
 /** What every finding has: a title, whether there is enough history for its numbers, and the sentence read first. */
 export interface Finding {
@@ -170,13 +171,8 @@ export function costCaption(p: CostPiece): string {
   return p.per_wear_cents === null ? `${money(p.price_cents)} · not worn yet` : `${perWear(p.per_wear_cents)} · ${wears(p.wears)}`;
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** "31 Oct 2026" from "2026-10-31". */
-export function shortDate(day: string): string {
-  const [y, m, d] = day.split('-').map(Number);
-  return `${d} ${MONTHS[m - 1]} ${y}`;
-}
+/** "31 Oct 2026" from "2026-10-31" (the one family of dates, wears.ts). */
+export const shortDate = (day: string): string => fullDate(day);
 
 /** What is shown under a piece that is not being worn. */
 export function unwornCaption(p: UnwornPiece): string {

@@ -1,4 +1,5 @@
 import { joinWords, longDate, SAVED_PREFIX, shortPlace, temps, type Outfit } from './today';
+import { dayAndDate, MONTHS } from './wears';
 import type { Place, RewearKind } from './types';
 
 /** Where a day's weather comes from: the forecast, what the dates are usually like, typed in, or not known. */
@@ -265,8 +266,6 @@ export function dayRain(d: TripDay): string {
   return d.rain ? 'Rain likely' : 'Dry';
 }
 
-const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function parts(day: string): [number, number, number] {
   const [y, m, d] = day.split('-').map(Number);
@@ -275,8 +274,7 @@ function parts(day: string): [number, number, number] {
 
 /** "Tue 1" from "2026-12-01": a day in the weather strip. */
 export function shortDay(day: string): { weekday: string; date: string } {
-  const [y, m, d] = parts(day);
-  return { weekday: SHORT_DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()], date: `${d} ${MONTHS[m - 1]}` };
+  return dayAndDate(day);
 }
 
 /** "1–5 Dec", "28 Nov – 3 Dec", "28 Dec 2026 – 3 Jan 2027", or one day. */

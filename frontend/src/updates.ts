@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { api } from './api';
-import { formatDateTime } from './labels';
+import { dayOf, whenAt, whenWorn } from './wears';
 
 /** The owner's choice in Settings: install by themselves, ask first (the default) or never check. */
 export type UpdateMode = 'auto' | 'ask' | 'never';
@@ -60,7 +60,7 @@ export function busyLine(busy: UpdateBusy | null): string {
 
 /** "Last checked" and how it went. */
 export function checkedLine(s: Pick<UpdateStatus, 'checked_at' | 'mode'>): string {
-  if (s.checked_at) return `Last checked ${formatDateTime(s.checked_at)}.`;
+  if (s.checked_at) return `Last checked ${whenAt(s.checked_at)}.`;
   return s.mode === 'never' ? 'Not checked: you chose never to check.' : 'Not checked yet.';
 }
 
@@ -85,7 +85,7 @@ export function lastInstallLine(s: UpdateStatus): string {
   const last = s.last_install;
   if (!last) return '';
   if (!last.ok) return last.note || `Nines ${last.to} did not start, so Nines ${last.from} was put back.`;
-  return last.to === s.version ? `Updated from ${last.from} to ${last.to} on ${formatDateTime(last.at)}.` : '';
+  return last.to === s.version ? `Updated from ${last.from} to ${last.to} ${whenWorn(dayOf(last.at) ?? last.at)}.` : '';
 }
 
 // ------------------------------------------------------------------ one copy of the status for the whole page

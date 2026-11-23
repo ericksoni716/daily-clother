@@ -336,6 +336,9 @@ def test_history_records_each_kind_of_change_newest_first(client, services, clau
     field = entries[2]["parts"]
     assert [(p["name"], p["before"], p["after"]) for p in field] == [("color", "navy", "green"),
                                                                      ("color_hex", item["color_hex"], "#3f7d4f")]
+    # the owner reads the shade's name, never a colour code
+    assert (field[1]["title"], field[1]["after_words"]) == ("shade", "hunter green")
+    assert "#" not in field[1]["before_words"]
     detail = entries[1]["parts"][0]
     assert (detail["title"], detail["before_words"], detail["after_words"]) == ("front", "a polo placket", "a half placket")
     assert entries[0]["parts"][0]["name"] == "trim_color"

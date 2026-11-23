@@ -1,11 +1,88 @@
-/** Plain words for when something was worn. Dates are local calendar days, "YYYY-MM-DD". */
+/**
+ * Every date and time the owner reads, in one family (DECISIONS, "One way to write a date"): a day ("Thursday 12 Nov",
+ * "Wed 25 Nov", "3 Nov 2025"), a day and a time ("today at 14:05", "Yesterday, 09:41"), and how long ago ("today",
+ * "yesterday", "on Tuesday", "on 3 Nov"). Days are written day first, a time on the 24-hour clock, the year only when it
+ * is not this one (or where a date stands alone, as in "3 Nov 2026"). Nothing here asks the browser's locale, so the
+ * phone and the computer read the same; a test fails if a screen formats a date by itself. Days are local calendar days,
+ * "YYYY-MM-DD"; moments are ISO times.
+ */
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+function weekday(day: string): string {
+  const [y, m, d] = parts(day);
+  return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
+/** "Thursday 12 Nov" from "2026-11-12". */
+export function longDate(day: string): string {
+  const [, m, d] = parts(day);
+  return `${weekday(day)} ${d} ${MONTHS[m - 1]}`;
+}
+
+/** "Wed 25 Nov" from "2026-11-25": the day where there is little room (Today's header on a phone, a trip's strip). */
+export function shortDate(day: string): string {
+  const [, m, d] = parts(day);
+  return `${weekday(day).slice(0, 3)} ${d} ${MONTHS[m - 1]}`;
+}
+
+/** "Wed" and "25 Nov" apart, for a strip of days. */
+export function dayAndDate(day: string): { weekday: string; date: string } {
+  const [, m, d] = parts(day);
+  return { weekday: weekday(day).slice(0, 3), date: `${d} ${MONTHS[m - 1]}` };
+}
+
+/** "3 Nov 2026" from "2026-11-03": a date standing alone, always with its year. */
+export function fullDate(day: string): string {
+  const [y, m, d] = parts(day);
+  if (!y || !m || !d) return day;
+  return `${d} ${MONTHS[m - 1]} ${y}`;
+}
+
+/** "3 Nov", or "3 Nov 2025" in another year than `today`'s. */
+export function dayMonth(day: string, today: string = localDay()): string {
+  const [y, m, d] = parts(day);
+  return `${d} ${MONTHS[m - 1]}${y === parts(today)[0] ? '' : ` ${y}`}`;
+}
+
+/** "November 2026" from "2026-11". */
+export function monthYear(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  if (!y || !m) return month;
+  return `${MONTH_NAMES[m - 1]} ${y}`;
+}
+
+/** The local day of a moment ("2026-11-23T04:40:00Z" → "2026-11-23" here), or null when it is not a time. */
+export function dayOf(iso: string): string | null {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : localDay(d);
+}
+
+/** "14:05", "09:41": the time of a moment on the 24-hour clock; empty when it is not a time. */
+export function clock(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** A moment in a sentence: "today at 14:05", "yesterday at 09:41", "on Tuesday at 08:00", "on 3 Nov at 08:00". */
+export function whenAt(iso: string, today: string = localDay()): string {
+  const day = dayOf(iso);
+  return day ? `${whenWorn(day, today)} at ${clock(iso)}` : '';
+}
+
+/** A moment at the head of a line in a list: "Today, 14:05", "Yesterday, 09:41", "Tuesday 10 Nov, 08:00", "3 Nov, 08:00". */
+export function dayAndTime(iso: string, today: string = localDay()): string {
+  const day = dayOf(iso);
+  return day ? `${wearDay(day, today)}, ${clock(iso)}` : '';
+}
 
 /** Today (or the given moment) as a local "YYYY-MM-DD". */
 export function localDay(d: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
@@ -25,9 +102,8 @@ export function whenWorn(day: string, today: string = localDay()): string {
   const ago = daysBetween(day, today);
   if (ago === 0) return 'today';
   if (ago === 1) return 'yesterday';
-  const [y, m, d] = parts(day);
-  if (ago > 1 && ago < 7) return `on ${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}`;
-  return `on ${d} ${MONTHS[m - 1]}${y === parts(today)[0] ? '' : ` ${y}`}`;
+  if (ago > 1 && ago < 7) return `on ${weekday(day)}`;
+  return `on ${dayMonth(day, today)}`;
 }
 
 /** A day in a list of wears: "Today", "Yesterday", "Tuesday 10 Nov", "3 Nov 2025". */
@@ -35,9 +111,8 @@ export function wearDay(day: string, today: string = localDay()): string {
   const ago = daysBetween(day, today);
   if (ago === 0) return 'Today';
   if (ago === 1) return 'Yesterday';
-  const [y, m, d] = parts(day);
-  const date = `${d} ${MONTHS[m - 1]}${y === parts(today)[0] ? '' : ` ${y}`}`;
-  return ago > 1 && ago < 7 ? `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${date}` : date;
+  const date = dayMonth(day, today);
+  return ago > 1 && ago < 7 ? `${weekday(day)} ${date}` : date;
 }
 
 /** "Not worn yet", "Worn once, yesterday", "Worn 6 times, last on Tuesday". */

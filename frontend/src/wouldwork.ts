@@ -1,6 +1,6 @@
 /** Would this work?: the shapes the server sends for a check, and plain words for them. */
 import type { LookFor, Wish } from './gaps';
-import { label } from './labels';
+import { formalityLabel, label } from './labels';
 import type { OutfitPieces } from './today';
 
 /** The piece being checked, as typed by hand or as Claude described it from a photo. */
@@ -196,6 +196,46 @@ export function pieceToSend(p: Partial<WouldPiece>): Partial<WouldPiece> {
   const name = p.name?.trim();
   if (name) out.name = name;
   return out;
+}
+
+/** The key of a description as sent: two descriptions that send the same are the same check. */
+export const checkKey = (p: Partial<WouldPiece>): string => JSON.stringify(pieceToSend(p));
+
+/**
+ * The description to check now, or null. By hand, the answer comes as soon as the kind and the colour are known, with
+ * no button to press, and again each time more is said (`checked` is the key last sent). It waits while a check is
+ * on its way (the next one follows it), while a sheet of choices is open (it asks once it is closed), and offline.
+ */
+export function nextCheck(draft: Partial<WouldPiece>, { checked, busy, choosing, locked }: {
+  checked: string | null; busy: boolean; choosing: boolean; locked: boolean;
+}): Partial<WouldPiece> | null {
+  if (stillToChoose(draft) || busy || choosing || locked) return null;
+  return checkKey(draft) === checked ? null : pieceToSend(draft);
+}
+
+/** The piece in a few words, as it is being checked: "Tan coat", or with a name, "Brogues, brown dress shoes". */
+export function pieceLine(p: Partial<WouldPiece>): string {
+  const what = [label('color', p.color), label('category', p.category)].filter(Boolean).join(' ').toLowerCase();
+  const name = p.name?.trim();
+  return name ? `${name}, ${what}` : what.charAt(0).toUpperCase() + what.slice(1);
+}
+
+const SEASON_SAID: Record<string, string> = { all: 'for any time of year', warm: 'for warm weather', cool: 'for cold weather' };
+
+/**
+ * What the answer took as usual because it was not told (the server fills in the formality usual for the kind, any
+ * time of year and plain): "Until you say more, it is checked as smart casual, for any time of year and plain.", or
+ * null when everything it uses was said. `levels` are the formality levels in order.
+ */
+export function untoldWords(sent: Partial<WouldPiece>, piece: Partial<WouldPiece> | null, levels: string[]): string | null {
+  if (!piece) return null;
+  const words: string[] = [];
+  if (!sent.formality && piece.formality) words.push(formalityLabel(piece.formality, piece.formality_also, levels).toLowerCase());
+  if (!sent.season && piece.season) words.push(SEASON_SAID[piece.season] ?? label('season', piece.season).toLowerCase());
+  if (!sent.pattern && piece.pattern) words.push(piece.pattern === 'solid' ? 'plain' : label('pattern', piece.pattern).toLowerCase());
+  if (!words.length) return null;
+  const list = words.length === 1 ? words[0] : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+  return `Until you say more, it is checked as ${list}.`;
 }
 
 /** What is still to choose before a description can be checked, in words; null when it can be. */

@@ -174,6 +174,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   the same question that could be combined into "Nothing matches". Now there is one list, **What it
   is**: choose a group (Trousers & shorts, say) and it opens to what is in it (Jeans, Trousers,
   Shorts, and the kinds your pieces are said to be). One chip says what you chose.
+- **Would this work? by hand answers at once.** Choose what kind of piece it is and its main colour,
+  and the answer comes straight away, with no long form first and no button to press. Everything else
+  (formality, season, how heavy, pattern, rain, a name) is under **More about it**, which opens over
+  the page; the answer is worked out again when you close it, and the last one stays on screen,
+  dimmed, meanwhile. Until you say more, a line says what the answer took as usual ("checked as smart
+  casual, for any time of year and plain").
 - **A piece's page says "Saved" beside what you changed.** Changing a piece's name, what it is, its
   brand, price, rating, notes, a detail or its size used to raise a "Saved" message for every change,
   over what you tapped next. Now "Saved" shows for a moment beside the box or row you changed, and

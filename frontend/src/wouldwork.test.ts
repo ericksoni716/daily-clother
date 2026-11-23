@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { LookFor, Wish } from './gaps';
 import {
   type Check, checkKinds, checkPoll, drawnFromWords, outfitStep, wornError, POLL_MS, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceFromWish, PIECE_NAME_MAX, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
-  wishFrom, wornWords,
+  wishFrom, wornWords, nextCheck, pieceLine, untoldWords,
 } from './wouldwork';
 
 const look = (over: Partial<LookFor> = {}): LookFor => ({
@@ -54,6 +54,44 @@ describe('describing the piece', () => {
   it('offers every kind but "other", and plain words for weights', () => {
     expect(checkKinds(['tee', 'coat', 'other'])).toEqual(['tee', 'coat']);
     expect(WEIGHTS.map(weightLabel)).toEqual(['Light', 'Medium', 'Heavy', 'Very heavy']);
+  });
+});
+
+describe('by hand: the kind and the colour first, the answer at once (23 November)', () => {
+  const quiet = { checked: null, busy: false, choosing: false, locked: false };
+
+  it('asks for the answer as soon as the kind and the colour are known, with no button to press', () => {
+    expect(nextCheck({}, quiet)).toBeNull();
+    expect(nextCheck({ category: 'coat' }, quiet)).toBeNull();
+    expect(nextCheck({ category: 'coat', color: 'tan' }, quiet)).toEqual({ category: 'coat', color: 'tan' });
+  });
+
+  it('asks again only when more has been said, never twice for the same description', () => {
+    const tan = { category: 'coat', color: 'tan' };
+    const checked = JSON.stringify(pieceToSend(tan));
+    expect(nextCheck(tan, { ...quiet, checked })).toBeNull();
+    expect(nextCheck({ ...tan, formality: 'business', name: '  ' }, { ...quiet, checked })).toEqual({ ...tan, formality: 'business' });
+  });
+
+  it('waits while a check is on its way, while a sheet of choices is open, and offline', () => {
+    const tan = { category: 'coat', color: 'tan' };
+    expect(nextCheck(tan, { ...quiet, busy: true })).toBeNull();
+    expect(nextCheck(tan, { ...quiet, choosing: true })).toBeNull();
+    expect(nextCheck(tan, { ...quiet, locked: true })).toBeNull();
+  });
+
+  it('says the piece in a few words, and what the answer took as usual until it is told', () => {
+    expect(pieceLine({ category: 'coat', color: 'tan' })).toBe('Tan coat');
+    expect(pieceLine({ category: 'dress_shoes', color: 'brown', name: ' Brogues ' })).toBe('Brogues, brown dress shoes');
+    const levels = ['casual', 'smart_casual', 'business', 'formal'];
+    const piece = { category: 'coat', color: 'tan', formality: 'smart_casual', season: 'all', pattern: 'solid' };
+    expect(untoldWords({ category: 'coat', color: 'tan' }, piece, levels))
+      .toBe('Until you say more, it is checked as smart casual, for any time of year and plain.');
+    expect(untoldWords({ category: 'coat', color: 'tan', season: 'all' }, piece, levels))
+      .toBe('Until you say more, it is checked as smart casual and plain.');
+    expect(untoldWords({ category: 'coat', color: 'tan', formality: 'smart_casual', season: 'cool', pattern: 'plaid' },
+      { ...piece, season: 'cool', pattern: 'plaid' }, levels)).toBeNull();
+    expect(untoldWords({ category: 'coat', color: 'tan' }, null, levels)).toBeNull();
   });
 });
 

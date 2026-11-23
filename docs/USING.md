@@ -479,7 +479,13 @@ When what was shared holds no link, it says so and the box is empty.
 
 `/wardrobe/check` (and `/wardrobe/check/wish/<id>` from a wish), from the Wardrobe;
 "‹ Wardrobe" goes back. A piece you might buy, from a photo or described by hand, checked
-against the closet by rule: what it goes with, what it repeats, what it would fill, what
+against the closet by rule. By hand it asks two things first, what kind of piece it is and its main
+colour, and answers as soon as both are chosen, with no button to press; the piece is then one line
+("Light blue shirt") with **Change what it is** and **More about it** (formality, season, how heavy,
+pattern, keeps the rain off, a name), each a sheet over the page. Closing one works the answer out
+again, the last answer staying in place, dimmed, until the new one is ready; until you say more, a
+line under the piece says what it was checked as ("smart casual, for any time of year and plain").
+The answer says what it goes with, what it repeats, what it would fill, what
 would hold it back, when you would wear it, and example outfits. The example outfits have the
 **Pieces / As worn** switch of Today and Trips (the same remembered choice): As worn draws each one
 on the figure with the new piece among your own, its pieces named under it, and one line saying the

@@ -170,7 +170,10 @@ test.describe('shopping for a wish', () => {
     // Would it go with my clothes? starts from the product's name on the page that was sent
     await wish.getByRole('button', { name: 'Would it go with my clothes?' }).click();
     await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
-    await expect(page.getByTestId('would-work').getByLabel('Name (optional)')).toHaveValue('Linen camp-collar shirt');
+    // (the name is among the rest, in "More about it")
+    await page.getByTestId('would-work').getByRole('button', { name: 'More about it' }).click();
+    await expect(page.getByRole('dialog', { name: 'More about it' }).getByLabel('Name (optional)')).toHaveValue('Linen camp-collar shirt');
+    await page.getByRole('dialog', { name: 'More about it' }).getByRole('button', { name: 'Done' }).click();
     // on the Wardrobe, the row to the wishlist counts the things on it and the prices that went down, as the list does
     const { wishes } = await (await page.request.get(backend.url + '/api/wishlist')).json();
     const down = wishes.filter((w: { drop: unknown }) => w.drop).length;

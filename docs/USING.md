@@ -293,7 +293,11 @@ look for (or "Added by hand"); what is watched, the pages you sent first ("You s
 closet (a page you sent too, once Claude has described it from the page's words: its verdict, what it
 goes with, what it repeats and what gap it would fill, with the shop's picture; until then one sentence
 says why it is not checked, such as "Nines checks it against your closet once Claude can describe
-it."), with "Open in shop", "Stop watching" (it goes, and with it its daily check) and, when its
+it."), with "See it with your clothes" on a judged find that an outfit can be made with (a sheet over the
+page with up to three outfits of your own pieces and the find, each drawn as worn, to step or swipe through; the
+shop's picture beside the drawing; the names of your pieces, each opening the piece; and one line saying the find is
+drawn from the shop's description, so it shows roughly its shape and colour, not how it really looks; nothing is sent
+to Claude), "Open in shop", "Stop watching" (it goes, and with it its daily check) and, when its
 price changed from one day to another, "The price was … on 3 Nov and … yesterday.". A find with a
 code at checkout says the price after it under its price ("$106.20 with code TEST40 at checkout (40%
 off)") and who saw it ("Nines saw this code on the page." or "Claude saw this code on the page.";
@@ -335,8 +339,12 @@ When what was shared holds no link, it says so and the box is empty.
 `/wardrobe/check` (and `/wardrobe/check/wish/<id>` from a wish), from the Wardrobe;
 "‹ Wardrobe" goes back. A piece you might buy, from a photo or described by hand, checked
 against the closet by rule: what it goes with, what it repeats, what it would fill, what
-would hold it back, when you would wear it, and example outfits. Described by hand, its
-formality can be two levels next to each other, as on the item page.
+would hold it back, when you would wear it, and example outfits. The example outfits have the
+**Pieces / As worn** switch of Today and Trips (the same remembered choice): As worn draws each one
+on the figure with the new piece among your own, its pieces named under it, and one line saying the
+new piece is drawn from your description (or Claude's description of your photo), so it shows roughly
+its shape and colour. Described by hand, its formality can be two levels next to each other, as on
+the item page.
 
 ## Settings
 

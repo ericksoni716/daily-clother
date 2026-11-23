@@ -12,6 +12,13 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **See it with your clothes.** A find on a wish's page that has been checked against your closet
+  (one Claude found, or a link you sent) has a **See it with your clothes** button. It opens up to
+  three outfits made with it and your own pieces, each drawn as worn, with the shop's picture beside
+  the drawing and the names of your pieces (tap one to open it). The new piece is drawn from the
+  shop's description, so the sheet says once that it shows roughly its shape and colour, not how it
+  really looks. **Would this work?** shows its example outfits the same way when you switch them to
+  **As worn**. Nothing is sent to Claude for this, and it works in the demo closet.
 - **Find some knows who it is shopping for.** Besides the wish, a search now tells Claude the
   lines of Your style, the colours, patterns and fits you wear most in that kind of piece and a
   few of the pieces you love or wear most (said in plain words, never their photos, names or

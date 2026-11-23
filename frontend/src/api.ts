@@ -1,4 +1,4 @@
-import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, PlainBox, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk, Shops, SizeKind, Sizes } from './types';
+import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, PlainBox, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk, Shops, SizeKind, Sizes, AwayPlace } from './types';
 import { forgetSaved, type DayAnswer, type RememberHow, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -197,6 +197,13 @@ export const api = {
   removeOutfit: (id: string) => request<void>(`/api/outfits/worn/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   setLaundry: (id: string, state: Laundry) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/laundry`, { method: 'POST', body: { state } }),
+  /** Send a piece away (or change where it is, the day it is expected back, the note). */
+  sendAway: (id: string, choice: { place: AwayPlace; until?: string | null; note?: string | null }) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/away`, { method: 'PUT', body: choice }),
+  /** It's back: from the cleaner's it is clean, from the tailor's no longer needs mending. */
+  itsBack: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/back`, { method: 'POST' }),
+  /** Undo the latest return. */
+  undoBack: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/back/undo`, { method: 'POST' }),
   retag: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retag`, { method: 'POST' }),
   /** The details that can be fixed for this kind of garment, and the choices for one of them. */
   detailOptions: (id: string) => request<DetailOptions>(`/api/items/${encodeURIComponent(id)}/details`),

@@ -97,7 +97,7 @@ export function useItemProgress(item: Pick<ItemSummary, 'id' | 'progress'> | nul
 /** The fields of an item the lists carry (what `GET /api/items` sends for each). */
 const SUMMARY_KEYS: (keyof ItemSummary)[] = ['id', 'name', 'category', 'color', 'color_hex', 'pattern', 'location', 'rating',
   'status', 'cutout_state', 'tag_state', 'tag_error', 'thumb_url', 'has_illustration', 'illustration_url', 'has_photo', 'last_worn', 'wear_count',
-  'wears_since_wash', 'laundry', 'created_at', 'updated_at', 'kind', 'kind_name', 'group', 'drawn_state', 'drawn_version', 'progress'];
+  'wears_since_wash', 'laundry', 'away', 'created_at', 'updated_at', 'kind', 'kind_name', 'group', 'drawn_state', 'drawn_version', 'progress'];
 
 /** Two values of a summary's field alike: by value for the one that is an object (`progress`). */
 const same = (a: unknown, b: unknown) => a === b || (typeof a === 'object' && typeof b === 'object' && JSON.stringify(a) === JSON.stringify(b));

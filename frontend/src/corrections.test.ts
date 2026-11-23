@@ -30,6 +30,14 @@ describe('the names of details', () => {
 });
 
 describe('history lines', () => {
+  it('says when the piece went away and came back', () => {
+    expect(historyLine(entry({ kind: 'away', away: { event: 'went', place: 'cleaner', by: 'owner' } }))).toBe("You took it to the cleaner's");
+    expect(historyLine(entry({ kind: 'away', away: { event: 'went', place: 'lent', by: 'owner' } }))).toBe('You lent it out');
+    expect(historyLine(entry({ kind: 'away', away: { event: 'back', place: 'tailor', by: 'owner' } }))).toBe("It came back from the tailor's");
+    expect(historyLine(entry({ kind: 'away', away: { event: 'back', place: 'lent', by: 'wear' } })))
+      .toBe('It came back from being lent out when you wore it');
+  });
+
   it('says what the owner changed by picking', () => {
     expect(historyLine(entry({ parts: [part({})] }))).toBe('You changed the front from buttons to a half placket');
     expect(historyLine(entry({ parts: [part({}), buttons] })))

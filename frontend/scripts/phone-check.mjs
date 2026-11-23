@@ -62,6 +62,8 @@ const SHEETS = [
     sheet: 'code-sheet', name: 'wish-code' },
   { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: 'See it with your clothes',
     sheet: 'worn-sheet', name: 'wish-worn', wait: '[data-testid="outfit-figure"] img' },
+  { route: ({ itemId }) => `/item/${encodeURIComponent(itemId)}`, button: 'Change where it is', sheet: 'where-sheet', name: 'item-where' },
+  { route: '/', button: /^\d+ away/, sheet: 'away-view', name: 'closet-away' },
   { route: '/today', button: /^Choices for/, sheet: 'piece-sheet', name: 'today-piece' },
   { route: '/today', button: /^Change$/, sheet: 'day-sheet', name: 'today-day' },
   { route: '/today/worn', button: 'More for this outfit', sheet: 'worn-menu', name: 'worn-menu' },
@@ -156,6 +158,12 @@ async function setUp(base) {
     if (!items.length) throw new Error('The closet copied from the demo has no clothes.');
     const item = items[0];
     await call(`/api/items/${encodeURIComponent(item.id)}`, 'PATCH', { name: LONG.item });
+    // Where a piece is: the long-named one at the cleaner's with a long note, and another lent out and past its day, so
+    // its page, the closet's line and the away view show each kind of sentence
+    await call(`/api/items/${encodeURIComponent(item.id)}/away`, 'PUT',
+      { place: 'cleaner', until: localDay(4), note: 'Ask them to look at the small stain near the left cuff, and the hem' });
+    const lent = items.find((i) => i.id !== item.id && i.category === 'jacket') ?? items[1];
+    await call(`/api/items/${encodeURIComponent(lent.id)}/away`, 'PUT', { place: 'lent', since: localDay(-12), until: localDay(-3) });
     // a shoe's page as well: its photos and drawings make it the longest item page
     const shoe = items.find((i) => ['sneakers', 'boots', 'dress_shoes', 'sandals'].includes(i.category)) ?? item;
     // Made-up prices and dates bought on a few pieces (the demo closet has prices and no dates), so the Wardrobe's line

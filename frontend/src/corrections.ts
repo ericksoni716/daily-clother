@@ -1,4 +1,5 @@
 /** Correcting an item's details: by picking, by saying, and the history that can be undone. */
+import type { AwayPlace } from './types';
 
 export interface DetailOption {
   name: string;
@@ -101,8 +102,10 @@ export interface HistoryEntry {
   id: number;
   at: string;
   by: 'owner' | 'claude';
-  kind: 'answer' | 'field' | 'detail' | 'sentence' | 'undo';
+  kind: 'answer' | 'field' | 'detail' | 'sentence' | 'undo' | 'away';
   sentence: string | null;
+  /** with kind "away": the piece went away or came back (where it is: away.ts) */
+  away?: { event: 'went' | 'back'; place: AwayPlace; by: 'owner' | 'wear' };
   undoes: number | null;
   undone: boolean;
   can_undo: boolean;
@@ -152,6 +155,7 @@ function joinAnd(items: string[]): string {
 
 /** A history entry in plain words, e.g. "You changed the front from buttons to a half placket". */
 export function historyLine(e: HistoryEntry): string {
+  if (e.kind === 'away' && e.away) return awayHistoryLine(e.away);
   const parts = shownParts(e.parts);
   if (e.kind === 'answer') {
     if (e.first_description) return 'Claude described it';
@@ -165,6 +169,16 @@ export function historyLine(e: HistoryEntry): string {
   const said = parts.length ? joinAnd(parts.map(partPhrase)) : 'changed nothing';
   if (e.kind === 'sentence' && e.sentence) return `You wrote “${e.sentence}” and ${said}`;
   return `You ${said}`;
+}
+
+const WENT: Record<AwayPlace, string> = { cleaner: "You took it to the cleaner's", tailor: "You took it to the tailor's", lent: 'You lent it out' };
+const CAME: Record<AwayPlace, string> = { cleaner: "the cleaner's", tailor: "the tailor's", lent: 'being lent out' };
+
+/** Going away and coming back, in the history's words: "You took it to the cleaner's", "It came back from the
+ * tailor's", "It came back from being lent out when you wore it". */
+export function awayHistoryLine(a: NonNullable<HistoryEntry['away']>): string {
+  if (a.event === 'went') return WENT[a.place];
+  return `It came back from ${CAME[a.place]}${a.by === 'wear' ? ' when you wore it' : ''}`;
 }
 
 /** When a change was made, short: "13 Nov, 09:41". */

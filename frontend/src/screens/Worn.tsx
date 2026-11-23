@@ -1,3 +1,4 @@
+import { backByWearing, recordedSentence } from '../away';
 import { queryOptions, useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { api, ApiError } from '../api';
@@ -278,10 +279,10 @@ function WornList() {
 
       {adding && (
         <RecordByHand items={items ?? []} anchor={recordButton} onCancel={() => setAdding(false)}
-          onDone={(o) => {
+          onDone={(o, back) => {
             setAdding(false);
             qc.setQueryData<WornRead>(queryKeys.worn(), (d) => d && { ...d, page: withRecorded(d.page, o) });
-            toast('Outfit recorded');
+            toast(recordedSentence(back));
           }} />
       )}
 
@@ -415,7 +416,9 @@ function OutfitMenu({ offline, onAgain, onLaundry, onRemove }: { offline: boolea
 
 /** "Record an outfit", in a sheet: the day, then the pieces in four groups (most recently worn first) with a search. */
 function RecordByHand({ items, anchor, onCancel, onDone }: {
-  items: ItemSummary[]; anchor: RefObject<HTMLElement | null>; onCancel(): void; onDone(o: WornOutfit): void;
+  items: ItemSummary[]; anchor: RefObject<HTMLElement | null>; onCancel(): void;
+  /** `back`: the names of the pieces away that wearing them today brought back */
+  onDone(o: WornOutfit, back: string[]): void;
 }) {
   const { offline } = useApp();
   const recorded = useEdit('outfit');
@@ -433,7 +436,8 @@ function RecordByHand({ items, anchor, onCancel, onDone }: {
     setBusy(true);
     setError(null);
     try {
-      onDone(await recorded(() => api.recordOutfit(chosen, day)));
+      const back = backByWearing(items.filter((i) => chosen.includes(i.id)), day, today).map((i) => nameOf(i, false));
+      onDone(await recorded(() => api.recordOutfit(chosen, day)), back);
     } catch (err) {
       setError((err as ApiError).message);
       setBusy(false);

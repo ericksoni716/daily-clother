@@ -5,6 +5,7 @@ import { ChipGroup } from '../components/ui/Chips';
 import { BackLink, confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { WhatItIs } from '../components/WhatItIs';
+import { WhereItIs } from '../components/WhereItIs';
 import { RetakeButton } from '../components/RetakeButton';
 import { ShoeDrawn } from '../components/ShoeDrawn';
 import { ShoePhotos } from '../components/ShoePhotos';
@@ -242,7 +243,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       <WearPanel item={item} disabled={locked}
         onWear={() => act(() => api.wear(id), 'wear', 'Noted: worn today')}
         onUnwear={(day, said) => act(() => api.unwear(id, day), 'wear', said)}
-        onLaundry={(state) => act(() => api.setLaundry(id, state), 'laundry', state === 'laundry' ? 'In the laundry' : 'Marked clean')} />
+        onLaundry={(state) => act(() => api.setLaundry(id, state), 'laundry', state === 'laundry' ? 'In the laundry' : 'Marked clean')}
+        where={<WhereItIs item={item} disabled={locked} run={(call, said) => act(call, 'away', said)} />} />
 
       <Section id={`about-${item.id}`} title="About it" className="detail-about">
         <ChipGroup field="rating" options={vocab.rating} value={item.rating} disabled={locked} labelOf={ratingLabel}
@@ -423,9 +425,11 @@ interface WearPanelProps {
   onWear(): Promise<Item | undefined>;
   onUnwear(day: string, saidAs: string): Promise<Item | undefined>;
   onLaundry(state: 'clean' | 'laundry'): Promise<Item | undefined>;
+  /** where the piece is (`WhereItIs`): in the same card, since both answer whether it can be worn today */
+  where?: ReactNode;
 }
 
-function WearPanel({ item, disabled, onWear, onUnwear, onLaundry }: WearPanelProps) {
+function WearPanel({ item, disabled, onWear, onUnwear, onLaundry, where }: WearPanelProps) {
   const today = localDay();
   // "today" is the computer's date on the server; remember the day it answered so undo works even if this device's date differs
   // (kept only for the local day it was pressed on, so it does not stick past midnight)
@@ -461,6 +465,7 @@ function WearPanel({ item, disabled, onWear, onUnwear, onLaundry }: WearPanelPro
           <button className="btn btn-small" disabled={disabled} title={title} onClick={() => onLaundry('laundry')}>Put in the laundry</button>
         )}
       </div>
+      {where}
       {recent.length > 0 && (
         <div className="wear-recent">
           <p className="chip-group-title" id={`recent-${item.id}`}>Recent wears</p>

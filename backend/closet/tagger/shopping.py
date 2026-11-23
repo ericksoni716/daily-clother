@@ -9,9 +9,11 @@ request made are billed on top of its tokens (`spend.SEARCH_USD`).
 
 Claude is sent what the wish is (its name, what to look for, the owner's note
 and price range); nothing from the closet, no photo. Its answer is data only: a
-list of products, or of prices. The caller checks every value (links must be
-web addresses, the description must use the closet's words) and drops what does
-not fit; nothing is bought or opened here.
+list of products, or of prices, each price with the checkout code its page shows
+when it shows one (optional fields: no extra call is made for them). The caller
+checks every value (links must be web addresses, the description must use the
+closet's words, a code its form and discount) and drops what does not fit;
+nothing is bought or opened here.
 """
 from __future__ import annotations
 
@@ -74,9 +76,18 @@ class ShopAnswer(BaseModel):
 
 class PriceSeen(BaseModel):
     url: str = Field(description="The product's page, exactly as it was given to you.")
-    price: float | None = Field(description="Its current price as a plain number; null when no price is shown.")
+    price: float | None = Field(description="Its current price as a plain number, before any code; null when no "
+                                            "price is shown.")
     currency: str = Field(description="The price's currency as a three-letter code.")
     available: bool = Field(description="False when the page is gone or the product is sold out in every size.")
+    # optional: a checkout code the page shows (the caller checks it, and drops it alone when it does not fit)
+    code: str | None = Field(default=None, description="A discount code this page shows for checkout, exactly as "
+                                                       "written, when anyone can use it on this product; null when "
+                                                       "there is none.")
+    code_percent: float | None = Field(default=None, description="The code's percent off as a plain number (40 for "
+                                                                 "40% off); null when it takes an amount off.")
+    code_amount: float | None = Field(default=None, description="The code's amount off in the price's currency, as a "
+                                                                "plain number; null when it takes a percent off.")
 
 
 class PriceAnswer(BaseModel):
@@ -148,7 +159,9 @@ def price_prompt(finds: list[dict]) -> str:
 
 {lines}
 
-For each page give its address exactly as written above, the price shown now and its currency, and whether it can still be bought (false when the page is gone or it is sold out in every size). Never guess a price: give null when the page shows none."""
+For each page give its address exactly as written above, the price shown now (before any code) and its currency, and whether it can still be bought (false when the page is gone or it is sold out in every size). Never guess a price: give null when the page shows none.
+
+When the page shows a code to enter at checkout with what it takes off (for example "40% off with code TEST40"), also give the code exactly as written and either its percent off or its amount off. Leave the code out when the page shows none, when the discount is "up to" an amount, and when it is only for some people: a first order, new customers, signing up, subscribing, a newsletter, the app or members. Never make up a code."""
 
 
 # ------------------------------------------------------------------ the two routes

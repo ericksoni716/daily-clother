@@ -24,7 +24,15 @@ first, Claude asked about the rest. Every price seen is kept, and a find whose
 latest price is below the highest seen before shows a drop, on the wish and on
 its row in the wishlist. A price that came down since the owner last looked at
 the wish (migration 0045), to no more than the most they would pay when they
-said, is news (`news`): the page's banner tells them. The demo closet is never
+said, is news (`news`): the page's banner tells them.
+
+A find can have one checkout code (migration 0046), a percent or an amount off:
+read from its page's text by Nines, given by Claude when it reads the page in a
+price check anyway, or typed by the owner. Nines works out the price after the
+code and keeps it with every price seen (`price_with`, `_add_point`); a drop,
+the news and "within your price" count it when there is one (`paid`). A code
+read from a page goes when the page stops showing it; a typed one stays until
+the owner removes it, and saving it marks the wish's news seen. The demo closet is never
 sent to Claude and has no news: it cannot
 search, a link's page is read there by Nines alone, and the daily round only
 ever opens the real closet.
@@ -44,6 +52,7 @@ import traceback
 import uuid
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Protocol
 from urllib.parse import urlsplit
 
@@ -74,6 +83,8 @@ LINK_NAME_MAX = 60
 SHOP_MAX = 120
 PRICE_MAX = 1_000_000.0
 CURRENCY = re.compile(r"^[A-Z]{3}$")
+CODE = re.compile(r"^[A-Z0-9_-]{3,30}$")   # a checkout code, kept upper-case as shops show them
+PERCENT_MIN, PERCENT_MAX = 1, 90             # a code's percent off
 
 DEMO = ("The demo closet never sends anything to Claude, so it can't search shops. Open your own closet in Settings "
         "to look for this.")
@@ -92,6 +103,12 @@ NO_PRICE_AT_ALL = NO_PAGE_PRICE[:-1] + ", and Claude found no price on it either
 SOME_UNREAD = "Not every page gives its price in a way Nines can read."
 LINKS_ONLY = "Only the pages you sent as links were read."
 DEMO_ASKS_NOTHING = "The demo closet never sends anything to Claude."
+# a code you type, refused
+BAD_CODE = "A code is 3 to 30 letters or digits, and can have - or _ in it."
+ONE_DISCOUNT = "Give the code's percent off or its amount off, one of the two."
+BAD_PERCENT = "The percent off is a number from 1 to 90."
+BAD_AMOUNT = "The amount off is a number more than 0 and less than the price."
+NO_PRICE_YET = "Nines doesn't know the price yet, so give the code's percent off instead."
 
 
 class Refused(Exception):
@@ -191,11 +208,75 @@ def clean_find(raw: object) -> dict | None:
             "price": clean_price(price) if price is not None else None, "currency": currency, "piece": piece}
 
 
+def _number(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and abs(value) < float("inf")
+
+
+def code_problem(code: object, percent: object, amount: object, price: float | None) -> tuple[dict | None, str | None]:
+    """A checkout code and its discount, checked: ({code, percent, amount}, None), or (None, the sentence saying what
+    is wrong). The code is letters, digits, - and _, 3 to 30 of them, kept upper-case; with either a percent off from 1
+    to 90 or an amount off more than 0 and less than the price (so the price must be known)."""
+    if not isinstance(code, str) or not CODE.match(code.strip().upper()) or not any(c.isalnum() for c in code):
+        return None, BAD_CODE
+    code = code.strip().upper()
+    if (percent is None) == (amount is None):
+        return None, ONE_DISCOUNT
+    if percent is not None:
+        if not _number(percent) or not PERCENT_MIN <= percent <= PERCENT_MAX:
+            return None, BAD_PERCENT
+        return {"code": code, "percent": round(float(percent), 2), "amount": None}, None
+    if not _number(amount) or round(float(amount), 2) <= 0:
+        return None, BAD_AMOUNT
+    if price is None:
+        return None, NO_PRICE_YET
+    if round(float(amount), 2) >= price:
+        return None, BAD_AMOUNT
+    return {"code": code, "percent": None, "amount": round(float(amount), 2)}, None
+
+
+def clean_code(code: object, percent: object, amount: object, price: float | None) -> dict | None:
+    """A code read on a page (by Nines or by Claude), checked as `code_problem` checks a typed one, and never a word
+    that is plainly not a code ("CODE", "OFF", "SALE"); None when it does not fit."""
+    checked, _ = code_problem(code, percent, amount, price)
+    return None if checked is None or checked["code"] in productpage.NOT_CODES else checked
+
+
+def price_with(price: float | None, percent: float | None, amount: float | None) -> float | None:
+    """The price after a code, rounded to cents (half up); None with no price, no code, or an amount off that is not
+    less than the price (it may have come down since the code was saved)."""
+    if price is None or (percent is None and amount is None):
+        return None
+    cents = Decimal(str(price))
+    after = cents * (100 - Decimal(str(percent))) / 100 if percent is not None else cents - Decimal(str(amount))
+    if after <= 0:
+        return None
+    return float(after.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def best_code(codes: list[dict], price: float | None) -> dict | None:
+    """The biggest discount among codes already checked: the lowest price after the code, else the biggest percent."""
+    if not codes:
+        return None
+    return min(codes, key=lambda c: (price_with(price, c["percent"], c["amount"]) or PRICE_MAX, -(c["percent"] or 0)))
+
+
 def clean_read(p: productpage.Product) -> dict:
     """What Nines read on a link's page, checked as Claude's answers are: text shortened, a picture only by a web
-    address, a price only as a number in range (else none), a currency only as three letters (else none)."""
+    address, a price only as a number in range (else none), a currency only as three letters (else none), and of the
+    checkout codes its text shows, the biggest discount among those that fit (`clean_code`; an amount off only in the
+    page's currency), else none."""
+    price, currency = clean_price(p.price), clean_currency(p.currency)
+    codes = []
+    for c in getattr(p, "codes", None) or []:
+        checked = clean_code(c.code, c.percent, c.amount, price)
+        if checked and c.amount is not None:
+            if c.currency and currency and c.currency != currency:
+                continue
+            checked["currency"] = c.currency
+        if checked:
+            codes.append(checked)
     return {"name": _words(p.name, NAME_MAX), "shop": _words(p.shop, SHOP_MAX), "image_url": clean_url(p.image_url),
-            "price": clean_price(p.price), "currency": clean_currency(p.currency), "available": p.available is not False}
+            "price": price, "currency": currency, "available": p.available is not False, "code": best_code(codes, price)}
 
 
 def shortened(text: str, limit: int) -> str:
@@ -232,27 +313,48 @@ def judge(rows: list[dict], worn: list[dict], pieces: list[dict], listed: dict |
 
 
 # ------------------------------------------------------------------ the database
+POINT = "at, price, currency, available, with_code, code"
+
+
 def _point(r: sqlite3.Row) -> dict:
-    return {"at": r["at"], "price": r["price"], "currency": r["currency"], "available": bool(r["available"])}
+    return {"at": r["at"], "price": r["price"], "currency": r["currency"], "available": bool(r["available"]),
+            "with_code": r["with_code"], "code": r["code"]}
 
 
 def _history(conn: sqlite3.Connection, find_id: str) -> list[dict]:
-    rows = conn.execute("SELECT at, price, currency, available FROM find_prices WHERE find_id = ? ORDER BY at, id",
-                        (find_id,)).fetchall()
+    rows = conn.execute(f"SELECT {POINT} FROM find_prices WHERE find_id = ? ORDER BY at, id", (find_id,)).fetchall()
     return [_point(r) for r in rows]
 
 
+def paid(h: Mapping) -> float | None:
+    """What a price point would cost you: the price after its checkout code when there was one, else the price."""
+    return h["price"] if h["price"] is None or h.get("with_code") is None else h["with_code"]
+
+
 def drop(history: list[dict]) -> dict | None:
-    """The latest price against the highest seen before it in the same currency: {from, to, currency, percent}
-    when it is lower, else None."""
+    """The latest price against the highest seen before it in the same currency, each the price after its checkout
+    code when there was one (`paid`): {from, to, currency, percent} when it is lower, else None; with `code`, the code
+    the latest price is after, when it is."""
     if not history or history[-1]["price"] is None:
         return None
     now = history[-1]
-    before = [h["price"] for h in history[:-1] if h["price"] is not None and h["currency"] == now["currency"]]
-    if not before or now["price"] >= max(before) - 0.005:
+    before = [paid(h) for h in history[:-1] if h["price"] is not None and h["currency"] == now["currency"]]
+    to = paid(now)
+    if not before or to >= max(before) - 0.005:
         return None
     was = max(before)
-    return {"from": was, "to": now["price"], "currency": now["currency"], "percent": round((was - now["price"]) / was * 100)}
+    out = {"from": was, "to": to, "currency": now["currency"], "percent": round((was - to) / was * 100)}
+    if now.get("with_code") is not None and now.get("code"):
+        out["code"] = now["code"]
+    return out
+
+
+def _code_of(r: Mapping) -> dict | None:
+    """A find's checkout code, as kept: {code, percent, amount, by, seen_at}, or None."""
+    if not r["code"]:
+        return None
+    return {"code": r["code"], "percent": r["code_percent"], "amount": r["code_amount"], "by": r["code_by"],
+            "seen_at": r["code_seen_at"]}
 
 
 def _find(conn: sqlite3.Connection, r: sqlite3.Row) -> dict:
@@ -266,6 +368,11 @@ def _find(conn: sqlite3.Connection, r: sqlite3.Row) -> dict:
     f["verdict_words"] = verdict["verdict_words"] if verdict else None
     f["reasons"] = verdict["reasons"] if verdict else []
     f["checked_at"] = verdict["checked_at"] if verdict else None
+    code = _code_of(f)
+    for column in ("code_percent", "code_amount", "code_by", "code_seen_at", "code_removed"):
+        f.pop(column)
+    f["code"] = code
+    f["with_code"] = price_with(f["price"], code["percent"], code["amount"]) if code else None
     history = _history(conn, f["id"])
     f["history"] = history[-HISTORY_MAX:]
     f["drop"] = drop(history)
@@ -281,10 +388,11 @@ def list_finds(conn: sqlite3.Connection, wish_id: str) -> list[dict]:
 def _open_finds(conn: sqlite3.Connection) -> tuple[list[sqlite3.Row], dict[str, list[dict]]]:
     """The finds of the wishes still wanted, the newest first, and every price each was seen at, by find."""
     finds = conn.execute(
-        "SELECT f.id, f.wish_id, f.name, f.shop, f.price, f.currency, f.available, f.link FROM finds f JOIN wishes w "
-        "ON w.id = f.wish_id WHERE w.bought_at IS NULL ORDER BY f.found_at DESC, f.rowid").fetchall()
+        "SELECT f.id, f.wish_id, f.name, f.shop, f.price, f.currency, f.available, f.link, f.code, f.code_percent, "
+        "f.code_amount FROM finds f JOIN wishes w ON w.id = f.wish_id WHERE w.bought_at IS NULL "
+        "ORDER BY f.found_at DESC, f.rowid").fetchall()
     history: dict[str, list[dict]] = {}
-    for r in conn.execute("SELECT p.find_id, p.at, p.price, p.currency, p.available FROM find_prices p "
+    for r in conn.execute("SELECT p.find_id, p.at, p.price, p.currency, p.available, p.with_code, p.code FROM find_prices p "
                           "JOIN finds f ON f.id = p.find_id JOIN wishes w ON w.id = f.wish_id "
                           "WHERE w.bought_at IS NULL ORDER BY p.at, p.id"):
         history.setdefault(r["find_id"], []).append(_point(r))
@@ -293,8 +401,9 @@ def _open_finds(conn: sqlite3.Connection) -> tuple[list[sqlite3.Row], dict[str, 
 
 def on_the_list(conn: sqlite3.Connection) -> dict[str, dict]:
     """What the wishlist shows on each open wish's row, by wish: `link`, its newest find sent as a link ({name, shop,
-    price, currency, available}), and `drop`, the biggest drop among its finds ({from, to, currency, percent, shop});
-    None for either when there is none."""
+    price, currency, available}, with `code` and `with_code`, the price after it, when it has a checkout code that
+    applies), and `drop`, the biggest drop among its finds ({from, to, currency, percent, shop}, with `code` when the
+    price it is down to is after one); None for either when there is none."""
     finds, history = _open_finds(conn)
     out: dict[str, dict] = {}
     for f in finds:
@@ -302,6 +411,9 @@ def on_the_list(conn: sqlite3.Connection) -> dict[str, dict]:
         if f["link"] and row["link"] is None:
             row["link"] = {"name": f["name"], "shop": f["shop"], "price": f["price"], "currency": f["currency"],
                            "available": bool(f["available"])}
+            after = price_with(f["price"], f["code_percent"], f["code_amount"]) if f["code"] else None
+            if after is not None:
+                row["link"].update(code=f["code"], with_code=after)
         d = drop(history.get(f["id"], []))
         if d and (row["drop"] is None or d["percent"] > row["drop"]["percent"]):
             row["drop"] = {**d, "shop": f["shop"]}
@@ -312,15 +424,16 @@ def came_down(history: list[dict]) -> dict | None:
     """The drop a find's newest price is (`drop`), with `at`, the moment the price came down to it: the first of the
     latest prices seen at that price, the price seen before them being higher. None when the newest price is no drop,
     is sold out, or went up to it from a lower one. A price checked again each day at the same price stays one drop,
-    with one moment."""
+    with one moment. Each price is the one after its checkout code when there was one (`paid`), so a code that appears
+    and brings the price down is a drop that came down, and a code that goes is none."""
     d = drop(history)
     if d is None or not history[-1]["available"]:
         return None
     same = [h for h in history if h["price"] is not None and h["currency"] == d["currency"]]
     i = len(same) - 1
-    while i > 0 and abs(same[i - 1]["price"] - d["to"]) < 0.005:
+    while i > 0 and abs(paid(same[i - 1]) - d["to"]) < 0.005:
         i -= 1
-    if i == 0 or same[i - 1]["price"] < d["to"]:
+    if i == 0 or paid(same[i - 1]) < d["to"]:
         return None
     return {**d, "at": same[i]["at"]}
 
@@ -337,8 +450,9 @@ def news(conn: sqlite3.Connection) -> list[dict]:
     """The price news the owner has not seen, a wish at a time: an open wish one of whose finds' price came down
     (`came_down`) after the owner last saw the wish's news (`news_seen_at`), to no more than the most they would pay
     when they set it in that find's currency. A price first seen already low is no news, only a price that came down
-    is. Each: {wish_id, name, shop, from, to, currency, percent, at, at_price}, the biggest drop of the wish's when
-    several came down; the newest first. Never asked of the demo closet (the route)."""
+    is; a price is the one after its checkout code when there was one. Each: {wish_id, name, shop, from, to, currency,
+    percent, at, at_price}, with `code` when `to` is after one, the biggest drop of the wish's when several came down;
+    the newest first. Never asked of the demo closet (the route)."""
     wishes = {r["id"]: r for r in conn.execute(
         "SELECT id, name, price_max, price_currency, news_seen_at FROM wishes WHERE bought_at IS NULL")}
     finds, history = _open_finds(conn)
@@ -365,6 +479,60 @@ def mark_seen(conn: sqlite3.Connection, wish_ids: list[str]) -> None:
         conn.execute("UPDATE wishes SET news_seen_at = ? WHERE id = ?", (t, wish_id))
 
 
+def _add_point(conn: sqlite3.Connection, find_id: str, t: str, price: float | None, currency: str, available: bool,
+               changed_only: bool = False) -> None:
+    """A price seen, kept with the price after the find's checkout code then (`price_with`) when the code applies.
+    `changed_only`: not when it says the same as the latest point (a code saved again)."""
+    r = conn.execute("SELECT code, code_percent, code_amount FROM finds WHERE id = ?", (find_id,)).fetchone()
+    after = price_with(price, r["code_percent"], r["code_amount"]) if r and r["code"] else None
+    point = (price, currency, int(available), after, r["code"] if after is not None else None)
+    if changed_only:
+        last = conn.execute("SELECT price, currency, available, with_code, code FROM find_prices WHERE find_id = ? "
+                            "ORDER BY at DESC, id DESC LIMIT 1", (find_id,)).fetchone()
+        if last is not None and tuple(last) == point:
+            return
+    conn.execute("INSERT INTO find_prices (find_id, at, price, currency, available, with_code, code) "
+                 "VALUES (?, ?, ?, ?, ?, ?, ?)", (find_id, t, *point))
+
+
+def _keep_code(conn: sqlite3.Connection, find_id: str, code: dict | None, by: str | None, t: str) -> None:
+    """A find's checkout code kept ({code, percent, amount}, who saw it or typed it, seen now), or taken away (None)."""
+    if code is None:
+        conn.execute("UPDATE finds SET code = NULL, code_percent = NULL, code_amount = NULL, code_by = NULL, "
+                     "code_seen_at = NULL WHERE id = ?", (find_id,))
+    else:
+        conn.execute("UPDATE finds SET code = ?, code_percent = ?, code_amount = ?, code_by = ?, code_seen_at = ? "
+                     "WHERE id = ?", (code["code"], code["percent"], code["amount"], by, t, find_id))
+
+
+def _page_code(conn: sqlite3.Connection, find_id: str, row: Mapping, code: dict | None, currency: str, priced: bool,
+               t: str) -> None:
+    """What Nines reading the page does to the find's code. A code you typed stays, whatever the page says. A code the
+    page's text shows is kept (by "page"), in place of one Claude saw, unless it is one you removed, or an amount off
+    in another currency than the find's. With none in its text, a code read from the page goes, and so does one Claude
+    saw when the page gave its price (Claude is not asked to read the page then, so nothing would ever take it away)."""
+    if row["code_by"] == "you":
+        return
+    if code and (code["code"] == row["code_removed"] or (code.get("currency") and code["currency"] != currency)):
+        code = None
+    if code:
+        _keep_code(conn, find_id, code, "page", t)
+    elif row["code_by"] == "page" or (row["code_by"] == "claude" and priced):
+        _keep_code(conn, find_id, None, None, t)
+
+
+def _claude_code(conn: sqlite3.Connection, find_id: str, row: Mapping, code: dict | None, t: str) -> None:
+    """What Claude reading the page in a price check does to the find's code (already checked, `clean_code`): kept (by
+    "claude") unless you typed one, Nines read one from the page's text, or it is one you removed; with none, a code
+    Claude saw before goes."""
+    if row["code_by"] in ("you", "page"):
+        return
+    if code and code["code"] != row["code_removed"]:
+        _keep_code(conn, find_id, code, "claude", t)
+    elif row["code_by"] == "claude":
+        _keep_code(conn, find_id, None, None, t)
+
+
 def save_finds(conn: sqlite3.Connection, wish_id: str, finds: list[dict], verdicts: list[dict]) -> int:
     """Keep what a search found, each with its verdict and its price as found. A product found before (the same
     page) is brought up to date instead of kept twice. Returns how many are new."""
@@ -387,8 +555,7 @@ def save_finds(conn: sqlite3.Connection, wish_id: str, finds: list[dict], verdic
                              (find_id, wish_id, f["name"], f["shop"], f["url"], f["image_url"], f["price"],
                               f["currency"], json.dumps(f["piece"]), json.dumps(v), t, t))
                 added += 1
-            conn.execute("INSERT INTO find_prices (find_id, at, price, currency, available) VALUES (?, ?, ?, ?, 1)",
-                         (find_id, t, f["price"], f["currency"]))
+            _add_point(conn, find_id, t, f["price"], f["currency"], True)
         conn.execute("UPDATE wishes SET found_at = ? WHERE id = ?", (t, wish_id))
         conn.execute("COMMIT")
     except Exception:
@@ -450,13 +617,14 @@ def link_wish(conn: sqlite3.Connection, url: str) -> str | None:
 
 def save_read(conn: sqlite3.Connection, wish_id: str, find_id: str, read: dict | None) -> bool:
     """Keep what Nines read on a link's own page (`clean_read`): its name, shop and picture where the page gives them,
-    and its price when it gives one, then kept with the others (read by "page"). The page counts as read either way. A
-    wish still called by its placeholder is named after the product. True when a price was kept; False when the page
-    gave none, or the find is no longer kept."""
+    its checkout code (`_page_code`), and its price when it gives one, then kept with the others (read by "page"), with
+    the price after the code. The page counts as read either way. A wish still called by its placeholder is named after
+    the product. True when a price was kept; False when the page gave none, or the find is no longer kept."""
     t = db.now()
     conn.execute("BEGIN IMMEDIATE")
     try:
-        row = conn.execute("SELECT url, currency FROM finds WHERE id = ? AND wish_id = ?", (find_id, wish_id)).fetchone()
+        row = conn.execute("SELECT url, currency, code_by, code_removed FROM finds WHERE id = ? AND wish_id = ?",
+                           (find_id, wish_id)).fetchone()
         if row is None:
             conn.execute("ROLLBACK")
             return False
@@ -466,12 +634,12 @@ def save_read(conn: sqlite3.Connection, wish_id: str, find_id: str, read: dict |
             for column in ("name", "shop", "image_url"):
                 if read[column]:
                     conn.execute(f"UPDATE finds SET {column} = ? WHERE id = ?", (read[column], find_id))
+            currency = (read["currency"] if priced else None) or row["currency"]
+            _page_code(conn, find_id, row, read.get("code"), currency, priced, t)
             if priced:
-                currency = read["currency"] or row["currency"]
                 conn.execute("UPDATE finds SET price = ?, currency = ?, available = ?, read_by = 'page', updated_at = ? "
                              "WHERE id = ?", (read["price"], currency, int(read["available"]), t, find_id))
-                conn.execute("INSERT INTO find_prices (find_id, at, price, currency, available) VALUES (?, ?, ?, ?, ?)",
-                             (find_id, t, read["price"], currency, int(read["available"])))
+                _add_point(conn, find_id, t, read["price"], currency, read["available"])
             wish = conn.execute("SELECT name, gap_id FROM wishes WHERE id = ?", (wish_id,)).fetchone()
             if read["name"] and wish and wish["gap_id"] is None and wish["name"] == placeholder(row["url"]):
                 conn.execute("UPDATE wishes SET name = ?, updated_at = ? WHERE id = ?",
@@ -490,8 +658,8 @@ def read_since(find: dict, since: datetime) -> bool:
 
 def save_prices(conn: sqlite3.Connection, wish_id: str, finds: list[dict], seen: list[object]) -> int:
     """Keep the prices Claude saw for the finds it was asked about (matched by their page; anything else in the
-    answer is ignored; each read by "claude"), and note that the wish's prices were looked at. Returns how many finds
-    were updated."""
+    answer is ignored; each read by "claude"), with the checkout code it saw on the page (`_claude_code`), and note
+    that the wish's prices were looked at. Returns how many finds were updated."""
     by_url = {f["url"]: f for f in finds}
     t = db.now()
     done = set()
@@ -504,17 +672,21 @@ def save_prices(conn: sqlite3.Connection, wish_id: str, finds: list[dict], seen:
             f = by_url.get(p.get("url").strip() if isinstance(p.get("url"), str) else None)
             if f is None or f["id"] in done:
                 continue
-            if not conn.execute("SELECT 1 FROM finds WHERE id = ? AND wish_id = ?", (f["id"], wish_id)).fetchone():
+            row = conn.execute("SELECT code_by, code_removed FROM finds WHERE id = ? AND wish_id = ?",
+                               (f["id"], wish_id)).fetchone()
+            if row is None:
                 continue
             price = clean_price(p.get("price")) if p.get("price") is not None else None
             if p.get("price") is not None and price is None:
                 continue   # a price that is not one: not kept
             currency = clean_currency(p.get("currency")) or f["currency"]
             available = p.get("available") is not False
-            conn.execute("INSERT INTO find_prices (find_id, at, price, currency, available) VALUES (?, ?, ?, ?, ?)",
-                         (f["id"], t, price, currency, int(available)))
+            # a code that does not fit is dropped alone: the price is kept
+            code = clean_code(p.get("code"), p.get("code_percent"), p.get("code_amount"), price)
+            _claude_code(conn, f["id"], row, code, t)
             conn.execute("UPDATE finds SET price = ?, currency = ?, available = ?, read_by = 'claude', updated_at = ? "
                          "WHERE id = ?", (price, currency, int(available), t, f["id"]))
+            _add_point(conn, f["id"], t, price, currency, available)
             done.add(f["id"])
         conn.execute("UPDATE wishes SET prices_checked_at = ? WHERE id = ?", (t, wish_id))
         conn.execute("COMMIT")
@@ -542,9 +714,62 @@ def due(conn: sqlite3.Connection, now: datetime) -> list[str]:
         "ORDER BY w.prices_checked_at IS NOT NULL, w.prices_checked_at, w.created_at", (since,))]
 
 
+NO_SUCH_FIND = "That find is not kept with this wish."
+
+
 def remove_find(conn: sqlite3.Connection, wish_id: str, find_id: str) -> None:
     if not conn.execute("DELETE FROM finds WHERE id = ? AND wish_id = ?", (find_id, wish_id)).rowcount:
-        raise ItemError("That find is not kept with this wish.", 404)
+        raise ItemError(NO_SUCH_FIND, 404)
+
+
+def set_code(conn: sqlite3.Connection, wish_id: str, find_id: str, code: object, percent: object, amount: object,
+             seen: bool = True) -> None:
+    """A checkout code you typed for a find, checked (`code_problem`; ItemError with the sentence when it does not fit,
+    404 for no such find), in place of any code it had. It is yours: no read of the page changes or removes it. The
+    price is kept again with the price after it, and the wish's price news is marked seen (`seen`; not in the demo
+    closet): a code you add is not news to you."""
+    t = db.now()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        row = conn.execute("SELECT price, currency, available FROM finds WHERE id = ? AND wish_id = ?",
+                           (find_id, wish_id)).fetchone()
+        if row is None:
+            raise ItemError(NO_SUCH_FIND, 404)
+        checked, problem = code_problem(code, percent, amount, row["price"])
+        if checked is None:
+            raise ItemError(problem or BAD_CODE, 422)
+        _keep_code(conn, find_id, checked, "you", t)
+        if row["price"] is not None:
+            _add_point(conn, find_id, t, row["price"], row["currency"], bool(row["available"]), changed_only=True)
+        if seen:
+            mark_seen(conn, [wish_id])
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
+def remove_code(conn: sqlite3.Connection, wish_id: str, find_id: str, seen: bool = True) -> None:
+    """A find's checkout code taken away by you, whoever saw it; a code read from the page or by Claude is not taken
+    from them again (`code_removed`). The price is kept again without it (a price going up is never news)."""
+    t = db.now()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        row = conn.execute("SELECT price, currency, available, code FROM finds WHERE id = ? AND wish_id = ?",
+                           (find_id, wish_id)).fetchone()
+        if row is None:
+            raise ItemError(NO_SUCH_FIND, 404)
+        if row["code"]:
+            _keep_code(conn, find_id, None, None, t)
+            conn.execute("UPDATE finds SET code_removed = ? WHERE id = ?", (row["code"], find_id))
+            if row["price"] is not None:
+                _add_point(conn, find_id, t, row["price"], row["currency"], bool(row["available"]), changed_only=True)
+            if seen:
+                mark_seen(conn, [wish_id])
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
 
 
 # ------------------------------------------------------------------ the work
@@ -971,6 +1196,13 @@ class SeenBody(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class CodeBody(BaseModel):
+    code: str = Field(max_length=200)   # checked by `code_problem`, with the percent or the amount
+    percent: float | None = None
+    amount: float | None = None
+    model_config = {"extra": "forbid"}
+
+
 def router(shopper: Shopper, state: State, conn_dep: Callable) -> APIRouter:
     r = APIRouter()
 
@@ -1047,5 +1279,17 @@ def router(shopper: Shopper, state: State, conn_dep: Callable) -> APIRouter:
     def delete_find(wish_id: str, find_id: str, conn=Depends(conn_dep)):
         remove_find(conn, wish_id, find_id)
         return Response(status_code=204)
+
+    @r.put("/api/wishlist/{wish_id}/finds/{find_id}/code")
+    def put_code(wish_id: str, find_id: str, body: CodeBody, conn=Depends(conn_dep)):
+        profile = state.get("profile")
+        set_code(conn, wish_id, find_id, body.code, body.percent, body.amount, seen=profile != "demo")
+        return payload(conn, profile, wish_id)
+
+    @r.delete("/api/wishlist/{wish_id}/finds/{find_id}/code")
+    def delete_code(wish_id: str, find_id: str, conn=Depends(conn_dep)):
+        profile = state.get("profile")
+        remove_code(conn, wish_id, find_id, seen=profile != "demo")
+        return payload(conn, profile, wish_id)
 
     return r

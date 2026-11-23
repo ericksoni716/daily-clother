@@ -1,5 +1,5 @@
-"""Shopping for a wish: finds kept and checked against the closet, price checks, products sent as links, and the
-price news the banner tells (closet/shop.py, tagger/shopping.py, migrations 0018, 0042 and 0045).
+"""Shopping for a wish: finds kept and checked against the closet, price checks, products sent as links, the price
+news the banner tells, and checkout codes (closet/shop.py, tagger/shopping.py, migrations 0018, 0042, 0045 and 0046).
 
 Claude is never called: `FakeShop` stands in for it (searching and looking up prices), or, for the API route,
 `FakeSearchApi` stands in for Anthropic's API with its web search tool, and the plan route's `claude -p` is never run.
@@ -65,13 +65,14 @@ SHIRT = "https://shop.example/p/linen-shirt"
 PLAIN = "https://shop.example/p/plain"
 
 
-def shirt_page(price: str = "68.00", name: str = "Linen camp-collar shirt") -> str:
-    """A made-up product page with its structured data, as a shop writes it for search engines."""
+def shirt_page(price: str = "68.00", name: str = "Linen camp-collar shirt", banner: str = "") -> str:
+    """A made-up product page with its structured data, as a shop writes it for search engines, and `banner` in its
+    text (a checkout code, say)."""
     data = {"@context": "https://schema.org", "@type": "Product", "name": name,
             "offers": {"@type": "Offer", "price": price, "priceCurrency": "USD",
                        "availability": "https://schema.org/InStock"}}
     return (f'<html><head><script type="application/ld+json">{json.dumps(data)}</script>'
-            '<meta property="og:site_name" content="Example Shop"></head><body></body></html>')
+            f'<meta property="og:site_name" content="Example Shop"></head><body>{banner}</body></html>')
 
 
 class ShopPages:
@@ -925,7 +926,7 @@ def test_migration_0045_tells_a_price_already_down_once(tmp_path):
     wid = "w1"
     find_row(conn, wid, [100.0, 80.0])
     conn.close()
-    assert db.migrate(path, tmp_path / "backups")["applied"] == [45]
+    assert db.migrate(path, tmp_path / "backups")["applied"][0] == 45   # and any later ones
     conn = db.connect(path)
     try:
         assert conn.execute("SELECT news_seen_at FROM wishes").fetchone()[0] is None
@@ -1153,3 +1154,352 @@ def test_a_search_and_a_price_check_judge_on_the_list_the_wardrobe_keeps(cfg, fa
         assert found[0]["verdict"] == "fills_gap"
     finally:
         sv.stop()
+
+
+# ------------------------------------------------------------------ checkout codes
+CODED = "https://shop.example/p/coded-shirt"
+COAT, NAVY = "https://shop.example/coat", "https://other.example/p/2"
+
+
+def coded(price: str = "177.00", banner: str = '<div class="promo">40% off with code TEST40</div>') -> str:
+    """A made-up product page whose text shows a checkout code."""
+    return shirt_page(price, "Linen shirt with a code", banner)
+
+
+@pytest.mark.parametrize("code,percent,amount,price,kept", [
+    ("test40", 40, None, 177.0, {"code": "TEST40", "percent": 40.0, "amount": None}),   # kept upper-case
+    (" TAKE-20_x ", None, 20, 177.0, {"code": "TAKE-20_X", "percent": None, "amount": 20.0}),
+    ("ABC", 1, None, None, {"code": "ABC", "percent": 1.0, "amount": None}),          # a percent needs no price
+    ("X" * 30, 90, None, 177.0, {"code": "X" * 30, "percent": 90.0, "amount": None}),
+    ("TEST", None, 176.99, 177.0, {"code": "TEST", "percent": None, "amount": 176.99}),
+    ("AB", 10, None, 177.0, shop.BAD_CODE),
+    ("X" * 31, 10, None, 177.0, shop.BAD_CODE),
+    ("TEST 40", 40, None, 177.0, shop.BAD_CODE),
+    ("TEST!40", 40, None, 177.0, shop.BAD_CODE),
+    ("---", 40, None, 177.0, shop.BAD_CODE),
+    (40, 40, None, 177.0, shop.BAD_CODE),
+    ("TEST40", 40, 20, 177.0, shop.ONE_DISCOUNT),
+    ("TEST40", None, None, 177.0, shop.ONE_DISCOUNT),
+    ("TEST40", 0, None, 177.0, shop.BAD_PERCENT),
+    ("TEST40", 0.5, None, 177.0, shop.BAD_PERCENT),
+    ("TEST40", 91, None, 177.0, shop.BAD_PERCENT),
+    ("TEST40", True, None, 177.0, shop.BAD_PERCENT),
+    ("TEST40", "40", None, 177.0, shop.BAD_PERCENT),
+    ("TEST40", None, 0, 177.0, shop.BAD_AMOUNT),
+    ("TEST40", None, -5, 177.0, shop.BAD_AMOUNT),
+    ("TEST40", None, 177, 177.0, shop.BAD_AMOUNT),     # not less than the price
+    ("TEST40", None, 20, None, shop.NO_PRICE_YET),
+])
+def test_a_code_is_checked_before_it_is_kept(code, percent, amount, price, kept):
+    checked, problem = shop.code_problem(code, percent, amount, price)
+    assert (checked if isinstance(kept, dict) else problem) == kept
+    assert (checked is None) == (problem is not None)
+
+
+def test_a_code_read_on_a_page_is_never_a_word_that_is_plainly_not_one():
+    assert shop.clean_code("SALE", 40, None, 100.0) is None and shop.clean_code("code", 40, None, 100.0) is None
+    assert shop.code_problem("SALE", 40, None, 100.0)[0]["code"] == "SALE"   # typed: the owner's word
+    assert shop.clean_code("TEST40", 40, None, 100.0) == {"code": "TEST40", "percent": 40.0, "amount": None}
+
+
+def test_the_price_with_a_code_is_worked_out_to_the_cent():
+    assert shop.price_with(177.0, 40, None) == 106.2
+    assert shop.price_with(68.0, 20, None) == 54.4
+    assert shop.price_with(19.99, 15, None) == 16.99
+    assert shop.price_with(10.05, 50, None) == 5.03     # half a cent up
+    assert shop.price_with(177.0, None, 20) == 157.0
+    assert shop.price_with(20.0, None, 20) is None      # an amount no longer less than the price
+    assert shop.price_with(None, 40, None) is None and shop.price_with(100.0, None, None) is None
+
+
+def test_of_the_codes_a_page_shows_the_biggest_discount_that_fits_is_kept():
+    def read(price, *found):
+        return shop.clean_read(productpage.Product(name="A shirt", price=price, currency="USD", codes=list(found)))
+    C = productpage.Code
+    found = (C("TEST20", percent=20), C("TAKE50", amount=50, currency="USD"), C("TAKE60", amount=60, currency="EUR"),
+             C("SALE", percent=70), C("TEST95", percent=95))
+    assert read(177.0, *found)["code"] == {"code": "TAKE50", "percent": None, "amount": 50.0, "currency": "USD"}
+    assert read(40.0, *found)["code"]["code"] == "TEST20"   # $50 off is more than the price: not a discount on it
+    # with no price an amount cannot be checked: the biggest percent
+    assert read(None, C("TEST20", percent=20), C("TEST30", percent=30), C("TAKE10", amount=10, currency="USD"))["code"][
+        "code"] == "TEST30"
+    assert read(177.0)["code"] is None and read(177.0, C("TEST95", percent=95))["code"] is None
+
+
+def point(day: int, price, with_code=None, code=None, currency="USD", available=True) -> dict:
+    return {"at": at(day), "price": price, "currency": currency, "available": available, "with_code": with_code,
+            "code": code}
+
+
+def test_a_drop_and_a_price_that_came_down_count_the_price_after_the_code():
+    appears = [point(1, 177.0), point(2, 177.0, 106.2, "TEST40")]
+    assert shop.drop(appears) == {"from": 177.0, "to": 106.2, "currency": "USD", "percent": 40, "code": "TEST40"}
+    assert shop.came_down(appears)["at"] == at(2)           # a code that appears and brings the price down: news
+    goes = appears + [point(3, 177.0)]
+    assert shop.drop(goes) is None and shop.came_down(goes) is None   # a code that goes: no drop, no news
+    first = [point(1, 177.0, 106.2, "TEST40"), point(2, 177.0, 106.2, "TEST40")]
+    assert shop.drop(first) is None                          # first seen with its code: nothing came down
+    lower_without = [point(1, 177.0, 106.2, "TEST40"), point(2, 150.0)]
+    assert shop.drop(lower_without) is None                  # the price came down, but what you'd pay went up
+    both = [point(1, 177.0, 106.2, "TEST40"), point(2, 150.0, 90.0, "TEST40")]
+    assert shop.drop(both) == {"from": 106.2, "to": 90.0, "currency": "USD", "percent": 15, "code": "TEST40"}
+    other = [point(1, 177.0, currency="EUR"), point(2, 177.0, 106.2, "TEST40")]
+    assert shop.drop(other) is None and shop.came_down(other) is None   # never compared across currencies
+
+
+def coded_row(conn, wid: str, points: list[tuple]) -> str:
+    """A find sent as a link, seen at these (price, price after the code, code), a day apart from 1 November."""
+    fid = f"{wid}-coded"
+    conn.execute("INSERT INTO finds (id, wish_id, name, shop, url, price, currency, piece, found_at, updated_at, link) "
+                 "VALUES (?, ?, 'A coat', 'Example Shop', ?, ?, 'USD', 'null', ?, ?, 1)",
+                 (fid, wid, f"https://shop.example/{fid}", points[-1][0], at(1), at(1)))
+    for n, (price, after, code) in enumerate(points):
+        conn.execute("INSERT INTO find_prices (find_id, at, price, currency, with_code, code) VALUES (?, ?, ?, 'USD', ?, ?)",
+                     (fid, at(n + 1), price, after, code))
+    return fid
+
+
+def test_within_your_price_counts_the_price_after_the_code(closet):
+    under = wish_row(closet, "A tan rain coat", price_max=120)
+    coded_row(closet, under, [(177.0, None, None), (177.0, 106.2, "TEST40")])
+    over = wish_row(closet, "Brown loafers", price_max=100)
+    coded_row(closet, over, [(177.0, None, None), (177.0, 106.2, "TEST40")])
+    news, = shop.news(closet)
+    assert (news["wish_id"], news["to"], news["code"], news["at_price"]) == (under, 106.2, "TEST40", True)
+
+
+def test_a_code_on_the_page_is_kept_with_the_price_after_it_and_goes_when_the_page_drops_it(client, pages, fake_shop):
+    pages.pages[CODED] = coded()
+    wid = add_link(client, CODED)
+    find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert {k: find["code"][k] for k in ("code", "percent", "amount", "by")} == {
+        "code": "TEST40", "percent": 40.0, "amount": None, "by": "page"} and find["code"]["seen_at"]
+    assert (find["price"], find["with_code"]) == (177.0, 106.2)
+    assert (find["history"][-1]["with_code"], find["history"][-1]["code"]) == (106.2, "TEST40")
+    assert find["drop"] is None and fake_shop.calls == []   # first seen with it; read by Nines alone
+    row, = client.get("/api/wishlist").json()["wishes"]
+    assert row["link"] == {"name": "Linen shirt with a code", "shop": "Example Shop", "price": 177.0, "currency": "USD",
+                           "available": True, "code": "TEST40", "with_code": 106.2}
+    assert client.get("/api/wishlist/news").json() == {"news": []}
+
+    # the page shows no code now: it goes, and its going is no drop and no news
+    pages.pages[CODED] = coded(banner="<p>Free returns</p>")
+    find = check(client, wid)
+    assert find["code"] is None and find["with_code"] is None and find["drop"] is None
+    assert client.get("/api/wishlist/news").json() == {"news": []}
+    assert "code" not in client.get("/api/wishlist").json()["wishes"][0]["link"]
+
+    # a code that appears and brings the price down is news, said with its code
+    pages.pages[CODED] = coded(banner="<p>Use code TEST25 for 25% off</p>")
+    find = check(client, wid)
+    assert find["drop"] == {"from": 177.0, "to": 132.75, "currency": "USD", "percent": 25, "code": "TEST25"}
+    news, = client.get("/api/wishlist/news").json()["news"]
+    assert (news["from"], news["to"], news["code"]) == (177.0, 132.75, "TEST25")
+    assert client.get("/api/wishlist").json()["wishes"][0]["drop"]["code"] == "TEST25"
+
+
+def check(client, wid: str) -> dict:
+    """Check now on a wish with one find; gives the find once it is done."""
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    return settle(client, wid)["finds"][0]
+
+
+def check_all(client, wid: str) -> dict[str, dict]:
+    """Check now on a wish; gives its finds by their page once it is done."""
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    return {f["url"]: f for f in settle(client, wid)["finds"]}
+
+
+def test_a_code_you_type_stays_until_you_remove_it_and_is_not_news_to_you(client, pages):
+    wid = add_link(client, SHIRT)
+    fid = client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["id"]
+    r = client.put(f"/api/wishlist/{wid}/finds/{fid}/code", json={"code": " test20 ", "percent": 20})
+    assert r.status_code == 200
+    find, = r.json()["finds"]
+    assert {k: find["code"][k] for k in ("code", "percent", "amount", "by")} == {
+        "code": "TEST20", "percent": 20.0, "amount": None, "by": "you"}
+    assert find["with_code"] == 54.4 and find["drop"]["to"] == 54.4 and find["drop"]["code"] == "TEST20"
+    assert client.get("/api/wishlist/news").json() == {"news": []}   # you added it: not news to you
+    points = len(find["history"])
+    client.put(f"/api/wishlist/{wid}/finds/{fid}/code", json={"code": "TEST20", "percent": 20})
+    assert len(client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["history"]) == points   # saved again: once
+
+    # a read of the page never takes it away, nor puts another in its place
+    pages.pages[SHIRT] = shirt_page("68.00", banner="<p>30% off with code TEST30</p>")
+    assert check(client, wid)["code"]["code"] == "TEST20"
+    pages.pages[SHIRT] = shirt_page("60.00")
+    find = check(client, wid)
+    assert (find["code"]["code"], find["code"]["by"], find["with_code"]) == ("TEST20", "you", 48.0)
+    assert client.get("/api/wishlist/news").json()["news"][0]["to"] == 48.0   # the price itself came down: news
+
+    # an amount off, in the find's currency
+    r = client.put(f"/api/wishlist/{wid}/finds/{fid}/code", json={"code": "TAKE10", "amount": 10})
+    assert r.json()["finds"][0]["with_code"] == 50.0
+    # removed: gone; and a code read from the page that you removed is not taken from it again
+    r = client.delete(f"/api/wishlist/{wid}/finds/{fid}/code")
+    assert r.status_code == 200 and r.json()["finds"][0]["code"] is None and r.json()["finds"][0]["drop"]["to"] == 60.0
+    pages.pages[SHIRT] = shirt_page("60.00", banner="<p>30% off with code TEST30</p>")
+    assert check(client, wid)["code"]["code"] == "TEST30"
+    client.delete(f"/api/wishlist/{wid}/finds/{fid}/code")
+    assert check(client, wid)["code"] is None
+    pages.pages[SHIRT] = shirt_page("60.00", banner="<p>35% off with code TEST35</p>")
+    assert check(client, wid)["code"]["code"] == "TEST35"   # another code is
+
+
+def test_a_code_that_does_not_fit_is_refused_with_a_sentence(client, pages, usable):
+    wid = add_link(client, SHIRT)
+    fid = client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["id"]
+    path = f"/api/wishlist/{wid}/finds/{fid}/code"
+    for body, sentence in (({"code": "a b", "percent": 20}, shop.BAD_CODE),
+                           ({"code": "TEST20", "percent": 20, "amount": 5}, shop.ONE_DISCOUNT),
+                           ({"code": "TEST20"}, shop.ONE_DISCOUNT),
+                           ({"code": "TEST95", "percent": 95}, shop.BAD_PERCENT),
+                           ({"code": "TAKE68", "amount": 68}, shop.BAD_AMOUNT)):
+        r = client.put(path, json=body)
+        assert r.status_code == 422 and r.json()["detail"] == sentence, body
+    assert client.put(path, json={"code": "TEST20", "percent": 20, "by": "page"}).status_code == 422
+    assert client.put(path, json={"percent": 20}).status_code == 422
+    assert client.put(f"/api/wishlist/{wid}/finds/nope/code", json={"code": "TEST20", "percent": 20}).status_code == 404
+    assert client.put(f"/api/wishlist/nope/finds/{fid}/code", json={"code": "TEST20", "percent": 20}).status_code == 404
+    assert client.delete(f"/api/wishlist/{wid}/finds/nope/code").status_code == 404
+    find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert find["code"] is None and len(find["history"]) == 1   # nothing kept
+    assert client.delete(path).status_code == 200   # no code to remove: nothing happens
+
+    # a find whose price is not known yet takes a percent, not an amount
+    usable["routes"] = ()
+    plain = add_link(client, PLAIN)
+    pid = client.get(f"/api/wishlist/{plain}/finds").json()["finds"][0]["id"]
+    r = client.put(f"/api/wishlist/{plain}/finds/{pid}/code", json={"code": "TAKE10", "amount": 10})
+    assert r.status_code == 422 and r.json()["detail"] == shop.NO_PRICE_YET
+    r = client.put(f"/api/wishlist/{plain}/finds/{pid}/code", json={"code": "TEST10", "percent": 10})
+    assert r.json()["finds"][0]["code"]["code"] == "TEST10" and r.json()["finds"][0]["with_code"] is None
+    assert r.json()["finds"][0]["history"] == []
+
+
+def test_a_code_typed_in_the_demo_closet_marks_nothing_seen(client, pages, cfg):
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    wid = add_link(client, SHIRT)
+    fid = client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["id"]
+    assert client.put(f"/api/wishlist/{wid}/finds/{fid}/code", json={"code": "TEST20", "percent": 20}).status_code == 200
+    conn = db.connect(cfg.db_path("demo"))
+    try:
+        assert conn.execute("SELECT news_seen_at FROM wishes WHERE id = ?", (wid,)).fetchone()[0] is None
+    finally:
+        conn.close()
+
+
+def test_claude_may_give_the_code_a_page_shows_and_one_that_does_not_fit_is_dropped_alone(client, fake_shop, pages):
+    wid = wish(client)
+    find_some(client, wid)
+    fake_shop.prices_seen = [
+        PriceSeen(url=COAT, price=120.0, currency="USD", available=True, code="test40", code_percent=40),
+        PriceSeen(url=NAVY, price=240.0, currency="USD", available=True, code="SALE", code_percent=30)]
+    body = check_all(client, wid)
+    assert (body[COAT]["code"]["code"], body[COAT]["code"]["by"], body[COAT]["with_code"]) == ("TEST40", "claude", 72.0)
+    assert body[COAT]["drop"] == {"from": 120.0, "to": 72.0, "currency": "USD", "percent": 40, "code": "TEST40"}
+    assert body[NAVY]["price"] == 240.0 and body[NAVY]["code"] is None   # not a code: dropped, the price kept
+
+    # an amount off that is not less than the price, or both kinds of discount: dropped; Claude's code goes with it
+    fake_shop.prices_seen = [
+        PriceSeen(url=COAT, price=120.0, currency="USD", available=True, code="TAKE200", code_amount=200),
+        PriceSeen(url=NAVY, price=240.0, currency="USD", available=True, code="TEST10", code_percent=10, code_amount=5)]
+    body = check_all(client, wid)
+    assert body[COAT]["code"] is None and body[NAVY]["code"] is None and body[COAT]["price"] == 120.0
+
+    # never in place of a code you typed
+    client.put(f"/api/wishlist/{wid}/finds/{body[COAT]['id']}/code", json={"code": "TEST15", "percent": 15})
+    fake_shop.prices_seen = [PriceSeen(url=COAT, price=120.0, currency="USD", available=True, code="TEST40",
+                                       code_percent=40)]
+    assert check_all(client, wid)[COAT]["code"]["code"] == "TEST15"
+
+
+def test_a_code_nines_read_on_the_page_is_kept_over_claudes_and_claudes_goes_once_nines_can_read_the_price(
+        client, fake_shop, pages):
+    # the page gives no price but shows a code: Nines keeps the code, Claude reads the price
+    pages.pages[PLAIN] = "<html><head><title>A plain shirt</title></head><body><p>40% off with code TEST40</p></body></html>"
+    fake_shop.prices_seen = [PriceSeen(url=PLAIN, price=80.0, currency="USD", available=True, code="OTHER30",
+                                       code_percent=30)]
+    wid = add_link(client, PLAIN)
+    find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert (find["code"]["code"], find["code"]["by"], find["price"], find["with_code"]) == ("TEST40", "page", 80.0, 48.0)
+
+    # no code in its text any more: Claude's is kept
+    pages.pages[PLAIN] = "<html><head><title>A plain shirt</title></head><body></body></html>"
+    find = check(client, wid)
+    assert (find["code"]["code"], find["code"]["by"], find["with_code"]) == ("OTHER30", "claude", 56.0)
+    # the page gives its price now and shows no code: Claude is not asked, so its code goes
+    pages.pages[PLAIN] = shirt_page("80.00", "A plain shirt")
+    calls = len(fake_shop.calls)
+    find = check(client, wid)
+    assert find["code"] is None and len(fake_shop.calls) == calls
+
+
+def test_the_price_check_asks_for_a_code_anyone_can_use_in_optional_fields_on_both_routes(monkeypatch):
+    from anthropic.lib._parse._transform import transform_schema
+    text = shopping.price_prompt([{"url": COAT, "name": "Coat", "shop": "Example Shop", "price": 120.0, "currency": "USD"}])
+    assert "a code to enter at checkout" in text and "before any code" in text and "Never make up a code" in text
+    assert all(words in text for words in ('"up to"', "first order", "new customers", "signing up", "newsletter",
+                                           "the app", "members"))
+    item = transform_schema(PriceAnswer)["$defs"]["PriceSeen"]
+    assert set(item["required"]) == {"url", "price", "currency", "available"}
+    assert {"code", "code_percent", "code_amount"} <= set(item["properties"])
+    assert PriceAnswer.model_validate({"prices": [{"url": COAT, "price": 1, "currency": "USD", "available": True}]})
+
+    # the plan route: the same form on the command line, and a code read back from its answer
+    seen = {}
+
+    def run(cmd, **kw):
+        seen["cmd"] = cmd
+        answer = {"prices": [{"url": COAT, "price": 99.0, "currency": "USD", "available": True, "code": "TEST40",
+                              "code_percent": 40}]}
+        return SimpleNamespace(returncode=0, stderr="", stdout=json.dumps(
+            {"structured_output": answer, "usage": {"input_tokens": 10, "output_tokens": 5}}))
+    monkeypatch.setattr(correcting.subprocess, "run", run)
+    answer = shopping.prices([{"url": COAT, "name": "Coat", "shop": "Shop", "price": 120.0, "currency": "USD"}], ("plan",),
+                             exe="claude")
+    assert (answer.prices[0].code, answer.prices[0].code_percent) == ("TEST40", 40.0)
+    sent = json.loads(seen["cmd"][seen["cmd"].index("--json-schema") + 1])
+    assert set(sent["$defs"]["PriceSeen"]["required"]) == set(item["required"])
+
+    # the API route: the same form as a strict tool
+    api = FakeSearchApi([{"prices": [{"url": COAT, "price": 99.0, "currency": "USD", "available": True}]}])
+    result = shopping.ask_api(api, shopping.MODEL, "check a price", PriceAnswer, 1)
+    tool = api.requests[0]["tools"][1]
+    assert tool["strict"] is True and tool["input_schema"]["$defs"]["PriceSeen"] == item
+    assert result.answer.prices[0].code is None
+
+
+def test_the_estimate_still_covers_a_price_check_that_may_give_codes():
+    from anthropic.lib._parse._transform import transform_schema
+    finds = [{"url": "https://shop.example/" + "p" * (shop.URL_MAX - 21), "name": "n" * shop.NAME_MAX,
+              "shop": "s" * shop.SHOP_MAX, "price": shop.PRICE_MAX, "currency": "USD"}] * shop.PRICE_FINDS_MAX
+    asked = shopping.price_prompt(finds) + shopping.SYSTEM + json.dumps(transform_schema(PriceAnswer))
+    # 2 characters to a token: the longest price check asks in a tenth of what the estimate allows for the pages read
+    assert len(asked) / 2 <= spend.SHOP_INPUT_TOKENS / 10
+    # the answer with every price and a code, for pages with addresses of a usual length, in the longest answer allowed
+    answer = PriceAnswer(prices=[PriceSeen(url="https://shop.example/" + "p" * 200, price=shop.PRICE_MAX, currency="USD",
+                                           available=True, code="C" * 30, code_percent=12.5)] * shop.PRICE_FINDS_MAX)
+    assert len(answer.model_dump_json()) / 2 <= shopping.MAX_TOKENS / 2
+
+
+def test_migration_0046_leaves_every_find_without_a_code(tmp_path):
+    path = tmp_path / "closet.db"
+    conn = db.connect(path)
+    for version, migration in db.migration_files():
+        if version < 46:
+            conn.executescript(migration.read_text(encoding="utf-8"))
+            conn.execute(f"PRAGMA user_version = {version}")
+    wid = wish_row(conn)
+    find_row(conn, wid, [100.0, 80.0])
+    conn.close()
+    assert db.migrate(path, tmp_path / "backups")["applied"][0] == 46   # and any later ones
+    conn = db.connect(path)
+    try:
+        find, = shop.list_finds(conn, wid)
+        assert find["code"] is None and find["with_code"] is None
+        assert find["drop"] == {"from": 100.0, "to": 80.0, "currency": "USD", "percent": 20}
+        assert [(h["with_code"], h["code"]) for h in find["history"]] == [(None, None), (None, None)]
+        assert [n["to"] for n in shop.news(conn)] == [80.0]
+    finally:
+        conn.close()

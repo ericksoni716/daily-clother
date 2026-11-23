@@ -5,11 +5,11 @@ import { StepMark } from '../components/Progress';
 import { WorkingLine } from '../components/WorkingLine';
 import { Button, buttonClass, EmptyState, Failed, PageHeader, SegmentedControl, Sheet } from '../components/ui';
 import { gridViewOf, smallPicture, useShowDrawings, type GridView, type MomentView } from '../drawing';
-import { setLaundryMany } from '../laundry';
+import { cleanAll, putBack, type Cleaned } from '../laundry';
 import { groupsIn, groupTitle, kindsOf, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { goBack, itemPath, Link, navigate } from '../router';
-import { columnsFor } from '../closet';
+import { columnsFor, emptySentence, laundryNotice, laundryPart } from '../closet';
 import { progressOf } from '../progress';
 import { itemSaved, itemsQuery, progressQuery, reviewQuery, useVocab } from '../queries';
 import { useApp } from '../store';
@@ -114,10 +114,37 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   // a piece away is said under away, not under the laundry (it is not in the basket at home)
   const inLaundry = useMemo(() => (list ?? []).filter((it) => it.laundry === 'laundry' && !it.away), [list]);
   const awayNow = useMemo(() => (list ?? []).filter((it) => it.away), [list]);
+  // what "All clean" just washed, to put back with Undo while the laundry is shown
+  const [cleaned, setCleaned] = useState<Cleaned['undo'] | null>(null);
+  const laundryOn = activeLaundry === 'laundry';
+  useEffect(() => {
+    if (!laundryOn) setCleaned(null);
+  }, [laundryOn]);
+  const laundryAction = useRef<HTMLButtonElement>(null);
+  const [focusAction, setFocusAction] = useState(false);
+  useEffect(() => {
+    if (!focusAction) return;
+    setFocusAction(false);
+    laundryAction.current?.focus();
+  }, [focusAction]);
   const allClean = (pieces: ItemSummary[]) => {
     setWashing(true);
-    void setLaundryMany(pieces.map((it) => it.id), 'clean', (item) => itemSaved(qc, item, 'laundry'))
-      .then((failed) => toast(failed ? `${failed} could not be marked clean. Try again.` : `${pieces.length === 1 ? 'Marked' : `All ${pieces.length} marked`} clean`, failed ? 'error' : 'ok'))
+    void cleanAll(pieces.map((it) => it.id), (item) => itemSaved(qc, item, 'laundry'))
+      .then(({ failed, undo }) => {
+        if (failed) toast(`${failed} could not be marked clean. Try again.`, 'error');
+        if (undo.length) setCleaned(undo);
+        setFocusAction(true);
+      })
+      .finally(() => setWashing(false));
+  };
+  const undoClean = (undo: Cleaned['undo']) => {
+    setWashing(true);
+    void putBack(undo, (item) => itemSaved(qc, item, 'laundry'))
+      .then((failed) => {
+        if (failed) toast(`${failed} could not be put back in the laundry. Put ${failed === 1 ? 'it' : 'them'} back from ${failed === 1 ? 'its' : 'their'} page.`, 'error');
+        setCleaned(null);
+        setFocusAction(true);
+      })
       .finally(() => setWashing(false));
   };
   const panel = wide && selectedId !== null;
@@ -192,9 +219,8 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
         count={list && !empty && (shown.length === list.length ? `${list.length} ${list.length === 1 ? 'item' : 'items'}` : `${shown.length} of ${list.length}`)} />
 
       {status === 'active' && list && (
-        <StatusLine toCheck={offline ? 0 : toReview ?? 0} inLaundry={inLaundry} checking={activeCheck} washing={activeLaundry === 'laundry'}
-          busy={washing} offline={offline} onCheck={() => setCheck(!activeCheck)}
-          onLaundry={() => setLaundry(activeLaundry === 'laundry' ? null : 'laundry')} onAllClean={allClean}
+        <StatusLine toCheck={offline ? 0 : toReview ?? 0} inLaundry={inLaundry.length} checking={activeCheck} washing={laundryOn}
+          onCheck={() => setCheck(!activeCheck)} onLaundry={() => setLaundry(laundryOn ? null : 'laundry')}
           away={awayNow} awayOn={activeAway} onAway={() => setAway(!activeAway)} />
       )}
       {status === 'active' && <WorkingLine />}
@@ -268,6 +294,24 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
               )}
             </ul>
           )}
+          {status === 'active' && activeCheck && (toReview ?? 0) > 0 && (
+            <p className="closet-next" data-testid="review-notice">
+              <span className="muted">Claude wasn't sure of a detail on {toReview === 1 ? 'this piece' : 'these'}.</span>
+              <Link to="/review" className={buttonClass({ small: true })}>Check them one at a time</Link>
+            </p>
+          )}
+          {status === 'active' && laundryOn && (cleaned || inLaundry.length > 0) && (
+            <p className="closet-next" data-testid="laundry-notice">
+              <span className="muted">{laundryNotice(inLaundry.length, cleaned ? cleaned.length : null)}</span>
+              {cleaned ? (
+                <button ref={laundryAction} type="button" className={buttonClass({ small: true })} disabled={washing || offline} title={offline ? "You're offline" : undefined}
+                  onClick={() => undoClean(cleaned)}>{washing ? 'Putting back…' : 'Undo'}</button>
+              ) : (
+                <button ref={laundryAction} type="button" className={buttonClass({ small: true })} disabled={washing || offline} title={offline ? "You're offline" : undefined}
+                  onClick={() => allClean(inLaundry)}>{washing ? 'Marking clean…' : 'All clean'}</button>
+              )}
+            </p>
+          )}
         </>
       ) : null}
 
@@ -278,8 +322,9 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
 
       {list && !empty && (
         shown.length === 0 ? (
-          <div className="empty"><p className="muted">{activeCheck && toCheck.size === 0 ? 'Nothing needs a check now.'
-            : activeAway && awayNow.length === 0 ? 'Everything is in your closet.' : 'Nothing matches. Try another word or filter.'}</p></div>
+          <div className="empty"><p className="muted">{emptySentence({ check: activeCheck, toCheck: toCheck.size, away: activeAway,
+            awayNow: awayNow.length, laundry: laundryOn, inLaundry: inLaundry.length, searching: !!query.trim(),
+            what: !!(activeCategory || activeGroup || activeKind) })}</p></div>
         ) : activeAway ? (
           <AwayView pieces={shown} returned={returned} offline={offline} saved={(item) => itemSaved(qc, item, 'away')}
             failed={(m) => toast(m, 'error')}
@@ -320,17 +365,16 @@ const NEEDS_CHECK = 'Needs a check';
 const AWAY = 'Away';
 
 /**
- * One line over the grid for what wants seeing to: how many pieces need a quick check and how many are in the
- * laundry. Each part shows only those pieces; then the first offers to check them one at a time (the review) and the
- * second to mark them all clean.
+ * One line over the grid for what wants seeing to: how many pieces need a quick check, how many are in the laundry and
+ * how many are away. Each part shows only those pieces; what to do with them (check them one at a time, mark them all
+ * clean) is said under the toolbar, so showing them puts nothing in above the search.
  */
-function StatusLine({ toCheck, inLaundry, checking, washing, busy, offline, onCheck, onLaundry, onAllClean, away, awayOn, onAway }: {
-  toCheck: number; inLaundry: ItemSummary[]; checking: boolean; washing: boolean; busy: boolean; offline: boolean;
-  onCheck(): void; onLaundry(): void; onAllClean(pieces: ItemSummary[]): void;
+function StatusLine({ toCheck, inLaundry: n, checking, washing, onCheck, onLaundry, away, awayOn, onAway }: {
+  toCheck: number; inLaundry: number; checking: boolean; washing: boolean; onCheck(): void; onLaundry(): void;
   away: ItemSummary[]; awayOn: boolean; onAway(): void;
 }) {
-  const n = inLaundry.length;
-  if (!toCheck && !n && !checking && !away.length && !awayOn) return null;
+  const laundry = n > 0 || washing;
+  if (!toCheck && !laundry && !checking && !away.length && !awayOn) return null;
   return (
     <div className="closet-status" data-testid="closet-status">
       <p className="closet-status-line">
@@ -340,16 +384,16 @@ function StatusLine({ toCheck, inLaundry, checking, washing, busy, offline, onCh
             {toCheck} to check
           </button>
         )}
-        {(toCheck > 0 || checking) && n > 0 && <span aria-hidden="true"> · </span>}
-        {n > 0 && (
+        {(toCheck > 0 || checking) && laundry && <span aria-hidden="true"> · </span>}
+        {laundry && (
           <button type="button" className={`btn btn-link closet-status-part${washing ? ' is-on' : ''}`} aria-pressed={washing}
             data-testid="in-laundry" onClick={onLaundry}>
-            {n} in the laundry
+            {laundryPart(n)}
           </button>
         )}
         {(away.length > 0 || awayOn) && (
-          <span className={`closet-status-group${toCheck > 0 || checking || n > 0 ? ' is-own-line' : ''}`}>
-            {(toCheck > 0 || checking || n > 0) && <span className="closet-status-dot" aria-hidden="true"> · </span>}
+          <span className={`closet-status-group${toCheck > 0 || checking || laundry ? ' is-own-line' : ''}`}>
+            {(toCheck > 0 || checking || laundry) && <span className="closet-status-dot" aria-hidden="true"> · </span>}
             <button type="button" className={`btn btn-link closet-status-part${awayOn ? ' is-on' : ''}`} aria-pressed={awayOn}
               data-testid="away" onClick={onAway}>
               {awayPart(away)}
@@ -357,20 +401,6 @@ function StatusLine({ toCheck, inLaundry, checking, washing, busy, offline, onCh
           </span>
         )}
       </p>
-      {checking && toCheck > 0 && (
-        <p className="closet-status-next" data-testid="review-notice">
-          <span className="muted">Claude wasn't sure of a detail on {toCheck === 1 ? 'this piece' : 'these'}.</span>
-          <Link to="/review" className={buttonClass({ small: true })}>Check them one at a time</Link>
-        </p>
-      )}
-      {washing && n > 0 && (
-        <p className="closet-status-next" data-testid="laundry-notice">
-          <span className="muted">{n === 1 ? 'This piece is' : `These ${n} pieces are`} in the laundry.</span>
-          <Button small disabled={busy || offline} title={offline ? "You're offline" : undefined} onClick={() => onAllClean(inLaundry)}>
-            {busy ? 'Marking clean…' : 'All clean'}
-          </Button>
-        </p>
-      )}
     </div>
   );
 }

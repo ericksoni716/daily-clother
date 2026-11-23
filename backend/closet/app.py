@@ -561,6 +561,8 @@ class OutfitRating(BaseModel):
 
 class LaundryState(BaseModel):
     state: str
+    # what marking it clean answered, sent back with "laundry" to put it back as it was (`wears.set_laundry`)
+    undo: object = None
 
 
 class AwayChoice(BaseModel):
@@ -1128,7 +1130,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
 
     @app.post("/api/items/{item_id}/laundry")
     def set_laundry(item_id: str, body: LaundryState, conn=Depends(conn_dep)):
-        return wears.set_laundry(conn, item_id, body.state)
+        return wears.set_laundry(conn, item_id, body.state, body.undo)
 
     # where a piece is: away at the cleaner's, at the tailor's or lent out, and back (`away.py`)
     @app.put("/api/items/{item_id}/away")

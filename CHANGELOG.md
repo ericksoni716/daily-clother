@@ -199,6 +199,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **All clean can be undone.** After **All clean** the closet says how many pieces you marked clean,
+  with **Undo**, which puts each one back in the laundry as it was (with the wears it had since its
+  wash, so the laundry day still washes it when it would have). With the laundry shown and nothing
+  in it, the closet now says "Your laundry is empty." instead of "Nothing matches". Showing the
+  laundry no longer puts a line in above the search: what to do with those pieces is said under it.
 - **Opening a piece on a computer keeps the closet still.** The grid keeps as many pieces to a row
   as before and the piece you chose stays where it was on the screen, instead of the grid folding to
   three across and showing other clothes. The panel has **Close**, Escape closes it, and Back closes

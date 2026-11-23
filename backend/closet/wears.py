@@ -355,17 +355,62 @@ def remove_many(conn, item_ids: object, worn_on: object, also: Also | None = Non
     return {"worn_on": day, "removed": removed, "items": [items.detail(conn, items.get(conn, i)) for i in ids]}
 
 
-def set_laundry(conn, item_id: str, state: str) -> dict:
-    """Put an item in the laundry, or mark it clean (which starts its count of wears since the wash again)."""
+# what marking a piece clean changes, kept in the answer so the closet's "All clean" can put each piece back as it was
+_WASHED = ("wears_since_wash", "washed_at", "laundry_at", "laundry_by")
+_STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[.\dZ+:-]{0,16}")
+
+
+def _restore_of(undo) -> tuple[str, dict]:
+    """The wash an undo answers (its time) and what it changed, checked: an undo is what `set_laundry` answered."""
+    bad = items.ItemError("That cannot be undone: the undo is not one Nines gave.")
+    if not isinstance(undo, dict) or not isinstance(undo.get("washed_at"), str) or not _STAMP.fullmatch(undo["washed_at"]):
+        raise bad
+    before = undo.get("before")
+    if not isinstance(before, dict) or set(before) != set(_WASHED):
+        raise bad
+    count = before["wears_since_wash"]
+    if not isinstance(count, int) or isinstance(count, bool) or not 0 <= count <= 100_000:
+        raise bad
+    for f in ("washed_at", "laundry_at"):
+        if before[f] is not None and not (isinstance(before[f], str) and _STAMP.fullmatch(before[f])):
+            raise bad
+    if before["laundry_by"] not in (None, "auto", "owner"):
+        raise bad
+    return undo["washed_at"], before
+
+
+def set_laundry(conn, item_id: str, state: str, undo=None) -> dict:
+    """Put an item in the laundry, or mark it clean (which starts its count of wears since the wash again).
+
+    Marking a piece in the laundry clean answers with `undo`: the time of that wash and what it changed. Sent back with
+    `state` "laundry", it puts the piece back in the laundry as it was (when it went in, and who put it there, which
+    the laundry day and undoing a wear read), with the wears since the wash added to its count. A piece washed again
+    since cannot be put back that way (409); one already back in the laundry is left as it is."""
     items.get(conn, item_id)
     if state not in LAUNDRY:
         raise items.ItemError("The laundry state must be clean or laundry.")
+    if undo is not None and state != "laundry":
+        raise items.ItemError("Only a piece marked clean can be put back in the laundry.")
+    restore = _restore_of(undo) if undo is not None else None
+    given = None
     try:
         conn.execute("BEGIN IMMEDIATE")
         t = db.now()
+        row = items.get(conn, item_id)   # read under the write lock
         if state == "clean":
+            if row["laundry"] == "laundry":
+                given = {"washed_at": t, "before": {f: row[f] for f in _WASHED}}
             conn.execute("UPDATE items SET laundry = 'clean', wears_since_wash = 0, washed_at = ?, laundry_at = NULL, "
                          "laundry_by = NULL, updated_at = ? WHERE id = ?", (t, t, item_id))
+        elif restore is not None:
+            washed, before = restore
+            if row["laundry"] != "laundry":
+                if row["washed_at"] != washed:
+                    raise items.ItemError("It has been marked clean again since, so it cannot be put back that way.", 409)
+                conn.execute("UPDATE items SET laundry = 'laundry', wears_since_wash = ?, washed_at = ?, laundry_at = ?, "
+                             "laundry_by = ?, updated_at = ? WHERE id = ?",
+                             (before["wears_since_wash"] + row["wears_since_wash"], before["washed_at"], before["laundry_at"],
+                              before["laundry_by"], t, item_id))
         else:
             conn.execute("UPDATE items SET laundry = 'laundry', laundry_at = ?, laundry_by = 'owner', updated_at = ? "
                          "WHERE id = ? AND laundry != 'laundry'", (t, t, item_id))
@@ -374,4 +419,7 @@ def set_laundry(conn, item_id: str, state: str) -> dict:
         if conn.in_transaction:
             conn.execute("ROLLBACK")
         raise
-    return items.detail(conn, items.get(conn, item_id))
+    out = items.detail(conn, items.get(conn, item_id))
+    if given is not None:
+        out["undo"] = given
+    return out

@@ -78,6 +78,57 @@ def test_laundry_state_and_marking_clean_resets_the_count(client):
     assert client.post("/api/items/nope/laundry", json={"state": "clean"}).status_code == 404
 
 
+def test_marking_clean_can_be_undone_and_puts_the_piece_back_as_it_was(client, cfg):
+    item = upload(client).json()
+    url = f"/api/items/{item['id']}"
+    client.post(f"{url}/wears", json={"worn_on": days_ago(3)})
+    client.post(f"{url}/wears", json={"worn_on": days_ago(2)})
+    client.post(f"{url}/laundry", json={"state": "laundry"})
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        # it went in by itself a while ago (the laundry day and undoing a wear read both), and was washed before that
+        conn.execute("UPDATE items SET laundry_at = '2026-11-09T10:00:00.000000Z', laundry_by = 'auto', "
+                     "washed_at = '2026-11-01T08:00:00.000000Z' WHERE id = ?", (item["id"],))
+        before = dict(conn.execute("SELECT wears_since_wash, washed_at, laundry_at, laundry_by FROM items WHERE id = ?",
+                                   (item["id"],)).fetchone())
+    finally:
+        conn.close()
+    clean = client.post(f"{url}/laundry", json={"state": "clean"}).json()
+    assert clean["laundry"] == "clean" and clean["undo"]["before"] == before
+    back = client.post(f"{url}/laundry", json={"state": "laundry", "undo": clean["undo"]})
+    assert back.status_code == 200 and back.json()["laundry"] == "laundry" and "undo" not in back.json()
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        after = dict(conn.execute("SELECT wears_since_wash, washed_at, laundry_at, laundry_by FROM items WHERE id = ?",
+                                  (item["id"],)).fetchone())
+    finally:
+        conn.close()
+    assert after == before
+    # already back in the laundry: left as it is
+    assert client.post(f"{url}/laundry", json={"state": "laundry", "undo": clean["undo"]}).json()["laundry"] == "laundry"
+    # a piece that was clean already gives nothing to undo
+    client.post(f"{url}/laundry", json={"state": "clean"})
+    assert "undo" not in client.post(f"{url}/laundry", json={"state": "clean"}).json()
+
+
+def test_undoing_a_wash_is_refused_once_it_was_washed_again_or_when_it_is_not_one_nines_gave(client):
+    item = upload(client).json()
+    url = f"/api/items/{item['id']}/laundry"
+    client.post(url, json={"state": "laundry"})
+    first = client.post(url, json={"state": "clean"}).json()["undo"]
+    client.post(url, json={"state": "laundry"})
+    client.post(url, json={"state": "clean"})
+    again = client.post(url, json={"state": "laundry", "undo": first})
+    assert again.status_code == 409 and "marked clean again" in again.json()["detail"]
+    assert client.get(f"/api/items/{item['id']}").json()["laundry"] == "clean"
+    for bad in ({"washed_at": "yesterday", "before": first["before"]}, {"washed_at": first["washed_at"]},
+                {**first, "before": {**first["before"], "laundry_by": "someone"}},
+                {**first, "before": {**first["before"], "wears_since_wash": -1}}, "undo"):
+        r = client.post(url, json={"state": "laundry", "undo": bad})
+        assert r.status_code == 422 and "not one Nines gave" in r.json()["detail"]
+    assert client.post(url, json={"state": "clean", "undo": first}).status_code == 422
+
+
 def test_the_laundry_filter(client):
     a = upload(client, key="a", name="Shirt").json()
     upload(client, photo_bytes(color=(20, 90, 160)), key="b", name="Jeans")   # another photo: the same one is not added twice

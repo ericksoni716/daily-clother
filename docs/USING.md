@@ -154,7 +154,9 @@ then. One line over the grid says what wants seeing to: "5 to
 check · 4 in the laundry" (to check: the pieces added and not checked yet, and those with a
 detail Claude was unsure of). Each part shows only those pieces, as a chip that removes
 itself: "Needs a check" then offers "Check them one at a time" (the review), and "In the
-laundry" offers "All clean". When pieces are away (at the cleaner's, at the tailor's, lent out), the
+laundry" offers "All clean", each in a line under the search. After "All clean" that line says how
+many you marked clean, with **Undo**, which puts each piece back in the laundry as it was; the
+grid then says "Your laundry is empty." When pieces are away (at the cleaner's, at the tailor's, lent out), the
 line says how many, and how many are past the day you expected them back ("2 away, 1 expected
 back"); on a phone that part has a line of its own under the others. It shows those pieces as a
 list, soonest back first, each saying where it is and when it is expected ("Expected back on Friday

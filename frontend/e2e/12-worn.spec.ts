@@ -121,7 +121,9 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
   const notice = page.getByTestId('laundry-notice');
   await notice.getByRole('button', { name: 'All clean' }).click();
   await expect.poll(async () => (await washing()).length).toBe(0);
-  await expect(notice).toHaveCount(0);
+  // the line under the toolbar now says what was done, with Undo (08-wears), rather than going away
+  await expect(notice.getByRole('button', { name: 'Undo' })).toBeVisible();
+  await page.getByRole('button', { name: 'Remove filter: In the laundry' }).click();
   for (const id of before) await page.request.post(`/api/items/${id}/laundry`, { data: { state: 'laundry' } });   // as the rest of this test left them
 
   // Today changes because of the rating: on a day like this one, it dresses the owner a little warmer

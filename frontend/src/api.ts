@@ -1,4 +1,4 @@
-import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, PlainBox, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk, Shops, SizeKind, Sizes, AwayPlace } from './types';
+import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, LaundryUndo, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, PlainBox, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk, Shops, SizeKind, Sizes, AwayPlace } from './types';
 import { forgetSaved, type DayAnswer, type RememberHow, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -200,8 +200,9 @@ export const api = {
   rateOutfit: (id: string, rating: Rating | null, reasons: Reason[] = [], note?: string | null) =>
     request<WornOutfit>(`/api/outfits/worn/${encodeURIComponent(id)}/rating`, { method: 'PUT', body: { rating, reasons, note: note || null } }),
   removeOutfit: (id: string) => request<void>(`/api/outfits/worn/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  setLaundry: (id: string, state: Laundry) =>
-    request<Item>(`/api/items/${encodeURIComponent(id)}/laundry`, { method: 'POST', body: { state } }),
+  /** Marking a piece in the laundry clean answers with `undo`; sent back with "laundry", it puts the piece back as it was. */
+  setLaundry: (id: string, state: Laundry, undo?: LaundryUndo) =>
+    request<Item & { undo?: LaundryUndo }>(`/api/items/${encodeURIComponent(id)}/laundry`, { method: 'POST', body: undo ? { state, undo } : { state } }),
   /** Send a piece away (or change where it is, the day it is expected back, the note). */
   sendAway: (id: string, choice: { place: AwayPlace; until?: string | null; note?: string | null }) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/away`, { method: 'PUT', body: choice }),

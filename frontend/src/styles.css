@@ -587,7 +587,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .closet-status-line { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
 .closet-status-part { padding: 0; font-size: var(--text-sm); font-weight: var(--weight-label); }
 .closet-status-part.is-on { text-decoration-thickness: 2px; color: var(--ink); }
-.closet-status-next { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-2) 0 0; font-size: var(--text-sm); }
+/* what to do with the pieces a part of that line shows: under the toolbar, so showing them puts nothing in above it */
+.closet-next { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); font-size: var(--text-sm); }
 
 /* ---------------------------------------------------------------- shared components (components/ui) */
 /* :where() keeps these at no weight, so a screen's own class can still set size and padding. */

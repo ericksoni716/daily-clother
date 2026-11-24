@@ -54,23 +54,27 @@ def rules() -> outfit_rules.Rules:
 # hash by value (an edited piece is a new key), and nothing about the day but the occasion is read. The rules are read
 # by every one of them, so the tables belong to the rules object in force, which they hold on to: swapping the rules
 # (`outfit_rules.use`, or setting `outfit_rules.RULES`) starts empty tables. A Rules is never changed in place; make a
-# new one. A table is emptied once it holds MEMO_MAX answers (about 25 MB at most each), so a program running for weeks
-# keeps a bounded memory and answers about pieces since edited age out. Plain dicts: a lookup or a store is one step
+# new one. A table is emptied once it holds MEMO_MAX answers ("pieces" at PIECES_MAX), so a program running for weeks keeps
+# a bounded memory, about 50 MB with every table full (measured below), and answers about pieces since edited age out. Plain dicts: a lookup or a store is one step
 # for the interpreter, so the threads that run looks, searches and requests side by side never see half a table.
-MEMO_MAX = 200_000
+MEMO_MAX = 64_000      # answers per table; measured 24 November, full: about 20 MB (search_problems, about 320 bytes
+                       # an answer), 14 MB (style, 220) and 16 MB (outfit_problems, 260); one five-find judge on the demo
+                       # closet asks for at most about 56,000 in one table
+PIECES_MAX = 2_000     # pieces in "pieces" (about 1.1 KB each with the piece itself): far more than a closet holds
 _memo_state: tuple[object, dict[str, dict]] = (None, {})
 MEMO_WORKED_OUT: dict[str, int] = {}   # answers worked out rather than remembered, by table (for the tests)
 
 
-def _memo(name: str) -> dict:
-    """The table of remembered answers called `name`, for the rules in force."""
+def _memo(name: str, limit: int | None = None) -> dict:
+    """The table of remembered answers called `name`, for the rules in force, emptied once it holds `limit` answers
+    (MEMO_MAX when not given)."""
     global _memo_state
     r = rules()
     state = _memo_state
     if state[0] is not r:
         state = _memo_state = (r, {})
     table = state[1].get(name)
-    if table is None or len(table) >= MEMO_MAX:
+    if table is None or len(table) >= (MEMO_MAX if limit is None else limit):
         table = state[1][name] = {}
     return table
 
@@ -515,7 +519,7 @@ def _piece(item: dict) -> Piece | None:
 
 def _one_of(p: Piece) -> Piece:
     """The one Piece object for pieces equal to `p`, so the remembered answers' keys compare by identity first."""
-    return _memo("pieces").setdefault(p, p)
+    return _memo("pieces", PIECES_MAX).setdefault(p, p)
 
 
 def _for_sport(item: dict) -> bool:

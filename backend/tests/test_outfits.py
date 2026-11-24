@@ -833,7 +833,7 @@ def test_a_changed_answer_cannot_change_what_is_remembered():
 def suggest_plain(monkeypatch, *args):
     """`suggest` remembering nothing: every table is a new, empty one."""
     with monkeypatch.context() as m:
-        m.setattr(outfits, "_memo", lambda name: {})
+        m.setattr(outfits, "_memo", lambda name, limit=None: {})
         return outfits.suggest(*args)
 
 
@@ -910,10 +910,12 @@ def test_swapping_the_rules_is_followed_at_once_with_nothing_stale_served():
 def test_the_tables_stay_bounded_and_answer_the_same_when_emptied(monkeypatch):
     outfits.forget()
     monkeypatch.setattr(outfits, "MEMO_MAX", 50)
+    monkeypatch.setattr(outfits, "PIECES_MAX", 10)
     closet = basic_closet() + candidate_items()[:6]
     for ctx in GRID[::8]:
         assert outfits.suggest(closet, ctx, 3) == suggest_plain(monkeypatch, closet, ctx, 3)
-        assert all(len(t) <= 50 for t in outfits._memo_state[1].values())
+        tables = outfits._memo_state[1]
+        assert all(len(t) <= 50 for t in tables.values()) and len(tables["pieces"]) <= 10
 
 
 def test_threads_asking_at_once_get_the_answers_one_thread_gets(monkeypatch):

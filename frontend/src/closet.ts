@@ -160,6 +160,31 @@ export function shortName(name: string, max: number): string {
   return `${kept}…`;
 }
 
+/**
+ * A piece's name as a narrow tile shows it on two lines: whole when its words fit two lines `width` wide (as the page
+ * breaks them, between words), else cut after the last whole word that fits on the second line with "…". `measure`
+ * gives a text's width in the tile's font. Larger tiles beside a piece's panel on a computer are narrow, so their
+ * names take two lines there, as small tiles' do, rather than one line cut in the middle of a word.
+ */
+export function twoLineName(name: string, width: number, measure: (text: string) => number): string {
+  const words = name.replace(/\s+/g, ' ').trim().split(' ');
+  const fits = (text: string) => measure(text) <= width;
+  const trim = (text: string) => text.replace(/[\s,;:·–-]+$/u, '');
+  // a first word too long for a line is broken by the page over both lines: nothing else fits after it
+  if (!fits(words[0])) return words.length > 1 ? `${trim(words[0])}…` : words[0];
+  // the first line: as many words as fit
+  let first = 1;
+  while (first < words.length && fits(words.slice(0, first + 1).join(' '))) first++;
+  let second = first;
+  while (second < words.length && fits(words.slice(first, second + 1).join(' '))) second++;
+  if (second === words.length) return words.join(' ');
+  for (let end = second; end > first; end--) {
+    const line = `${trim(words.slice(first, end).join(' '))}…`;
+    if (fits(line)) return `${words.slice(0, first).join(' ')} ${line}`;
+  }
+  return `${trim(words.slice(0, first).join(' '))}…`;
+}
+
 /** The closet's search and filters: kept in its address, so a reload, Back and a link keep them. */
 export interface ClosetFilters { what: What; query: string; laundry: Laundry | null; check: boolean; away: boolean }
 export const NO_FILTERS: ClosetFilters = { what: ANY, query: '', laundry: null, check: false, away: false };
@@ -196,12 +221,18 @@ export function filtersFromSearch(search: string): ClosetFilters | null {
 
 /**
  * What the closet opens on, from the search and filters it was left with (or its address asks for) and the pieces it
- * has: the Away view with no piece away would be a view of nothing, with a "0 away" to tap away, so the closet opens on
- * everything instead; the search and the other filters stay as they were. Only on opening: in the view, a piece just
- * brought back keeps its row with Undo (`AwayView`).
+ * has: a kept view with nothing in it would be a view of nothing, with a "0 away" or "Nothing in the laundry" to tap
+ * away, so the closet opens on everything instead; the search and the other filters stay as they were. The Away view
+ * goes when no piece is away, the laundry's when no piece is in that state, and "Needs a check" when `toCheck` (the
+ * pieces the review holds, which arrives after the list: null until it has) is nought. Only on opening: in the view,
+ * a piece just brought back keeps its row with Undo (`AwayView`), and the laundry just marked clean its line with Undo.
  */
-export function openedFilters(f: ClosetFilters, items: Pick<ItemSummary, 'away'>[]): ClosetFilters {
-  return f.away && !items.some((it) => it.away) ? { ...f, away: false } : f;
+export function openedFilters(f: ClosetFilters, items: (Pick<ItemSummary, 'away'> & { laundry?: Laundry | null })[], toCheck: number | null = null): ClosetFilters {
+  let out = f;
+  if (out.away && !items.some((it) => it.away)) out = { ...out, away: false };
+  if (out.laundry && !items.some((it) => (it.laundry ?? 'clean') === out.laundry)) out = { ...out, laundry: null };
+  if (out.check && toCheck === 0) out = { ...out, check: false };
+  return out;
 }
 
 /** The search and filters last used on this tab, per closet and per In use or Archived: what the closet comes back to

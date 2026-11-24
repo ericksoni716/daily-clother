@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANY, chooseWhat, filtersFromSearch, openedFilters, filtersToSearch, NO_FILTERS, columnsFor, shortName, TILE_MIN_WIDE, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, searchWords, whatChoices, whatIn, whatName } from './closet';
+import { ANY, chooseWhat, twoLineName, filtersFromSearch, openedFilters, filtersToSearch, NO_FILTERS, columnsFor, shortName, TILE_MIN_WIDE, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, searchWords, whatChoices, whatIn, whatName } from './closet';
 import type { KindGroup } from './kinds';
 
 describe('how many tiles to a row on a computer', () => {
@@ -244,9 +244,49 @@ describe('what the closet opens on', () => {
     expect(openedFilters({ ...NO_FILTERS, away: true }, [])).toEqual(NO_FILTERS);
   });
 
-  it('keeps the Away view while a piece is away, and leaves every other view as it is', () => {
+  it('keeps the Away view while a piece is away, and every other view with something in it', () => {
     expect(openedFilters(kept, [home, away])).toBe(kept);
     const laundry = { ...NO_FILTERS, laundry: 'laundry' as const, check: true };
-    expect(openedFilters(laundry, [home])).toBe(laundry);
+    expect(openedFilters(laundry, [{ ...home, laundry: 'laundry' }], 2)).toBe(laundry);
+  });
+
+  it('opens on everything, not on an empty laundry view, keeping the search and the other filters', () => {
+    const laundry = { ...NO_FILTERS, query: 'shirt', laundry: 'laundry' as const, away: true };
+    const opened = openedFilters(laundry, [{ ...home, laundry: 'clean' }, { ...away, laundry: null }]);
+    expect(opened).toEqual({ ...laundry, laundry: null });
+    expect(filtersToSearch(opened)).toBe('?q=shirt&away=1');
+    // a piece in the laundry while it is away is still one the laundry view shows
+    expect(openedFilters(laundry, [{ ...away, laundry: 'laundry' }])).toBe(laundry);
+    const clean = { ...NO_FILTERS, laundry: 'clean' as const };
+    expect(openedFilters(clean, [{ ...home, laundry: 'laundry' }])).toEqual(NO_FILTERS);
+    expect(openedFilters(clean, [{ ...home, laundry: undefined }])).toBe(clean);   // no state said is clean
+  });
+
+  it('opens on everything, not on an empty "Needs a check" view, once the count to check is known', () => {
+    const check = { ...NO_FILTERS, query: 'navy', check: true };
+    expect(openedFilters(check, [home], 0)).toEqual({ ...check, check: false });
+    // the count arrives after the list: until it does, nothing is decided
+    expect(openedFilters(check, [home], null)).toBe(check);
+    expect(openedFilters(check, [home])).toBe(check);
+    expect(openedFilters(check, [home], 3)).toBe(check);
+  });
+});
+
+describe('a name on a narrow tile beside the panel', () => {
+  // ten pixels a letter, a line of 100: ten letters to a line
+  const measure = (text: string) => text.length * 10;
+  it('is whole when its words fit two lines', () => {
+    expect(twoLineName('Grey wool trousers', 100, measure)).toBe('Grey wool trousers');
+    expect(twoLineName('Navy polo', 100, measure)).toBe('Navy polo');
+    expect(twoLineName('  Brown   leather gloves ', 140, measure)).toBe('Brown leather gloves');
+  });
+
+  it('is cut after the last whole word that fits the second line, with "…", never inside a word', () => {
+    // "Brown" / "leather" / "gloves": three lines as the page breaks them
+    expect(twoLineName('Brown leather gloves', 80, measure)).toBe('Brown leather…');
+    expect(twoLineName('Heavyweight brushed cotton overshirt', 120, measure)).toBe('Heavyweight brushed…');
+    expect(twoLineName('Light wash jeans, slim', 100, measure)).toBe('Light wash jeans…');
+    // a first word longer than a line is the page's to break
+    expect(twoLineName('Supercalifragilistic coat', 100, measure)).toBe('Supercalifragilistic…');
   });
 });

@@ -231,15 +231,21 @@ this device; a small tile shows the picture and the name on two short lines, cut
 The search and the filters are kept in the closet's address: a reload, coming back from a piece or
 from another place finds them, and your place in the list, as you left them. One line over the grid says what wants seeing to: "5 to
 check · 4 in the laundry · 2 away" (to check: the pieces added and not checked yet, and those with a
-detail Claude was unsure of). Each part shows only those pieces, as a chip that removes
+detail Claude was unsure of; a part with nothing in it is left out, never "0 to check"). Each part
+shows only those pieces, clearing the search and the kind chosen for that tap, as a chip that removes
 itself: "Needs a check" then offers "Check them one at a time" (the review), and "In the
 laundry" offers "All clean", each in a line under the search. After "All clean" that line says how
 many you marked clean, with **Undo**, which puts each piece back in the laundry as it was; the
-grid then says "Your laundry is empty." When pieces are away (at the cleaner's, at the tailor's, lent out), the
+grid then says "Your laundry is empty.", and the line with **Undo** stays until you leave the view.
+The closet does not open on a laundry view or a "Needs a check" view with nothing in it: it opens
+on all your clothes, keeping your search and other filters ("Needs a check" waits for its count to
+arrive before deciding). When pieces are away (at the cleaner's, at the tailor's, lent out), the
 line says how many ("2 away"; the line wraps as text does). It shows those pieces as a
 list, soonest back first, each saying where it is and when it is expected ("Expected back on Friday
-20 Nov" once the day has gone by), with **It's back** beside it; a piece brought back stays in the
-list with Undo until you leave it. When nothing is away any more, the closet opens on all your clothes
+20 Nov" once the day has gone by), with **It's back** beside it; a long name takes two lines, and a
+tap anywhere on a row opens the piece. A piece brought back changes in its own row, which keeps its
+place and height, to "Back in your closet" with Undo until you leave the view; the list is put in
+order again the next time you open it. When nothing is away any more, the closet opens on all your clothes
 rather than on an empty Away view, keeping your search and other filters. A piece in the laundry while it is away is counted as away, not
 in the laundry. A tile shows the piece's picture and name, and, while
 Nines is working on it, a small round mark with the step it is at (1 cutting out, 2
@@ -249,8 +255,8 @@ corner. While anything is being worked on, one line,
 "Working on 3 items", floats above the grid and the tab bar; tapping it lists those pieces,
 each with what is happening to it, and says once why they wait when it is something you can
 see to in Settings. On a computer, choosing a piece opens it in a panel beside the grid; the grid keeps
-as many pieces to a row and the piece stays where it was, and **Close**, Escape or Back closes the
-panel. On a phone it opens as its own page.
+as many pieces to a row and the piece stays where it was (the narrower Larger tiles then show a name
+on two lines, cut only after a whole word), and **Close**, Escape or Back closes the panel. On a phone it opens as its own page.
 
 ## An item
 
@@ -270,7 +276,8 @@ At the cleaner's, At the tailor's and Lent out, the day you expect it back and a
 on your computer and is never sent to Claude). While it is away the row's button is **It's back**:
 back from the cleaner's it is marked clean, back from the tailor's it is no longer marked as needing
 mending, and back from being lent nothing else changes. The row then says what coming back did, with
-Undo, for the rest of the day. A piece marked as needing mending reads "In your closet, waiting to be
+Undo, for the rest of the day. While a piece is away, where it is leads the card and the laundry's
+line and button ("Clean", **Put in the laundry**) are not shown; **Wore it today** stays. A piece marked as needing mending reads "In your closet, waiting to be
 mended", with **Take it to the tailor's**. Wearing an away piece today (Wore it today, or an outfit
 recorded for today) brings it back, and undoing that wear the same day sends it away again (removed on a later
 day, the piece stays where it is). Undoing a return keeps the wears since in its count. The History fold says
@@ -281,10 +288,10 @@ Back returns to the piece. In the laundry, away or not yet described, one line s
 ("Once it's clean, Today can build an outfit around it."); on a day a trip covers, a piece you packed counts as
 clean and has the button. An archived piece, or one no outfit has a
 place for (a tie, a watch), has neither. **When you wore it** lists the piece's wears, newest first:
-a wear on a day you recorded an outfit with it shows that outfit's pieces (each opens its own page),
-the day, and how it went; the same outfit worn on several days is one row ("3 times, last on 12
+a wear on a day you recorded an outfit with it shows that outfit's pieces as small pictures, the
+day, and how it went; the same outfit worn on several days is one row ("3 times, last on 12
 Nov"); a wear with no outfit is a plain dated line. Three rows are on the page; "All 5 outfits" opens
-the rest in a sheet. A row's ⋯ holds **Wear this again** (Today starts from that outfit, as from
+the rest in a sheet. A tap anywhere on a row, or on its ⋯, opens its choices: **Wear this again** (Today starts from that outfit, as from
 Worn), then the days you wore it, newest first, each with a quiet Remove.
 About it holds how you feel about it and one box, Notes for you and Claude, which Claude reads
 when it chooses your outfits; it shows every note kept about the piece, and once you change it
@@ -670,12 +677,15 @@ back. Its code loads only when it is opened. In order:
 
 - **When Nines doesn't answer.** A screen whose read fails says what it couldn't load and why, in
   plain words: Nines on your computer can't be reached, or it answered with a fault. **Try again**
-  asks once more. A screen that was already showing something keeps it, under one line saying it
+  asks once more, for everything the screen waits for. A screen that was already showing something keeps it, under one line saying it
   is from earlier; while the computer can't be reached at all, the offline banner says it once.
 - **Dates.** Every date reads the same way: a day as "Thursday 12 Nov" (or "Thu 12 Nov" where room
   is short), a moment as "today at 14:05", "yesterday at 09:41" or "on 3 Nov at 08:00", a line in a
   list as "Today, 14:05", a date on its own as "3 Nov 2026". Times are on the 24-hour clock. The
   date picker's own words are your phone's.
+- **Sheets.** Choices that open over the page (from the bottom on a phone, in a box under the
+  button on a computer) keep their title and **Done** at the top while the rest scrolls under them.
+  Done, Escape or a tap outside closes them.
 - **Banners.** What is said at the top of every screen (price news, an update ready, what a restore
   did) holds still: when it arrives after a screen has opened, it shows from the next screen on.
 - **Saving.** Changes save as you make them; a toast at the top of the screen says so or says what

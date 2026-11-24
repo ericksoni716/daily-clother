@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { awayOrder, awayPart, backByWearing, cameBackSentence, homeSentence, recordedSentence, whenBack, whereSentence } from './away';
+import { awayOrder, awayPart, backByWearing, keptOrder, cameBackSentence, homeSentence, recordedSentence, whenBack, whereSentence } from './away';
 import type { ItemSummary } from './types';
 import { calendarDay, sinceDay } from './wears';
 
@@ -89,5 +89,15 @@ describe('wearing it anyway', () => {
     expect(recordedSentence([{ name: 'the grey suit', category: 'suit' }, { name: 'blue jeans', category: 'jeans' }]))
       .toBe('Outfit recorded. The grey suit and blue jeans are back in your closet.');
     expect(recordedSentence([{ name: 'Blue piece', category: null }])).toBe('Outfit recorded. Blue piece is back in your closet.');
+  });
+});
+
+describe('the away view keeps its rows where they were', () => {
+  const row = (id: string) => ({ id });
+  it('keeps the order first shown, and puts a row new to the view at the end', () => {
+    expect(keptOrder([], [row('a'), row('b')]).map((r) => r.id)).toEqual(['a', 'b']);
+    // a brought back would now come after b; it keeps its place
+    expect(keptOrder(['a', 'b'], [row('b'), row('a')]).map((r) => r.id)).toEqual(['a', 'b']);
+    expect(keptOrder(['a', 'b'], [row('c'), row('b')]).map((r) => r.id)).toEqual(['b', 'c']);
   });
 });

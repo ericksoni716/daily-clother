@@ -9,7 +9,7 @@ import { cleanAll, putBack, type Cleaned } from '../laundry';
 import { groupTitle, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { goBack, itemPath, Link, navigate, replaceSearch } from '../router';
-import { ANY, chooseWhat, columnsFor, filtersFromSearch, filtersToSearch, keepFilters, keptFilters, NO_FILTERS, keepTileSize, openedFilters, loadTileSize, shortName, TILE_MIN_WIDE, type TileSize, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
+import { ANY, chooseWhat, columnsFor, filtersFromSearch, filtersToSearch, keepFilters, keptFilters, NO_FILTERS, keepTileSize, openedFilters, loadTileSize, shortName, twoLineName, TILE_MIN_WIDE, type TileSize, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
 import { progressOf } from '../progress';
 import { itemSaved, itemsQuery, progressQuery, reviewQuery, useVocab } from '../queries';
 import { useApp } from '../store';
@@ -48,29 +48,45 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   // what a piece is: a group, then a category in it, then a kind (`closet.ts`, "What")
   const [what, setWhat] = useState<What>(kept.what);
   const [query, setQuery] = useState(kept.query);
-  const [laundry, setLaundry] = useState<Laundry | null>(kept.laundry);
+  const [laundry, setLaundryOn] = useState<Laundry | null>(kept.laundry);
   // "Needs a check": the pieces added and not checked yet, and those with a detail Claude was unsure of (the review
   // queue, read once for the count too)
-  const [check, setCheck] = useState(kept.check);
+  const [check, setCheckOn] = useState(kept.check);
   // "Away": the pieces at the cleaner's, at the tailor's or lent out (`AwayView`); those brought back there stay listed
   const [away, setAwayOn] = useState(kept.away);
   const [returned, setReturned] = useState<Set<string>>(() => new Set());
-  // Opening on the Away view with no piece away opens on everything instead (`openedFilters`). It is decided on the
-  // list the closet opens with and again on the first one it reads itself, each time while that list is being drawn
-  // (state set while drawing is used before anything shows), so the page never moves for it. Once you are in the view
-  // it holds: a piece brought back there keeps its row with Undo, and the Away chip or filter you tap ends the opening.
+  // what "All clean" just washed, to put back with Undo while the laundry is shown
+  const [cleaned, setCleaned] = useState<Cleaned['undo'] | null>(null);
+  // Opening on a kept view with nothing in it (no piece away, none in the laundry) opens on everything instead
+  // (`openedFilters`). It is decided on the list the closet opens with and again on the first one it reads itself, each
+  // time while that list is being drawn (state set while drawing is used before anything shows), so the page never
+  // moves for it. Once you are in the view it holds: a piece brought back there keeps its row with Undo, the laundry
+  // just marked clean keeps its line with Undo, and a view you choose (a chip, the filter, the line) ends the opening.
   const [opening, setOpening] = useState(true);
   if (opening && list !== null) {
-    if (away && status === 'active' && returned.size === 0 && !openedFilters({ what, query, laundry, check, away }, list).away) setAwayOn(false);
-    if (items.isFetchedAfterMount || returned.size > 0) setOpening(false);
+    const opened = openedFilters({ what, query, laundry, check, away }, list);
+    if (status === 'active' && away && returned.size === 0 && !opened.away) setAwayOn(false);
+    if (status === 'active' && laundry && cleaned === null && !opened.laundry) setLaundryOn(null);
+    if (items.isFetchedAfterMount || returned.size > 0 || cleaned !== null) setOpening(false);
   }
   const setAway = (on: boolean) => { setAwayOn(on); setReturned(new Set()); setOpening(false); };
+  const setLaundry = (l: Laundry | null) => { setLaundryOn(l); setOpening(false); };
   const search = filtersToSearch({ what, query, laundry, check, away });
   useEffect(() => {
     keepFilters(memoryKey, search);
     replaceSearch(search);
   }, [memoryKey, search, selectedId]);
-  const review = useQuery({ ...reviewQuery(), enabled: !offline && status === 'active' }).data;
+  const reviewRead = useQuery({ ...reviewQuery(), enabled: !offline && status === 'active' });
+  const review = reviewRead.data;
+  // "Needs a check" kept with nothing to check opens on everything too, but its count arrives after the list: it is
+  // decided once the review has answered (not on an answer kept from before that is being read again), and until then
+  // the view shows the grid's waiting state rather than "Nothing needs a check now." (`openedFilters`)
+  const [checkOpening, setCheckOpening] = useState(true);
+  if (checkOpening && (reviewRead.isError || (review && !reviewRead.isFetching))) {
+    if (check && review && !openedFilters({ what, query, laundry, check, away }, [], review.items.length).check) setCheckOn(false);
+    setCheckOpening(false);
+  }
+  const setCheck = (on: boolean) => { setCheckOn(on); setCheckOpening(false); };
   const toCheck = useMemo(() => new Set((review?.items ?? []).map((i) => i.id)), [review]);
   const showDrawings = useShowDrawings();
   const [moment, setMoment] = useState(gridMoment);
@@ -111,8 +127,6 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   // a piece away is said under away, not under the laundry (it is not in the basket at home)
   const inLaundry = useMemo(() => (list ?? []).filter((it) => it.laundry === 'laundry' && !it.away), [list]);
   const awayNow = useMemo(() => (list ?? []).filter((it) => it.away), [list]);
-  // what "All clean" just washed, to put back with Undo while the laundry is shown
-  const [cleaned, setCleaned] = useState<Cleaned['undo'] | null>(null);
   const laundryOn = activeLaundry === 'laundry';
   useEffect(() => {
     if (!laundryOn) setCleaned(null);
@@ -144,6 +158,13 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
       })
       .finally(() => setWashing(false));
   };
+  // A part of the line tapped shows those pieces: "show me these", not "narrow what I have", so the search and what
+  // it is are cleared for that tap (the filters' own chips and sheet still narrow)
+  const fromLine = (on: boolean) => {
+    if (!on) return;
+    setQuery('');
+    setWhat(ANY);
+  };
   const panel = wide && selectedId !== null;
   const closetPath = status === 'archived' ? '/archived' : '/';
 
@@ -159,6 +180,15 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
     return () => seen?.disconnect();
   }, [wide]);
   const columns = wide && layoutWidth > 0 ? columnsFor(layoutWidth, TILE_MIN_WIDE[size], GRID_GAP_WIDE) : null;
+  // Beside the panel, Larger tiles are narrow: their names take two lines, cut after a whole word (`twoLineName`), as
+  // a small tile's do. Worked out from the widths already known, so the panel opens with them (the piece chosen is
+  // kept in its place on that layout, below).
+  const tileWidth = panel && size === 'larger' && columns ? (layoutWidth - PANEL_WIDE - PANEL_GAP - GRID_GAP_WIDE * (columns - 1)) / columns : 0;
+  const nameFit = useMemo(() => {
+    const measure = tileWidth > 0 ? nameMeasure() : null;
+    // a pixel to spare, for the page's rounding
+    return measure ? (name: string) => twoLineName(name, tileWidth - 1, measure) : null;
+  }, [tileWidth]);
 
   // The piece chosen stays where it was on the screen while the panel opens beside the grid, and the panel opens level
   // with the top of the screen, so a tile far down does not open a panel out of sight.
@@ -217,8 +247,9 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
 
       {status === 'active' && list && (
         <StatusLine toCheck={offline ? 0 : toReview ?? 0} inLaundry={inLaundry.length} checking={activeCheck} washing={laundryOn}
-          onCheck={() => setCheck(!activeCheck)} onLaundry={() => setLaundry(laundryOn ? null : 'laundry')}
-          away={awayNow} awayOn={activeAway} onAway={() => setAway(!activeAway)} />
+          onCheck={() => { fromLine(!activeCheck); setCheck(!activeCheck); }}
+          onLaundry={() => { fromLine(!laundryOn); setLaundry(laundryOn ? null : 'laundry'); }}
+          away={awayNow} awayOn={activeAway} onAway={() => { fromLine(!activeAway); setAway(!activeAway); }} />
       )}
       {status === 'active' && <WorkingLine />}
 
@@ -304,7 +335,9 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
       )}
 
       {list && !empty && (
-        shown.length === 0 ? (
+        activeCheck && checkOpening ? (
+          <div className="grid grid-skeleton" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <div key={i} className="tile-skeleton" />)}</div>
+        ) : shown.length === 0 ? (
           <div className="empty"><p className="muted">{emptySentence({ check: activeCheck, toCheck: toCheck.size, away: activeAway,
             awayNow: awayNow.length, laundry: laundryOn, inLaundry: inLaundry.length, searching: !!query.trim(),
             what: whatOn })}</p></div>
@@ -316,7 +349,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
           <ul className={`grid${size === 'smaller' ? ' grid-smaller' : ''}${columns ? ' has-columns' : ''}`} aria-label="Clothes"
             style={columns ? { '--columns': columns } as CSSProperties : undefined}>
             {shown.map((it) => (
-              <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} progress={progressOf(it, work)} view={gridView} small={size === 'smaller'} search={search} onChoose={choose} /></li>
+              <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} progress={progressOf(it, work)} view={gridView} small={size === 'smaller'} nameFit={nameFit} search={search} onChoose={choose} /></li>
             ))}
           </ul>
         )
@@ -342,6 +375,9 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
 const LAUNDRY: Record<Laundry, string> = { clean: 'Clean', laundry: 'In the laundry' };
 /** The room between tiles on a computer (styles.css, "grid & tiles"). */
 const GRID_GAP_WIDE = 16;
+/** A piece's panel beside the grid on a computer, and the room between them (styles.css, `.closet-layout.has-panel`). */
+const PANEL_WIDE = 420;
+const PANEL_GAP = 32;
 /** How many letters of a name a small tile shows, on two lines (`shortName`). */
 const SMALL_NAME = 22;
 
@@ -358,7 +394,8 @@ function StatusLine({ toCheck, inLaundry: n, checking, washing, onCheck, onLaund
   away: ItemSummary[]; awayOn: boolean; onAway(): void;
 }) {
   const parts: { key: string; on: boolean; text: string; act(): void }[] = [];
-  if (toCheck > 0 || checking) parts.push({ key: 'to-check', on: checking, text: `${toCheck} to check`, act: onCheck });
+  // "0 to check" is never said: with nothing to check, the view's chip is the way out of it
+  if (toCheck > 0) parts.push({ key: 'to-check', on: checking, text: `${toCheck} to check`, act: onCheck });
   if (n > 0 || washing) parts.push({ key: 'in-laundry', on: washing, text: laundryPart(n), act: onLaundry });
   if (away.length > 0 || awayOn) parts.push({ key: 'away', on: awayOn, text: awayPart(away), act: onAway });
   if (!parts.length) return null;
@@ -460,14 +497,28 @@ function FilterChoices({ status, laundry, away, onLaundry, onAway, choices, what
   );
 }
 
+/** How wide a text is in a tile's name (`.tile-name`: the page's font, `--weight-label`, `--text-sm`), or null where
+ * the page cannot measure (the name is then left to the tile's two lines). */
+function nameMeasure(): ((text: string) => number) | null {
+  const ctx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+  if (!ctx) return null;
+  const root = getComputedStyle(document.documentElement);
+  const rem = parseFloat(root.fontSize) || 16;
+  const size = (parseFloat(root.getPropertyValue('--text-sm')) || 0.875) * rem;
+  ctx.font = `${root.getPropertyValue('--weight-label').trim() || '560'} ${size}px ${getComputedStyle(document.body).fontFamily}`;
+  return (text) => ctx.measureText(text).width;
+}
+
 /** One tile of the grid. Memoised: a poll or a save that changes one item draws that item's tile only. `progress` is
  * how far the work on it has got (progress.ts), shown as the step's small mark. */
-const Tile = memo(function Tile({ item, status, selected, progress, view, small, search, onChoose }: {
+const Tile = memo(function Tile({ item, status, selected, progress, view, small, nameFit, search, onChoose }: {
   item: ItemSummary; status: 'active' | 'archived'; selected: boolean; progress: Progress | null; view: GridView;
   /** the closet's search and filters, carried in the piece's address so they come back with it */
   search: string;
   /** a small tile (Smaller pictures): its name on two short lines, cut after a whole word, and no caption */
   small: boolean;
+  /** a Larger tile beside the panel: its name as it shows on two lines (null: one line, as wide as the tile) */
+  nameFit: ((name: string) => string) | null;
   onChoose(id: string, tile: HTMLElement): void;
 }) {
   const name = item.name || label('category', item.category) || 'New item';
@@ -483,7 +534,7 @@ const Tile = memo(function Tile({ item, status, selected, progress, view, small,
       </div>
       {small ? <span className="tile-name" title={name}>{shortName(name, SMALL_NAME)}</span> : (
         <>
-          <span className="tile-name">{name}</span>
+          {nameFit ? <span className="tile-name tile-name-two" title={name}>{nameFit(name)}</span> : <span className="tile-name">{name}</span>}
           <span className="tile-caption">{caption || ' '}</span>
         </>
       )}

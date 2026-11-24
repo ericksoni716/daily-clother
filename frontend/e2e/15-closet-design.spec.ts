@@ -334,3 +334,41 @@ test.describe('computer', () => {
     expect(await page.evaluate(() => (history.state as { idx: number }).idx)).toBe(0);
   });
 });
+
+test.describe('computer, 1280 wide', () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test('with a piece\'s panel open, each name takes two lines and is cut only after a whole word', async ({ page }) => {
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    await page.goto('/');
+    const names = new Map(((await (await page.request.get('/api/items')).json()).items as { id: string; name: string }[]).map((i) => [i.id, i.name]));
+    const tiles = page.getByTestId('tile');
+    await expect(tiles.first()).toBeVisible();
+    await tiles.nth(7).click();
+    await expect(page.getByRole('complementary', { name: 'Item details' }).getByRole('textbox', { name: 'Name' })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    const shown = await tiles.evaluateAll((all) => all.map((t) => {
+      const name = t.querySelector<HTMLElement>('.tile-name')!;
+      const line = parseFloat(getComputedStyle(name).lineHeight);
+      return { id: t.getAttribute('data-id')!, text: name.textContent!, lines: Math.round(name.getBoundingClientRect().height / line),
+        hidden: name.scrollWidth > name.clientWidth + 1 || name.scrollHeight > name.clientHeight + 1 };
+    }));
+    let cut = 0;
+    for (const s of shown) {
+      const full = names.get(s.id)!;
+      expect(s.hidden, `${full} is cut by the tile`).toBe(false);
+      expect(s.lines).toBeLessThanOrEqual(2);
+      if (s.text === full) continue;
+      cut++;
+      // cut after a whole word, with "…"
+      expect(s.text.endsWith('…'), s.text).toBe(true);
+      const kept = s.text.slice(0, -1);
+      expect(full.startsWith(kept) && /^[\s,;:·–-]/.test(full.slice(kept.length)), `${s.text} from ${full}`).toBe(true);
+    }
+    // the demo's longer names take a second line rather than being cut on one
+    expect(shown.filter((s) => s.lines === 2 && s.text === names.get(s.id)).length).toBeGreaterThan(0);
+    expect(cut).toBeLessThan(shown.length);
+    await page.screenshot({ path: test.info().outputPath('closet-1280-panel-names.png') });
+  });
+});

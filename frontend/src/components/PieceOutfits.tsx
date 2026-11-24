@@ -4,7 +4,7 @@ import { MoreIcon } from './Icons';
 import { OutfitPics } from './OutfitPics';
 import { useAllItems } from '../queries';
 import { navigate } from '../router';
-import { againPath, allRowsLabel, aroundOffer, aroundPath, ON_PAGE, piecesFrom, removeWearName, wornInWords, type WornIn } from '../pieceOutfits';
+import { againPath, allRowsLabel, aroundOffer, aroundPath, ON_PAGE, removeWearName, wornInWords, type WornIn } from '../pieceOutfits';
 import type { Item, ItemSummary } from '../types';
 import { localDay, wearDay } from '../wears';
 import './PieceOutfits.css';
@@ -32,7 +32,7 @@ export function BuildAround({ item, disabled }: { item: Item; disabled: boolean 
 /**
  * When you wore it: the piece's wears, each worn outfit once with its pieces, when (and how often) it was worn and how it
  * went; a wear with no outfit is a plain dated line. The first three are on the page, the rest behind "All N outfits" in
- * a sheet. Each row's ⋯ holds "Wear this again" (as on Worn) and removing a wear.
+ * a sheet. Each row's ⋯, which takes a tap anywhere on the row, holds "Wear this again" (as on Worn) and removing a wear.
  */
 export function WornInList({ item, disabled, onUnwear }: {
   item: Item; disabled: boolean; onUnwear(day: string, saidAs: string): void;
@@ -42,11 +42,10 @@ export function WornInList({ item, disabled, onUnwear }: {
   const [all, setAll] = useState(false);
   const allButton = useRef<HTMLButtonElement>(null);
   if (!rows.length) return null;
-  const from = piecesFrom(window.location.pathname);
   const list = (shown: WornIn[]) => (
     <ul className="worn-in-list" aria-labelledby={`worn-in-${item.id}`}>
       {shown.map((row) => (
-        <WornInRow key={row.outfit_id ? `${row.outfit_id}~${row.days[0]}` : row.days[0]} row={row} byId={byId} from={from}
+        <WornInRow key={row.outfit_id ? `${row.outfit_id}~${row.days[0]}` : row.days[0]} row={row} byId={byId}
           disabled={disabled} onUnwear={onUnwear} />
       ))}
     </ul>
@@ -68,8 +67,8 @@ export function WornInList({ item, disabled, onUnwear }: {
   );
 }
 
-function WornInRow({ row, byId, from, disabled, onUnwear }: {
-  row: WornIn; byId: Map<string, ItemSummary>; from: string; disabled: boolean; onUnwear(day: string, saidAs: string): void;
+function WornInRow({ row, byId, disabled, onUnwear }: {
+  row: WornIn; byId: Map<string, ItemSummary>; disabled: boolean; onUnwear(day: string, saidAs: string): void;
 }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
@@ -90,7 +89,8 @@ function WornInRow({ row, byId, from, disabled, onUnwear }: {
           <MoreIcon />
         </button>
       </div>
-      {row.pieces && <OutfitPics outfit={{ pieces: row.pieces, gone: row.gone }} byId={byId} from={from} />}
+      {/* the whole row is the ⋯'s to tap (PieceOutfits.css), so its pictures are pictures only */}
+      {row.pieces && <OutfitPics outfit={{ pieces: row.pieces, gone: row.gone }} byId={byId} linked={false} />}
       {open && (
         <Sheet title={row.pieces ? 'This outfit' : 'This wear'} anchor={button} onClose={() => setOpen(false)} className="worn-menu-sheet"
           testId="worn-in-menu">

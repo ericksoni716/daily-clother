@@ -52,6 +52,18 @@ export function awayOrder<T extends ItemSummary>(pieces: T[]): T[] {
   return [...pieces].filter((it) => it.away).sort((a, b) => key(a).localeCompare(key(b)) || (a.name ?? '').localeCompare(b.name ?? ''));
 }
 
+/**
+ * The rows of the away view in the order they were first shown: a row keeps its place while you are in the view (a
+ * piece brought back changes in place, so the next tap lands where it did), and a row new to the view goes at the end.
+ * `kept` is the order shown so far (ids), `now` the rows in the order they would take afresh. The order is made again
+ * when the view is next opened.
+ */
+export function keptOrder<T extends { id: string }>(kept: string[], now: T[]): T[] {
+  const at = new Map(kept.map((id, i) => [id, i]));
+  const known = now.filter((it) => at.has(it.id)).sort((a, b) => at.get(a.id)! - at.get(b.id)!);
+  return [...known, ...now.filter((it) => !at.has(it.id))];
+}
+
 /** The closet line's part: how many are away, "2 away". Which are past their day the list it opens says, on each one
  * ("Expected back on Friday 20 Nov"), so the line stays short enough to sit with the others. */
 export function awayPart(pieces: ItemSummary[]): string {

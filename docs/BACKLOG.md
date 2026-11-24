@@ -34,10 +34,11 @@ only here); take a line out when it is done.
 - **"Added by hand" after a link's find is stopped** (24 November; DECISIONS, the row on Stop
   watching). Left: once you leave the page, a wish made from a link whose only find you stopped says
   "Added by hand" on its row and its page, since nothing on the wish keeps where it came from.
-- **The closet opening on an empty view** (24 November; DECISIONS, "Where a piece is"). The Away view
-  now goes when nothing is away on opening. The laundry view kept with nothing in the laundry still opens
-  on "Nothing in the laundry" and "Your laundry is empty."; the same rule (`closet.openedFilters`) would fit
-  it. "Needs a check" kept with nothing to check does the same, but its count arrives after the list.
+- **The Closet and a piece's page, second review** (24 November; DECISIONS, the rows of 24 November under "Where a
+  piece is", "The shared parts" and "From a piece to an outfit"). Left: a name in the Away view too long for two
+  lines is cut by the browser, which can fall in the middle of a word; two parts of the closet's line on at once (the
+  laundry and Away) can still show fewer pieces than either count says; "Needs a check" kept for the tab shows the
+  grid's waiting tiles until the review answers.
 - **A trip covers today** (23 November; DECISIONS, "A trip covers today"). Claude does not choose on a trip
   day: the rules do, as for a day ahead; Claude being told the place and offered only the bag would need a
   new line in what is sent. The trip's own outfit leads only for the trip's occasion of the day. The trip's
@@ -76,8 +77,7 @@ only here); take a line out when it is done.
   Worn" (keeping again says it is kept already); Worn says the read failed.
 
 - **The closet at a glance** (23 November; DECISIONS, "What a piece is is asked once", "Larger or Smaller
-  pictures"). Left: on a computer with a piece's panel open, Larger tiles are narrow and still cut a name mid-word with
-  "…" (the small tile's whole-word cut is not used there). A category whose pieces sit in two groups is found by the
+  pictures"). Left: a category whose pieces sit in two groups is found by the
   search, not by the list: "Sweaters" under Knitwear leaves out a fleece pullover, which is Activewear by its kind.
   The Filter button keeps its word "Filter" while its sheet is titled "Show and filter".
 - **A piece's page, Would this work? and a wish's page** (23 November; DECISIONS, rows of 23 November under "Would

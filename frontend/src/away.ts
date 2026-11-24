@@ -1,4 +1,5 @@
 /** Where a piece is: in your closet, or away at the cleaner's, at the tailor's or lent out. The words and the order. */
+import { isPairCategory } from './gaps';
 import type { Away, AwayPlace, CameBack, ItemSummary } from './types';
 import { calendarDay, isPast, localDay, sinceDay } from './wears';
 
@@ -68,9 +69,12 @@ export function backByWearing<T extends ItemSummary>(pieces: T[], day: string, t
   return isPast(day, today) ? [] : pieces.filter((it) => it.away);
 }
 
-/** What recording an outfit says: "Outfit recorded", and "Outfit recorded. The grey suit is back in your closet." */
-export function recordedSentence(back: string[]): string {
+/** What recording an outfit says: "Outfit recorded", and "Outfit recorded. The grey suit is back in your closet." The
+ * verb goes by the pieces, as the server's (`outfits.be`): "Blue jeans are back". */
+export function recordedSentence(back: { name: string; category: string | null }[]): string {
   if (!back.length) return 'Outfit recorded';
-  const names = back.length === 1 ? back[0] : `${back.slice(0, -1).join(', ')} and ${back[back.length - 1]}`;
-  return `Outfit recorded. ${names[0].toUpperCase()}${names.slice(1)} ${back.length === 1 ? 'is' : 'are'} back in your closet.`;
+  const all = back.map((p) => p.name);
+  const names = all.length === 1 ? all[0] : `${all.slice(0, -1).join(', ')} and ${all[all.length - 1]}`;
+  const verb = back.length > 1 || isPairCategory(back[0].category) ? 'are' : 'is';
+  return `Outfit recorded. ${names[0].toUpperCase()}${names.slice(1)} ${verb} back in your closet.`;
 }

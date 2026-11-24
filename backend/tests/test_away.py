@@ -18,6 +18,7 @@ from .test_styling import TUESDAY
 from .test_styling import closet as styling_closet
 from .test_styling import context as styling_context
 from .test_trips import days as trip_days
+from .test_weather import make_item
 
 TODAY = date(2026, 11, 23)
 SECRET = "keep-this-on-the-computer-7f3a"
@@ -231,6 +232,57 @@ def test_a_wear_today_brings_it_back_and_undoing_the_wear_sends_it_away_again(cl
     assert worn["away"] is None and worn["came_back"]["by"] == "wear" and worn["wear_count"] == 2
     undone = client.delete(f"/api/items/{i}/wears/{TODAY.isoformat()}").json()
     assert undone["away"] == {"place": "lent", "since": TODAY.isoformat(), "until": "2026-11-30", "note": None}
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """Both clocks on a day the test moves: the day the app takes as today, and the time it stamps on what happens."""
+    now = {"day": TODAY}
+    monkeypatch.setattr(wears, "today", lambda: now["day"])
+    monkeypatch.setattr(db, "now", lambda: datetime.combine(now["day"], datetime.now().time()).astimezone(UTC)
+                        .strftime("%Y-%m-%dT%H:%M:%S.%fZ"))
+    return now
+
+
+def test_removing_an_older_wear_does_not_send_the_piece_away_again(client, clock):
+    """Review 2, finding 3. A shirt is at the cleaner's; you wear it today, which brings it back (decided). Six days and
+    another wear later you remove that first wear from its page (it was recorded on the wrong day, say). The decision
+    gives Undo of a return "for the rest of the day": removing an old wear takes the wear away and leaves the piece
+    where it is, not "at the cleaner's" again with the laundry state and count of wears it had before it came back."""
+    shirt = make_item(client, "a", name="White shirt", category="shirt", color="white", formality="casual")
+    assert client.put(f"/api/items/{shirt}/away", json={"place": "cleaner", "until": None}).status_code == 200
+    assert client.post(f"/api/items/{shirt}/wears").json()["away"] is None   # wearing it brought it back
+    # on the day itself, removing the wear sends it away again: that is the decision, and it holds
+    assert client.delete(f"/api/items/{shirt}/wears/{TODAY.isoformat()}").json()["away"]["place"] == "cleaner"
+    assert client.post(f"/api/items/{shirt}/wears").json()["away"] is None
+
+    clock["day"] = TODAY + timedelta(days=6)
+    assert client.post(f"/api/items/{shirt}/wears").status_code in (200, 201)   # worn again since, at home
+    before = client.get(f"/api/items/{shirt}").json()
+    assert before["away"] is None and before["wear_count"] == 2
+    client.delete(f"/api/items/{shirt}/wears/{TODAY.isoformat()}")
+    after = client.get(f"/api/items/{shirt}").json()
+    assert after["wear_count"] == 1
+    assert after["away"] is None, "removing last week's wear sent the shirt back to the cleaner's"
+
+
+def test_undoing_a_return_after_wearing_the_piece_that_day_keeps_that_wear_in_its_count(client):
+    """Review 2, a suspicion tried: jeans worn once, then at the cleaner's; you say they are back (their count starts
+    again) and wear them. Undoing the return puts back what coming back changed, but the wear since stays counted, as
+    "All clean"'s undo adds the wears since: two wears since their last wash, not one."""
+    jeans = make_item(client, "j", name="Blue jeans", category="jeans", color="blue", formality="casual")
+    client.post(f"/api/items/{jeans}/wears", json={"worn_on": (TODAY - timedelta(days=3)).isoformat()})
+    send(client, jeans, place="cleaner")
+    assert client.post(f"/api/items/{jeans}/back").json()["wears_since_wash"] == 0
+    assert client.post(f"/api/items/{jeans}/wears").json()["wears_since_wash"] == 1
+    undone = client.post(f"/api/items/{jeans}/back/undo").json()
+    assert undone["away"]["place"] == "cleaner"
+    assert undone["wears_since_wash"] == 2 and undone["wear_count"] == 2
+    # lent: coming back changed no count, so undoing it keeps the count as it is
+    send(client, jeans, place="lent")
+    client.post(f"/api/items/{jeans}/back")
+    count = client.get(f"/api/items/{jeans}").json()["wears_since_wash"]
+    assert client.post(f"/api/items/{jeans}/back/undo").json()["wears_since_wash"] == count
 
 
 def test_an_outfit_recorded_by_hand_for_today_brings_its_away_pieces_back(client):

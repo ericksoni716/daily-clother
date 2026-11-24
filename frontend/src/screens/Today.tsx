@@ -11,7 +11,7 @@ import { WhereYouAre } from '../components/WhereYouAre';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
 import { keptToast, keptWith } from '../kept';
-import { awayClause, countsOnLine, heldLine, planFor, planLine, plannedFor, plannedToast, plansSoon, swapLine, tripLine, wearOn, type Plan } from '../plans';
+import { awayClause, countsOnLine, heldLine, heldOfferedLine, planFor, planLine, plannedFor, plannedToast, plansSoon, swapLine, tripLine, wearOn, type Plan } from '../plans';
 import { newActionId, outboxFor, type WearAction } from '../outbox';
 import { keptQuery, plansQuery, touch, useAllItems, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
@@ -715,6 +715,10 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
       : tripPlanned ? swapLine(tripPlanned.unavailable.map((id) => ({ name: nameOf(id), away: tripPlanned.away?.[id] })), today, today) ?? TRIP_OUTFIT_LINE
         : null,
     countsOn: countsOnLine(expected.filter((id) => firstIds.includes(id)).map(nameOf)),
+    heldOffered: phase.kind === 'ready'
+      ? heldOfferedLine((phase.answer.context.held_offered ?? []).filter((id) => firstIds.includes(id))
+        .map((id) => ({ name: nameOf(id), day: phase.answer.context.held?.[id] ?? '' })), today)
+      : null,
   };
 
   const main = (
@@ -1154,7 +1158,7 @@ interface BodyProps {
   onUnplan(): void;
   /** Under the first outfit's button, when it starts from the day's plan: the piece swapped and where it is, and the
    * pieces it counts on being back by then. */
-  planNote?: { swapped: string | null; countsOn: string | null };
+  planNote?: { swapped: string | null; countsOn: string | null; heldOffered: string | null };
   /** "Keep this outfit", and whether an outfit is kept already. */
   onKeep(o: Outfit): void;
   isKept(ids: string[]): boolean;
@@ -1453,6 +1457,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, c
         </div>
         {planNote?.swapped && <p className="today-plan-note" data-testid="plan-swapped">{planNote.swapped}</p>}
         {planNote?.countsOn && <p className="today-plan-note" data-testid="counts-on">{planNote.countsOn}</p>}
+        {planNote?.heldOffered && <p className="today-plan-note" data-testid="held-offered">{planNote.heldOffered}</p>}
         {/* Give it an outing: one sentence, under the button where the day's other lines about an outfit go */}
         {outfit.outing && (
           <p className="today-plan-note" data-testid="outing-line">{outingLine(outfit.outing, itemName(byId.get(outfit.outing.item_id)), today)}</p>

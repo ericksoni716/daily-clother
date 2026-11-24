@@ -419,8 +419,8 @@ function OutfitMenu({ offline, onAgain, onLaundry, onKeep, onRemove }: { offline
 /** "Record an outfit", in a sheet: the day, then the pieces in four groups (most recently worn first) with a search. */
 function RecordByHand({ items, anchor, onCancel, onDone }: {
   items: ItemSummary[]; anchor: RefObject<HTMLElement | null>; onCancel(): void;
-  /** `back`: the names of the pieces away that wearing them today brought back */
-  onDone(o: WornOutfit, back: string[]): void;
+  /** `back`: the pieces away that wearing them today brought back, by name and category */
+  onDone(o: WornOutfit, back: { name: string; category: string | null }[]): void;
 }) {
   const { offline } = useApp();
   const recorded = useEdit('outfit');
@@ -438,7 +438,7 @@ function RecordByHand({ items, anchor, onCancel, onDone }: {
     setBusy(true);
     setError(null);
     try {
-      const back = backByWearing(items.filter((i) => chosen.includes(i.id)), day, today).map((i) => nameOf(i, false));
+      const back = backByWearing(items.filter((i) => chosen.includes(i.id)), day, today).map((i) => ({ name: nameOf(i, false), category: i.category }));
       onDone(await recorded(() => api.recordOutfit(chosen, day)), back);
     } catch (err) {
       setError((err as ApiError).message);

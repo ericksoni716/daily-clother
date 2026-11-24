@@ -81,7 +81,8 @@ def _plan(conn, state: State, days: list[dict], opts: trips.Options, before: dic
         under_way = _under_way(before)
         carried = in_bag(before, under_way)
         if under_way:
-            kept = kept_days(conn, before, _today())
+            from . import tripday  # it reads this module
+            kept = kept_days(conn, before, _today(), aside=tripday.aside(state, before["id"], _today()))
     return trips.plan(closet_rows(conn), days, opts, rewear(state), today=wears.today(), kept=kept, carried=carried,
                       under_way=under_way)
 
@@ -94,15 +95,26 @@ def in_bag(trip: dict, under_way: bool) -> list[str]:
     return carried
 
 
-def kept_days(conn, trip: dict, today: date) -> dict[str, dict]:
+def in_bag_on(conn, day: date) -> set[str]:
+    """What is in the suitcase on `day`: the bag of every trip whose days hold it (under way by then, so all it packed).
+    The laundry day at home does not wash it (`wears.catch_up`)."""
+    iso = day.isoformat()
+    return {pid for r in conn.execute("SELECT * FROM trips WHERE first_day <= ? AND last_day >= ?", (iso, iso))
+            for pid in in_bag(_row(r), under_way=True)}
+
+
+def kept_days(conn, trip: dict, today: date, aside: bool = False) -> dict[str, dict]:
     """The days of a trip under way that stay as they are, by date: each day gone as the saved plan has it, and each
     day up to today on which you recorded an outfit, with what you wore when it was not the plan's outfit. Their pieces
     count as worn: planning again does not dress them again, and Today on the days after does not offer a piece worn as
-    often as its kind allows (`closet/tripday.py`)."""
+    often as its kind allows (`closet/tripday.py`). `aside`: the trip is set aside today ("Not on this trip today"), so
+    what you wore today was worn at home, not on the trip."""
     iso = today.isoformat()
     days = {str(d.get("date")): d for d in trip["plan"].get("days", []) if isinstance(d, dict)}
     out = {k: v for k, v in days.items() if k < iso}
     for day, wore in worn.by_day(conn, trip["first_day"], min(trip["last_day"], iso)).items():
+        if aside and day == iso:
+            continue
         planned = days.get(day) or {"date": day}
         outfit = planned.get("outfit") if isinstance(planned.get("outfit"), dict) else {}
         if set(plans.ids_of(wore["pieces"])) == set(plans.ids_of(outfit.get("pieces") or {})):

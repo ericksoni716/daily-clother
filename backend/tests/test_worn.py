@@ -1,6 +1,6 @@
 """Worn outfits: recorded with the wears or by hand, rated, listed, removed, and what Today does with them."""
 import sqlite3
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -366,6 +366,26 @@ def test_a_rating_kept_on_the_phone_is_rated_as_of_the_tap_and_once_when_sent_ag
     assert r.status_code == 409 and "somewhere else since" in r.json()["detail"]
     assert client.get("/api/outfits/worn").json()["outfits"][0]["rating"] == "not_again"
     assert client.put("/api/outfits/worn/nope/rating", json=sent).status_code == 404
+
+
+def test_a_rating_taken_away_elsewhere_after_the_tap_refuses_the_phones_older_tap(client):
+    """Review 2, finding 6. Your phone, out of reach of Nines, keeps a tap: "Loved it", two hours ago. Since then, on
+    the computer, you rated the same outfit and then took the rating away. Taking it away is a change made after the
+    tap, as setting one is: the phone's older tap is refused ("You changed how it went somewhere else since."), and
+    the outfit stays unrated."""
+    ids = small(client)
+    o = client.post("/api/outfits/worn", json={"item_ids": all_ids(ids)}).json()
+    tapped_at = (datetime.now(UTC) - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    rating = f"/api/outfits/worn/{o['id']}/rating"
+    assert client.put(rating, json={"rating": "not_again"}).status_code == 200
+    assert client.put(rating, json={"rating": None}).status_code == 200
+    late = client.put(rating, json={"rating": "loved", "tapped_at": tapped_at})
+    assert late.status_code == 409, f"the tap from two hours ago was taken: {late.json().get('rating')}"
+    assert late.json()["detail"] == "You changed how it went somewhere else since."
+    assert client.get("/api/outfits/worn").json()["outfits"][0]["rating"] is None
+    # a phone's own taking away, sent again after its answer was lost, is already so: not refused
+    cleared = client.put(rating, json={"rating": None, "tapped_at": tapped_at})
+    assert cleared.status_code == 200 and cleared.json()["rating"] is None
 
 
 def test_the_list_is_newest_first_and_comes_in_pages(client):

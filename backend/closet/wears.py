@@ -205,7 +205,8 @@ _caught_up: dict[str, tuple] = {}   # database path -> (laundry day, its last da
 
 def catch_up(conn, key: str = "") -> int:
     """Everything that went in the laundry before the last laundry day is clean (washed that day); a piece with no
-    date of going in (the demo closet's, made that way) waits for the owner. Returns how many
+    date of going in (the demo closet's, made that way) waits for the owner, and so does one in the bag of a trip under
+    way on the laundry day (it is in the suitcase): it waits for the first laundry day after the trip. Returns how many
     pieces came out. Cheap to call often: once caught up for a laundry date, nothing is looked at until the next one
     (what goes in after it waits for the next laundry day)."""
     policy = _policy()
@@ -221,12 +222,15 @@ def catch_up(conn, key: str = "") -> int:
                     (before,)).fetchone() is None:
         _caught_up[key] = mark
         return 0
+    from . import savedtrips  # it reads this module for the day
+    packed = sorted(savedtrips.in_bag_on(conn, washed))
+    unless = f" AND id NOT IN ({', '.join('?' * len(packed))})" if packed else ""
     try:
         conn.execute("BEGIN IMMEDIATE")
         t = db.now()
         n = conn.execute("UPDATE items SET laundry = 'clean', wears_since_wash = 0, washed_at = ?, laundry_at = NULL, "
-                         "laundry_by = NULL, updated_at = ? WHERE laundry = 'laundry' AND laundry_at < ?",
-                         (t, t, before)).rowcount
+                         f"laundry_by = NULL, updated_at = ? WHERE laundry = 'laundry' AND laundry_at < ?{unless}",
+                         (t, t, before, *packed)).rowcount
         conn.execute("COMMIT")
     except Exception:
         if conn.in_transaction:

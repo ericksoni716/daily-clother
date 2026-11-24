@@ -552,10 +552,10 @@ def on_the_list(conn: sqlite3.Connection) -> dict[str, dict]:
 
 def came_down(history: list[dict]) -> dict | None:
     """The drop a find's newest price is (`drop`), with `at`, the moment the price came down to it: the first of the
-    latest prices seen at that price, the price seen before them being higher. None when the newest price is no drop,
-    is sold out, or went up to it from a lower one. A price checked again each day at the same price stays one drop,
-    with one moment. Each price is the one after its checkout code when there was one (`paid`), so a code that appears
-    and brings the price down is a drop that came down, and a code that goes is none."""
+    latest prices seen at that price that could be bought, the price seen before them being higher. None when the
+    newest price is no drop, is sold out, or went up to it from a lower one. A price checked again each day at the same
+    price stays one drop, with one moment. Each price is the one after its checkout code when there was one (`paid`),
+    so a code that appears and brings the price down is a drop that came down, and a code that goes is none."""
     d = drop(history)
     if d is None or not history[-1]["available"]:
         return None
@@ -565,7 +565,8 @@ def came_down(history: list[dict]) -> dict | None:
         i -= 1
     if i == 0 or paid(same[i - 1]) < d["to"]:
         return None
-    return {**d, "at": same[i]["at"]}
+    # the moment it could first be bought at that price: one seen at it while sold out was no news yet
+    return {**d, "at": next((h for h in same[i:] if h["available"]), same[i])["at"]}
 
 
 def at_price(wish: Mapping, currency: str, price: float) -> bool | None:
@@ -975,6 +976,8 @@ class Shopper:
         # or a price check does not work it out again); None: the plain list is worked out for each
         self.listed: Callable[[str, tuple[list[dict], list[dict]]], dict | None] = lambda profile, inputs: None
         self._runs: dict[tuple[str, str], dict] = {}   # (profile, wish id) -> the last or current search or check
+        # (profile, wish id) -> when Claude answered a price check that could not be recorded as made; in memory only
+        self._answered: dict[tuple[str, str], datetime] = {}
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------- what is going on
@@ -1372,6 +1375,7 @@ class Shopper:
                 finally:
                     conn.close()
                 raise
+            self._looked(profile, wish_id)   # asked and answered: the day's look is made, whatever becomes of the answer
         conn = db.connect(self.cfg.db_path(profile))
         try:
             judged = [f for f in list_finds(conn, wish_id) if f["piece"]]   # a link not described yet: not judged
@@ -1397,6 +1401,26 @@ class Shopper:
         self._end(profile, wish_id, "done", message, n)
         return n
 
+    def _looked(self, profile: str, wish_id: str) -> None:
+        """Claude has answered the wish's price check, so the day's look is made, whatever happens to the answer next:
+        kept in the closet (`mark_checked`) at once, and when even that cannot be written, remembered while Nines runs
+        so the daily round still waits a day before asking again."""
+        try:
+            conn = db.connect(self.cfg.db_path(profile))
+            try:
+                mark_checked(conn, wish_id)
+            finally:
+                conn.close()
+        except Exception as e:   # never the wish in the log
+            log.error("a price check could not be recorded as made: %s", type(e).__name__)
+            with self._lock:
+                self._answered[(profile, wish_id)] = _now()
+
+    def _answered_lately(self, profile: str, wish_id: str) -> bool:
+        with self._lock:
+            at = self._answered.get((profile, wish_id))
+        return at is not None and at > _now() - DAY
+
     # ------------------------------------------------------------- the daily round
     def tick(self) -> int:
         """Look up the prices of every wish in the real closet not looked at in the last day. Never the demo
@@ -1405,7 +1429,7 @@ class Shopper:
         looked at."""
         main = db.connect(self.cfg.db_path("main"))
         try:
-            waiting = due(main, _now())
+            waiting = [w for w in due(main, _now()) if not self._answered_lately("main", w)]
             with_links = {r["wish_id"] for r in main.execute("SELECT DISTINCT wish_id FROM finds WHERE link = 1")}
         finally:
             main.close()

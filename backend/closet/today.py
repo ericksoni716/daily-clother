@@ -411,7 +411,9 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
     # planned pieces kept out of the laundry's way: not offered when wearing them now leaves them in the laundry then
     held = plans.held(rows, upcoming, on_day, wears.policy())
     asked = {ctx.build_around, *ctx.keep}
+    unheld = None   # the request without the hold, for when holding the planned pieces back leaves no outfit
     if set(held) - asked:
+        unheld = ctx
         ctx = dataclasses.replace(ctx, leave_out=(*ctx.leave_out, *sorted(set(held) - asked)))
     feedback = outfits.feedback_from(worn.rated(conn), rows, ctx)
 
@@ -445,12 +447,22 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
             context["expected"] = expected
         stylist = None   # another day is dressed by the rules: Claude chooses for today only
     answer = outfits.suggest(rows, ctx, count, feedback)
+    if unheld is not None and not answer["outfits"]:
+        # the hold protects a plan; it does not empty the day: asked again without it, and the page says which planned
+        # piece the outfits use (a held piece is never said to be "left out today")
+        ctx = unheld
+        answer = outfits.suggest(rows, ctx, count, feedback)
+        offered = sorted({i for o in answer["outfits"] for i in plans.ids_of(o["pieces"])} & set(held))
+        if offered:
+            context["held_offered"] = offered
     if on_trip:
         stylist = None   # on a trip the rules choose, as for a day ahead: nothing more is sent to Claude
         trip_planned = None
         if on_trip["outfit"] and again is None and not ctx.build_around and ctx.occasion == on_trip["occasion"]:
             answer["outfits"], trip_planned = trip_first(rows, ctx, feedback, on_trip["outfit"], answer["outfits"], count)
-        if not answer["outfits"] and not ctx.build_around:   # a piece asked for says why itself ("in the laundry")
+        if not answer["outfits"] and not ctx.build_around and on_trip["bag"]:
+            # a piece asked for says why itself ("in the laundry"); a trip that packed nothing was dressed from the whole
+            # closet, so the reason the rules gave stands
             answer["missing"] = [NOTHING_IN_THE_BAG]
         context["on_trip"] = {**on_trip["trip"], "occasion": on_trip["occasion"], "planned": trip_planned}
     elif holds and holds["trip"]["aside"]:

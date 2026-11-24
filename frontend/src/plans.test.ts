@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canChoose, choiceNote, dayChoices, heldLine, loadSavedPlans, planFor, planLine, plannedFor, plannedToast, plansSoon, savePlans,
+  canChoose, choiceNote, dayChoices, heldLine, heldOfferedLine, loadSavedPlans, planFor, planLine, plannedFor, plannedToast, plansSoon, savePlans,
   swapLine, tripLine, tripOn, wearOn, type Plan,
 } from './plans';
 import type { TripSummary } from './trips';
@@ -62,6 +62,13 @@ describe('the words of a plan', () => {
     expect(swapLine([{ name: 'Navy blazer', away: "is at the cleaner's" }, { name: 'Blue jeans', away: 'are lent out' }, { name: 'White tee' }], TODAY, TODAY))
       .toBe("Your navy blazer is at the cleaner's and your blue jeans are lent out, so other pieces take their places. The white tee can't be worn today, so another piece takes its place.");
     expect(heldLine('2026-11-28', TODAY)).toBe('You planned this for Saturday. Wearing it now would leave it in the laundry by then.');
+    // holding a planned piece back would have left no outfit: the outfit uses it, and says so once
+    expect(heldOfferedLine([{ name: 'White tee', day: '2026-11-28' }], TODAY)).toBe('This outfit uses your white tee, which you planned for Saturday.');
+    expect(heldOfferedLine([{ name: 'White tee', day: '2026-11-28' }, { name: 'Blue jeans', day: '2026-11-28' }], TODAY))
+      .toBe('This outfit uses your white tee and your blue jeans, which you planned for Saturday.');
+    expect(heldOfferedLine([{ name: 'White tee', day: '2026-11-28' }, { name: 'Blue jeans', day: '2026-11-30' }], TODAY))
+      .toBe('This outfit uses your white tee and your blue jeans, which you planned for days ahead.');
+    expect(heldOfferedLine([], TODAY)).toBeNull();
     expect(tripLine('Lisbon, Portugal')).toBe('This day is part of your trip to Lisbon, which has its outfit already.');
   });
 

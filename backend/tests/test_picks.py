@@ -4,6 +4,7 @@
 Claude is never called: `PickShop` stands in for it (the same stand-in as a wish's search, with looks of its own), or,
 for the API route, `FakeSearchApi` stands in for Anthropic's API with its web search tool.
 """
+import sqlite3
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -257,6 +258,44 @@ def test_a_weekly_look_that_cannot_run_says_nothing_and_tries_again(client, serv
     assert services.picker.tick() == 1
     assert services.picker.tick() == 0
     assert client.get("/api/picks").json()["run"] == shown
+
+
+def test_a_weekly_look_whose_answer_could_not_be_kept_is_not_asked_again_every_hour(client, services, fake_shop, clock,
+                                                                                   monkeypatch):
+    """Review 2, finding 5, the weekly look for things you might like. Claude answers the week's look and keeping it
+    fails (the closet's database is busy), and so does recording the look: once Claude has been asked and has answered,
+    the week's look is made all the same (remembered while Nines runs when it cannot be recorded), so the hourly rounds
+    do not ask Claude for a whole new search each time."""
+    own_line(client)
+    look(client)
+    assert len(fake_shop.told) == 1
+    clock[0] += timedelta(days=8)
+
+    def busy(*a, **k):
+        raise sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr(picks, "save_look", busy)
+    for _ in range(3):
+        services.picker.tick()
+        clock[0] += timedelta(hours=1)
+    assert len(fake_shop.told) == 2, f"Claude was asked {len(fake_shop.told) - 1} times for one week's look"
+
+
+def test_a_weekly_look_that_failed_before_claude_was_asked_is_tried_again_at_the_next_round(client, services, fake_shop,
+                                                                                         clock, monkeypatch):
+    """Review 2, finding 5: only an answer counts. A fault before Claude was asked makes no look, so the next round
+    tries again."""
+    own_line(client)
+    look(client)
+    clock[0] += timedelta(days=8)
+    real = picks.asked
+
+    def broken(*a, **k):
+        raise sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr(picks, "asked", broken)
+    assert services.picker.tick() == 0 and len(fake_shop.told) == 1
+    monkeypatch.setattr(picks, "asked", real)
+    clock[0] += timedelta(hours=1)
+    assert services.picker.tick() == 1 and len(fake_shop.told) == 2
 
 
 def test_the_round_makes_the_weekly_look_after_the_prices(services, monkeypatch):

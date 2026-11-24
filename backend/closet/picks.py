@@ -208,7 +208,8 @@ def check_sale(f: Mapping, read: Mapping | None, size: str | None) -> dict | Non
     when the markdown is under SALE_MIN; also when the page (or else Claude, reading it) says the owner's `size` is sold
     out. Otherwise the product with the page's price and currency, the price before (`before_by` "page" when the page's
     own data gives it, else "claude" when only Claude saw it, in the page's currency), and `in_stock` True when the
-    page lists the owner's size in stock (or else Claude says so), None when nobody said."""
+    page lists the owner's size in stock (or else Claude says so), None when nobody said, with `in_stock_by` who said
+    it ("page" or "claude")."""
     if not read or not read.get("available") or read.get("price") is None:
         return None
     price = read["price"]
@@ -221,18 +222,18 @@ def check_sale(f: Mapping, read: Mapping | None, size: str | None) -> dict | Non
         return None
     if (before - price) / before < SALE_MIN - 1e-9:
         return None
-    stock = None
+    stock = stock_by = None
     listed = {_size_key(k): v for k, v in (read.get("sizes") or {}).items()}
     if size and _size_key(size) in listed:
         if not listed[_size_key(size)]:
             return None
-        stock = True
+        stock, stock_by = True, "page"
     elif f.get("size_in_stock") is False:
         return None
     elif f.get("size_in_stock") is True:
-        stock = True
+        stock, stock_by = True, "claude"
     return {**f, "price": price, "currency": currency, "price_before": before, "before_by": by, "in_stock": stock,
-            "image_url": f.get("image_url") or read.get("image_url")}
+            "in_stock_by": stock_by, "image_url": f.get("image_url") or read.get("image_url")}
 
 
 def choose(found: list[dict], verdicts: list[dict], seen: set[str], n: int = SHOWN) -> list[tuple[dict, dict]]:
@@ -406,12 +407,12 @@ def save_look(conn: sqlite3.Connection, source: str, chosen: list[tuple[dict, di
             sale = kind == SALE
             cur = conn.execute(
                 "INSERT OR IGNORE INTO picks (id, kind, source, seed_id, look_id, rank, name, shop, url, image_url, "
-                "price, price_before, before_by, in_stock, checked_at, currency, piece, verdict, found_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "price, price_before, before_by, in_stock, in_stock_by, checked_at, currency, piece, verdict, found_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (uuid.uuid4().hex, kind, source, seed_id, look_id, rank, f["name"], f["shop"], f["url"], f["image_url"],
                  f["price"], f.get("price_before") if sale else None, f.get("before_by") if sale else None,
-                 1 if sale and f.get("in_stock") else None, t if sale else None, f["currency"],
-                 json.dumps(f["piece"]), json.dumps(v), t))
+                 1 if sale and f.get("in_stock") else None, f.get("in_stock_by") if sale and f.get("in_stock") else None,
+                 t if sale else None, f["currency"], json.dumps(f["piece"]), json.dumps(v), t))
             kept += cur.rowcount
         conn.execute("INSERT INTO pick_looks (id, source, kind, at, found) VALUES (?, ?, ?, ?, ?)",
                      (look_id, source, kind, t, kept))
@@ -537,6 +538,8 @@ class Picker:
     def __init__(self, shopper: shop.Shopper):
         self.shopper = shopper
         self._runs: dict[str, dict] = {}   # profile -> the last or current look; in memory only
+        self._answered: set[str] = set()   # profiles whose look Claude has answered, for the weekly look under way
+        self._tried: dict[str, datetime] = {}   # kind -> a weekly look Claude answered that could not be recorded
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------- what is going on
@@ -631,6 +634,7 @@ class Picker:
         finally:
             conn.close()
         answer = (self.shopper.asker.sale if sale else self.shopper.asker.picks)(told, routes)
+        self._answered.add(profile)
         raw = answer.finds if hasattr(answer, "finds") else []
         found, urls = [], set()
         for r in raw[:shopping.MAX_FINDS]:
@@ -680,7 +684,7 @@ class Picker:
         main = db.connect(self.shopper.cfg.db_path("main"))
         try:
             rows = main.execute(
-                "SELECT id, url, price, price_before, before_by, currency, piece, in_stock, misses FROM picks "
+                "SELECT id, url, price, price_before, before_by, currency, piece, in_stock, in_stock_by, misses FROM picks "
                 "WHERE kind = ? AND state = 'shown' AND ended_at IS NULL AND (checked_at IS NULL OR checked_at <= ?) "
                 "ORDER BY found_at DESC, rank LIMIT ?", (SALE, _stamp(_now() - DAY), RECHECK_MAX)).fetchall()
             saved_sizes = sizes.saved(main)
@@ -689,7 +693,11 @@ class Picker:
         for r in rows:
             read, _ = self.shopper.read_page(r["url"])
             piece = json.loads(r["piece"])
-            mine = {"price": r["price"], "currency": r["currency"], "image_url": None, "size_in_stock": None,
+            # Claude's word on your size still stands (one kept before who said it was kept counts as Claude's); the
+            # page's own word is only what the page says now
+            claude_said = bool(r["in_stock"]) and r["in_stock_by"] != "page"
+            mine = {"price": r["price"], "currency": r["currency"], "image_url": None,
+                    "size_in_stock": True if claude_said else None,
                     "price_before": r["price_before"] if r["before_by"] == "claude" else None}
             checked = check_sale(mine, read, size_for(saved_sizes, piece.get("category"), (read or {}).get("brand")))
             t = db.now()
@@ -703,9 +711,9 @@ class Picker:
                     conn.execute("UPDATE picks SET checked_at = ?, ended_at = ? WHERE id = ?", (t, t, r["id"]))
                 else:
                     conn.execute("UPDATE picks SET price = ?, currency = ?, price_before = ?, before_by = ?, "
-                                 "in_stock = ?, misses = 0, checked_at = ? WHERE id = ?",
+                                 "in_stock = ?, in_stock_by = ?, misses = 0, checked_at = ? WHERE id = ?",
                                  (checked["price"], checked["currency"], checked["price_before"], checked["before_by"],
-                                  1 if checked["in_stock"] or r["in_stock"] else None, t, r["id"]))
+                                  1 if checked["in_stock"] else None, checked["in_stock_by"], t, r["id"]))
             finally:
                 conn.close()
         return len(rows)
@@ -726,6 +734,8 @@ class Picker:
         nothing else is looking, and a route to Claude can be used inside the limit. One that cannot run says nothing
         (the card shows what it showed before) and is tried at the next round; an answer that cannot be used still
         counts as the week's look, so it is not asked again every hour. Returns 1 when a look was made."""
+        if self._tried_lately(kind):
+            return 0
         main = db.connect(self.shopper.cfg.db_path("main"))
         try:
             if not due(main, _now(), kind):
@@ -740,6 +750,7 @@ class Picker:
             before = self._begin("main", "weekly", kind)
         except shop.Refused:
             return 0
+        self._answered.discard("main")
         try:
             self.look("main", "weekly", routes, kind=kind)
             return 1
@@ -747,16 +758,36 @@ class Picker:
             self._put_back("main", before)
         except TaggingError:
             self._put_back("main", before)
+            self._count_look(kind)
+            return 1
+        except Exception:
+            log.error("a weekly look for things you might like (%s) failed\n%s", kind, traceback.format_exc())
+            self._put_back("main", before)
+            if "main" in self._answered:   # Claude answered: the week's look is made, whatever became of the answer
+                self._count_look(kind)
+                return 1
+        return 0
+
+    def _count_look(self, kind: str) -> None:
+        """A weekly look that kept nothing still counts as the week's look: recorded with no picks, and when even that
+        cannot be written, remembered while Nines runs (`_tried_lately`), so it is not asked again every hour."""
+        try:
             conn = db.connect(self.shopper.cfg.db_path("main"))
             try:
                 save_look(conn, "weekly", [], None, kind)
             finally:
                 conn.close()
-            return 1
-        except Exception:
-            log.error("a weekly look for things you might like (%s) failed\n%s", kind, traceback.format_exc())
-            self._put_back("main", before)
-        return 0
+        except Exception as e:
+            log.error("a weekly look (%s) could not be recorded as made: %s", kind, type(e).__name__)
+            with self._lock:
+                self._tried[kind] = _now()
+
+    def _tried_lately(self, kind: str) -> bool:
+        """A look Claude answered that could not be recorded holds the weekly look back as a recorded one would (`due`):
+        that kind for a week, the other kind for a day."""
+        now = _now()
+        with self._lock:
+            return any(at > now - (WEEK if k == kind else DAY) for k, at in self._tried.items())
 
 
 # ------------------------------------------------------------------ the routes

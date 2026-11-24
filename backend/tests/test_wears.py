@@ -1,11 +1,16 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from closet import db, wears
+from closet import db, tripweather, wears, weather
 
 from .conftest import photo_bytes, upload
+from .test_tripday import closet as trip_closet
+from .test_tripday import ids_of as trip_ids_of
+from .test_tripday import make_trip
+from .test_tripday import wear as wear_outfit
+from .test_weather import NOON, FakeOpenMeteo
 
 TODAY = date(2026, 11, 12)
 
@@ -343,6 +348,54 @@ def test_the_laundry_day_washes_what_went_in_before_it(client, cfg, monkeypatch)
     monkeypatch.setattr(wears, "today", lambda: TODAY + timedelta(days=4))
     assert laundry(client, new) == "clean"
     assert wears.last_laundry_day(6, TODAY) == date(2026, 11, 8) and wears.next_laundry_day(6, TODAY) == date(2026, 11, 15)
+
+
+@pytest.fixture
+def trip_clock(monkeypatch):
+    """The computer's day, moved by the tests: the day the app takes as today and the day it stamps on what happens
+    (so a piece that goes in the laundry on Saturday went in on Saturday). The weather is stood in for."""
+    now = {"day": TODAY}
+    monkeypatch.setattr(wears, "today", lambda: now["day"])
+    monkeypatch.setattr(weather, "_now", lambda: NOON)
+    monkeypatch.setattr(weather, "fetch", FakeOpenMeteo())
+    monkeypatch.setattr(db, "now", lambda: datetime.combine(now["day"], datetime.now().time()).astimezone(UTC)
+                        .strftime("%Y-%m-%dT%H:%M:%S.%fZ"))
+
+    def lookup(state, place, first, last, today_):
+        n = (last - first).days + 1
+        return {"days": [{"date": (first + timedelta(days=i)).isoformat(), "low_c": 12.0, "high_c": 18.0, "rain": False,
+                          "rain_chance": 10, "summary": "cloudy", "source": "forecast"} for i in range(n)], "message": None}
+    monkeypatch.setattr(tripweather, "lookup", lookup)
+    return now
+
+
+def test_the_laundry_day_at_home_leaves_what_you_wore_on_a_trip_under_way_in_the_laundry(client, trip_clock):
+    """Review 2, finding 1. A trip runs Friday to Tuesday; the laundry day is Sunday. On Saturday, on the trip, you
+    tap "I'm wearing this": the tee goes in the laundry, as a tee does after one wear. It is in your suitcase, so the
+    laundry day at home cannot have washed it: it stays in the laundry until a laundry day after the trip (or until you
+    say it is clean), and on Wednesday, home again, Today does not offer it as clean."""
+    friday, saturday = TODAY + timedelta(days=1), TODAY + timedelta(days=2)
+    trip_closet(client)
+    make_trip(client, friday, friday + timedelta(days=4))
+    trip_clock["day"] = saturday
+    on_trip = client.post("/api/outfits/today", json={"low_c": 12, "high_c": 18, "rain": False}).json()
+    assert on_trip["context"]["on_trip"], "Saturday is a day of the trip"
+    worn = on_trip["outfits"][0]
+    wear_outfit(client, worn)
+    dirty = [i for i in trip_ids_of(worn) if client.get(f"/api/items/{i}").json()["laundry"] == "laundry"]
+    assert dirty, "the tee went in the laundry when it was worn"
+
+    trip_clock["day"] = friday + timedelta(days=3)   # Monday: the trip is still under way, and Sunday has gone by
+    assert [client.get(f"/api/items/{i}").json()["laundry"] for i in dirty] == ["laundry"] * len(dirty), \
+        "the laundry day at home washed a piece that is in the suitcase"
+
+    trip_clock["day"] = friday + timedelta(days=5)   # Wednesday: home again, no laundry day since you came back
+    at_home = client.post("/api/outfits/today", json={"low_c": 12, "high_c": 18, "rain": False}).json()
+    assert "on_trip" not in at_home["context"]
+    assert not {i for o in at_home["outfits"] for i in trip_ids_of(o)} & set(dirty)
+
+    trip_clock["day"] = friday + timedelta(days=9)   # the Sunday after the trip: the laundry day washes it
+    assert [client.get(f"/api/items/{i}").json()["laundry"] for i in dirty] == ["clean"] * len(dirty)
 
 
 def test_the_laundry_setting_can_be_turned_off_and_is_checked(client):

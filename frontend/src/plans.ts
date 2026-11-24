@@ -139,6 +139,15 @@ export function heldLine(day: string, today: string): string {
   return `${plannedFor(day, today).replace('Planned', 'You planned this')}. Wearing it now would leave it in the laundry by then.`;
 }
 
+/** Under Today's outfit, once, when holding planned pieces back would have left no outfit and it uses them: "This
+ * outfit uses your white tee, which you planned for Saturday." */
+export function heldOfferedLine(pieces: { name: string; day: string }[], today: string): string | null {
+  if (!pieces.length) return null;
+  const days = new Set(pieces.map((p) => p.day));
+  const when = days.size === 1 ? plannedFor(pieces[0].day, today).replace('Planned', 'which you planned') : 'which you planned for days ahead';
+  return `This outfit uses ${joinWords(pieces.map((p) => `your ${midName(p.name)}`))}, ${when}.`;
+}
+
 /** A day ahead inside a saved trip. */
 export function tripLine(place: string | null): string {
   return `This day is part of your trip${place ? ` to ${shortPlace(place)}` : ''}, which has its outfit already.`;

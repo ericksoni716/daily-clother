@@ -68,10 +68,11 @@ def test_when_every_question_is_answered_or_skipped_none_is_asked(client):
 
 
 def test_once_something_is_said_today_no_question_is_asked(client, cfg):
-    from closet import db
+    from closet import db, wears
     conn = db.connect(cfg.db_path("main"))
+    # today as the server takes it (wears.today), not SQLite's own clock, so the two can never disagree
     conn.execute("INSERT INTO style_talk (id, day, said, state, asked_at, created_at) VALUES "
-                 "('t', date('now', 'localtime'), 'Hi.', 'failed', 0, ?)", (db.now(),))
+                 "('t', ?, 'Hi.', 'failed', 0, ?)", (wears.today().isoformat(), db.now()))
     conn.close()
     assert ask(client) is None
 

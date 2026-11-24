@@ -166,3 +166,33 @@ test('the outfits a piece was worn in: the same outfit once, three on the page, 
   await page.goBack();
   await expect(page).toHaveURL(new RegExp(`/item/${piece.id}$`));
 });
+
+test('a row of "When you wore it" opens the outfit wherever it is tapped, its pictures included, with 44px to tap', async ({ page }) => {
+  const byName = await openDemo(page);
+  const piece = byName.get('Navy polo')!;
+  const outfit = [piece.id, byName.get('Stone pleated chinos')!.id, byName.get('Brown boots')!.id];
+  expect((await page.request.post('/api/outfits/worn', { data: { item_ids: outfit, worn_on: daysAgo(3) } })).ok()).toBe(true);
+  await page.goto(`/item/${piece.id}`);
+  const row = page.getByTestId('worn-in').getByTestId('worn-in-row').filter({ has: page.locator('.worn-pics') }).first();
+  await expect(row).toBeVisible();
+  await row.scrollIntoViewIfNeeded();
+  // what takes a tap on each picture, and on the row's empty part beside them, is the button that opens the outfit
+  const takes = (x: number, y: number) => page.evaluate(([px, py]) => {
+    const el = document.elementFromPoint(px, py);
+    return { link: !!el?.closest('a'), button: el?.closest('button')?.getAttribute('aria-label') ?? null };
+  }, [x, y]);
+  for (const pic of await row.locator('.worn-pic').all()) {
+    const box = (await pic.boundingBox())!;
+    expect(await takes(box.x + box.width / 2, box.y + box.height / 2)).toEqual({ link: false, button: expect.stringMatching(/^More for the outfit/) });
+  }
+  const rowBox = (await row.boundingBox())!;
+  const pics = (await row.locator('.worn-pics').boundingBox())!;
+  expect(await takes(rowBox.x + rowBox.width - 8, pics.y + pics.height / 2)).toEqual({ link: false, button: expect.stringMatching(/^More for the outfit/) });
+  expect(rowBox.height).toBeGreaterThanOrEqual(44);
+  await page.screenshot({ path: test.info().outputPath('when-you-wore-it.png') });
+  // a tap on a picture opens the outfit's sheet
+  const pic = (await row.locator('.worn-pic').first().boundingBox())!;
+  await page.mouse.click(pic.x + pic.width / 2, pic.y + pic.height / 2);
+  await expect(page.getByTestId('worn-in-menu')).toBeVisible();
+  await page.getByTestId('worn-in-menu').getByRole('button', { name: 'Done' }).click();
+});

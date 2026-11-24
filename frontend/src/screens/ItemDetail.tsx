@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
-import { BackLink, confirmKeys, Failed, Notice, PHONE, SAVE_WORDS, SaveStatus, Section, SegmentedControl, Sheet, useConfirmFocus, type SaveState } from '../components/ui';
+import { BackLink, confirmKeys, Failed, Notice, readsOf, PHONE, SAVE_WORDS, SaveStatus, Section, SegmentedControl, Sheet, useConfirmFocus, type SaveState } from '../components/ui';
 import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { WhatItIs } from '../components/WhatItIs';
 import { WhereItIs } from '../components/WhereItIs';
@@ -20,7 +20,7 @@ import { fixLabel, lastFoldTitle } from '../look';
 import { LookLine, NotesBox, useFieldText } from '../components/ItemAbout';
 import { SaveLine, useWhenLeaving } from '../leave';
 import { navigate, useMediaQuery } from '../router';
-import { dropItem, itemQuery, itemSaved, touch, useItemProgress, useItemSummary, useVocab, writeSummary } from '../queries';
+import { dropItem, itemQuery, itemSaved, touch, useItemProgress, useItemSummary, vocabQuery, writeSummary } from '../queries';
 import { itemPoll } from '../work';
 import { PRICE_HINT, readCents } from '../spend';
 import { queryKeys, type EditKind } from '../queryKeys';
@@ -63,7 +63,9 @@ function Kept({ at }: { at: string }) {
 export function ItemDetail({ id, status, inPanel }: Props) {
   const { toast, offline, profile } = useApp();
   const qc = useQueryClient();
-  const vocab = useVocab();
+  // the words the page describes a piece in: it waits for them as for the piece, and Try again asks again for both
+  const vocabRead = useQuery(vocabQuery());
+  const vocab = vocabRead.data ?? null;
   // The closet's summary of it, shown at once while the full item is read (or when it cannot be, offline).
   const summary = useItemSummary(id);
   // read again by itself only while Claude draws onto its drawing (`itemPoll`); the closet's poll does the rest
@@ -151,11 +153,12 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     }
   }, [qc, toast, load]);
 
-  if (error && !item && !(offline && summary)) {
+  const reads = readsOf(query, vocabRead);
+  if (reads.error && !(item && vocab) && !(offline && summary)) {
     return (
       <div className="detail">
         <DetailTop inPanel={inPanel} backTo={backTo} />
-        <Failed query={query} what="this piece" />
+        <Failed query={reads} what="this piece" />
       </div>
     );
   }
@@ -486,14 +489,20 @@ function WearPanel({ item, disabled, onWear, onUnwear, onLaundry, where }: WearP
   const [logged, setLogged] = useState<{ server: string; local: string } | null>(null);
   const wornToday = !!item.last_worn && (item.last_worn === today || (logged?.local === today && item.last_worn === logged.server));
   const inLaundry = item.laundry === 'laundry';
+  // while it is away, where it is leads and the laundry gives way (it is not in the basket at home); wearing it today
+  // stays, since that brings it back
+  const away = !!item.away;
   const title = disabled ? OFFLINE_TITLE : undefined;
   return (
-    <section className="wear" aria-label="Wearing and washing">
+    <section className={`wear${away ? ' is-away' : ''}`} aria-label="Wearing and washing">
+      {away && where}
       <div className="wear-text">
         <p className="wear-summary" data-testid="wear-summary">{wearSummary(item.wear_count, item.last_worn, today)}</p>
-        <p className="muted" data-testid="laundry-state">
-          {inLaundry ? 'In the laundry' : 'Clean'}{item.wear_count ? ` · ${sinceWash(item.wears_since_wash)}` : ''}
-        </p>
+        {!away && (
+          <p className="muted" data-testid="laundry-state">
+            {inLaundry ? 'In the laundry' : 'Clean'}{item.wear_count ? ` · ${sinceWash(item.wears_since_wash)}` : ''}
+          </p>
+        )}
       </div>
       <div className="row wear-actions">
         {wornToday ? (
@@ -508,13 +517,13 @@ function WearPanel({ item, disabled, onWear, onUnwear, onLaundry, where }: WearP
             if (saved?.last_worn) setLogged({ server: saved.last_worn, local: localDay() });
           }}>Wore it today</button>
         )}
-        {inLaundry ? (
+        {away ? null : inLaundry ? (
           <button className="btn btn-small" disabled={disabled} title={title} onClick={() => onLaundry('clean')}>It's clean</button>
         ) : (
           <button className="btn btn-small" disabled={disabled} title={title} onClick={() => onLaundry('laundry')}>Put in the laundry</button>
         )}
       </div>
-      {where}
+      {!away && where}
       <BuildAround item={item} disabled={disabled} />
       <WornInList item={item} disabled={disabled} onUnwear={(day, said) => void onUnwear(day, said)} />
     </section>

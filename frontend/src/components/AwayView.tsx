@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api, ApiError } from '../api';
-import { awayOrder, overdue, PLACE_WORDS, tileMarkLabel, whenBack } from '../away';
+import { awayOrder, keptOrder, overdue, PLACE_WORDS, tileMarkLabel, whenBack } from '../away';
 import { label } from '../labels';
 import { itemPath, Link } from '../router';
 import type { Item, ItemSummary } from '../types';
@@ -16,7 +16,8 @@ export function AwayMark({ item }: { item: ItemSummary }) {
 
 /**
  * The closet's away view: each piece away with where it is and when it is expected, the soonest first, and "It's back"
- * one tap each. A piece brought back stays in the list, saying so with Undo, until the view is left.
+ * one tap each. A piece brought back stays in its row, saying so with Undo, until the view is left: no row moves while
+ * you are in it (`keptOrder`), and the order is made again when the view is next opened. The whole row opens the piece.
  * `returned` holds the pieces brought back here (kept by the closet while the view is on); `saved` writes an answer in.
  */
 export function AwayView({ pieces, returned, offline, onReturned, saved, failed }: {
@@ -28,10 +29,19 @@ export function AwayView({ pieces, returned, offline, onReturned, saved, failed 
   failed(message: string): void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+  // a row answered here keeps the height it had, so a shorter sentence ("Back in your closet") moves no row under it
+  const [heights, setHeights] = useState<Record<string, number>>({});
   const today = localDay();
   const away = awayOrder(pieces.filter((it) => it.away));
   const back = pieces.filter((it) => !it.away && returned.has(it.id));
-  const act = async (it: ItemSummary, call: () => Promise<Item>, isBack: boolean) => {
+  // the order the rows were first shown in, kept while the view is on (set while drawing: used before anything shows)
+  const [shown, setShown] = useState<string[]>([]);
+  const rows = keptOrder(shown, [...away, ...back]);
+  const ids = rows.map((it) => it.id).join(' ');
+  if (ids !== shown.join(' ')) setShown(rows.map((it) => it.id));
+  const act = async (it: ItemSummary, call: () => Promise<Item>, isBack: boolean, row: HTMLElement | null) => {
+    const height = row?.getBoundingClientRect().height;
+    if (height && !heights[it.id]) setHeights((h) => ({ ...h, [it.id]: height }));
     setBusy(it.id);
     try {
       saved(await call());
@@ -45,14 +55,15 @@ export function AwayView({ pieces, returned, offline, onReturned, saved, failed 
   const title = offline ? "You're offline" : undefined;
   return (
     <ul className="away-list" aria-label="Away" data-testid="away-view">
-      {[...away, ...back].map((it) => {
+      {rows.map((it) => {
         const name = it.name || label('category', it.category) || 'Item';
         return (
-          <li key={it.id} className="away-row" data-testid="away-row">
-            <Link to={itemPath(it.id, 'active')} className="away-pic" aria-label={name}>
+          <li key={it.id} className="away-row" data-testid="away-row" style={heights[it.id] ? { minHeight: heights[it.id] } : undefined}>
+            <span className="away-pic" aria-hidden="true">
               {it.thumb_url ? <img src={it.thumb_url} alt="" loading="lazy" /> : it.illustration_url ? <img src={it.illustration_url} alt="" loading="lazy" /> : null}
-            </Link>
+            </span>
             <div className="away-text">
+              {/* its tap area is the whole row (Where.css), the button beside it keeping its own */}
               <Link to={itemPath(it.id, 'active')} className="away-name">{name}</Link>
               {it.away ? (
                 <>
@@ -63,10 +74,10 @@ export function AwayView({ pieces, returned, offline, onReturned, saved, failed 
             </div>
             {it.away ? (
               <button type="button" className="btn btn-small" disabled={offline || busy === it.id} title={title}
-                aria-label={`It's back: ${name}`} onClick={() => void act(it, () => api.itsBack(it.id), true)}>It's back</button>
+                aria-label={`It's back: ${name}`} onClick={(e) => void act(it, () => api.itsBack(it.id), true, e.currentTarget.closest('li'))}>It's back</button>
             ) : (
               <button type="button" className="btn btn-small btn-ghost" disabled={offline || busy === it.id} title={title}
-                aria-label={`Undo: ${name} is back`} onClick={() => void act(it, () => api.undoBack(it.id), false)}>Undo</button>
+                aria-label={`Undo: ${name} is back`} onClick={(e) => void act(it, () => api.undoBack(it.id), false, e.currentTarget.closest('li'))}>Undo</button>
             )}
           </li>
         );

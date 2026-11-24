@@ -230,6 +230,29 @@ test.describe('the item page in the demo closet', () => {
     await page.unroute(`**/api/items/${id}/details**`);
   });
 
+  test('after every read failed, Try again asks again for everything the page waits for, and the piece shows', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    const id = demoId('Navy polo');
+    let fail = true;
+    const fault = (route: import('@playwright/test').Route) => (fail && route.request().method() === 'GET'
+      ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"detail":"Internal Server Error"}' })
+      : route.fallback());
+    // through the page's service worker too, which reads for it once it is in charge
+    await page.context().route(`**/api/items/${id}`, fault);
+    await page.context().route('**/api/vocab', fault);
+    await page.goto(`/item/${id}`);
+    const failed = page.getByTestId('failed');
+    await expect(failed).toContainText("Couldn't load this piece.", { timeout: 30_000 });
+    fail = false;
+    await failed.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('article.detail').getByRole('textbox', { name: 'Name' })).toHaveValue('Navy polo', { timeout: 10_000 });
+    await expect(page.locator('.detail-picture.tile-skeleton')).toHaveCount(0);
+    await page.context().unroute(`**/api/items/${id}`);
+    await page.context().unroute('**/api/vocab');
+  });
+
   test("a colour's shades are offered under it, and the shade chosen is kept with its colour", async ({ page }) => {
     await page.setViewportSize(PHONE);
     await goToCloset(page);

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 // router is loaded with a window that only listens.
 vi.stubGlobal('window', { addEventListener: () => undefined });
 const { Fold } = await import('./Fold');
-const { Failed, FAILED, failedReason } = await import('./Failed');
+const { Failed, FAILED, failedReason, readsOf } = await import('./Failed');
 const { HowItWorks } = await import('./HowItWorks');
 const { SAVE_WORDS, SaveStatus } = await import('./SaveStatus');
 const { seeAllWords, ShowMore } = await import('./ShowMore');
@@ -140,5 +140,28 @@ describe('Failed', () => {
 
   it('says it is trying again while it does', () => {
     expect(draw(h(Failed, { query: read({ error: fault, isFetching: true }), what: 'this trip' }))).toContain('Trying again…');
+  });
+  it('for a page that waits for two reads: one failed is the page failed, and Try again asks again for each it lacks', () => {
+    const piece = { error: fault, refetch: vi.fn() };
+    const words = { error: fault, refetch: vi.fn() };
+    const both = readsOf(piece, words);
+    expect(both.error).toBe(fault);
+    expect(both.data).toBeUndefined();
+    void both.refetch();
+    expect(piece.refetch).toHaveBeenCalledOnce();
+    expect(words.refetch).toHaveBeenCalledOnce();
+    // what was read stays read: only the read that failed is asked again
+    const read2 = { error: null, data: { id: 'a' }, refetch: vi.fn() };
+    const failed2 = { error: fault, refetch: vi.fn(), isFetching: true };
+    const half = readsOf(read2, failed2);
+    expect(half.data).toBeUndefined();
+    expect(half.isFetching).toBe(true);
+    void half.refetch();
+    expect(read2.refetch).not.toHaveBeenCalled();
+    expect(failed2.refetch).toHaveBeenCalledOnce();
+    // both read: what each read, and nothing failed
+    const fine = readsOf({ error: null, data: 1, refetch: vi.fn() }, { error: null, data: 2, refetch: vi.fn() });
+    expect(fine.error).toBeNull();
+    expect(fine.data).toEqual([1, 2]);
   });
 });

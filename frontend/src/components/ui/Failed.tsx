@@ -12,6 +12,21 @@ export interface FailedRead {
   isFetching?: boolean;
 }
 
+/**
+ * The reads a screen waits for, as one (the piece and the words that describe it, say): failed when any of them failed,
+ * with an earlier answer only when each has one, and Try again asking again for every read that failed or has nothing
+ * yet, so the screen does not wait for ever on one that was never asked again.
+ */
+export function readsOf(...reads: FailedRead[]): FailedRead {
+  const missing = reads.filter((r) => r.error || r.data === undefined);
+  return {
+    error: reads.find((r) => r.error)?.error ?? null,
+    data: reads.every((r) => r.data !== undefined) ? reads.map((r) => r.data) : undefined,
+    refetch: () => Promise.all(missing.map((r) => r.refetch())),
+    isFetching: reads.some((r) => r.isFetching),
+  };
+}
+
 /** The words, in one place (exported for their test). */
 export const FAILED = {
   unreachable: "Nines on your computer can't be reached. Check that the computer is on and Nines is running.",

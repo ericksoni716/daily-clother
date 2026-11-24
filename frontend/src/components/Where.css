@@ -5,6 +5,8 @@
   flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3);
   padding-top: var(--space-3); border-top: 1px solid var(--line);
 }
+/* while the piece is away the row leads the card, the wearing under it */
+.wear.is-away > .where { padding: 0 0 var(--space-3); border-top: none; border-bottom: 1px solid var(--line); }
 .where-text { flex: 1 1 12rem; min-width: 0; }
 .where-line { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-label); }
 .where .where-note { margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
@@ -25,7 +27,7 @@
 /* the closet's away view: a row a piece, where it is and when, and "It's back" */
 .away-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .away-row {
-  display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2); border-radius: var(--radius-md);
+  position: relative; display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2); border-radius: var(--radius-md);
   background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-soft);
 }
 .away-pic {
@@ -34,8 +36,15 @@
 }
 .away-pic img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .away-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-sm); }
-.away-name { color: var(--ink); font-weight: var(--weight-label); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.away-name {
+  color: var(--ink); font-weight: var(--weight-label); text-decoration: none; overflow-wrap: break-word;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+/* the name's link takes the tap on the whole row, as a tile does; the row's button sits over it */
+.away-name::after { content: ''; position: absolute; inset: 0; border-radius: var(--radius-md); }
+.away-name:focus-visible { outline: none; }
+.away-name:focus-visible::after { outline: 3px solid var(--focus); outline-offset: 2px; }
 .away-where { color: var(--ink-2); }
 .away-when { color: var(--ink-3); }
 .away-when.is-late { color: var(--ink); font-weight: var(--weight-label); }
-.away-row .btn { flex: none; }
+.away-row .btn { flex: none; position: relative; z-index: 1; }

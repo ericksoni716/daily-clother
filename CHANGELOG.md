@@ -301,6 +301,34 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **The closet no longer opens on an empty laundry or "Needs a check" view.** Left showing the laundry
+  after **All clean**, or "Needs a check" after you answered the last check, the closet opened on that
+  view with nothing in it ("0 of 49") until you noticed the chip. Like the Away view, it now opens on
+  all your clothes, keeping your search and the other filters; "Needs a check" waits for its count to
+  arrive before deciding. While you are in the view nothing changes: after **All clean** the line with
+  **Undo** stays until you leave. The closet's line no longer says "0 to check".
+- **"It's back" no longer moves the rows in the Away view.** The row you tapped changes in place to
+  "Back in your closet" with **Undo**, keeping its height, so the next piece's **It's back** stays
+  where it was. The list is put in order again when you come back to the view.
+- **A long name in the Away view takes two lines,** as on the closet's tiles, and a tap anywhere on a
+  row (not only on its small name) opens the piece.
+- **Tapping a part of the closet's line shows those pieces.** With a search typed or a kind chosen,
+  "2 away" or "4 in the laundry" said "Nothing matches" beside its own count. A tap on the line now
+  clears the search and the kind, and shows the pieces it counts.
+- **Try again on a piece's page shows the piece.** After a fault, **Try again** asked again only for
+  the piece and not for the words the page describes it with, and left an empty grey card. It now asks
+  again for both.
+- **"When you wore it" is easier to tap.** A tap anywhere on a row, its small pictures included, opens
+  that outfit's choices (Wear this again, the days you wore it), as its ⋯ does. The pictures no longer
+  open each piece.
+- **A piece that is away says where it is first.** On its page, while it is at the cleaner's, at the
+  tailor's or lent out, where it is leads the card; "Clean" and **Put in the laundry** are not shown
+  until it is back. **Wore it today** stays, and brings it back.
+- **A sheet's title and Done stay in sight.** In a long sheet (Filter with a group open, say) the title
+  and **Done** stay at the top while what is under them scrolls, in every sheet of the app.
+- **Names beside a piece's panel are whole.** On a computer with a piece open beside the closet, the
+  narrower tiles show a name on two lines, cut only after a whole word, instead of one line cut in the
+  middle of a word.
 - **The laundry day leaves your suitcase alone.** What you wear on a trip goes in your suitcase, so the
   laundry day at home no longer marks it clean while the trip is under way. It stays in the laundry
   until the first laundry day after the trip, or until you say it is clean.

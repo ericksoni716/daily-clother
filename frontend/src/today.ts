@@ -117,6 +117,8 @@ export interface DayContext {
   on_trip?: OnTrip | null;
   /** The hours dressed for, read from the forecast hour by hour; null when it has no hours or the day was typed. */
   detail?: DayDetail | null;
+  /** The occasion the outfits were chosen for (on a trip day, the trip's when the request sent the kept one). */
+  occasion?: string;
   /** The day in the owner's words, if a note holds today or is coming up. */
   note?: DayNote | null;
   /** Claude choosing the outfits; absent or null when Claude does not choose here (the demo closet, switched off). */
@@ -212,6 +214,8 @@ export interface TodayRequest {
   day?: string;
   /** false: other outfits than the day's plan. */
   planned?: boolean;
+  /** The occasion is the one this device kept, not one tapped today: on a trip day the trip's is used instead. */
+  occasion_kept?: boolean;
   /** Ask Claude to choose afresh (one request only: never kept with the request). */
   ask_again?: boolean;
   /** A message to Claude about the outfits on the page (one request only: never kept with the request). */
@@ -379,6 +383,13 @@ export function tripTodayLine(t: Pick<OnTrip, 'place' | 'day' | 'days' | 'aside'
 /** In Where you are, before "Not on this trip today": why Today looks as it does. */
 export function tripSheetLine(t: Pick<OnTrip, 'place'>): string {
   return `You're on ${yourTrip(t)}, so Today dresses you there from what you packed.`;
+}
+
+/** The occasion the chips show: the one the answer was dressed for while the occasion sent is the one this device kept
+ * (`kept`; on a trip day the server dresses for the trip's), so the page shows it without asking again; else the one
+ * chosen. */
+export function occasionShown(chosen: string, kept: boolean, answered: string | null | undefined): string {
+  return kept && answered ? answered : chosen;
 }
 
 /** In a piece's choices on a trip day: where another piece comes from. */

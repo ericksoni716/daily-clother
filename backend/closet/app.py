@@ -647,6 +647,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
 
     # laundry that keeps itself: the owner's counts and laundry day (Settings), read live
     wears.set_policy(lambda: wears.policy_from(state.get("laundry"), savedtrips.rewear(state)))
+    tripday.use_state(state)   # the item page asks whether a piece is in today's bag, "Not on this trip today" counted
 
     def conn_dep():
         path = cfg.db_path(state.get("profile"))

@@ -25,6 +25,25 @@ from .state import State
 ASIDE = "trip_aside"   # the program's settings: {"day": YYYY-MM-DD, "trip": its id}, "Not on this trip today"
 
 
+_state: State | None = None   # the program's settings, for `with_you` (the app gives them: `use_state`)
+
+
+def use_state(state: State) -> None:
+    global _state
+    _state = state
+
+
+def with_you(conn, item_id: str, today: date | None = None) -> bool:
+    """Whether a piece is in the bag of the trip Today dresses from today (not set aside): it is with you, clean,
+    whatever the laundry at home says. The item page says Today can build an outfit around it by this
+    (`items.detail`), as Today does."""
+    today = today or wears.today()
+    found = plans.trip_on(conn, today)
+    if found is None or (_state is not None and aside(_state, found["id"], today)):
+        return False
+    return item_id in savedtrips.in_bag(savedtrips.get(conn, found["id"]), under_way=True)
+
+
 def aside(state: State, trip_id: str, day: date) -> bool:
     """Whether the owner set this trip aside for this day ("Not on this trip today")."""
     kept = state.get(ASIDE)

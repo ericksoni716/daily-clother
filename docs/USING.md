@@ -122,14 +122,16 @@ without a note: the weather is the trip's place's (the weather the trip has for 
 looked up), the trip's own outfit for the day comes first (under its button, "Your trip planned this outfit
 for today."), and the other outfits come only from what you packed, each piece no more often than the trip
 allows before a wash; a piece's choices say "Another piece comes from what you packed." One line of fixed
-height over the outfits says "Day 3 of 7 of your trip to Lisbon." and opens the trip. The trip's occasion
-for the day is chosen when Today opens. Claude does not choose on such a day; Nines' rules do. Behind Change,
+height over the outfits says "Day 3 of 7 of your trip to Lisbon." and opens the trip. Today opens on the trip's occasion
+for the day in one ask (a chip you tap is your own choice). Claude does not choose on such a day; Nines' rules do. Behind Change,
 first, **Not on this trip today** dresses you from your whole closet at home for the rest of the day (on every
 device, and after a reload); the line then says "You're not on your trip today." with Undo. A note that puts
 you somewhere else, or an outfit you planned for today, wins over the trip; building around a piece or wearing
 an outfit again stays on the trip (a piece you build around is offered even if it stayed at home). When two
 trips hold today, the one that started later is the one you are on. Offline, Today shows what this device kept,
-line included.
+line included. In that sheet on a trip day, the place saved is labelled "At home", and its search "Change where home
+is": it changes home, not the trip. From a piece's page, **Build an outfit around it** on a trip day builds from the
+bag; a packed piece counts as clean, whatever the laundry at home says, and its page says so.
 
 Below that, when a trip starts within two weeks (or is under way, and is not today's), a "Packing for a trip?"
 row opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
@@ -260,7 +262,8 @@ when it went and came back.
 **Build an outfit around it** opens Today built around the piece, as Today's own "Build around this
 piece" does: in place of any piece built around before, with the pieces you left out still left out.
 Back returns to the piece. In the laundry, away or not yet described, one line says when Today can
-("Once it's clean, Today can build an outfit around it."); an archived piece, or one no outfit has a
+("Once it's clean, Today can build an outfit around it."); on a day a trip covers, a piece you packed counts as
+clean and has the button. An archived piece, or one no outfit has a
 place for (a tie, a watch), has neither. **When you wore it** lists the piece's wears, newest first:
 a wear on a day you recorded an outfit with it shows that outfit's pieces (each opens its own page),
 the day, and how it went; the same outfit worn on several days is one row ("3 times, last on 12

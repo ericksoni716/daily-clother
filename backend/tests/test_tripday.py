@@ -288,3 +288,40 @@ def test_an_outing_stays_off_on_a_trip_day_even_set_aside(styled, monkeypatch):
     styled.c.put(f"/api/trips/{trip['id']}/aside")
     assert not any("outing" in o for o in test_stylejobs.today(styled.c)["outfits"])
     assert test_outing_today.outings(styled.cfg, styled.sv.state.get("profile")) == []
+
+
+# ------------------------------------------------------------------ from a piece's page, and the occasion kept
+def test_a_piece_of_the_bag_in_the_laundry_at_home_can_be_built_around_on_a_trip_day_and_its_page_says_so(client, clock):
+    closet(client)
+    trip = make_trip(client, TODAY, TODAY + timedelta(days=2))
+    home_only = make_item(client, "z", name="Red flannel shirt", category="shirt", color="red", formality="casual")
+    packed = next(p["id"] for p in trip["plan"]["packed"] if p["group"] == "tops")
+    for piece in (packed, home_only):
+        assert client.post(f"/api/items/{piece}/laundry", json={"state": "laundry"}).status_code == 200
+    # the piece's page: the packed one is with you and clean; the one at home is in its laundry
+    assert client.get(f"/api/items/{packed}").json()["build_around"] is None
+    assert client.get(f"/api/items/{home_only}").json()["build_around"] == "laundry"
+    # Today opened from it (`?around=` asks build_around): built around the packed piece, the rest from the bag
+    body = suggest(client, occasion="casual", build_around=packed)
+    assert body["outfits"] and all(packed in ids_of(o) and ids_of(o) <= bag_of(trip) for o in body["outfits"])
+    # the one at home in its laundry: refused as at home, in the same words
+    assert "in the laundry" in suggest(client, occasion="casual", build_around=home_only)["missing"][0]
+    # set aside, the laundry at home counts again, on the page too
+    client.put(f"/api/trips/{trip['id']}/aside")
+    assert client.get(f"/api/items/{packed}").json()["build_around"] == "laundry"
+
+
+def test_on_a_trip_day_the_occasion_this_device_kept_gives_way_to_the_trips_and_the_answer_says_which(client, clock):
+    closet(client)
+    trip = make_trip(client, TODAY, TODAY + timedelta(days=2), occasion="casual")
+    # the page's first ask of a visit: the occasion kept from another day, not a tap
+    body = suggest(client, occasion="smart_casual", mood="usual", occasion_kept=True)
+    assert body["context"]["occasion"] == "casual" and body["context"]["on_trip"]["planned"] is not None
+    assert ids_of(body["outfits"][0]) == ids_of(trip["plan"]["days"][0]["outfit"])
+    # a tap is the owner's own choice
+    body = suggest(client, occasion="smart_casual", mood="usual", occasion_kept=False)
+    assert body["context"]["occasion"] == "smart_casual" and body["context"]["on_trip"]["planned"] is None
+    # at home the kept occasion is the one dressed for, as always; set aside is at home
+    client.put(f"/api/trips/{trip['id']}/aside")
+    assert suggest(client, occasion="smart_casual", occasion_kept=True)["context"]["occasion"] == "smart_casual"
+    assert client.post("/api/outfits/today", json={"occasion_kept": "yes"}).status_code == 422

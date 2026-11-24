@@ -96,6 +96,9 @@ test('a trip covers today: its place, its outfit first, the bag only, a wear, an
   await page.getByTestId('day-line').getByRole('button', { name: 'Change' }).click();
   const where = page.getByRole('dialog', { name: 'Where you are' });
   await expect(where.getByTestId('trip-aside')).toContainText("You're on your trip to Lisbon, so Today dresses you there from what you packed.");
+  // the place saved is home's, and changing it is said to change home, not the trip
+  await expect(where.getByText('At home:')).toBeVisible();
+  await expect(where.getByLabel('Change where home is')).toBeVisible();
   await where.getByRole('button', { name: 'Not on this trip today' }).click();
   await expect(where).toHaveCount(0);
   await expect(tripLine(page)).toHaveText("You're not on your trip today. Undo");
@@ -110,6 +113,35 @@ test('a trip covers today: its place, its outfit first, the bag only, a wear, an
   await expect(tripLine(page)).toHaveText('Day 1 of 4 of your trip to Lisbon.');
   await expect.poll(() => shownIds(page)).toEqual(idsOf(planned.pieces));
   expect(await axeViolations(page)).toEqual([]);
+});
+
+test('a trip day opens with one ask, for the trip\'s occasion, when this device kept another', async ({ page }) => {
+  const saved = await onATrip(page);
+  // this device last chose Smart casual; the trip's day is casual
+  await page.evaluate(() => localStorage.setItem('closet-today-choice', JSON.stringify({ occasion: 'smart_casual', mood: 'usual' })));
+  const asked: Record<string, unknown>[] = [];
+  page.on('request', (r) => {
+    if (r.url().endsWith('/api/outfits/today') && r.method() === 'POST') asked.push(r.postDataJSON() as Record<string, unknown>);
+  });
+  await page.goto('/today');
+  await expect(tripLine(page)).toBeVisible();
+  const planned = saved.plan.days[0].outfit!;
+  await expect.poll(() => shownIds(page)).toEqual(idsOf(planned.pieces));
+  const occasions = page.getByRole('group', { name: 'Occasion' });
+  await expect(occasions.getByRole('button', { name: 'Casual', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(occasions.getByRole('button', { name: 'Smart casual' })).toHaveAttribute('aria-pressed', 'false');
+  // the page holds still: nothing more is asked, so the outfits are never replaced
+  await page.waitForLoadState('networkidle');
+  expect(asked).toHaveLength(1);
+  expect(asked[0]).toMatchObject({ occasion: 'smart_casual', occasion_kept: true });
+  // the kept choice on this device is not changed; a tap is the owner's own and is sent as such
+  expect(await page.evaluate(() => localStorage.getItem('closet-today-choice'))).toContain('smart_casual');
+  await occasions.getByRole('button', { name: 'Smart casual' }).click();
+  await expect.poll(() => asked.length).toBe(2);
+  expect(asked[1].occasion).toBe('smart_casual');
+  expect(asked[1].occasion_kept).toBeUndefined();
+  await expect(occasions.getByRole('button', { name: 'Smart casual' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(current(page).getByTestId('plan-swapped')).toHaveCount(0);
 });
 
 for (const width of [375, 320]) {

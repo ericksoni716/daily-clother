@@ -18,7 +18,7 @@ import { Link, navigate } from '../router';
 import { settingsQuery } from '../settings';
 import { useApp } from '../store';
 import {
-  askedOf, buildAroundPiece, canDress, chosenBy, closetKey, dayName, dayParts, daysAhead, joinWords, longDate, weekdayOf, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
+  askedOf, buildAroundPiece, canDress, occasionShown, chosenBy, closetKey, dayName, dayParts, daysAhead, joinWords, longDate, weekdayOf, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
   OCCASIONS, outfitIds, outingLine, parseTemp, placeLabel, readFor, sameOutfit, sameOutfits, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
   timeOf, TRIP_OUTFIT_LINE, TRIP_PIECE_HINT, tripSheetLine, tripTodayLine, waitingLine, whatToAddFirst, withThing, wornNow, wornOrder,
   type Choice, type DayAnswer, type DayNote, type OnTrip, type Outfit, type Place, type RememberHow,
@@ -57,13 +57,17 @@ interface Memory {
   index: number;
   buildAround: string | null;
   leaveOut: string[];
+  /** The occasion was tapped today: the chip is the owner's choice, sent as such (see `occasionShown`). */
+  tapped: boolean;
 }
 
 let memory: Memory | null = null;
 
 function requestFor(choice: Choice, buildAround: string | null, leaveOut: string[], typed: TypedDay | null, again: string | null = null,
-  ahead: string | null = null, otherOutfits = false): TodayRequest {
+  ahead: string | null = null, otherOutfits = false, tapped = true): TodayRequest {
   const r: TodayRequest = { occasion: choice.occasion, mood: choice.mood };
+  // the occasion kept on this device, not tapped today: on a trip day the server dresses for the trip's instead
+  if (!tapped && !ahead) r.occasion_kept = true;
   if (ahead) r.day = ahead;
   if (otherOutfits) r.planned = false;
   if (again) r.again = again;
@@ -101,6 +105,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const remembered = !ahead && memory && memory.profile === profile && memory.day === today ? memory : null;
 
   const [choice, setChoice] = useState<Choice>(() => loadChoice());
+  const [tapped, setTapped] = useState(remembered?.tapped ?? false);
   // the outfits changed today: kept while the app is open, and on this device for the rest of the day
   const keptChanges = remembered || ahead ? null : kept.changes(today);
   // what the address asks as Today opens: an outfit to wear again (Worn), or a piece to build around (its page), which
@@ -193,10 +198,6 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
     if ((OCCASIONS as readonly string[]).includes(occasion)) setChoice((c) => (c.occasion === occasion ? c : { ...c, occasion }));
   }, [dayPlan]);
 
-  // a trip day opens on the trip's occasion for the day (this visit only; the choice kept is not changed): the trip's
-  // own outfit for today leads only for it
-  const tookTripOccasion = useRef(false);
-
   // the same first page of worn outfits as the Worn screen, read once for both (and kept for offline)
   const recentRead = useQuery(wornQuery(profile)).data;
   const recent = recentRead?.page.outfits ?? null;
@@ -211,8 +212,8 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   // Today's outfits: asked when the question changes (the choices, the day, or the closet's places, availability and
   // ratings), and again only when this screen asks (see `ask`). Never by itself: coming back to the screen, to the app
   // or online shows the answer kept, since asking can ask Claude, which costs money.
-  const request = useMemo(() => requestFor(choice, buildAround, leaveOut, typed, again, ahead, otherOutfits),
-    [choice, buildAround, leaveOut, typed, again, ahead, otherOutfits]);
+  const request = useMemo(() => requestFor(choice, buildAround, leaveOut, typed, again, ahead, otherOutfits, tapped),
+    [choice, buildAround, leaveOut, typed, again, ahead, otherOutfits, tapped]);
   const closet = useMemo(() => closetKey(items), [items]);
   const key = queryKeys.today(request, ahead ?? today, closet ?? '');
   const answer = useQuery({
@@ -246,13 +247,9 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   } else if (failed) {
     phase = failed.status === 422 && request.low_c === undefined && !ahead ? { kind: 'needs-day', message: failed.message } : { kind: 'error', message: failed.message, offline: false };
   } else phase = { kind: 'loading' };
-  const tripNow = !ahead && phase.kind === 'ready' ? phase.answer.context.on_trip ?? null : null;
-  const tripOccasion = tripNow && !tripNow.aside ? tripNow.occasion : null;
-  useEffect(() => {
-    if (tookTripOccasion.current || !tripOccasion) return;
-    tookTripOccasion.current = true;
-    if ((OCCASIONS as readonly string[]).includes(tripOccasion)) setChoice((c) => (c.occasion === tripOccasion ? c : { ...c, occasion: tripOccasion }));
-  }, [tripOccasion]);
+  // the occasion the chips show: on a trip day the answer to the occasion kept is for the trip's, shown without
+  // asking again (`occasionShown`); a tap is the owner's own
+  const occasion = occasionShown(choice.occasion, !tapped && !ahead, phase.kind === 'ready' ? phase.answer.context.occasion : null);
 
   // Offline: the outfits saved on this device earlier today, with the choices they were for.
   useEffect(() => {
@@ -303,8 +300,8 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   }, [offline, showingSaved, ask]);
 
   useEffect(() => {
-    if (!ahead) memory = { profile, day: today, index, buildAround, leaveOut };
-  }, [profile, today, index, buildAround, leaveOut, ahead]);
+    if (!ahead) memory = { profile, day: today, index, buildAround, leaveOut, tapped };
+  }, [profile, today, index, buildAround, leaveOut, ahead, tapped]);
   useEffect(() => {
     if (!ahead) kept.setChanges(buildAround || leaveOut.length ? { day: today, build_around: buildAround, leave_out: leaveOut } : null);
   }, [kept, today, buildAround, leaveOut, ahead]);
@@ -364,6 +361,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   }, [styleDone, styleGone, waitingFor, talking, ask]);
 
   const choose = (next: Choice) => {
+    if (next.occasion !== occasion) setTapped(true);   // the owner's own choice from now on, sent as such
     setChoice(next);
     saveChoice(next);
   };
@@ -498,7 +496,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
       const ctx = phase.kind === 'ready' ? phase.answer.context : null;
       const r = await api.wearMany(ids, {
         pieces: o.pieces, score: o.score, reasons: o.reasons, warnings: o.warnings,
-        context: { low_c: ctx?.low_c ?? null, high_c: ctx?.high_c ?? null, rain: ctx?.rain ?? null, occasion: choice.occasion, mood: choice.mood },
+        context: { low_c: ctx?.low_c ?? null, high_c: ctx?.high_c ?? null, rain: ctx?.rain ?? null, occasion, mood: choice.mood },
       });
       changed = true;
       r.items.forEach((i) => writeItem(qc, i));
@@ -695,8 +693,8 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
       )}
 
       <div className="today-choices chips-scroll">
-        <ChoiceGroup title="Occasion" options={OCCASIONS} value={choice.occasion} labelOf={occasionLabel} locked={locked}
-          onChange={(occasion) => choose({ ...choice, occasion })} />
+        <ChoiceGroup title="Occasion" options={OCCASIONS} value={occasion} labelOf={occasionLabel} locked={locked}
+          onChange={(o) => choose({ ...choice, occasion: o })} />
         <span className="today-choices-sep" aria-hidden="true" />
         <ChoiceGroup title="Mood" options={MOODS} value={choice.mood} labelOf={moodLabel} locked={locked}
           onChange={(mood) => choose({ ...choice, mood })} />
@@ -980,7 +978,7 @@ function DayPanel({ phase, typed, locked, offline, toast, onTyped, onPlace, onNo
         </div>
       )}
       <WhereYouAre inline place={settings ? settings.place : undefined} home={settings?.home_place} offline={offline} toast={toast}
-        onChange={onPlace} />
+        onChange={onPlace} trip={!!trip} />
       <h3 className="today-typed-title">Or type today's temperatures</h3>
       <TypedForm typed={typed} locked={locked} onTyped={onTyped} />
       {typed && (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  askedOf, buildAroundPiece,
+  askedOf, buildAroundPiece, occasionShown,
   addDays, dayName, daysAhead, onDay, weekdayOf,
   canDress, closetKey, dayParts, midName, newestOn, outingLine, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
   parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, tripSheetLine, tripTodayLine, whatToAddFirst, wornOrder,
@@ -313,6 +313,9 @@ describe('building around a piece from its page', () => {
     expect(askedOf('?again=o1')).toEqual({ again: 'o1', around: null });
     expect(askedOf('')).toEqual({ again: null, around: null });
     expect(askedOf('?around=')).toEqual({ again: null, around: null });
+  });
+});
+
 describe('a trip covers today', () => {
   const trip = { place: 'Lisbon, Portugal', day: 3, days: 7, aside: false };
   it('says which day of which trip, named by its place as the owner chose it', () => {
@@ -330,5 +333,16 @@ describe('a trip covers today', () => {
     for (const line of [tripTodayLine(trip), tripTodayLine({ ...trip, aside: true }), tripSheetLine(trip)]) {
       expect(line).not.toMatch(/engine|model|token|tag|feed|queue|sync|!/i);
     }
+  });
+});
+
+describe('the occasion on a trip day', () => {
+  it('shows the occasion the answer was dressed for while the one sent is the one this device kept', () => {
+    expect(occasionShown('smart_casual', true, 'casual')).toBe('casual');
+  });
+  it('shows the one chosen once it was tapped, or before an answer', () => {
+    expect(occasionShown('smart_casual', false, 'casual')).toBe('smart_casual');
+    expect(occasionShown('smart_casual', true, null)).toBe('smart_casual');
+    expect(occasionShown('smart_casual', true, undefined)).toBe('smart_casual');
   });
 });

@@ -47,8 +47,8 @@ from .state import State
 from .tagger.taxonomy import FOOTWEAR, GARMENTS
 
 CHOICES = ("occasion", "mood", "build_around", "leave_out", "count", "again", "ask_again", "say", "looking_at", "day",
-           "planned")
-TALK = ("again", "ask_again", "say", "looking_at", "day", "planned")   # choices that are not the engine's
+           "planned", "occasion_kept")
+TALK = ("again", "ask_again", "say", "looking_at", "day", "planned", "occasion_kept")   # choices that are not the engine's
 WEATHER_FIELDS = ("low_c", "high_c", "rain")
 # The day dressed for when no forecast can be had and no temperatures were given (DECISIONS "Today's outfits by themselves")
 MILD = {"low_c": 14.0, "high_c": 20.0, "rain": False}
@@ -279,6 +279,8 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
             raise outfits.ContextError(str(e)) from None
     if body.get("planned") is not None and not isinstance(body["planned"], bool):
         raise outfits.ContextError("planned must be true or false.")
+    if body.get("occasion_kept") is not None and not isinstance(body["occasion_kept"], bool):
+        raise outfits.ContextError("occasion_kept must be true or false.")
     on_day = other or today_
     if other is not None:
         trip = plans.trip_on(conn, other)
@@ -362,13 +364,16 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
     request = {k: body[k] for k in CHOICES if body.get(k) is not None and k not in TALK}
     if on and on.get("occasion") and "occasion" not in request:
         request["occasion"] = on["occasion"]
-    if on_trip and "occasion" not in request:
+    if on_trip and ("occasion" not in request or body.get("occasion_kept")):
+        # the occasion this device kept from another day is not a choice made today: the trip's for the day is used,
+        # and the answer says so (`context.occasion`), so the page shows it without asking again
         request["occasion"] = on_trip["occasion"]
     ctx, count = outfits.parse_request({**request, **day, "worn_days_ago": worn_days_ago(conn, on_day)})
     if on_trip and on_trip["bag"]:
         # the bag only, worn whatever the laundry at home says; the rest is at home (a piece built around excepted). A
         # trip that packed nothing (its weather could not be had) is no bag: the whole closet, at the trip's place
-        rows = in_the_bag(rows, on_trip["free"])
+        # a piece of the bag built around is with you too, as the item page says (`tripday.with_you`)
+        rows = in_the_bag(rows, on_trip["free"] | ({ctx.build_around} & on_trip["bag"]))
         home = sorted(r["id"] for r in rows if r["id"] not in on_trip["free"] and r["id"] != ctx.build_around)
         ctx = dataclasses.replace(ctx, leave_out=(*ctx.leave_out, *home))
     expected: list[str] = []   # pieces away now that a day ahead counts as back by then
@@ -424,6 +429,7 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         # the hours dressed for, read from the forecast (None when it has no hours, or every number was typed)
         "detail": reading if from_forecast else None,
         "note": daynote.describe(note, on_day, ahead=other is not None),
+        "occasion": ctx.occasion,   # the occasion dressed for (on a trip day, the trip's when the page sent the kept one)
     }
     if again is not None:
         context["again"] = again
@@ -444,7 +450,7 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         trip_planned = None
         if on_trip["outfit"] and again is None and not ctx.build_around and ctx.occasion == on_trip["occasion"]:
             answer["outfits"], trip_planned = trip_first(rows, ctx, feedback, on_trip["outfit"], answer["outfits"], count)
-        if not answer["outfits"]:
+        if not answer["outfits"] and not ctx.build_around:   # a piece asked for says why itself ("in the laundry")
             answer["missing"] = [NOTHING_IN_THE_BAG]
         context["on_trip"] = {**on_trip["trip"], "occasion": on_trip["occasion"], "planned": trip_planned}
     elif holds and holds["trip"]["aside"]:

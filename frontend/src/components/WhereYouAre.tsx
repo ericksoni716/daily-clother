@@ -18,8 +18,10 @@ const samePlace = (a: Place | null | undefined, b: Place | null | undefined) =>
  * weather for it, go back to New York. In Settings, and inline on Today (`inline`: without the weather and the way back).
  * A place chosen is written into the settings kept by the page (and the weather asked again); `onChange` also gets them.
  */
-export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
+export function WhereYouAre({ place, home, offline, onChange, toast, inline, trip = false }: {
   place: Place | null | undefined; home?: Place | null; offline: boolean; onChange?(s: Settings): void; toast: Toast; inline?: boolean;
+  /** On a day a trip covers (Today's sheet): the place saved is home's, and changing it does not move the trip. */
+  trip?: boolean;
 }) {
   const qc = useQueryClient();
   const [query, setQuery] = useState('');
@@ -79,14 +81,14 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
   let saved: ReactNode;
   if (offline) saved = <p className="hint">Where you are can't be seen or changed while you're offline.</p>;
   else if (place === undefined) saved = null;
-  else if (place === null) saved = <p className="hint">No place saved yet, so Nines uses New York.</p>;
+  else if (place === null) saved = <p className="hint">{trip ? 'No home place saved yet, so home is New York.' : 'No place saved yet, so Nines uses New York.'}</p>;
   else {
     const isHome = samePlace(place, home);
     saved = (
       <>
         <p className="state-line state-ready">
           <span className="state-dot" aria-hidden="true" />
-          <span>{isHome ? 'Using' : 'Saved'}: <strong data-testid="saved-place">{place.name}</strong></span>
+          <span>{trip ? 'At home' : isHome ? 'Using' : 'Saved'}: <strong data-testid="saved-place">{place.name}</strong></span>
         </p>
         {isHome && !inline && <p className="hint">New York until you choose a place.</p>}
         {!inline && <TodaysWeather place={place} offline={offline} />}
@@ -112,7 +114,7 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
         <>
           <form className="field-row field-row-inline" onSubmit={search}>
             <label className="field">
-              <span>{place ? 'Choose another place' : 'Search for a place'}</span>
+              <span>{trip ? 'Change where home is' : place ? 'Choose another place' : 'Search for a place'}</span>
               <input value={query} placeholder="e.g. Brooklyn" onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
             </label>
             <button className="btn" type="submit" disabled={busy || locating || !query.trim()}>{busy && !results ? 'Searching…' : 'Search'}</button>

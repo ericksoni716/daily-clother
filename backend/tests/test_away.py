@@ -1,12 +1,12 @@
 """Where a piece is (closet/away.py): away at the cleaner's, at the tailor's or lent out, left out like the laundry,
 still owned, and back again. The rules first (outfits, trips, gaps, insights, what Claude is told), then the routes."""
 import re
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from closet import aboutyou, gaps, outfits, styling, trips, wears, wouldwork
+from closet import aboutyou, db, gaps, outfits, styling, trips, wears, wouldwork
 from closet.tagger import stylist
 
 from . import test_insights as ti
@@ -25,7 +25,11 @@ SECRET = "keep-this-on-the-computer-7f3a"
 
 @pytest.fixture(autouse=True)
 def fixed_today(monkeypatch):
+    # Both clocks on TODAY: the day the app takes as today, and the time it stamps on what happens (a return is
+    # shown as today's when its stamp falls on today). Moving only the first passed only on 23 November.
     monkeypatch.setattr(wears, "today", lambda: TODAY)
+    monkeypatch.setattr(db, "now", lambda: datetime.combine(TODAY, datetime.now().time()).astimezone(UTC)
+                        .strftime("%Y-%m-%dT%H:%M:%S.%fZ"))
 
 
 def away(items, item_id, place="cleaner", until=None, note=None):

@@ -14,6 +14,12 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **A trip covers today** (23 November; DECISIONS, "A trip covers today"). Claude does not choose on a trip
+  day: the rules do, as for a day ahead; Claude being told the place and offered only the bag would need a
+  new line in what is sent. The trip's own outfit leads only for the trip's occasion of the day. The trip's
+  days on the trip page change to what you wore only when the trip is planned again (a change or Plan
+  again). The phone check pictures no trip day;
+  `e2e/48-trip-today.spec.ts` does.
 - **The check against the closet, sooner** (23 November; DECISIONS, "The outfit engine", the row
   on remembered answers). Left: with the owner's answers, each situation's grid is run again even
   when the piece is not worn for that situation and the closet it judges is the same as before (a
@@ -535,7 +541,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 
 **Trips**
 - [x] **A trip for tennis or golf**, and a way back to "follow the weather" for swimming.
-- [ ] **A trip covers today**: Today dresses for where you are without a note.
+- [x] **A trip covers today**: Today dresses for where you are without a note.
 
 **Later, and only if the owner wants it** (each needs a decision that is theirs): reading a calendar for the day's events (what would be sent to Claude); the colours reworked; a year in clothes.
 
@@ -570,7 +576,7 @@ The review's fixes are merged (#244 to #248). Left for later, in the owner's wor
     - Measure first: what one stylist call costs and how long it takes on a closet of the owner's size (estimated at 5 to 10 cents on Opus, not measured).
   - [x] **Step 3, the conversation.** On Today, under Claude's outfits, the owner writes what they think ("too dressy", "swap the boots", "why not the navy blazer?"); Claude answers, picks again when asked, and may offer to keep a lasting preference, which is saved only when the owner taps Save: to **Your style**, or to the piece's **How I wear it** (migration 0033; DECISIONS, "Step 3, the conversation"). Tried once with the real Claude on the demo closet (three messages, 6 to 18 seconds each). Left for later: ratings of worn outfits offering lines for the profile the same way; trying it on the owner's own closet; a long day's conversation folded to its last few messages. Found while building it (older than it): tapping an outfit's dot and then scrolling the page while the outfits slide can leave the carousel on another outfit than the one tapped.
   - [ ] **Step 4, the interview: on hold** (the owner, 18 November: "not sure I understand the point of the interview. Can that information be gleaned through the conversation?"). It was a one-time set of questions to fill Your style on the first day (which menswear rules the owner cares about, how many layers at which temperatures). The conversation now does this a line at a time, for things that actually come up, so it is not built unless the first weeks show Claude learning too slowly; a lighter form then is "ask me three things" in the conversation's own box.
-  - Later: a trip in Trips that covers today moves Today to its place by itself, as a day note does.
+  - [x] Later: a trip in Trips that covers today moves Today to its place by itself, as a day note does (done: "A trip covers today").
 - [ ] **Bigger redesigns found in the review** (with phone screenshots), each its own issue:
   - **Settings** as a short list of groups that open (Your closet and backups, Where you are, Look, Describing clothes, Updates, Phone access, Advanced), with Look near the top. It is one 4,850 px column now.
   - **What's missing** with folded cards (title, how much it helps, one line, thumbnails) that open on a tap. Merge "Also worth knowing" lines that repeat a card. The first suggestion starts about 440 px down.

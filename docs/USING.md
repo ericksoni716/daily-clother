@@ -117,7 +117,21 @@ choices say why if it is in an outfit anyway, with **Build around it anyway**. T
 coming week are one line on Today ("Saturday and Monday are planned."), each day a link. **Keep this
 outfit**, under each outfit's button, keeps it under Worn without wearing it.
 
-Below that, when a trip starts within two weeks (or is under way), a "Packing for a trip?"
+**A trip covers today.** On a day inside a trip saved in Trips, Today dresses for where the trip is
+without a note: the weather is the trip's place's (the weather the trip has for today when it cannot be
+looked up), the trip's own outfit for the day comes first (under its button, "Your trip planned this outfit
+for today."), and the other outfits come only from what you packed, each piece no more often than the trip
+allows before a wash; a piece's choices say "Another piece comes from what you packed." One line of fixed
+height over the outfits says "Day 3 of 7 of your trip to Lisbon." and opens the trip. The trip's occasion
+for the day is chosen when Today opens. Claude does not choose on such a day; Nines' rules do. Behind Change,
+first, **Not on this trip today** dresses you from your whole closet at home for the rest of the day (on every
+device, and after a reload); the line then says "You're not on your trip today." with Undo. A note that puts
+you somewhere else, or an outfit you planned for today, wins over the trip; building around a piece or wearing
+an outfit again stays on the trip (a piece you build around is offered even if it stayed at home). When two
+trips hold today, the one that started later is the one you are on. Offline, Today shows what this device kept,
+line included.
+
+Below that, when a trip starts within two weeks (or is under way, and is not today's), a "Packing for a trip?"
 row opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
 outfit went, with every piece of it under the question; then the last outfits you wore (three
 on a phone, a week's worth on a computer), each with its pieces and how it went, rated in place,
@@ -181,7 +195,9 @@ saved trip is a packing list to tick off, on the computer or the phone, with its
 "Change the trip". What you have ticked stays on the list when the trip is planned again, and can
 be worn whatever the laundry at home says. Once the trip has begun, the days already gone keep
 their outfits and their weather, the days to come are dressed only from what you packed, and the
-trip says the forecast changed only when it changed for the days still to come.
+trip says the forecast changed only when it changed for the days still to come. A day on which you recorded
+another outfit than the plan's counts what you wore, once the trip is planned again. Today's day is marked
+**Today**, and Today itself dresses from the trip on that day (see Today).
 
 ## Closet
 

@@ -182,10 +182,24 @@ test.describe('shopping for a wish', () => {
     expect((await find.boundingBox())!.y).toBe(top);
     const wishId = page.url().split('/wardrobe/wish/')[1];
     await expect.poll(async () => (await (await page.request.get(`${backend.url}/api/wishlist/${wishId}/finds`)).json()).finds.length).toBe(0);
+    // the wishlist read again while it is stopped (here by a note saved as its box is left; a price check ending or
+    // coming back to the window does the same) moves nothing above it: the wish came from a link, and still says so
+    const readAgain = page.waitForResponse((r) => r.request().method() === 'GET' && r.url().endsWith('/api/wishlist') && r.ok());
+    await wish.getByLabel('Note').fill('Size M');
+    await wish.getByLabel('Note').blur();
+    await readAgain;
+    await expect(wish.getByTestId('wish-note-status')).toHaveText('Saved');
+    await expect(page.getByText('Added by hand')).toHaveCount(0);
+    expect((await find.boundingBox())!.y).toBe(top);
     await find.getByRole('button', { name: 'Undo' }).click();
     await expect(find.getByTestId('find-stopped')).toHaveCount(0);
     await expect(find.getByRole('button', { name: 'Stop watching' })).toBeVisible();
     await expect(find.getByTestId('find-drop')).toHaveText('Was $68.00, now $54.40 (20% less)');
+    // (the note goes again, so the wish's row shows the page it was sent as)
+    const cleared = page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().endsWith(`/api/wishlist/${wishId}`) && r.ok());
+    await wish.getByLabel('Note').fill('');
+    await wish.getByLabel('Note').blur();
+    await cleared;
 
     // Would it go with my clothes? starts from the product's name on the page that was sent
     await wish.getByRole('button', { name: 'Would it go with my clothes?' }).click();

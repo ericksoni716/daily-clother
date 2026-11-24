@@ -225,7 +225,8 @@ grid then says "Your laundry is empty." When pieces are away (at the cleaner's, 
 line says how many ("2 away"; the line wraps as text does). It shows those pieces as a
 list, soonest back first, each saying where it is and when it is expected ("Expected back on Friday
 20 Nov" once the day has gone by), with **It's back** beside it; a piece brought back stays in the
-list with Undo until you leave it. A piece in the laundry while it is away is counted as away, not
+list with Undo until you leave it. When nothing is away any more, the closet opens on all your clothes
+rather than on an empty Away view, keeping your search and other filters. A piece in the laundry while it is away is counted as away, not
 in the laundry. A tile shows the piece's picture and name, and, while
 Nines is working on it, a small round mark with the step it is at (1 cutting out, 2
 describing and drawing, 3 finishing the drawing): turning while it is being done, dashed while

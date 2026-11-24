@@ -340,6 +340,14 @@ export function withStopped<T extends { id: string }>(finds: T[], stopped: { fin
   return out;
 }
 
+/** Whether a wish's page says "Added by hand": it came from no gap and no page was sent for it. The server knows a
+ * wish's link only while its find is watched, so the finds the page shows count too, a link's find you stopped
+ * watching on this visit among them: the line does not appear, and push that find down, until you leave the page.
+ * `shown` is null while the finds are still being asked for. */
+export function addedByHand(wish: Pick<Wish, 'gap_id' | 'link'>, shown: Pick<Find, 'link'>[] | null): boolean {
+  return !wish.gap_id && !wish.link && !(shown ?? []).some((f) => f.link);
+}
+
 /** How a find's price went, when it changed from one day to another: "The price was $177.00 on 3 Nov, $160.00 on
  * Tuesday and $150.00 yesterday.", the last three prices it changed to, each from the day it was first seen at it (a
  * day's last price stands for the day). Null when it never did. */

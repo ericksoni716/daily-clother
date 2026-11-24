@@ -9,7 +9,7 @@ import { cleanAll, putBack, type Cleaned } from '../laundry';
 import { groupTitle, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { goBack, itemPath, Link, navigate, replaceSearch } from '../router';
-import { ANY, chooseWhat, columnsFor, filtersFromSearch, filtersToSearch, keepFilters, keptFilters, NO_FILTERS, keepTileSize, loadTileSize, shortName, TILE_MIN_WIDE, type TileSize, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
+import { ANY, chooseWhat, columnsFor, filtersFromSearch, filtersToSearch, keepFilters, keptFilters, NO_FILTERS, keepTileSize, openedFilters, loadTileSize, shortName, TILE_MIN_WIDE, type TileSize, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, whatChoices, whatIn, whatName, type Choice, type What } from '../closet';
 import { progressOf } from '../progress';
 import { itemSaved, itemsQuery, progressQuery, reviewQuery, useVocab } from '../queries';
 import { useApp } from '../store';
@@ -55,7 +55,16 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   // "Away": the pieces at the cleaner's, at the tailor's or lent out (`AwayView`); those brought back there stay listed
   const [away, setAwayOn] = useState(kept.away);
   const [returned, setReturned] = useState<Set<string>>(() => new Set());
-  const setAway = (on: boolean) => { setAwayOn(on); setReturned(new Set()); };
+  // Opening on the Away view with no piece away opens on everything instead (`openedFilters`). It is decided on the
+  // list the closet opens with and again on the first one it reads itself, each time while that list is being drawn
+  // (state set while drawing is used before anything shows), so the page never moves for it. Once you are in the view
+  // it holds: a piece brought back there keeps its row with Undo, and the Away chip or filter you tap ends the opening.
+  const [opening, setOpening] = useState(true);
+  if (opening && list !== null) {
+    if (away && status === 'active' && returned.size === 0 && !openedFilters({ what, query, laundry, check, away }, list).away) setAwayOn(false);
+    if (items.isFetchedAfterMount || returned.size > 0) setOpening(false);
+  }
+  const setAway = (on: boolean) => { setAwayOn(on); setReturned(new Set()); setOpening(false); };
   const search = filtersToSearch({ what, query, laundry, check, away });
   useEffect(() => {
     keepFilters(memoryKey, search);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANY, chooseWhat, filtersFromSearch, filtersToSearch, NO_FILTERS, columnsFor, shortName, TILE_MIN_WIDE, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, searchWords, whatChoices, whatIn, whatName } from './closet';
+import { ANY, chooseWhat, filtersFromSearch, openedFilters, filtersToSearch, NO_FILTERS, columnsFor, shortName, TILE_MIN_WIDE, emptySentence, isWhat, laundryNotice, laundryPart, matchesSearch, searchedText, searchWords, whatChoices, whatIn, whatName } from './closet';
 import type { KindGroup } from './kinds';
 
 describe('how many tiles to a row on a computer', () => {
@@ -229,5 +229,24 @@ describe('the search and filters in the address', () => {
     expect(filtersFromSearch('?signin=1')).toBeNull();
     expect(filtersFromSearch('?laundry=wet&kind=chinos')).toEqual(NO_FILTERS);
     expect(filtersFromSearch('?q=')).toEqual(NO_FILTERS);
+  });
+});
+
+describe('what the closet opens on', () => {
+  const away = { away: { place: 'cleaner' as const, since: '2026-11-20', until: null } };
+  const home = { away: null };
+  const kept = { ...NO_FILTERS, query: 'navy', what: { group: 'trousers', category: null, kind: null }, away: true };
+
+  it('opens on everything, not on an empty Away view, when nothing is away; the search and the other filters stay', () => {
+    const opened = openedFilters(kept, [home, { away: undefined }]);
+    expect(opened).toEqual({ ...kept, away: false });
+    expect(filtersToSearch(opened)).toBe('?q=navy&group=trousers');
+    expect(openedFilters({ ...NO_FILTERS, away: true }, [])).toEqual(NO_FILTERS);
+  });
+
+  it('keeps the Away view while a piece is away, and leaves every other view as it is', () => {
+    expect(openedFilters(kept, [home, away])).toBe(kept);
+    const laundry = { ...NO_FILTERS, laundry: 'laundry' as const, check: true };
+    expect(openedFilters(laundry, [home])).toBe(laundry);
   });
 });

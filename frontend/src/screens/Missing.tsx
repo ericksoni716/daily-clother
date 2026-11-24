@@ -548,7 +548,6 @@ export function WishCard({ wish, actions, onNote, onRemoved }: {
           </span> {colors}</>}
         </p>
       )}
-      {!wish.gap_id && !wish.link && <p className="wish-look muted">Added by hand</p>}
       <WishShop wish={wish} locked={actions.locked} onPrice={(w, changes) => actions.savePrice(w, changes)} />
       <div className="field wish-note">
         <label htmlFor={noteId}>Note</label>

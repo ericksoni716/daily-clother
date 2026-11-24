@@ -174,6 +174,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **"Would this work?", a search and a look answer sooner.** Checking a piece against your
+  closet takes about a quarter of the time it took, with exactly the same answers. Today's outfits,
+  What's missing and a trip's plan are worked out sooner too.
 - **Photos or drawings, in words.** The closet's switch between photos and drawings was two small
   pictures. It is now a choice of **Photos** or **Drawings**, in words, at the top of the Filter
   sheet under **Show**.

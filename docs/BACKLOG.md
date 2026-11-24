@@ -14,6 +14,12 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The check against the closet, sooner** (23 November; DECISIONS, "The outfit engine", the row
+  on remembered answers). Left: with the owner's answers, each situation's grid is run again even
+  when the piece is not worn for that situation and the closet it judges is the same as before (a
+  grid remembered by the closet's value would skip it); `outfits.suggest` builds every piece again
+  from its row on each call (about 8% of a check); the browser tests' longer waits for judged finds
+  (39-picks, 40-sale, 14-shop) were left as they were and could come down.
 - **From a piece to an outfit** (23 November; DECISIONS, "From a piece to an outfit"). The outfits you
   keep are not in a piece's "When you wore it" (it lists wears; a kept outfit was never worn). The list
   reads a piece's latest 100 wears. A piece kept for a plan gets the plain button; Today's own sheet

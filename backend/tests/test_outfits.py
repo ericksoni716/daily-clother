@@ -1,11 +1,12 @@
 import itertools
 import json
 import random
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
-from closet import outfits
+from closet import gaps, outfit_rules, outfits, wouldwork
 from closet.config import bundle_dir
 
 CORE = ("base", "mid", "outer", "bottom", "shoes")
@@ -745,3 +746,217 @@ def test_a_hot_day_says_when_the_jeans_are_too_warm_and_puts_lighter_bottoms_fir
     # under 30°C they are not said to be too warm
     cooler = outfits.suggest(loved, day(22, 29), 3)["outfits"]
     assert not any("heavy for a high" in w for o in cooler for w in o["warnings"])
+
+
+# ====================================================================== remembered answers (23 November)
+# The engine remembers its rule-only answers by value (`outfits._memo`). These tests hold the remembered answers equal
+# to the plain ones over a wide sample, show that swapping the rules is followed at once, and count the work done so
+# the repetition cannot come back unseen. They compare with the plain functions, not with recorded answers, so they
+# stay true when the rules change.
+def candidate_items():
+    """Pieces across every category, formality, season, colour and pattern, with shapes, spans and materials."""
+    rng = random.Random(1123)
+    out = []
+    for n, category in enumerate(outfits.CATEGORY_FORMALITY):
+        for k in range(3):
+            formality = rng.choice([None, *outfits.FORMALITY])
+            also = None
+            if formality and rng.random() < 0.3:
+                i = outfits.FORMALITY.index(formality)
+                also = outfits.FORMALITY[i + 1] if i + 1 < len(outfits.FORMALITY) else outfits.FORMALITY[i - 1]
+            sil = {key: rng.choice(values) for key, values in outfits.vocab.SILHOUETTE.items() if rng.random() < 0.3}
+            hex_value = rng.choice([None, "#1f2a44", "#c8102e", "#f5f5dc", "#556b2f", "#203050"])
+            out.append(item(f"c{n:02d}{k}", category, rng.choice(outfits.vocab.COLOR), formality,
+                            rng.choice(outfits.vocab.SEASON), rng.choice(outfits.vocab.PATTERN), silhouette=sil,
+                            formality_also=also, color_hex=hex_value,
+                            material=rng.choice([None, "linen", "suede", "wool flannel", "waxed cotton", "silk", "denim"]),
+                            weight_class=rng.choice([None, *outfits.WEIGHT_CLASSES]),
+                            rating=rng.choice([None, None, "love", "meh"])))
+    return out
+
+
+def sample_pieces():
+    items = demo_items() + basic_closet() + candidate_items()
+    return [p for p in (outfits._piece(i) for i in items) if p is not None]
+
+
+def copy_of(p):
+    """An equal piece that is not the same object, as the next day's `_piece` used to give."""
+    return outfits.dataclasses.replace(p)
+
+
+def test_pieces_compare_and_hash_by_value_and_a_colourless_copy_keeps_the_rest():
+    for p in sample_pieces()[:40]:
+        q = copy_of(p)
+        assert q == p and hash(q) == hash(p) and q is not p
+        assert outfits._one_of(q) is outfits._one_of(p)
+        plain = outfits._neutral_copy(p)
+        assert (plain.color, plain.hue, plain.rgb) == (None, None, None)
+        assert {k: v for k, v in vars(plain).items() if k not in ("color", "hue", "rgb", "_hash")} == \
+            {k: v for k, v in vars(p).items() if k not in ("color", "hue", "rgb", "_hash")}
+    a = sample_pieces()[0]
+    assert outfits.dataclasses.replace(a, label=a.label + " x") != a
+
+
+def test_remembered_rule_answers_equal_the_plain_ones_over_a_wide_sample():
+    outfits.forget()
+    pieces = sample_pieces()
+    by_place = {pl: [p for p in pieces if outfits._fits(p, pl)] for pl in outfits.PLACES}
+    rng = random.Random(23)
+    occasions = [None, *outfits.FORMALITY]
+    for _ in range(2500):
+        chosen = rng.sample(pieces, rng.randint(1, 6))
+        outer = rng.choice([None, None, *[p for p in chosen if p.category in ("jacket", "coat")]])
+        clothes = [p for p in chosen if p is not outer] if rng.random() < 0.8 else []
+        occasion = rng.choice(occasions)
+        want = outfits._outfit_problems_plain(chosen, clothes, outer, occasion)
+        for _ in range(2):   # worked out, then remembered; and asked with equal pieces that are other objects
+            assert outfits._outfit_problems(chosen, clothes, outer, occasion) == want
+            got = outfits._outfit_problems([copy_of(p) for p in chosen], [copy_of(p) for p in clothes],
+                                           copy_of(outer) if outer else None, occasion)
+            assert got == want and [type(x) for x in got] == [type(x) for x in want]   # a _Hard stays a _Hard
+        five = [rng.choice([None, *by_place[pl]]) if pl in ("mid", "outer") else rng.choice(by_place[pl])
+                for pl in outfits.PLACES]
+        for explain in (False, True):
+            want = outfits._style_plain(*five, explain=explain)
+            assert outfits._style(*five, explain=explain) == want
+            assert outfits._style(*[copy_of(p) if p else None for p in five], explain=explain) == want
+
+
+def test_a_changed_answer_cannot_change_what_is_remembered():
+    red, blue = outfits._piece(item("r", "tee", "red")), outfits._piece(item("b", "trousers", "blue"))
+    first = outfits._outfit_problems([red, blue], [red, blue])
+    first.append("changed by the caller")
+    assert outfits._outfit_problems([red, blue], [red, blue]) == outfits._outfit_problems_plain([red, blue], [red, blue])
+
+
+def suggest_plain(monkeypatch, *args):
+    """`suggest` remembering nothing: every table is a new, empty one."""
+    with monkeypatch.context() as m:
+        m.setattr(outfits, "_memo", lambda name, limit=None: {})
+        return outfits.suggest(*args)
+
+
+GRID = [day(lo, hi, rain=rain, occasion=occ) for lo, hi in ((0, 6), (8, 14), (15, 21), (25, 31))
+        for rain in (False, True) for occ in outfits.FORMALITY]   # the gap analysis's 40 kinds of day
+
+
+def test_suggest_gives_the_same_outfits_remembering_as_without(monkeypatch):
+    outfits.forget()
+    extra = candidate_items()
+    for n, cand in enumerate(extra[::3]):
+        closet = basic_closet() + [cand]
+        for ctx in GRID[n % 5::12] + [DAYS[n % len(DAYS)]]:
+            for around in (None, cand["id"]):
+                c = outfits.Context(**{**vars(ctx), "build_around": around})
+                assert outfits.suggest(closet, c, 3) == suggest_plain(monkeypatch, closet, c, 3), (cand, c)
+    worn = outfits.Context(**{**vars(DAYS[2]), "worn_days_ago": {"tee1": 0, "jeans1": 2}, "mood": "sharp"})
+    for ctx in (DAYS[1], DAYS[3], worn):
+        assert outfits.suggest(demo_items(), ctx, 10) == suggest_plain(monkeypatch, demo_items(), ctx, 10)
+
+
+def pick_plain(found, count):
+    """`_pick` as it was written before it kept each outfit's most shared places (23 November)."""
+    found = sorted(found, key=lambda o: (-o.raw, o.ids()))
+    chosen = []
+    for need in (outfits.MIN_PIECES_DIFFERENT, 1):
+        while len(chosen) < count:
+            best, best_key = None, None
+            for o in found:
+                if any(o is c or outfits._different(o, c) < need for c in chosen):
+                    continue
+                key = o.raw - outfits.OVERLAP_PENALTY * max((outfits._shared(o, c) for c in chosen), default=0)
+                if best_key is None or key > best_key:
+                    best, best_key = o, key
+            if best is None:
+                break
+            chosen.append(best)
+    return chosen
+
+
+def test_picking_the_outfits_that_differ_is_unchanged():
+    pool = [p for p in (outfits._piece(i) for i in basic_closet() + candidate_items()[:30]) if p is not None]
+    for ctx in GRID[::3]:
+        t = outfits._design_temp(ctx)
+        for strict in (True, False):
+            found = outfits._search(pool, ctx, t, None, strict)
+            for count in (1, 3, 10):
+                assert outfits._pick(found, count) == pick_plain(found, count)
+    for o in found:   # the ids `_search` gives an outfit are the ones its places hold
+        assert o.ids() == tuple(x.piece.id if x else "" for x in (o.base, o.mid, o.outer, o.bottom, o.shoes))
+
+
+def test_swapping_the_rules_is_followed_at_once_with_nothing_stale_served():
+    red, blue = outfits._piece(item("r", "tee", "red")), outfits._piece(item("b", "trousers", "blue"))
+    navy, grey = outfits._piece(item("n", "tee", "navy")), outfits._piece(item("g", "trousers", "grey"))
+    closet = [item("r", "tee", "red"), item("b", "trousers", "blue"), item("s", "sneakers", "white")]
+    competing = outfits._outfit_problems([red, blue], [red, blue])
+    paired = outfits._style(navy, None, None, grey, None)
+    worn = outfits.suggest(closet, day(18), 1)["outfits"][0]
+    assert competing and any("compete" in w for w in worn["warnings"]) and paired[0] > 0
+    old = outfit_rules.use(outfits.dataclasses.replace(outfits.rules(), max_accents=2, max_brights=None, pairings=()))
+    try:
+        assert outfits._outfit_problems([red, blue], [red, blue]) == []
+        assert outfits._style(navy, None, None, grey, None)[0] == paired[0] - outfits.PAIRING_BONUS
+        assert not any("compete" in w for w in outfits.suggest(closet, day(18), 1)["outfits"][0]["warnings"])
+        outfit_rules.RULES = outfits.dataclasses.replace(outfits.rules())   # set by hand: followed as well
+        assert outfits._outfit_problems([red, blue], [red, blue]) == []
+    finally:
+        outfit_rules.use(old)
+    assert outfits._outfit_problems([red, blue], [red, blue]) == competing
+    assert outfits.suggest(closet, day(18), 1)["outfits"][0] == worn
+
+
+def test_the_tables_stay_bounded_and_answer_the_same_when_emptied(monkeypatch):
+    outfits.forget()
+    monkeypatch.setattr(outfits, "MEMO_MAX", 50)
+    monkeypatch.setattr(outfits, "PIECES_MAX", 10)
+    closet = basic_closet() + candidate_items()[:6]
+    for ctx in GRID[::8]:
+        assert outfits.suggest(closet, ctx, 3) == suggest_plain(monkeypatch, closet, ctx, 3)
+        tables = outfits._memo_state[1]
+        assert all(len(t) <= 50 for t in tables.values()) and len(tables["pieces"]) <= 10
+
+
+def test_threads_asking_at_once_get_the_answers_one_thread_gets(monkeypatch):
+    closets = [basic_closet() + candidate_items()[k::9] for k in range(4)]
+    asks = [(c, ctx) for c in closets for ctx in GRID[1::7]]
+    want = [suggest_plain(monkeypatch, c, ctx, 3) for c, ctx in asks]
+    outfits.forget()
+    with ThreadPoolExecutor(4) as pool:
+        got = list(pool.map(lambda a: outfits.suggest(a[0], a[1], 3), asks * 2))
+    assert got == want * 2
+
+
+def counting_closet():
+    return basic_closet() + [
+        item("tee2", "tee", "grey", "casual"), item("polo1", "polo", "white", "smart_casual"),
+        item("chinos1", "trousers", "tan", "smart_casual"), item("boots1", "boots", "brown", "smart_casual"),
+        item("jacket2", "jacket", "olive", "smart_casual", material="waxed cotton"),
+        item("sweater2", "sweater", "navy", "smart_casual"), item("jeans2", "jeans", "black", "casual"),
+        item("scarf1", "scarf", "grey"), item("belt1", "belt", "brown")]
+
+
+def test_the_closets_own_grid_is_not_worked_out_again_for_each_piece_checked():
+    """Counted, not timed: the engine is pure and the closet fixed, so these counts are the same on every machine.
+
+    Each check runs the gap analysis again with the piece in the closet: 40 kinds of day, most of whose outfits are
+    the closet's own, which the closet's analysis has already judged. Without the remembered answers each check worked
+    out more than the closet's whole analysis (about 13,000 rule answers here against 3,000); with them, a check works
+    out only what holds the new piece, under half as much. A second, equal round works out nothing."""
+    outfits.forget()
+    outfits.MEMO_WORKED_OUT.clear()
+    closet = counting_closet()
+    before = gaps.find_gaps(closet, [], {"max_gaps": wouldwork.ALL_GAPS})
+    grid = sum(outfits.MEMO_WORKED_OUT.values())
+    assert grid == sum(len(t) for name, t in outfits._memo_state[1].items() if name != "pieces")   # none twice
+    pieces = [{"category": "shirt", "color": "white"}, {"category": "coat", "color": "tan", "rain_proof": True}]
+    answers = []
+    for piece in pieces:
+        start = sum(outfits.MEMO_WORKED_OUT.values())
+        answers.append(wouldwork.check(closet, [], piece, before))
+        assert sum(outfits.MEMO_WORKED_OUT.values()) - start < grid / 2, piece
+    start = sum(outfits.MEMO_WORKED_OUT.values())
+    assert gaps.find_gaps(closet, [], {"max_gaps": wouldwork.ALL_GAPS}) == before
+    assert [wouldwork.check(closet, [], piece, before) for piece in pieces] == answers
+    assert sum(outfits.MEMO_WORKED_OUT.values()) == start

@@ -24,8 +24,10 @@ broken stays a rule in that second search too.
 from __future__ import annotations
 
 import colorsys
+import dataclasses
 import itertools
 import math
+import operator
 import re
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -38,6 +40,54 @@ from .tagger.taxonomy import LOUNGE_KINDS, SPORT_SHOES, SWIM_KINDS
 def rules() -> outfit_rules.Rules:
     """The owner's outfit rules in force (tests swap them with outfit_rules.use)."""
     return outfit_rules.RULES
+
+
+# ------------------------------------------------------------------ remembered answers
+# The engine asks the same rule-only questions of the same pieces again and again: the same combination of owned pieces
+# on many of the gap analysis's 40 kinds of day, and again in each of the grids "Would this work?" runs. Those answers
+# are remembered by value, in four tables:
+#   "outfit_problems"  `_outfit_problems`: (its pieces, the pieces under the outer layer, the outer layer, the occasion)
+#   "search_problems"  the same rules in `_search`: (base, mid, outer, bottom, shoes, the occasion)
+#   "style"            `_style`: (base, mid, outer, bottom, shoes, explain)
+#   "pieces"           a Piece -> the one object equal to it (`_one_of`), so keys usually compare by identity
+# A key holds everything the function reads apart from the owner's rules and this module's constants: pieces compare and
+# hash by value (an edited piece is a new key), and nothing about the day but the occasion is read. The rules are read
+# by every one of them, so the tables belong to the rules object in force, which they hold on to: swapping the rules
+# (`outfit_rules.use`, or setting `outfit_rules.RULES`) starts empty tables. A Rules is never changed in place; make a
+# new one. A table is emptied once it holds MEMO_MAX answers ("pieces" at PIECES_MAX), so a program running for weeks keeps
+# a bounded memory, about 50 MB with every table full (measured below), and answers about pieces since edited age out. Plain dicts: a lookup or a store is one step
+# for the interpreter, so the threads that run looks, searches and requests side by side never see half a table.
+MEMO_MAX = 64_000      # answers per table; measured 24 November, full: about 20 MB (search_problems, about 320 bytes
+                       # an answer), 14 MB (style, 220) and 16 MB (outfit_problems, 260); one five-find judge on the demo
+                       # closet asks for at most about 56,000 in one table
+PIECES_MAX = 2_000     # pieces in "pieces" (about 1.1 KB each with the piece itself): far more than a closet holds
+_memo_state: tuple[object, dict[str, dict]] = (None, {})
+MEMO_WORKED_OUT: dict[str, int] = {}   # answers worked out rather than remembered, by table (for the tests)
+
+
+def _memo(name: str, limit: int | None = None) -> dict:
+    """The table of remembered answers called `name`, for the rules in force, emptied once it holds `limit` answers
+    (MEMO_MAX when not given)."""
+    global _memo_state
+    r = rules()
+    state = _memo_state
+    if state[0] is not r:
+        state = _memo_state = (r, {})
+    table = state[1].get(name)
+    if table is None or len(table) >= (MEMO_MAX if limit is None else limit):
+        table = state[1][name] = {}
+    return table
+
+
+def forget() -> None:
+    """Empty every table of remembered answers. Swapping the rules needs no call; changing a constant of this module or
+    of `outfit_rules` that the remembered functions read (a test patching one) does."""
+    global _memo_state
+    _memo_state = (None, {})
+
+
+def _worked_out(name: str) -> None:
+    MEMO_WORKED_OUT[name] = MEMO_WORKED_OUT.get(name, 0) + 1
 
 
 # ------------------------------------------------------------------ temperature
@@ -376,6 +426,16 @@ class Piece:
     formality_also: int | None = None   # the level right above or below `formality` it can also be worn at
     kind: str | None = None    # the garment in the owner's taxonomy (`today.cloth`), where known
     sporty: bool = True        # can be worn for sport: What's missing's rule for exercise clothes (`life.eligible`)
+    _hash: int = field(default=0, init=False, repr=False, compare=False)   # worked out once: pieces are memo keys
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_hash", hash(tuple(getattr(self, f.name) for f in _PIECE_FIELDS)))
+
+    def __hash__(self) -> int:
+        return self._hash
+
+
+_PIECE_FIELDS = tuple(f for f in dataclasses.fields(Piece) if f.compare)
 
 
 def _words(text: object) -> tuple[str, ...]:
@@ -444,7 +504,7 @@ def _piece(item: dict) -> Piece | None:
         v = sil.get(key)
         return v if v in vocab.SILHOUETTE.get(key, ()) else None
 
-    return Piece(
+    return _one_of(Piece(
         id=str(item["id"]), label=_label(item), category=category,
         color=item.get("color") if item.get("color") in vocab.COLOR else None, hue=_hue(item.get("color_hex")),
         pattern=item.get("pattern") if item.get("pattern") in vocab.PATTERN else "solid",
@@ -454,7 +514,12 @@ def _piece(item: dict) -> Piece | None:
         neck=shape("neck"), fit=shape("fit"), leg=shape("leg"), top_length=shape("top_length"),
         pant_length=shape("pant_length"), sleeveless=sleeve == "none", rgb=_rgb(item.get("color_hex")),
         formality_also=_level(also) if also in FORMALITY and also != formality else None,
-        kind=item.get("kind") if isinstance(item.get("kind"), str) else None, sporty=_for_sport(item))
+        kind=item.get("kind") if isinstance(item.get("kind"), str) else None, sporty=_for_sport(item)))
+
+
+def _one_of(p: Piece) -> Piece:
+    """The one Piece object for pieces equal to `p`, so the remembered answers' keys compare by identity first."""
+    return _memo("pieces", PIECES_MAX).setdefault(p, p)
 
 
 def _for_sport(item: dict) -> bool:
@@ -904,6 +969,18 @@ def _formality_clash(clothes: list[Piece], outer: Piece | None, occasion: str | 
 
 def _outfit_problems(pieces: list[Piece], clothes: list[Piece], outer: Piece | None = None,
                      occasion: str | None = None) -> list[str]:
+    """`_outfit_problems_plain`, remembered by its pieces, the pieces under the outer layer and the occasion."""
+    table = _memo("outfit_problems")
+    key = (tuple(pieces), tuple(clothes), outer, occasion)
+    found = table.get(key)
+    if found is None:
+        _worked_out("outfit_problems")
+        found = table[key] = tuple(_outfit_problems_plain(pieces, clothes, outer, occasion))
+    return list(found)
+
+
+def _outfit_problems_plain(pieces: list[Piece], clothes: list[Piece], outer: Piece | None = None,
+                           occasion: str | None = None) -> list[str]:
     """The owner's rules between pieces (formality, colour, pattern), as sentences; empty when all is well.
 
     `clothes` are the pieces under the outer layer (and the shoes), whose formality must sit close together;
@@ -987,6 +1064,19 @@ def _outfit_problems(pieces: list[Piece], clothes: list[Piece], outer: Piece | N
 
 def _style(base: Piece | None, mid: Piece | None, outer: Piece | None, bottom: Piece | None, shoes: Piece | None,
            explain: bool = False) -> tuple[float, list[str], list[str]]:
+    """`_style_plain`, remembered by its five pieces and `explain`."""
+    table = _memo("style")
+    key = (base, mid, outer, bottom, shoes, explain)
+    found = table.get(key)
+    if found is None:
+        _worked_out("style")
+        s, reasons, warnings = _style_plain(base, mid, outer, bottom, shoes, explain)
+        found = table[key] = (s, tuple(reasons), tuple(warnings))
+    return found[0], list(found[1]), list(found[2])
+
+
+def _style_plain(base: Piece | None, mid: Piece | None, outer: Piece | None, bottom: Piece | None, shoes: Piece | None,
+                 explain: bool = False) -> tuple[float, list[str], list[str]]:
     """What the owner's colour and proportion rules add to or take off an outfit (never a reason to drop it), and,
     when `explain`, the reasons and warnings that say so."""
     R = rules()
@@ -1090,12 +1180,17 @@ class _Outfit:
     raw: float
     problems: list[str]
     accessories: list[_Option] = field(default_factory=list)
+    _ids: tuple[str, ...] = field(default=(), repr=False, compare=False)   # given by `_search`, which knows them
+
+    def __post_init__(self) -> None:   # the places never change once the outfit is made, so its ids are worked out once
+        if not self._ids:
+            self._ids = tuple(o.piece.id if o else "" for o in (self.base, self.mid, self.outer, self.bottom, self.shoes))
 
     def core(self) -> list[_Option]:
         return [o for o in (self.base, self.mid, self.outer, self.bottom, self.shoes) if o is not None]
 
     def ids(self) -> tuple[str, ...]:
-        return tuple(o.piece.id if o else "" for o in (self.base, self.mid, self.outer, self.bottom, self.shoes))
+        return self._ids
 
 
 def _options(pool: list[Piece], place: str, ctx: Context, t: float, forced: tuple[Piece, str] | None,
@@ -1159,21 +1254,31 @@ def _search(pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str]
         outers.append(None)
     one_layer = wide(ctx)   # a wide day: at most one layer over the base
     found = []
+    remembered = _memo("search_problems")   # `_outfit_problems` of the five pieces on this occasion
     for base, mid, outer in itertools.product(opts["base"], mids, outers):
         if one_layer and mid is not None and outer is not None:
             continue
-        if not _layers_ok(base.piece, mid.piece if mid else None, outer.piece if outer else None):
+        mid_piece, outer_piece = mid.piece if mid else None, outer.piece if outer else None
+        if not _layers_ok(base.piece, mid_piece, outer_piece):
             continue
         top_ids = {base.piece.id, mid.piece.id if mid else None, outer.piece.id if outer else None}
         if len({x for x in top_ids if x}) != 1 + (mid is not None) + (outer is not None):
             continue
+        tops = [o for o in (base, mid, outer) if o is not None]
+        place_ids = (base.piece.id, mid_piece.id if mid_piece else "", outer_piece.id if outer_piece else "")
         for bottom, shoes in itertools.product(opts["bottom"], opts["shoes"]):
-            core = [o for o in (base, mid, outer, bottom, shoes) if o is not None]
-            clothes = [o.piece for o in core]
-            problems = _outfit_problems(clothes, [o.piece for o in core if o is not outer], outer.piece if outer else None,
-                                        ctx.occasion)
-            if problems and (strict or any(isinstance(x, _Hard) for x in problems)):
+            core = [*tops, bottom, shoes]
+            key = (base.piece, mid_piece, outer_piece, bottom.piece, shoes.piece, ctx.occasion)
+            known = remembered.get(key)
+            if known is None:
+                _worked_out("search_problems")
+                remembered = _memo("search_problems")   # a new table once this one is full
+                clothes = [o.piece for o in core]
+                known = remembered[key] = tuple(_outfit_problems_plain(
+                    clothes, [o.piece for o in core if o is not outer], outer_piece, ctx.occasion))
+            if known and (strict or any(isinstance(x, _Hard) for x in known)):
                 continue
+            problems = list(known)
             warmth = sum(o.warmth for o in core)
             raw = sum(o.score for o in core) - _warmth_penalty(warmth, target, band.bare)
             raw -= OUTFIT_PROBLEM_PENALTY * len(problems)
@@ -1181,9 +1286,9 @@ def _search(pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str]
                 raw -= OUTER_MISSING_PENALTY
             if not strict and need_mid and mid is None:
                 raw -= MID_MISSING_PENALTY
-            raw += _style(base.piece, mid.piece if mid else None, outer.piece if outer else None, bottom.piece,
-                          shoes.piece)[0]
-            found.append(_Outfit(base, mid, outer, bottom, shoes, raw, problems))
+            raw += _style(base.piece, mid_piece, outer_piece, bottom.piece, shoes.piece)[0]
+            found.append(_Outfit(base, mid, outer, bottom, shoes, raw, problems,
+                                 _ids=(*place_ids, bottom.piece.id, shoes.piece.id)))
     for place, needed in (("outer", need_outer), ("mid", need_mid)):
         if needed and any(getattr(o, place) is not None for o in found):
             found = [o for o in found if getattr(o, place) is not None]
@@ -1200,7 +1305,7 @@ def _warmth_penalty(warmth: float, target: float, hot: bool) -> float:
 
 
 def _shared(a: _Outfit, b: _Outfit) -> int:
-    return sum(1 for x, y in zip(a.ids(), b.ids(), strict=True) if x == y)
+    return sum(map(operator.eq, a.ids(), b.ids()))   # the places (five, in both) holding the same piece
 
 
 def _different(a: _Outfit, b: _Outfit) -> int:
@@ -1211,18 +1316,22 @@ def _pick(found: list[_Outfit], count: int) -> list[_Outfit]:
     """The best outfits that differ from each other, as far as the closet allows."""
     found = sorted(found, key=lambda o: (-o.raw, o.ids()))
     chosen: list[_Outfit] = []
+    most_shared = [0] * len(found)   # per outfit: the most places it shares with one already chosen
+    places = len(PLACES)
     for need in (MIN_PIECES_DIFFERENT, 1):
         while len(chosen) < count:
             best, best_key = None, None
-            for o in found:
-                if any(o is c or _different(o, c) < need for c in chosen):
+            for i, o in enumerate(found):
+                if most_shared[i] > places - need:   # an outfit already chosen shares all its places with itself
                     continue
-                key = o.raw - OVERLAP_PENALTY * max((_shared(o, c) for c in chosen), default=0)
+                key = o.raw - OVERLAP_PENALTY * most_shared[i]
                 if best_key is None or key > best_key:
                     best, best_key = o, key
             if best is None:
                 break
             chosen.append(best)
+            for i, o in enumerate(found):
+                most_shared[i] = max(most_shared[i], _shared(o, best))
     return chosen
 
 
@@ -1241,7 +1350,7 @@ def _belt_loops(p: Piece) -> bool:
 
 def _neutral_copy(p: Piece) -> Piece:
     """The piece as if it had no colour: its patterns are still checked, its colour is not."""
-    return Piece(**{**p.__dict__, "color": None, "hue": None, "rgb": None})
+    return dataclasses.replace(p, color=None, hue=None, rgb=None)
 
 
 def _add_accessories(o: _Outfit, pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str] | None,

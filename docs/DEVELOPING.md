@@ -119,6 +119,20 @@ PyInstaller build and its smoke test).
   take plain data and return plain data: no database, no network, no clock (today is passed
   in). The module beside each one (`today.py`, `savedtrips.py`, `wouldjobs.py`) does the
   reading and writing. Keep new rules that way; it is why they are quick to test.
+- **The engine remembers its rule-only answers.** `outfits.py` keeps the answers of
+  `_outfit_problems`, `_style` and the same rules inside `_search` in tables keyed by value (see
+  "remembered answers" near its top): the pieces (frozen, compared and hashed by value, so an edited
+  piece is a new key) and the occasion, never the day's temperature or rain, which those functions do
+  not read. The tables belong to the rules object in force: `outfit_rules.use` (or setting
+  `outfit_rules.RULES`) starts empty ones, and each table is emptied at `MEMO_MAX` answers (64,000; the pieces
+  table at `PIECES_MAX`, 2,000): measured, every table full holds about 53 MB, and one judge of five finds
+  on the demo closet stays under the bound. When you
+  add or change a rule: a remembered function must still read nothing but its key, the rules and
+  module constants (a function that reads the day, the closet or a wear must take it as part of the
+  key, or not be remembered); never change a `Rules` in place, make a new one; and a test that patches
+  a constant those functions read calls `outfits.forget()`. `tests/test_outfits.py` holds the
+  remembered answers equal to the plain ones (`_outfit_problems_plain`, `_style_plain`) over a wide
+  sample, and counts the work so the repetition cannot come back unseen.
 - **Only `tagger/` asks Claude,** always through `routes.py`, and every call is recorded by
   `spend.py` and held under the API key's monthly limit. Nothing about the demo closet is
   ever sent.

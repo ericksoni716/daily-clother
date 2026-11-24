@@ -461,7 +461,7 @@ test('today: "Use my location" asks the browser only on a tap and saves the plac
   expect(settings.place.name).toBe(BROOKLYN);
 });
 
-test('today offline: the outfits fetched earlier are shown as saved, and the buttons say why they are off', async ({ page, context }) => {
+test('today offline: the outfits fetched earlier are shown as saved, and the buttons that wait for Nines say why they are off', async ({ page, context }) => {
   await fakeWeather(page);
   await openToday(page);
   await serviceWorkerInCharge(page);
@@ -477,9 +477,11 @@ test('today offline: the outfits fetched earlier are shown as saved, and the but
   await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
   await expect(page.getByText(/^Saved earlier today/)).toBeVisible();
   expect(await pieceNames(page)).toEqual(names);
-  const wear = current(page).getByRole('button', { name: "I'm wearing this" });
-  await expect(wear).toBeDisabled();
-  await expect(wear).toHaveAttribute('title', /needs Nines on your computer/i);
+  // wearing is kept on this phone and sent when Nines answers (47-outbox), so it stays on; changing the outfits waits
+  await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeEnabled();
+  const keep = current(page).getByRole('button', { name: 'Keep this outfit' });
+  await expect(keep).toBeDisabled();
+  await expect(keep).toHaveAttribute('title', /needs Nines on your computer/i);
   await expect(page.getByRole('group', { name: 'Occasion' }).getByRole('button', { name: 'Formal' })).toBeDisabled();
 });
 

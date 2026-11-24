@@ -539,6 +539,8 @@ class WearMany(BaseModel):
     item_ids: list[str]
     worn_on: str | None = None
     outfit: dict | None = None
+    # when the owner tapped, for an outfit kept on the phone and sent later (`worn.wear`)
+    tapped_at: str | None = None
     model_config = {"extra": "forbid"}
 
 
@@ -559,6 +561,8 @@ class OutfitRating(BaseModel):
     rating: str | None = None
     reasons: list[str] = []
     note: str | None = None
+    # when the owner tapped, for a rating kept on the phone and sent later (`worn.rate`)
+    tapped_at: str | None = None
     model_config = {"extra": "forbid"}
 
 
@@ -1103,7 +1107,9 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     @app.post("/api/wears")
     def add_wears(body: WearMany, response: Response, conn=Depends(conn_dep)):
         if body.outfit is not None:
-            result = worn.wear(conn, body.item_ids, body.worn_on, body.outfit)
+            result = worn.wear(conn, body.item_ids, body.worn_on, body.outfit, body.tapped_at)
+        elif body.tapped_at is not None:
+            raise items.ItemError("Only an outfit is sent later with the time it was tapped.")
         else:
             result = wears.add_many(conn, body.item_ids, body.worn_on)
         response.status_code = 201 if result["recorded"] or result.get("outfit") else 200
@@ -1125,7 +1131,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
 
     @app.put("/api/outfits/worn/{outfit_id}/rating")
     def rate_worn(outfit_id: str, body: OutfitRating, conn=Depends(conn_dep)):
-        return worn.rate(conn, outfit_id, body.rating, body.reasons, body.note)
+        return worn.rate(conn, outfit_id, body.rating, body.reasons, body.note, body.tapped_at)
 
     @app.delete("/api/outfits/worn/{outfit_id}", status_code=204)
     def remove_worn(outfit_id: str, conn=Depends(conn_dep)):

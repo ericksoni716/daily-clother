@@ -6,7 +6,8 @@ import { Button, buttonClass, ErrorBoundary } from './components/ui';
 import { movedTo, placeOf, type AppPlace } from './places';
 import { Link, navigate, parseRoute, usePath, useMediaQuery, WIDE } from './router';
 import { useItems } from './queries';
-import { useApp } from './store';
+import { outboxFor } from './outbox';
+import { useApp, useKept } from './store';
 import { ClosetScreen } from './screens/Closet';
 import { AddScreen } from './screens/Add';
 import { SeveralScreen } from './screens/Several';
@@ -83,6 +84,8 @@ function TopBanners({ screen, wishId }: { screen: string; wishId: string | null 
   const { offline, profile, switchProfile, toast } = useApp();
   const [busy, setBusy] = useState(false);
   useUpdateStatus(offline);
+  // worn, rated or ticked while Nines could not be reached, and not sent yet
+  const kept = useKept(outboxFor(profile)).length > 0;
   return (
     <>
       <Restarting />
@@ -94,7 +97,9 @@ function TopBanners({ screen, wishId }: { screen: string; wishId: string | null 
           <CloudOffIcon />
           <div>
             <strong>Offline: showing your saved closet.</strong>
-            <span> Nines on your computer can't be reached, so changes and new photos have to wait. This updates by itself when it's back.</span>
+            {/* the one place that says something is kept: in place of the last words, and no longer, so nothing moves */}
+            {kept ? <span data-testid="kept-line"> Nines on your computer can't be reached. What you marked is kept on this phone and will be sent when Nines answers.</span>
+              : <span> Nines on your computer can't be reached, so changes and new photos have to wait. This updates by itself when it's back.</span>}
           </div>
         </div>
       )}

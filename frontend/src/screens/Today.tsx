@@ -12,17 +12,18 @@ import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../fi
 import { label } from '../labels';
 import { keptToast, keptWith } from '../kept';
 import { awayClause, countsOnLine, heldLine, planFor, planLine, plannedFor, plannedToast, plansSoon, swapLine, tripLine, wearOn, type Plan } from '../plans';
+import { newActionId, outboxFor, type WearAction } from '../outbox';
 import { keptQuery, plansQuery, touch, useAllItems, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
 import { settingsQuery } from '../settings';
-import { useApp } from '../store';
+import { useApp, useKept } from '../store';
 import {
   askedOf, buildAroundPiece, canDress, occasionShown, chosenBy, closetKey, dayName, dayParts, daysAhead, joinWords, longDate, weekdayOf, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
   OCCASIONS, outfitIds, outingLine, parseTemp, placeLabel, readFor, sameOutfit, sameOutfits, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
   timeOf, TRIP_OUTFIT_LINE, TRIP_PIECE_HINT, tripSheetLine, tripTodayLine, waitingLine, whatToAddFirst, withThing, wornNow, wornOrder,
   type Choice, type DayAnswer, type DayNote, type OnTrip, type Outfit, type Place, type RememberHow,
-  type StylistState, type TodayAnswer, type TodayRequest, type TypedDay, type WornToday,
+  type StylistState, type TodayAnswer, type TodayRequest, type TypedDay, type WearManyAnswer, type WornToday,
 } from '../today';
 import type { ItemSummary } from '../types';
 import { dayAndDate, dayMonth, localDay } from '../wears';
@@ -208,6 +209,16 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   // what is worn today: this device's memory, put right by the server's list (another device, the Worn screen)
   const worn = useMemo(() => (ahead ? null : wornNow(wornOnDay?.day === today ? wornOnDay : null, offline ? null : recent, recentRead?.at ?? null, today)),
     [wornOnDay, recent, recentRead, today, offline, ahead]);
+  // An outfit worn while Nines could not be reached is kept on this phone until it is sent (`outbox.ts`); once it has
+  // gone (or Nines refused it), this device's memory of it is read again, as the closet's own handler left it.
+  const box = useMemo(() => outboxFor(profile), [profile]);
+  const keptActions = useKept(box);
+  useEffect(() => {
+    if (wornOnDay?.kept && !keptActions.some((a) => a.id === wornOnDay.kept)) setWorn(kept.worn(wornOnDay.day));
+  }, [keptActions, wornOnDay, kept]);
+  // Offline, "I'm wearing this" is kept on this phone when nothing is worn today yet, or only an outfit kept here: one
+  // Nines already has can only be changed while it can be reached.
+  const canKeep = !ahead && (!worn || !!worn.kept);
 
   // Today's outfits: asked when the question changes (the choices, the day, or the closet's places, availability and
   // ratings), and again only when this screen asks (see `ask`). Never by itself: coming back to the screen, to the app
@@ -486,18 +497,39 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
     setBusy(true);
     let changed = false;
     try {
-      if (worn && worn.day === day && !sameOutfit(worn.ids, ids) && (worn.recorded.length || worn.outfit_id)) {
-        const undone = await api.unwearMany(worn.recorded, worn.worn_on, worn.outfit_id);
+      // what is worn now, as it stands once anything this phone kept has been sent
+      await box.idle();
+      const now = worn?.kept ? kept.worn(worn.day) : worn;
+      if (now?.kept && now.day === day && box.drop(now.kept)) {
+        // only kept on this phone so far: the other outfit simply takes its place
+        kept.setWorn(null);
+        setWorn(null);
+      } else if (now && now.day === day && !sameOutfit(now.ids, ids) && (now.recorded.length || now.outfit_id)) {
+        const undone = await api.unwearMany(now.recorded, now.worn_on, now.outfit_id);
         changed = true;
         undone.items.forEach((i) => writeItem(qc, i));
         kept.setWorn(null);
         setWorn(null);
       }
       const ctx = phase.kind === 'ready' ? phase.answer.context : null;
-      const r = await api.wearMany(ids, {
-        pieces: o.pieces, score: o.score, reasons: o.reasons, warnings: o.warnings,
-        context: { low_c: ctx?.low_c ?? null, high_c: ctx?.high_c ?? null, rain: ctx?.rain ?? null, occasion, mood: choice.mood },
-      });
+      const action: WearAction = {
+        kind: 'wear', id: newActionId(), at: new Date().toISOString(), day, item_ids: ids,
+        outfit: {
+          pieces: o.pieces, score: o.score, reasons: o.reasons, warnings: o.warnings,
+          context: { low_c: ctx?.low_c ?? null, high_c: ctx?.high_c ?? null, rain: ctx?.rain ?? null, occasion, mood: choice.mood },
+        },
+      };
+      const sent = await box.send<WearManyAnswer>(action);
+      if (sent.kept) {
+        // Nines cannot be reached: kept on this phone, and shown as worn exactly as if it had been sent
+        const record: WornToday = { day, worn_on: day, ids, recorded: [], outfit: o, at: Date.now(), kept: action.id };
+        kept.setWorn(record);
+        setWorn(record);
+        if (buildAround) setBuildAround(null);
+        toast("Noted: you're wearing this today");
+        return;
+      }
+      const r = sent.answer;
       changed = true;
       r.items.forEach((i) => writeItem(qc, i));
       setToday(localDay());
@@ -525,8 +557,21 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
     }
     setBusy(true);
     try {
-      if (worn.recorded.length || worn.outfit_id) (await api.unwearMany(worn.recorded, worn.worn_on, worn.outfit_id)).items.forEach((i) => writeItem(qc, i));
-      const gone = worn.outfit_id;
+      await box.idle();
+      const now = worn.kept ? kept.worn(worn.day) : worn;
+      if (!now) {
+        setWorn(null);   // Nines refused it meanwhile, and that was said: there is nothing to take back
+        return;
+      }
+      if (now.kept && box.drop(now.kept)) {
+        // kept on this phone and not sent yet: taking it back is only forgetting it here
+        kept.setWorn(null);
+        setWorn(null);
+        toast('Wear undone');
+        return;
+      }
+      if (now.recorded.length || now.outfit_id) (await api.unwearMany(now.recorded, now.worn_on, now.outfit_id)).items.forEach((i) => writeItem(qc, i));
+      const gone = now.outfit_id;
       if (gone) changePages(qc, (page) => withoutOutfit(page, gone));
       void touch(qc, 'wear', ['items', 'item']);
       kept.setWorn(null);
@@ -768,7 +813,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
           <CheckIcon />
           <div>
             <p><strong>You're wearing this today:</strong> {joinWords(worn.ids.map(nameOf))}.</p>
-            <button className="btn btn-small" disabled={busy || locked} title={locked ? OFFLINE_TITLE : undefined} onClick={() => void undo()}>Undo</button>
+            <button className="btn btn-small" disabled={busy || (locked && !worn.kept)} title={locked && !worn.kept ? OFFLINE_TITLE : undefined} onClick={() => void undo()}>Undo</button>
           </div>
         </div>
       )}
@@ -790,7 +835,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
           ask();
         }}
         index={index} setIndex={setIndex} byId={byId} worn={worn} busy={busy}
-        actions={pieceActions} items={items} onWear={wear} onUndo={undo} offline={offline}
+        actions={pieceActions} items={items} onWear={wear} onUndo={undo} offline={offline} canKeep={canKeep}
         changed={!!buildAround || leaveOut.length > 0}
         onClear={() => { setBuildAround(null); setLeaveOut([]); }}
         onRetry={ask}
@@ -1085,6 +1130,8 @@ interface BodyProps {
   actions: PieceActions;
   onWear(o: Outfit): void;
   onUndo(): void;
+  /** While Nines cannot be reached, wearing (and taking back an outfit worn here) is kept on this phone. */
+  canKeep: boolean;
   onClear(): void;
   onRetry(): void;
   /** Claude choosing, as shown (null: nothing about Claude is shown). */
@@ -1177,7 +1224,7 @@ function Body(props: BodyProps) {
     <>
       {savedAt && (
         <Notice as="p" tone="warning" className="today-saved" role="status" icon={<WarnIcon />}>
-          <span>Saved earlier today{timeOf(savedAt) ? `, at ${timeOf(savedAt)}` : ''}. You're offline, so these can't be changed or worn until Nines on your computer can be reached.</span>
+          <span>Saved earlier today{timeOf(savedAt) ? `, at ${timeOf(savedAt)}` : ''}. You're offline, so these can't be changed until Nines on your computer can be reached.</span>
         </Notice>
       )}
       {/* while Claude chooses, the outfits on the page stay where they are, dimmed under the waiting card, so nothing
@@ -1344,7 +1391,7 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
   );
 }
 
-function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, next, by, read, menuFor, onMore, ahead, today, plan, onUnplan, onKeep, isKept, planNote }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
+function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, canKeep, next, by, read, menuFor, onMore, ahead, today, plan, onUnplan, onKeep, isKept, planNote }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
   outfit: Outfit; view: TodayView;
   /** The piece whose choices are open (the sheet itself is the carousel's), and how they are opened. */
   menuFor: string | null;
@@ -1361,6 +1408,9 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
   const isPlanned = !!ahead && !!plan && sameOutfit(outfitIds(plan.pieces), ids);
   const locked = actions.locked;
   const title = locked ? OFFLINE_TITLE : undefined;
+  // offline, wearing is kept on this phone (see `canKeep`); everything else on the outfit waits
+  const wearOff = locked && !canKeep;
+  const wearTitle = wearOff ? OFFLINE_TITLE : undefined;
   return (
     <Card className="today-card">
       <div className="today-card-pieces">
@@ -1382,7 +1432,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
         {isWorn ? (
           <>
             <p className="today-worn" data-testid="worn-today"><CheckIcon /> You're wearing this today</p>
-            <button className="btn" disabled={busy || locked} title={title} onClick={() => onUndo()}>Undo</button>
+            <button className="btn" disabled={busy || wearOff} title={wearTitle} onClick={() => onUndo()}>Undo</button>
           </>
         ) : isPlanned && ahead ? (
           <>
@@ -1391,7 +1441,8 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
             <button className="btn" disabled={busy || locked} title={title} onClick={() => onUnplan()}>Remove the plan</button>
           </>
         ) : (
-          <button className="btn btn-primary btn-block today-wear-button" disabled={busy || locked} title={title} onClick={() => onWear(outfit)}>
+          <button className="btn btn-primary btn-block today-wear-button" disabled={busy || (ahead ? locked : wearOff)} title={ahead ? title : wearTitle}
+            onClick={() => onWear(outfit)}>
             {ahead ? wearOn(ahead, today) : worn ? 'Wear this instead' : "I'm wearing this"}
           </button>
         )}

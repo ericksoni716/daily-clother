@@ -156,7 +156,7 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
   expect(listed.outfits.filter((o: { worn_on: string }) => o.worn_on === day)).toEqual([]);
 });
 
-test('worn: offline the saved list is shown as last changed, and rating says why it waits', async ({ page, context }) => {
+test("worn: offline the saved list is shown as last changed, rating stays on, and the outfit's choices wait", async ({ page, context }) => {
   await goToCloset(page);
   await useProfile(page, 'demo');
   await serviceWorkerInCharge(page);
@@ -177,10 +177,10 @@ test('worn: offline the saved list is shown as last changed, and rating says why
   await expect(cards(page)).toHaveCount(count);
   await expect(cards(page).first().getByTestId('worn-rating')).toHaveText(/^Not again/);
   await cards(page).first().getByRole('button', { name: 'Change rating' }).click();
-  await expect(cards(page).first().getByRole('button', { name: 'Loved it' })).toBeDisabled();
-  // why rating waits is said once for the list, not on every card
-  await expect(page.getByText("You're offline, so rating has to wait")).toHaveCount(1);
-  await expect(cards(page).getByText("You're offline, so rating has to wait")).toHaveCount(0);
+  // rating offline is kept on this phone and sent when Nines answers (47-outbox), so the answers stay on, and nothing
+  // says rating has to wait; the outfit's other choices do wait
+  await expect(cards(page).first().getByRole('button', { name: 'Loved it', exact: true })).toBeEnabled();
+  await expect(page.getByText("You're offline, so rating has to wait")).toHaveCount(0);
   await cards(page).first().getByRole('button', { name: 'More for this outfit' }).click();
   await expect(page.getByRole('dialog', { name: 'This outfit' }).getByRole('button', { name: 'Wear this again' })).toBeDisabled();
 });

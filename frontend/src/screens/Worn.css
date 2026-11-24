@@ -59,7 +59,6 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .rate-why { margin: 12px 0 6px; }
 .rate-note { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 10px; }
 .rate-note .field { flex: 1 1 14rem; margin: 0; }
-.rate-offline { margin: 8px 0 0; }
 
 /* Today's question about the last outfit worn: a slim card above the outfit */
 .worn-question { margin: 0 0 var(--space-3); padding: 10px 12px; background: var(--tint-coral); }   /* a soft tint */

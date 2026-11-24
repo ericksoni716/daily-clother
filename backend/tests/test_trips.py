@@ -564,6 +564,19 @@ def test_ticks_are_saved_and_survive_a_replan(client, clock):
     assert added(client)[0]["packed"] == 1
 
 
+def test_a_tick_sent_again_is_one_tick(client, clock):
+    # a tick kept on the phone while Nines could not be reached, sent when it answers and again after a lost answer
+    client.post("/api/profile", json={"profile": "demo"})
+    trip = client.post("/api/trips", json=body()).json()
+    line = trip["lines"][0]
+    for _ in range(2):
+        r = client.patch(f"/api/trips/{trip['id']}", json={"ticks": {line: True}})
+        assert r.status_code == 200 and r.json()["packed"] == [line]
+    for _ in range(2):
+        assert client.patch(f"/api/trips/{trip['id']}", json={"ticks": {line: False}}).json()["packed"] == []
+    assert added(client)[0]["packed"] == 0
+
+
 def test_swap_and_pin_plan_again(client, clock):
     client.post("/api/profile", json={"profile": "demo"})
     trip = client.post("/api/trips", json=body()).json()

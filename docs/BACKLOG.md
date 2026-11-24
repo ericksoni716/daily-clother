@@ -14,6 +14,10 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The closet opening on an empty view** (24 November; DECISIONS, "Where a piece is"). The Away view
+  now goes when nothing is away on opening. The laundry view kept with nothing in the laundry still opens
+  on "Nothing in the laundry" and "Your laundry is empty."; the same rule (`closet.openedFilters`) would fit
+  it. "Needs a check" kept with nothing to check does the same, but its count arrives after the list.
 - **A trip covers today** (23 November; DECISIONS, "A trip covers today"). Claude does not choose on a trip
   day: the rules do, as for a day ahead; Claude being told the place and offered only the bag would need a
   new line in what is sent. The trip's own outfit leads only for the trip's occasion of the day. The trip's

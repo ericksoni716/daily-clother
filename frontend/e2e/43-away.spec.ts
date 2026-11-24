@@ -89,6 +89,25 @@ test('send a piece to the cleaner\'s, see it on the closet and not on Today, the
   await row.getByRole('button', { name: "It's back" }).click();
   await expect(row.getByTestId('where-line')).toHaveText("Back from the cleaner's, and marked clean");
   await expect(row.getByRole('button', { name: "Undo: it's back" })).toBeVisible();
+
+  // nothing is away now, so the closet, left showing what is away, opens on everything: once its list is drawn (the
+  // count over it, and the tiles), no word about away, no Away filter, and no `away=1` left in the address
   await page.goto('/');
+  const count = page.getByTestId('item-count');
+  await expect(count).toHaveText(/^\d+ items?$/);
+  const all = Number((await count.textContent())!.split(' ')[0]);
+  await expect(page.getByTestId('tile')).toHaveCount(all);
   await expect(page.getByTestId('away')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Remove filter: Away' })).toHaveCount(0);
+  await expect(page.getByText('Everything is in your closet.')).toHaveCount(0);
+  await expect(page).toHaveURL(/\/$/);
+
+  // the same when the address asks for what is away: the Away view goes, the search stays as it was
+  await page.goto('/?q=shirt&away=1');
+  await expect(page).toHaveURL(/\/\?q=shirt$/);
+  await expect(page.getByRole('searchbox', { name: 'Search your clothes' })).toHaveValue('shirt');
+  await expect(count).toBeVisible();
+  await expect(page.getByTestId('away')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Remove filter: Away' })).toHaveCount(0);
+  await expect(page.getByText('Everything is in your closet.')).toHaveCount(0);
 });

@@ -194,6 +194,16 @@ export function filtersFromSearch(search: string): ClosetFilters | null {
   };
 }
 
+/**
+ * What the closet opens on, from the search and filters it was left with (or its address asks for) and the pieces it
+ * has: the Away view with no piece away would be a view of nothing, with a "0 away" to tap away, so the closet opens on
+ * everything instead; the search and the other filters stay as they were. Only on opening: in the view, a piece just
+ * brought back keeps its row with Undo (`AwayView`).
+ */
+export function openedFilters(f: ClosetFilters, items: Pick<ItemSummary, 'away'>[]): ClosetFilters {
+  return f.away && !items.some((it) => it.away) ? { ...f, away: false } : f;
+}
+
 /** The search and filters last used on this tab, per closet and per In use or Archived: what the closet comes back to
  * when it is opened from its plain address (the tab bar, a back link). Kept for the tab, as its scroll positions are. */
 const KEPT = 'closet-filters';

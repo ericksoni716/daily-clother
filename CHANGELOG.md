@@ -281,6 +281,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **The closet no longer opens on an empty Away view.** When you left the closet showing what is
+  away and everything has come back since, it opened on that view with "0 away" and "Everything is
+  in your closet." until you tapped it off. It now opens on all your clothes, keeping your search
+  and the other filters. While you are in the Away view nothing changes: a piece you bring back
+  there keeps its row with **Undo**.
 - **The closet remembers where you were.** Reloading the page, coming back from a piece (also after
   reloading the piece's page) or coming back from another place keeps the closet's search, its
   filters and your place in the list. The search and filters are in the closet's address.

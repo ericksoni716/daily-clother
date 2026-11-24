@@ -477,7 +477,7 @@ test('today offline: the outfits fetched earlier are shown as saved, and the but
   await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
   await expect(page.getByText(/^Saved earlier today/)).toBeVisible();
   expect(await pieceNames(page)).toEqual(names);
-  // wearing is kept on this phone and sent when Nines answers (45-outbox), so it stays on; changing the outfits waits
+  // wearing is kept on this phone and sent when Nines answers (47-outbox), so it stays on; changing the outfits waits
   await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeEnabled();
   const keep = current(page).getByRole('button', { name: 'Keep this outfit' });
   await expect(keep).toBeDisabled();

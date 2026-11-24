@@ -177,7 +177,7 @@ test("worn: offline the saved list is shown as last changed, rating stays on, an
   await expect(cards(page)).toHaveCount(count);
   await expect(cards(page).first().getByTestId('worn-rating')).toHaveText(/^Not again/);
   await cards(page).first().getByRole('button', { name: 'Change rating' }).click();
-  // rating offline is kept on this phone and sent when Nines answers (45-outbox), so the answers stay on, and nothing
+  // rating offline is kept on this phone and sent when Nines answers (47-outbox), so the answers stay on, and nothing
   // says rating has to wait; the outfit's other choices do wait
   await expect(cards(page).first().getByRole('button', { name: 'Loved it', exact: true })).toBeEnabled();
   await expect(page.getByText("You're offline, so rating has to wait")).toHaveCount(0);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  askedOf, buildAroundPiece,
   addDays, dayName, daysAhead, onDay, weekdayOf,
   canDress, closetKey, dayParts, midName, newestOn, outingLine, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
   parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, whatToAddFirst, wornOrder,
@@ -298,5 +299,19 @@ describe('Give it an outing', () => {
     expect(outingLine({ ...outing, since: '2025-12-20' }, 'Navy coat', '2026-01-25'))
       .toBe('An outing for your navy coat: you love it and have not worn it since 20 Dec 2025.');
     expect(midName('MA-1 bomber')).toBe('MA-1 bomber');
+  });
+});
+
+describe('building around a piece from its page', () => {
+  it('takes the place of the piece built around before, and keeps the other pieces left out', () => {
+    expect(buildAroundPiece(['a', 'b'], 'b')).toEqual({ buildAround: 'b', leaveOut: ['a'] });
+    expect(buildAroundPiece([], 'c')).toEqual({ buildAround: 'c', leaveOut: [] });
+  });
+
+  it("reads what Today's address asks as it opens", () => {
+    expect(askedOf('?around=p1')).toEqual({ again: null, around: 'p1' });
+    expect(askedOf('?again=o1')).toEqual({ again: 'o1', around: null });
+    expect(askedOf('')).toEqual({ again: null, around: null });
+    expect(askedOf('?around=')).toEqual({ again: null, around: null });
   });
 });

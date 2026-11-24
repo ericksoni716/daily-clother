@@ -199,6 +199,55 @@ def rated(conn, limit: int = RATED_READ) -> list[dict]:
     return _shape_all(conn, rows)
 
 
+# ------------------------------------------------------------------ one piece's outfits (the item page)
+WORN_IN_READ = 100            # the latest wears of a piece that the item page shows, grouped by outfit
+
+
+def outfit_key(pieces: dict) -> str:
+    """The pieces' ids, sorted and joined: what makes two worn outfits the same outfit (as `kept.same_key`)."""
+    ids = [v for pl in PLACES if (v := pieces.get(pl))] + list(pieces.get("accessories") or [])
+    return ",".join(sorted(ids))
+
+
+def group_wears(days: list[str], outfit_on: dict[str, dict]) -> list[dict]:
+    """A piece's wears (days, newest first) as the item page lists them: a wear on a day an outfit holding the piece
+    was recorded shows that outfit, and the same pieces worn on several days are one row with every day, newest
+    first; a wear with no outfit is a row of its own. Each row is {outfit_id, pieces, gone, days, rating}: the
+    outfit as last worn (null for a wear with no outfit), and the rating it was last given. Pure."""
+    rows: list[dict] = []
+    by_key: dict[str, dict] = {}
+    for d in days:
+        o = outfit_on.get(d)
+        if o is None:
+            rows.append({"outfit_id": None, "pieces": None, "gone": [], "days": [d], "rating": None})
+            continue
+        key = outfit_key(o["pieces"])
+        row = by_key.get(key)
+        if row is None:
+            row = by_key[key] = {"outfit_id": o["id"], "pieces": o["pieces"], "gone": o["gone"], "days": [], "rating": None}
+            rows.append(row)
+        row["days"].append(d)
+        if row["rating"] is None:
+            row["rating"] = o.get("rating")
+    return rows
+
+
+def of_item(conn, item_id: str, limit: int = WORN_IN_READ) -> list[dict]:
+    """The latest wears of a piece, grouped by the outfit each was worn in (`group_wears`). Of two outfits recorded
+    with it on one day, the first recorded is shown."""
+    days = [r[0] for r in conn.execute("SELECT worn_on FROM wears WHERE item_id = ? ORDER BY worn_on DESC LIMIT ?",
+                                       (item_id, limit))]
+    if not days:
+        return []
+    rows = conn.execute(
+        "SELECT o.* FROM worn_outfits o JOIN worn_outfit_pieces p ON p.outfit_id = o.id WHERE p.item_id = ? "
+        f"AND o.worn_on IN ({', '.join('?' for _ in days)}) ORDER BY o.created_at, o.id", (item_id, *days)).fetchall()
+    outfit_on: dict[str, dict] = {}
+    for o in _shape_all(conn, rows):
+        outfit_on.setdefault(o["worn_on"], o)
+    return group_wears(days, outfit_on)
+
+
 # ------------------------------------------------------------------ recording
 def wear(conn, item_ids: object, worn_on: str | None, outfit: object) -> dict:
     """Record the wears of an outfit and the outfit itself, all or nothing. `POST /api/wears` with `outfit`."""

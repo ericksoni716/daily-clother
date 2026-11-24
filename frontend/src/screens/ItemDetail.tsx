@@ -6,6 +6,7 @@ import { BackLink, confirmKeys, Failed, Notice, PHONE, SAVE_WORDS, SaveStatus, S
 import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { WhatItIs } from '../components/WhatItIs';
 import { WhereItIs } from '../components/WhereItIs';
+import { BuildAround, WornInList } from '../components/PieceOutfits';
 import { RetakeButton } from '../components/RetakeButton';
 import { ShoeDrawn } from '../components/ShoeDrawn';
 import { ShoePhotos } from '../components/ShoePhotos';
@@ -28,7 +29,7 @@ import { notInDrawing, useShowDrawings } from '../drawing';
 import { busy, drawingOnItsWay, drawingPlaceholder } from '../progress';
 import { retakeOffer, retakeSaid } from '../retake';
 import type { Item, ItemPatch, NamedShade, PatternColour, Progress } from '../types';
-import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
+import { localDay, sinceWash, wearSummary } from '../wears';
 
 type View = 'drawing' | 'cutout' | 'photo';
 
@@ -486,7 +487,6 @@ function WearPanel({ item, disabled, onWear, onUnwear, onLaundry, where }: WearP
   const wornToday = !!item.last_worn && (item.last_worn === today || (logged?.local === today && item.last_worn === logged.server));
   const inLaundry = item.laundry === 'laundry';
   const title = disabled ? OFFLINE_TITLE : undefined;
-  const recent = item.recent_wears ?? [];
   return (
     <section className="wear" aria-label="Wearing and washing">
       <div className="wear-text">
@@ -515,20 +515,8 @@ function WearPanel({ item, disabled, onWear, onUnwear, onLaundry, where }: WearP
         )}
       </div>
       {where}
-      {recent.length > 0 && (
-        <div className="wear-recent">
-          <p className="chip-group-title" id={`recent-${item.id}`}>Recent wears</p>
-          <ul aria-labelledby={`recent-${item.id}`}>
-            {recent.map((day) => (
-              <li key={day}>
-                <span>{wearDay(day, today)}</span>
-                <button className="btn btn-link" disabled={disabled} title={title} aria-label={`Remove the wear: ${wearDay(day, today)}`}
-                  onClick={() => onUnwear(day, 'Wear removed')}>Remove</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <BuildAround item={item} disabled={disabled} />
+      <WornInList item={item} disabled={disabled} onUnwear={(day, said) => void onUnwear(day, said)} />
     </section>
   );
 }

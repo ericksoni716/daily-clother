@@ -818,9 +818,6 @@ html.sheet-open, html.sheet-open body { overflow: hidden; overscroll-behavior: n
 .wear .muted { margin: 0; font-size: var(--text-sm); }
 .wear-actions { gap: var(--space-2); }
 .wear-done { font-weight: var(--weight-label); color: var(--accent); }
-.wear-recent { flex-basis: 100%; }
-.wear-recent ul { list-style: none; margin: 0; padding: 0; }
-.wear-recent li { display: flex; align-items: center; justify-content: space-between; min-height: 40px; border-top: 1px solid var(--line); }
 .detail-actions { margin: 8px 0 12px; }
 .confirm { padding: 14px; border-radius: var(--radius-sm); background: var(--danger-soft); }
 .confirm p { margin-bottom: 12px; }

@@ -1456,7 +1456,10 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
     for x in every:
         days = ctx.worn_days_ago.get(x.piece.id)
         if days is not None and days < RECENT_WEAR_DAYS and x.place in ("base", "mid"):
-            warnings.append(f"You wore {_the(x.piece)} {_days_words(days)}; nothing else suited as well.")
+            # a piece you asked for (built around, or kept from an outfit worn again) is there because you asked
+            asked = (forced and x.piece.id == forced[0].id) or x.piece.id in ctx.keep
+            warnings.append(f"You wore {_the(x.piece)} {_days_words(days)}." if asked
+                            else f"You wore {_the(x.piece)} {_days_words(days)}; nothing else suited as well.")
     for x in every:
         if x.piece.in_storage:
             warnings.append(f"{_the(x.piece, True)} {_is(x.piece)} in storage; get {'them' if plural(x.piece) else 'it'} out first.")
@@ -1639,6 +1642,23 @@ def _unavailable(item: dict, ctx: Context) -> str | None:
     return None
 
 
+def cannot_build_around(item: Mapping) -> str | None:
+    """Why Today would find nothing to build around this piece, or None when it can: `no_category` (nothing says what
+    it is yet), `not_in_outfits` (a kind no outfit has a place for, such as a tie or a watch), `archived`, `away` (at
+    the cleaner's, at the tailor's or lent out) or `laundry`. A piece waiting to be mended, kept for a plan, for
+    wearing at home, for swimming or for one sport can be built around. One rule for Today (`suggest`) and the item
+    page's "Build an outfit around it" (`items.detail`)."""
+    if _piece(dict(item, id=item.get("id") or "?")) is None:
+        return "not_in_outfits" if isinstance(item.get("category"), str) and item.get("category") else "no_category"
+    if item.get("status") == "archived":
+        return "archived"
+    if item.get("away") in AWAY:
+        return "away"
+    if _in_laundry(item):
+        return "laundry"
+    return None
+
+
 def day_words(day: object) -> str:
     """ "Friday 27 November" from "2026-11-27" (no clock: the weekday is the date's own); the day as given if it is
     not a date."""
@@ -1709,10 +1729,10 @@ def suggest(items: list[dict], context: Context | dict, count: int = DEFAULT_COU
             return {"outfits": [], "missing": [
                 f"The {_label(raw)} has no category an outfit can use. Set its category, then build around it."]}
         forced_piece, it = match
-        why = _unavailable(it, ctx)
-        if why in AWAY.values():
-            why = away_words(it)   # "at the cleaner's until Friday 27 November", as the laundry is said
-        if why in ("archived", "in the laundry") or it.get("away") in AWAY:
+        refused = cannot_build_around(it)
+        if refused in ("archived", "away", "laundry"):
+            # "at the cleaner's until Friday 27 November", as the laundry is said
+            why = away_words(it) if refused == "away" else "in the laundry" if refused == "laundry" else "archived"
             return {"outfits": [], "missing": [f"{_the(forced_piece, True)} {_is(forced_piece)} {why}, so there is nothing "
                                                f"to build around {'them' if plural(forced_piece) else 'it'}."]}
         if forced_piece.category in ACCESSORY_CATEGORIES:

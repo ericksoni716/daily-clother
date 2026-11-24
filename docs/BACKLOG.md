@@ -14,6 +14,10 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **From a piece to an outfit** (23 November; DECISIONS, "From a piece to an outfit"). The outfits you
+  keep are not in a piece's "When you wore it" (it lists wears; a kept outfit was never worn). The list
+  reads a piece's latest 100 wears. A piece kept for a plan gets the plain button; Today's own sheet
+  then says it is planned. Offline the item page shows what it read last, its buttons off.
 - **Give it an outing** (23 November; DECISIONS, "Give it an outing"). The numbers (28 days, one
   outing in five days, three weeks' rest) are guesses with no setting yet; "offered" counts from when the
   outing was on the page, whether or not you swiped to it. The demo closet shows none as it ships (its
@@ -509,7 +513,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 **Every day**
 - [x] **Dress for another day**: on Today, tomorrow or a date you choose, with that day's forecast and a word about the day ("dinner at eight"). "Wear this on Saturday" keeps the outfit; that morning Today opens on it, and its pieces are kept out of the laundry's way.
 - [x] **Outfits you keep**: save an outfit you like without wearing it; find them under Worn; wear one again in a tap.
-- [ ] **From a piece to an outfit**: on a piece's page, "Build an outfit around it" and the outfits you have worn it in.
+- [x] **From a piece to an outfit**: on a piece's page, "Build an outfit around it" and the outfits you have worn it in.
 - [x] **Give it an outing**: Today may offer one outfit built around a piece you like and have not worn in a while, and says so.
 
 **The closet**

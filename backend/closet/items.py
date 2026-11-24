@@ -20,6 +20,7 @@ from . import (
     jobs,
     kinds,
     look,
+    outfits,
     palette,
     patjobs,
     progress,
@@ -173,6 +174,11 @@ def detail(conn, row) -> dict:
     out["additions"] = additions.shown(row)
     out["recent_wears"] = [r[0] for r in conn.execute(
         "SELECT worn_on FROM wears WHERE item_id = ? ORDER BY worn_on DESC LIMIT ?", (row["id"], RECENT_WEARS))]
+    # the same wears grouped by the outfit each was worn in, for the item page (`worn.of_item`)
+    from . import worn  # worn reads this module
+    out["worn_in"] = worn.of_item(conn, row["id"])
+    # why Today would find nothing to build around it ("laundry", "away", ...), or null when it can (`outfits`)
+    out["build_around"] = outfits.cannot_build_around(dict(row))
     # the photo of several pieces this item was cut from, and its box in it (fractions); null for a photo of its own
     out["source_photo"] = None
     if row["source_photo_id"]:

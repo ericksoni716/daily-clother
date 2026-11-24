@@ -398,3 +398,51 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(tmp_path, m
     assert conn.execute("SELECT COUNT(*) FROM worn_outfit_pieces").fetchone()[0] == 0
     conn.execute("DELETE FROM worn_outfits WHERE id = 'o'")
     conn.close()
+
+
+# ------------------------------------------------------------------ one piece's outfits, on its page
+def _o(oid, ids, rating=None):
+    pieces = {pl: None for pl in worn.PLACES} | {"accessories": []}
+    for pl, i in zip(("base", "bottom", "shoes"), ids, strict=True):
+        pieces[pl] = i
+    return {"id": oid, "pieces": pieces, "gone": [], "rating": rating}
+
+
+@pytest.mark.parametrize("days, outfit_on, rows", [
+    ([], {}, []),
+    (["d3"], {}, [(None, ["d3"], None)]),                                                   # a wear with no outfit
+    (["d3", "d2", "d1"], {"d3": _o("a", "tjs"), "d1": _o("b", "jst", "loved")},             # the same pieces: one row
+     [("a", ["d3", "d1"], "loved"), (None, ["d2"], None)]),
+    (["d2", "d1"], {"d2": _o("a", "tjs", "fine"), "d1": _o("b", "tjs", "not_again")},       # the latest rating
+     [("a", ["d2", "d1"], "fine")]),
+    (["d2", "d1"], {"d2": _o("a", "tjs"), "d1": _o("b", "tjx")},                            # other pieces: two rows
+     [("a", ["d2"], None), ("b", ["d1"], None)]),
+])
+def test_a_pieces_wears_are_grouped_by_the_outfit_they_were_worn_in(days, outfit_on, rows):
+    got = worn.group_wears(days, outfit_on)
+    assert [(r["outfit_id"], r["days"], r["rating"]) for r in got] == rows
+
+
+def test_the_item_page_lists_the_outfits_a_piece_was_worn_in(client):
+    ids = small(client)
+    trio = [ids["tee"], ids["jeans"], ids["shoes"]]
+    first = client.post("/api/outfits/worn", json={"item_ids": trio, "worn_on": days_ago(5)}).json()
+    client.post(f"/api/items/{ids['tee']}/wears", json={"worn_on": days_ago(3)})            # worn on its own
+    again = client.post("/api/outfits/worn", json={"item_ids": trio, "worn_on": days_ago(1)}).json()
+    client.put(f"/api/outfits/worn/{again['id']}/rating", json={"rating": "loved"})
+    client.post("/api/outfits/worn", json={"item_ids": all_ids(ids), "worn_on": days_ago(8)})   # with the jacket
+    body = client.get(f"/api/items/{ids['tee']}").json()
+    assert [(r["outfit_id"], r["days"], r["rating"]) for r in body["worn_in"]] == [
+        (again["id"], [days_ago(1), days_ago(5)], "loved"), (None, [days_ago(3)], None),
+        (body["worn_in"][2]["outfit_id"], [days_ago(8)], None)]
+    assert body["worn_in"][0]["pieces"]["base"] == ids["tee"] and body["worn_in"][2]["pieces"]["outer"] == ids["jacket"]
+    assert first["id"] != again["id"]
+    # a wear removed on the item page leaves the outfit in Worn, and its day off the piece's page
+    client.delete(f"/api/items/{ids['tee']}/wears/{days_ago(1)}")
+    after = client.get(f"/api/items/{ids['tee']}").json()["worn_in"]
+    assert [(r["outfit_id"], r["days"]) for r in after][:2] == [(None, [days_ago(3)]), (first["id"], [days_ago(5)])]
+    # clean, Today can build around it; in the laundry it has nothing to build around, and the page says why
+    assert client.post(f"/api/items/{ids['tee']}/laundry", json={"state": "clean"}).status_code == 200
+    assert client.get(f"/api/items/{ids['tee']}").json()["build_around"] is None
+    assert client.post(f"/api/items/{ids['tee']}/laundry", json={"state": "laundry"}).status_code == 200
+    assert client.get(f"/api/items/{ids['tee']}").json()["build_around"] == "laundry"

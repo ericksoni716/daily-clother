@@ -1,15 +1,16 @@
 import { backByWearing, recordedSentence } from '../away';
 import { queryOptions, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { api, ApiError } from '../api';
 import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
 import { Pic } from '../components/ItemPic';
+import { nameOf, OutfitPics } from '../components/OutfitPics';
 import { DaySheet } from '../components/DaySheet';
-import { BackLink, Button, buttonClass, Card, EmptyState, Failed, ItemThumb, PageHeader, SaveStatus, SegmentedControl, Sheet, ShowMore, useSaveStatus } from '../components/ui';
+import { BackLink, Button, buttonClass, Card, EmptyState, Failed, PageHeader, SaveStatus, SegmentedControl, Sheet, ShowMore, useSaveStatus } from '../components/ui';
 import { goneLine, KEPT_EMPTY, KEPT_NAME_MAX, keptToast, keptWhen, type KeptOutfit } from '../kept';
 import { label } from '../labels';
 import { setLaundryMany } from '../laundry';
-import { keptQuery, plansQuery, touch, useEdit, useItems, writeItem } from '../queries';
+import { keptQuery, plansQuery, touch, useAllItems, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
 import { ItemDetail } from './ItemDetail';
@@ -19,7 +20,7 @@ import { tripsQuery } from './Trips';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
 import {
-  contextWords, joinPages, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, loadSavedWorn, pieceName, recordGroups, saveWorn, withOutfit,
+  contextWords, joinPages, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, loadSavedWorn, recordGroups, saveWorn, withOutfit,
   withoutOutfit, withRecorded, wornDay, wornIds, type Rating, type Reason, type WornOutfit, type WornPage,
 } from '../worn';
 
@@ -95,34 +96,6 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
   );
 }
 
-/** The pieces of a worn outfit, each opening its item unless `linked` is false (a small preview, as on Today's question).
- * `from` is the page it is on, whose own address the item opens at, so the item's back link goes back there. */
-export function OutfitPics({ outfit, byId, linked = true, from = '/today' }: {
-  outfit: Pick<WornOutfit, 'pieces' | 'gone'>; byId: Map<string, ItemSummary>; linked?: boolean; from?: '/today' | '/today/worn';
-}) {
-  const ids = wornIds(outfit.pieces);
-  return (
-    <ul className="worn-pics" aria-label="Pieces">
-      {ids.map((id) => {
-        const deleted = (outfit.gone ?? []).includes(id);
-        const item = byId.get(id);
-        const name = nameOf(item, deleted);
-        return (
-          <li key={id}>
-            {deleted || !linked ? (
-              <ItemThumb className={`worn-pic${deleted ? ' is-gone' : item?.status === 'archived' ? ' is-archived' : ''}`} title={name}
-                picture={<Pic item={deleted ? undefined : item} alt={name} />} />
-            ) : (
-              <ItemThumb to={item?.status === 'archived' ? `/archived/item/${encodeURIComponent(id)}` : `${from}/item/${encodeURIComponent(id)}`}
-                className={`worn-pic${item?.status === 'archived' ? ' is-archived' : ''}`} title={name} picture={<Pic item={item} alt={name} />} />
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 /** How many outfits Recent outfits shows on Today: three on a phone, a week's worth on a wider screen. */
 const RECENT = { first: 3, wide: 7 };
 
@@ -169,13 +142,6 @@ function RecentCard({ outfit, byId, offline }: { outfit: WornOutfit; byId: Map<s
       )}
     </Card>
   );
-}
-
-/** Every item in the closet by id, archived ones too: a worn outfit may hold a piece archived since. */
-export function useAllItems(): Map<string, ItemSummary> {
-  const active = useItems('active').data;
-  const archived = useItems('archived').data;
-  return useMemo(() => new Map([...(archived ?? []), ...(active ?? [])].map((i) => [i.id, i])), [active, archived]);
 }
 
 /** A page of worn outfits as read, and when it was asked for (null: the copy kept on this device, shown offline). */
@@ -637,8 +603,4 @@ function KeptCard({ outfit, byId, offline, plans, trips }: {
       )}
     </Card>
   );
-}
-
-function nameOf(item: ItemSummary | undefined, deleted: boolean): string {
-  return pieceName(item, deleted, (c) => label('category', c));
 }

@@ -161,6 +161,23 @@ def test_item_worn_yesterday_is_passed_over_for_an_equal_one():
         assert worn not in ids_of(result["outfits"][0])
 
 
+def test_a_piece_worn_lately_is_said_plainly_when_you_asked_for_it():
+    tee = item("tee1", "tee", "white", "casual", "warm", name="white tee", silhouette={"sleeve": "short"})
+    items = [i for i in basic_closet() if i["id"] != "tee1"] + [tee,
+             item("tee2", "tee", "grey", "casual", "warm", name="grey tee", silhouette={"sleeve": "short"})]
+    worn = {"tee1": 1}
+    said = lambda found: [w for o in found for w in o["warnings"] if w.startswith("You wore the white tee")]  # noqa: E731
+    # chosen by Nines with nothing better to offer: it says so, as before
+    only = outfits.suggest([i for i in items if i["category"] not in ("tee", "shirt", "polo") or i["id"] == "tee1"],
+                           day(27, worn_days_ago=worn), 3)["outfits"]
+    assert "You wore the white tee yesterday; nothing else suited as well." in said(only)
+    # built around it, or kept from an outfit worn again: you asked for it, so only what is true is said
+    for ctx in (day(27, worn_days_ago=worn, build_around="tee1"), day(27, worn_days_ago=worn, keep=("tee1",))):
+        found = outfits.suggest(items, ctx, 3)["outfits"]
+        assert found and all("tee1" in ids_of(o) for o in found)
+        assert said(found) and set(said(found)) == {"You wore the white tee yesterday."}
+
+
 def test_nothing_is_worn_over_something_heavier_or_bulkier():
     items = [
         item("tee1", "tee", "white", "casual"),
@@ -317,6 +334,31 @@ def test_build_around_an_item_in_the_laundry_explains_why_not():
     result = outfits.suggest(items, day(20, build_around="tee1"), 3)
     assert result["outfits"] == [] and "in the laundry" in result["missing"][0]
     assert outfits.suggest(items, day(20, build_around="nope"), 3)["missing"] == ["The item to build around is not in this closet."]
+
+
+@pytest.mark.parametrize("changes, why", [
+    ({}, None),
+    ({"condition": "needs_repair"}, None),                    # waiting to be mended: Today builds around it
+    ({"kind": "lounge_pants"}, None),                         # never chosen by itself, but built around when asked
+    ({"category": "belt"}, None),                             # an accessory goes with the outfit's accessories
+    ({"category": None}, "no_category"),                      # not described yet, and no kind chosen
+    ({"category": "other"}, "not_in_outfits"),                # a tie or a watch: no outfit has a place for it
+    ({"status": "archived"}, "archived"),
+    ({"laundry": "laundry"}, "laundry"),
+    ({"location": "laundry"}, "laundry"),
+    ({"away": "cleaner", "away_until": "2026-11-27"}, "away"),
+    ({"away": "lent", "laundry": "laundry"}, "away"),         # said where it is first, as Today says it
+])
+def test_why_today_cannot_build_around_a_piece(changes, why):
+    piece = {**item("p", "trousers", "grey", "casual"), **changes}
+    assert outfits.cannot_build_around(piece) == why
+    # the same rule as Today itself: a piece it refuses gives no outfit and says why, any other gives outfits around it
+    closet = [i for i in basic_closet() if i["category"] != "trousers"] + [item("t2", "trousers", "stone", "casual"), piece]
+    result = outfits.suggest(closet, day(15, 21, build_around="p"), 3)
+    if why is None:
+        assert result["outfits"] and all("p" in ids_of(o) for o in result["outfits"])
+    else:
+        assert result["outfits"] == [] and result["missing"]
 
 
 def test_at_most_one_strong_colour_unless_tonal_and_one_loud_pattern():

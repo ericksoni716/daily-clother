@@ -1,6 +1,7 @@
 import type { Life } from './life';
 import type { UpdateStatus } from './updates';
 import type { TalkTurn } from './today';
+import type { AroundRefusal, WornIn } from './pieceOutfits';
 
 export type CutoutState = 'none' | 'pending' | 'processing' | 'ready' | 'failed';
 /** Being described by Claude: none (never asked), waiting, working, done, failed. */
@@ -211,6 +212,10 @@ export interface Item extends ItemSummary {
   photos: Photo[];
   /** The latest wears, newest first. */
   recent_wears: string[];
+  /** The same wears grouped by the outfit each was worn in, newest first (the item page's "When you wore it"). */
+  worn_in?: WornIn[];
+  /** Why Today would find nothing to build around it, or null when it can. */
+  build_around?: AroundRefusal | null;
   /** The photo of several pieces this item was cut from, and its box in it; null for a photo of its own. */
   source_photo?: { id: string; photo_url: string; box: BoxEdges | null } | null;
   /** A shoe traced from its side-on photo; null for anything that is not a shoe. */

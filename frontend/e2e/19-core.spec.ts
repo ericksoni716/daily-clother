@@ -1,4 +1,43 @@
+import type { Page, Request } from '@playwright/test';
 import { expect, goToCloset, test, useProfile } from './fixtures';
+
+/**
+ * Keeps count of what the page has on its way to Nines from now on. `quiet()` waits until nothing has been in
+ * flight for `quietMs`, and fails with a sentence if the page has not gone quiet within `limitMs`.
+ */
+function watchRequests(page: Page) {
+  const inFlight = new Set<Request>();
+  let changed = Date.now();
+  const started = (request: Request) => {
+    if (!/^https?:/.test(request.url())) return;
+    inFlight.add(request);
+    changed = Date.now();
+  };
+  const ended = (request: Request) => {
+    if (inFlight.delete(request)) changed = Date.now();
+  };
+  page.on('request', started);
+  page.on('requestfinished', ended);
+  page.on('requestfailed', ended);
+  return {
+    async quiet(quietMs = 500, limitMs = 15_000) {
+      const deadline = Date.now() + limitMs;
+      try {
+        while (inFlight.size > 0 || Date.now() - changed < quietMs) {
+          if (Date.now() > deadline) {
+            const open = [...inFlight].map((request) => `${request.method()} ${new URL(request.url()).pathname}`);
+            throw new Error(`The page was still reading from Nines after ${limitMs / 1000} s (${open.join(', ') || 'new requests kept starting'}), so the network could not be cut with nothing on its way.`);
+          }
+          await page.waitForTimeout(50);
+        }
+      } finally {
+        page.off('request', started);
+        page.off('requestfinished', ended);
+        page.off('requestfailed', ended);
+      }
+    },
+  };
+}
 
 test.use({ serviceWorkers: 'block' });
 
@@ -159,13 +198,19 @@ for (const saved of [false, true]) {
   test(`a late reconnect response preserves a newer ${saved ? 'saved edit' : 'unsaved draft'}`, async ({ page, context }) => {
     await goToCloset(page);
     await useProfile(page, 'demo');
+    const reads = watchRequests(page);
     await page.getByTestId('tile').filter({ hasText: 'Oatmeal henley' }).click();
     const id = new URL(page.url()).pathname.split('/').at(-1)!;
     const original = await (await page.request.get(`/api/items/${id}`)).json();
     const name = page.getByRole('textbox', { name: 'Name', exact: true });
+    await expect(name).toHaveValue(original.name);
     let release!: () => void;
     const waiting = new Promise<void>((resolve) => { release = resolve; });
     try {
+      // The save below is meant to be what tells the page Nines is out of reach. A read of the item page still on
+      // its way when the network is cut (When you wore it, a drawing) would tell it first, and the page would turn
+      // the fields off before the test types, so the cut waits until the page has nothing in flight.
+      await reads.quiet();
       await context.setOffline(true);
       await name.fill('Unavailable edit');
       await name.press('Enter');

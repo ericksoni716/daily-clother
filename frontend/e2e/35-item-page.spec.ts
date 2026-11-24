@@ -218,6 +218,9 @@ test.describe('the item page in the demo closet', () => {
     fail = false;
     await sheet.getByRole('button', { name: 'Try again' }).click();
     await expect(sheet.getByTestId('details-failed')).toHaveCount(0);
+    // the details are drawn before reads fail again: the message is gone as soon as Try again is tapped, so without
+    // this the fault below could catch the very read Try again asked for
+    await expect(sheet.locator('.fix-detail').first()).toBeVisible();
     // a detail's own choices: the same, under the detail, not a toast
     fail = true;
     await sheet.locator('.fix-detail').first().click();

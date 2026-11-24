@@ -8,7 +8,7 @@ import { Button, buttonClass, Card, Failed, Notice, SegmentedControl, Sheet } fr
 import type { Wish } from '../gaps';
 import { touch, useItems } from '../queries';
 import {
-  canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, withStopped, googleShoppingLink,
+  addedByHand, canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, withStopped, googleShoppingLink,
   historyWords, lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll,
   type ShopRun, typedCode, watchWords, webLink, wishlistAgain,
 } from '../shop';
@@ -62,9 +62,9 @@ export function LinkForm({ initial = '', submit, busy, locked, lockedTitle, onSu
 }
 
 /**
- * On a wish, below what to look for: what is watched (the pages you sent, then Claude's finds) with the one sentence
- * about watching, the most you'd pay and Check now; then looking for more ("Find some", "Add a link"). Opening the
- * page tells the server you have seen the wish's price news.
+ * On a wish, below what to look for: "Added by hand" when it was, what is watched (the pages you sent, then Claude's
+ * finds) with the one sentence about watching, the most you'd pay and Check now; then looking for more ("Find some",
+ * "Add a link"). Opening the page tells the server you have seen the wish's price news.
  */
 export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolean; onPrice(w: Wish, changes: PriceChange): Promise<boolean> }) {
   const { profile, toast } = useApp();
@@ -121,8 +121,9 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
     try {
       await api.removeFind(wish.id, f.id);
       setStopped((was) => [...was.filter((s) => s.find.id !== f.id), { find: f, at }]);
-      // only this wish's finds changed
+      // this wish's finds changed, and with them its row in the wishlist (its link and its drop)
       await qc.invalidateQueries({ queryKey: key, exact: true });
+      void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -131,6 +132,8 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
     try {
       qc.setQueryData(key, await api.restoreFind(wish.id, f.id));
       setStopped((was) => was.filter((s) => s.find.id !== f.id));
+      // the wish reads as before the stop again, its row in the wishlist too
+      void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -152,13 +155,22 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   const said = <RunSaid run={run} error={begin.error?.message ?? null} />;
   // the currency the most you'd pay starts in when none is set: the newest find's
   const currency = answer?.finds[0]?.currency;
+  // above what is watched, and decided with it, so that stopping a link's find on this visit, or the wishlist read again
+  // meanwhile, never puts this line in above the find (DESIGN, "The page holds still")
+  const byHand = addedByHand(wish, answer ? finds : null) && <p className="wish-look muted">Added by hand</p>;
   // what is watched comes first, so the page waits for it (a moment: Nines is on this computer) before laying out the rest
   if (!answer && !locked) {
-    return read.error ? <Failed query={read} what="what is watched for this wish" />
-      : <div className="missing-skeleton missing-skeleton-small" aria-hidden="true" />;
+    return (
+      <>
+        {byHand}
+        {read.error ? <Failed query={read} what="what is watched for this wish" />
+          : <div className="missing-skeleton missing-skeleton-small" aria-hidden="true" />}
+      </>
+    );
   }
   return (
     <>
+      {byHand}
       <Failed query={read} what="what is watched for this wish" />
       {finds.length > 0 && (
         <section className="wish-watch" aria-label={`Watching for ${wish.name}`}>

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseRoute } from './router';
 import {
-  atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, withStopped, googleShoppingLink,
+  addedByHand, atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, withStopped, googleShoppingLink,
   historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
   runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, watchWords,
   webLink, wishlistAgain, wishlistWords, withinWords,
@@ -195,6 +195,16 @@ describe('the wish page and price news', () => {
     // put back: listed by the server again, it is not shown twice
     expect(withStopped([f('a'), f('b'), f('c')], [{ find: f('b'), at: 1 }]).map((x) => x.id)).toEqual(['a', 'b', 'c']);
     expect(withStopped(shown, [])).toBe(shown);
+  });
+
+  it('keeps a wish from a link from calling itself added by hand while its stopped find is on the page', () => {
+    const hand = { gap_id: null, link: null };
+    expect(addedByHand(hand, null)).toBe(true);
+    expect(addedByHand(hand, [{ link: false }])).toBe(true);
+    // its only link was stopped: the server no longer gives the wish a link, but the stopped find is still shown
+    expect(addedByHand(hand, [{ link: false }, { link: true }])).toBe(false);
+    expect(addedByHand({ gap_id: 'g', link: null }, null)).toBe(false);
+    expect(addedByHand({ gap_id: null, link: { name: 'Shirt', shop: 'Shop', price: 1, currency: 'USD', available: true } }, [])).toBe(false);
   });
 
   it('says how a price went only when it changed, a price for each change', () => {

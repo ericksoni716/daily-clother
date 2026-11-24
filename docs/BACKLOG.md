@@ -14,6 +14,9 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **"Added by hand" after a link's find is stopped** (24 November; DECISIONS, the row on Stop
+  watching). Left: once you leave the page, a wish made from a link whose only find you stopped says
+  "Added by hand" on its row and its page, since nothing on the wish keeps where it came from.
 - **The closet opening on an empty view** (24 November; DECISIONS, "Where a piece is"). The Away view
   now goes when nothing is away on opening. The laundry view kept with nothing in the laundry still opens
   on "Nothing in the laundry" and "Your laundry is empty."; the same rule (`closet.openedFilters`) would fit

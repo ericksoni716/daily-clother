@@ -313,6 +313,30 @@ def test_model_endpoints_report_state_and_take_a_custom_address(client):
     assert client.put("/api/model/url", json={"url": ""}).json()["url"].startswith("https://github.com/")
 
 
+def test_the_second_sets_address_is_set_and_put_back_on_its_own(client, services, tmp_path):
+    """Settings shows both sets' addresses, each with Save and Use default: `which` says which one is changed, and
+    without it the first is, as before."""
+    from closet.modelstore import SECOND_MODEL
+    assert client.put("/api/model/url", json={"url": "https://example.com/u.onnx", "which": "second"}).status_code == 404
+    services.second_model = ModelStore(tmp_path / "models", services.state, name=SECOND_MODEL, url_key="second_model_url")
+    default = client.get("/api/model").json()["second"]["url"]
+    assert default.endswith("/u2net.onnx")
+
+    assert client.put("/api/model/url", json={"url": "ftp://x", "which": "second"}).status_code == 422
+    assert client.put("/api/model/url", json={"url": "https://example.com/m.onnx", "which": "third"}).status_code == 422
+    body = client.put("/api/model/url", json={"url": " https://example.com/u.onnx ", "which": "second"}).json()
+    assert body["second"]["url"] == "https://example.com/u.onnx"
+    assert body["url"].startswith("https://github.com/")              # the first set's address is left as it was
+    assert services.state.get("second_model_url") == "https://example.com/u.onnx"
+
+    body = client.put("/api/model/url", json={"url": "https://example.com/m.onnx"}).json()   # no `which`: the first
+    assert body["url"] == "https://example.com/m.onnx" and body["second"]["url"] == "https://example.com/u.onnx"
+
+    body = client.put("/api/model/url", json={"url": "", "which": "second"}).json()           # Use default
+    assert body["second"]["url"] == default and body["url"] == "https://example.com/m.onnx"
+    assert services.state.get("second_model_url") is None
+
+
 def _cutter(look: dict):
     """Stands in for the models: a box in the middle of the photo, solid, or see-through in stripes the way the
     first model leaves a striped shirt (`look["as"]`)."""

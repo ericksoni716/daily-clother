@@ -579,8 +579,14 @@ the item page.
   `/settings?open=shops`.
 - **Claude**: one line saying how Nines reaches Claude ("Using your Claude plan"), or one red
   sentence and Check again when it can't; **Manage** opens Advanced.
-- **Updates**: one line ("Nines 0.9.0 · up to date", or "Nines 0.9.1 is ready to install."
-  with what is new folded under it and **Install now**).
+- **Updates**: every fact and action about updates, once each. One line ("Nines 0.9.0 · up to
+  date", or "Nines 0.9.1 is ready to install."), then when it last looked ("Last checked today
+  at 9:41.") with **Check now** beside it. The answer to Check now comes in under the button, so
+  the button does not move: "You have the latest version.", or, when a newer version is found,
+  the line above says so and **Install now** with the download's size comes in below. Then what
+  is new, folded; the release page; and how the last install went. Pressing Check now shows
+  "Checking…" on the button; a problem fetching the release shows in a sentence. A copy with no
+  updater shows only its version.
 - **Other devices** (your phone, or another computer): on the computer. Until Tailscale shares
   Nines, the command to run once; after that one line with the address ("Your phone or another
   computer can open Nines at …") and **Show the QR code** folded under it. While Settings
@@ -623,21 +629,32 @@ back. Its code loads only when it is opened. In order:
 
 - **Starting Nines**: Start Nines when I log in (computer only; the group is not there on a
   phone).
-- **Claude**: the plan and the API key in the order they are tried, each with its state; the
-  key box (paste, replace, remove); which to use; Allow the API key; the monthly limit and the
-  month's spending, folded; how many items wait to be described, only when some do.
-- **Updates**: the version, when it last checked, whether to install by itself, ask first or
-  never check, Check now with what it found under it ("Nines 0.15.0 is out." and **Install
-  now**, or "You have the latest version."), and how the last install went.
+- **Claude**: one line saying how Nines reaches Claude now ("Using your Claude plan.", or one
+  cause in red and what puts it right), with **Check again** beside it. Then **Your Claude
+  plan** with its line and a few words on the cost, and **An API key** with its line. With no
+  key saved, only the box to paste one, **Save key** and one sentence (where to make one; it is
+  checked for free, kept in the keychain and never shown again); the order stays there only
+  when the saved one needs a key that is gone. With a key saved: **Replace key** and **Remove
+  key**; **Monthly limit (US dollars)**, a short box with **Save limit** beside it, in view,
+  and under it this month's spending in a few words ("November: $0.42 of $5.00 spent."); the switch **Allow the API key** (it asks for a limit when the box is
+  empty); **Which to use**, a choice of four (your plan first, the key first, only your plan,
+  only the key); what the waiting items would cost; and, folded under **Spending so far**, this
+  month's requests, the earlier months, why the limit is suggested and how costs are worked out. "This month's limit is reached…" and why Nines stopped using the key
+  stay in view. How many items wait to be described, only when some do.
+- **Updates**: only the choice of when a new version is installed: by itself, ask first or
+  never check, with a sentence on the one chosen. The version, Check now and the last check
+  are on Settings.
 - **Backups**: the backup line, the folder (typed on the computer only) and Back up now.
-- **Storage**: one line ("Nines uses 2.9 MB for 49 items · 59 GB free on this disk"), with
-  what takes the space folded under it.
+- **Storage**: one line ("Nines uses 2.9 MB for 49 items · 59 GB free on this disk"), then,
+  on the computer, where your closet is stored, then what takes the space, folded.
 - **Background removal**: a line for each of the two models, saying what it is for (the main
   one cuts out every photo; the second is asked as well for stripes and checks) and how it
   stands: ready, downloading and how far, not downloaded yet, or didn't download and why.
-  One that is missing or failed has Download or Try again beside it. Under them, the download
-  address, and on the computer where to put the files by hand, folded.
-- **This copy of Nines**: the data folder (computer only) and the version.
+  One that is missing or failed has Download or Try again beside it. Under them, one closed
+  fold, **If a download keeps failing**: a sentence saying each set is downloaded from the
+  address in its box and that you can type another or put the file in place by hand, then for
+  each set its address with **Save** and **Use default** and, on the computer only, where its
+  file goes. Only the first when there is no second.
 - **The demo closet**: the switch that shows the sample closet instead of yours, last because
   it is rarely wanted once your own clothes are in. While the demo closet shows, the strip at
   the top of every screen has Leave, so the way back is always in sight.

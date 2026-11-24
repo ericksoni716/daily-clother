@@ -173,7 +173,12 @@ test.describe('opened on the phone', () => {
     await expect(page.getByRole('switch', { name: /Show the demo closet/ })).toBeVisible();
     await expect(page.getByRole('switch', { name: /Start Nines when I log in/ })).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: 'Backup folder' })).toHaveCount(0);
-    await expect(page.getByText('Put the files in place by hand')).toHaveCount(0);
+    // the addresses act on the computer, so they are offered; where to put a file by hand is not
+    const removal = page.getByRole('region', { name: 'Background removal' });
+    await removal.getByText('If a download keeps failing').click();
+    await expect(removal.getByLabel('Address for the first set')).toBeVisible();
+    await expect(removal.getByTestId('model-path-main')).toHaveCount(0);
+    await expect(removal.getByText('its file goes here')).toHaveCount(0);
     await expect(page.getByText('Your closet is stored in')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Quit Nines' })).toHaveCount(0);
   });

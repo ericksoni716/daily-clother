@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aboutUsd, amount, apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, importLine, monthName, PRICE_HINT, readAmount, readCents, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from './spend';
+import { aboutUsd, amount, apiKeyLine, apiKeySavedLine, dayName, earlierMonths, monthSpentLine, requestsLine, firstRouteLine, formatUsd, importLine, monthName, PRICE_HINT, readAmount, readCents, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from './spend';
 
 describe('reading a price you typed', () => {
   // one reader for every box a price is typed in: an item's price, the review card, a wish's most you'd pay, a code's
@@ -127,7 +127,7 @@ describe('which route is tried first', () => {
 
   it('offers the four orders in plain words, the plan first by default, and marks the ones that need a key', () => {
     expect(ROUTE_ORDERS.map((o) => o.value)).toEqual(['auto', 'api-first', 'plan', 'api']);
-    expect(ROUTE_ORDERS[0].label).toBe("Use my Claude plan first, the key only if the plan can't");
+    expect(ROUTE_ORDERS.map((o) => o.label)).toEqual(['Your plan first, then the key', 'The key first, then your plan', 'Only your plan', 'Only the key']);
     expect(ROUTE_ORDERS.filter((o) => o.needsKey).map((o) => o.value)).toEqual(['api-first', 'api']);
   });
 
@@ -138,5 +138,29 @@ describe('which route is tried first', () => {
     expect(firstRouteLine(['plan', 'api'], [{ ...plan, available: false }, api], true)).toBe('Nines will try your API key first.');
     expect(firstRouteLine(['api'], [api], false)).toBe('');
     expect(firstRouteLine(['plan'], [{ ...plan, available: false }], true)).toBe('');
+  });
+});
+
+describe('the months folded under the limit', () => {
+  it('lists the months before this one, leaving this month to its own sentence', () => {
+    const m = (month: string, spent_usd: number) => ({ month, api_calls: 1, plan_calls: 0, spent_usd, input_tokens: 0, output_tokens: 0 });
+    expect(earlierMonths({ month: '2026-11', history: [m('2026-11', 0.16), m('2026-10', 1.2), m('2026-08', 0.4)] }).map((x) => x.month))
+      .toEqual(['2026-10', '2026-08']);
+    expect(earlierMonths({ month: '2026-11', history: [m('2026-11', 0.16)] })).toEqual([]);
+  });
+});
+
+describe('the month in a few words, and its requests', () => {
+  it('says the month, what is spent and the limit', () => {
+    expect(monthSpentLine({ month: '2026-11', spent_usd: 0.42, cap_usd: 5 })).toBe('November: $0.42 of $5.00 spent.');
+    expect(monthSpentLine({ month: '2026-11', spent_usd: 0, cap_usd: 5 })).toBe('November: nothing spent yet of $5.00.');
+    expect(monthSpentLine({ month: '2026-11', spent_usd: 0.42, cap_usd: null })).toBe('November: $0.42 spent, with no limit set yet.');
+    expect(monthSpentLine({ month: '2026-01', spent_usd: 0, cap_usd: null })).toBe('January: nothing spent yet, and no limit set.');
+  });
+
+  it('counts the requests with the key and through the plan', () => {
+    expect(requestsLine({ api_calls: 12, plan_calls: 3 })).toBe('This month 12 requests went to Claude with the API key. 3 requests went through your Claude plan, at no extra cost.');
+    expect(requestsLine({ api_calls: 1, plan_calls: 0 })).toBe('This month 1 request went to Claude with the API key.');
+    expect(requestsLine({ api_calls: 0, plan_calls: 0 })).toBe('Nothing was sent with the API key this month.');
   });
 });

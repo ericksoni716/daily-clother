@@ -15,62 +15,56 @@ test.describe('choosing which route to Claude is tried first', () => {
     await backend?.stop();
   });
 
-  test('the key-first choices wait for a key, the list follows the choice, and removing the key resets it', async ({ page }) => {
+  test('the choice comes with a key, the first line follows it, and removing the key resets it', async ({ page }) => {
     await page.goto(backend.url + '/');
     await expect(page.locator('#closet-title')).toBeVisible();
 
     await page.goto(backend.url + '/settings/advanced');
     const section = page.getByRole('region', { name: 'Claude' });
-    const choice = section.getByTestId('route-order');
-    const planFirst = choice.getByRole('radio', { name: "Use my Claude plan first, the key only if the plan can't" });
-    const keyFirst = choice.getByRole('radio', { name: /^Use the API key first/ });
-    const onlyPlan = choice.getByRole('radio', { name: 'Only my Claude plan' });
-    const onlyKey = choice.getByRole('radio', { name: /^Only the API key/ });
-    await expect(planFirst).toBeChecked();   // the default
-    await expect(keyFirst).toBeDisabled();
-    await expect(onlyKey).toBeDisabled();
-    await expect(choice).toContainText('Use the API key first (save an API key first)');
-    await expect(choice).toContainText('The API key is only used once you turn on Allow the API key below and set a monthly limit.');
-    const routes = section.getByRole('listitem');
-    await expect(routes.nth(0)).toContainText('Your Claude plan', { timeout: 20_000 });
+    const lead = section.getByTestId('claude-lead');
+    const choice = section.getByLabel('Which to use');
+    // with no key there is nothing to choose between: the choice comes with a key (the default is the plan first)
+    await expect(section.getByTestId('api-key')).toContainText('No API key yet.');
+    await expect(section.getByTestId('route-order')).toHaveCount(0);
+    expect((await (await page.request.get(backend.url + '/api/settings')).json()).tagging_route_order).toBe('auto');
+    await expect(lead).toHaveText(/^Nines can't reach Claude yet\./, { timeout: 20_000 });
 
-    // with a key saved, the key can go first: the list follows, but the key is only tried once allowed with a limit
+    // with a key saved, the key can go first, but it is only tried once allowed with a limit
     const box = section.getByTestId('api-key');
     await box.getByLabel('Paste your API key').fill(KEY);
     await box.getByRole('button', { name: 'Save key' }).click();
     await expect(box).toContainText("Your API key is saved in this Mac's keychain.");
-    await expect(keyFirst).toBeEnabled();
-    await keyFirst.click();
+    await expect(choice).toHaveValue('auto');
+    await expect(choice.locator('option')).toHaveText(['Your plan first, then the key', 'The key first, then your plan', 'Only your plan', 'Only the key']);
+    for (const value of ['api-first', 'api']) await expect(choice.locator(`option[value="${value}"]`)).toBeEnabled();
+    await choice.selectOption('api-first');
     await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-    await expect(keyFirst).toBeChecked();
-    await expect(routes.nth(0)).toContainText('An API key', { timeout: 20_000 });
-    await expect(routes.nth(1)).toContainText('Your Claude plan');
-    await expect(section.getByTestId('route-first')).toHaveCount(0);   // the plan isn't set up and the key isn't allowed yet
-    await section.getByText('Monthly limit and spending').click();   // the limit sits under its own disclosure
-    await section.getByLabel('Monthly limit for the API key (US dollars)').fill('2');
+    await expect(choice).toHaveValue('api-first');
+    // the plan isn't set up and the key isn't allowed yet: one cause, and what below puts it right
+    await expect(lead).toHaveText(/^Nines can't reach Claude yet: your API key is saved but not allowed\. Allow it below, or use your Claude plan\./, { timeout: 20_000 });
+    await section.getByLabel('Monthly limit (US dollars)').fill('2');   // in view, nothing to open
     await section.getByText('Allow the API key', { exact: true }).click();
-    await expect(section.getByTestId('route-first')).toHaveText('Nines will try your API key first.', { timeout: 20_000 });
+    await expect(lead).toHaveText('Using your API key.', { timeout: 20_000 });
 
     // kept after a reload
     await page.reload();
-    await expect(keyFirst).toBeChecked();
+    await expect(choice).toHaveValue('api-first');
 
-    // only the plan: the key is not in the list
-    await onlyPlan.click();
-    await expect(onlyPlan).toBeChecked();
-    await expect(routes).toHaveCount(1, { timeout: 20_000 });
-    await expect(routes.nth(0)).toContainText('Your Claude plan');
-    await expect(section.getByTestId('route-api-unused')).toContainText('Not used: you chose to use only your Claude plan.');
-    await expect(box).toContainText("Your API key is saved in this Mac's keychain.");   // the key can still be replaced or removed
+    // only the plan: the key is not used, and can still be replaced or removed
+    await choice.selectOption('plan');
+    await expect(choice).toHaveValue('plan');
+    await expect(lead).toHaveText(/^Nines can't reach Claude yet\./, { timeout: 20_000 });
+    await expect(box).toContainText("Your API key is saved in this Mac's keychain.");
+    await expect(box.getByRole('button', { name: 'Replace key' })).toBeVisible();
 
-    // only the key, then remove the key: back to the plan first
-    await onlyKey.click();
-    await expect(routes).toHaveCount(1, { timeout: 20_000 });
-    await expect(routes.nth(0)).toContainText('An API key');
+    // only the key, then remove the key: back to the plan first, and no choice to make
+    await choice.selectOption('api');
+    await expect(choice).toHaveValue('api');
+    await expect(lead).toHaveText('Using your API key.', { timeout: 20_000 });
     await box.getByRole('button', { name: 'Remove key' }).click();
     await box.getByRole('button', { name: 'Remove', exact: true }).click();
     await expect(box).toContainText('No API key yet.');
-    await expect(planFirst).toBeChecked();
-    await expect(onlyKey).toBeDisabled();
+    await expect(section.getByTestId('route-order')).toHaveCount(0);
+    await expect.poll(async () => (await (await page.request.get(backend.url + '/api/settings')).json()).tagging_route_order).toBe('auto');
   });
 });

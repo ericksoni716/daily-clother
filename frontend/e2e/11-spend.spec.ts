@@ -26,19 +26,32 @@ test.describe('the API key with a monthly limit', () => {
     await page.goto(backend.url + '/settings/advanced');
     const section = page.getByRole('region', { name: 'Claude' });
     await expect(section.getByTestId('route-plan')).toContainText('not installed', { timeout: 20_000 });
+    // the limit, the switch and the spending come with a key; the stand-in check accepts any well-formed key
+    await expect(section.getByRole('switch', { name: /Allow the API key/ })).toHaveCount(0);
+    const box = section.getByTestId('api-key');
+    await box.getByLabel('Paste your API key').fill('sk-ant-api03-' + 's'.repeat(80));
+    await box.getByRole('button', { name: 'Save key' }).click();
+    await expect(box).toContainText("Your API key is saved in this Mac's keychain.");
     const allow = section.getByRole('switch', { name: /Allow the API key/ });
     await expect(allow).not.toBeChecked();
 
-    // the limit is asked for with the switch, and kept; it and the month's spending are folded away until opened
-    const limit = section.getByLabel('Monthly limit for the API key (US dollars)');
-    await expect(limit).toBeHidden();
-    await section.getByText('Monthly limit and spending').click();
-    await expect(section.getByText(/^We suggest \$5\.00 a month\. At the prices written down on 3 Nov 2026/)).toBeVisible();
+    // the limit and the month's spending are in view without opening anything; the switch asks for a limit, and keeps it
+    const limit = section.getByLabel('Monthly limit (US dollars)');
+    await expect(limit).toBeVisible();
+    await expect(section.getByTestId('spend-month')).toHaveText(/^[A-Z][a-z]+: nothing spent yet, and no limit set\.$/);
+    await section.getByText('Allow the API key', { exact: true }).click();
+    await expect(section.getByRole('alert')).toHaveText('Type a monthly limit in dollars, such as 5 or 2.50.');
+    await expect(allow).not.toBeChecked();
+    // the month's requests, why the suggested limit and how costs are worked out are folded under "Spending so far"
+    const more = section.getByTestId('spend-more');
+    await more.getByText('Spending so far').click();
+    await expect(more.getByTestId('spend-requests')).toHaveText('Nothing was sent with the API key this month.');
+    await expect(more.getByText(/^We suggest \$5\.00 a month\. At the prices written down on 3 Nov 2026/)).toBeVisible();
     await limit.fill('0.20');
     await section.getByText('Allow the API key', { exact: true }).click();
     await expect(allow).toBeChecked();
     await expect(page.getByText('The API key may be used, up to $0.20 a month')).toBeVisible();
-    await expect(section.getByTestId('spend-month')).toContainText('$0.00 of your $0.20 limit spent; nothing sent with the API key.');
+    await expect(section.getByTestId('spend-month')).toHaveText(/^[A-Z][a-z]+: nothing spent yet of \$0\.20\.$/);
 
     // the first photo is described with the API key
     await page.goto(backend.url + '/add');
@@ -51,12 +64,13 @@ test.describe('the API key with a monthly limit', () => {
     // $0.04 is left, less than one more photo could cost: the key can't be used again this month
     await expect(page.getByTestId('claude-line')).toHaveText("This month's limit for the API key is reached, and your Claude plan can't be used.", { timeout: 20_000 });
     await page.goto(backend.url + '/settings/advanced');
-    await section.getByText('Monthly limit and spending').click();
-    await expect(section.getByText('$0.20 a month')).toBeVisible();
-    await expect(section.getByTestId('spend-month')).toContainText('$0.16 of your $0.20 limit spent; 1 request to Claude with the API key.');
-    await expect(section.getByTestId('spend-history')).toContainText('$0.16');
-    await expect(section.locator('dd', { hasText: '$0.16' })).toHaveCount(1);   // the months are listed once
-    await expect(section.getByText(/^Costs are worked out from Anthropic's prices as written down on 3 Nov 2026\. Your Anthropic account shows what was really charged/)).toBeVisible();
+    await expect(limit).toHaveValue('0.2');
+    await expect(section.getByTestId('spend-month')).toHaveText(/^[A-Z][a-z]+: \$0\.16 of \$0\.20 spent\.$/);
+    await expect(section.locator('dd', { hasText: '$0.16' })).toHaveCount(0);   // this month is said once, in its sentence
+    await more.getByText('Spending so far').click();
+    await expect(more.getByTestId('spend-requests')).toHaveText('This month 1 request went to Claude with the API key.');
+    await expect(section.getByTestId('spend-history')).toHaveCount(0);
+    await expect(more.getByText(/^Costs are worked out from Anthropic's prices as written down on 3 Nov 2026\. Your Anthropic account shows what was really charged/)).toBeVisible();
     // the token counts are no longer shown (the assessment's step 6 removed the Details table)
     await expect(section.getByText('20,000', { exact: true })).toHaveCount(0);
 

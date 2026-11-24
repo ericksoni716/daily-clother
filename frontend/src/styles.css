@@ -893,7 +893,7 @@ html.sheet-open, html.sheet-open body { overflow: hidden; overscroll-behavior: n
 /* ---------------------------------------------------------------- settings */
 .settings { max-width: var(--content-w); overflow-wrap: break-word; }
 /* long values (addresses, paths, commands) wrap rather than run off a phone's screen */
-.settings code, .facts dd, .address code { overflow-wrap: anywhere; }
+.settings code, .address code { overflow-wrap: anywhere; }
 .settings-groups { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .settings-section { padding: 16px 18px; gap: 10px; }
 /* a part of a group, under a smaller heading and a line */
@@ -943,13 +943,6 @@ html.sheet-open, html.sheet-open body { overflow: hidden; overscroll-behavior: n
 .settings-style-count { align-self: flex-end; font-size: var(--text-sm); color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .settings-style-count.is-warn { color: var(--warn); font-weight: var(--weight-label); }
 .settings-style-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 4px; }
-.settings-spend { margin: 0; }
-.settings-spend summary { justify-content: space-between; }
-.settings-spend summary > span:first-child { flex: 1; }
-.settings-spend-cap { font-size: var(--text-sm); font-weight: var(--weight-body); }
-.settings-spend-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 14px; }
-.settings-spend-body > * { margin: 0; }
-.settings-spend-body .more { margin: 0; }
 /* a line with its action beside it ("Weather for New York · Change"); the action drops below on a narrow phone */
 .settings-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
 .settings-row { flex-wrap: nowrap; }
@@ -1013,9 +1006,6 @@ p.style-more { margin: 0; font-size: var(--text-sm); }
 .state-ready .state-dot { background: var(--ok); }
 .state-missing .state-dot { background: var(--caution); }
 .path { display: block; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface-2); word-break: break-all; font-size: var(--text-sm); }
-.facts { margin: 0; }
-.facts dt { font-size: var(--text-sm); color: var(--ink-3); font-weight: var(--weight-label); }
-.facts dd { margin: 4px 0 12px; }
 .settings-section .btn + .btn { margin-left: 0; }
 .storage-total strong { font-size: var(--text-lg); }
 .storage-list { margin: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -1025,15 +1015,29 @@ p.style-more { margin: 0; font-size: var(--text-sm); }
 .route-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; }
 .route-list li { display: flex; flex-direction: column; gap: 4px; }
 .route-list li > * { margin: 0; }
-.route-unused { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
-.route-unused > * { margin: 0; }
+/* Advanced → Claude: the first line with Check again beside it, then the plan and the key, each a heading and its lines */
+.claude-lead { display: flex; flex-wrap: nowrap; align-items: flex-start; justify-content: space-between; gap: 6px 12px; }
+.claude-lead > .state-line { margin: 0; flex: 1 1 0; min-width: 0; }
+.claude-lead > .btn { flex: none; }
+.claude-route { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.claude-route > * { margin: 0; }
 .api-key { display: flex; flex-direction: column; gap: 8px; }
 .api-key .field-row-inline, .api-key p { margin: 0; }
-.route-order { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.route-order legend { font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--ink-3); padding: 0; margin-bottom: 4px; }
-.route-order-choice { display: flex; gap: 8px; align-items: center; min-height: var(--tap); cursor: pointer; }
-.route-order-choice input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--accent-bg); }
-.route-order .hint { margin: 2px 0 0; }
+.api-spend { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.api-spend > * { margin: 0; }
+.api-limit { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: 8px; }
+.api-limit .field { margin: 0; flex: 0 1 9rem; min-width: 0; }
+.api-limit .btn { flex: none; }
+/* the label runs on over the button's column, which starts lower, so the box stays short */
+.api-limit .field > span:first-child { white-space: nowrap; }
+.route-order .field { margin: 0; max-width: 22rem; }
+.route-order select { min-height: var(--tap); padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+/* Advanced → Background removal, "If a download keeps failing": each set's address with its two buttons */
+.model-address { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; }
+.model-address > * { margin: 0; }
+.model-address .field { margin: 0; }
+.model-address .path { margin-top: 4px; }
+.model-address + .model-address { margin-top: 10px; border-top: 1px solid var(--line); }
 
 .toggle { display: flex; align-items: center; gap: 14px; cursor: pointer; position: relative; min-height: var(--tap); }
 .toggle-text { flex: 1; display: flex; flex-direction: column; }

@@ -59,10 +59,13 @@ test('a second model that did not download is shown on Add and can be tried agai
   }
   await page.getByRole('link', { name: 'Advanced settings' }).click();
   const address = page.getByRole('region', { name: 'Background removal' });
-  await expect(address.getByLabel('Download address')).toHaveValue('https://example.com/isnet-general-use.onnx');
-  await address.getByText('Put the files in place by hand').click();
-  await expect(address).toContainText('https://example.com/u2net.onnx');
-  await expect(address).toContainText('/data/models/u2net.onnx');
+  // both sets' addresses and folders are in one closed fold, the same for each
+  await expect(address.getByLabel('Address for the first set')).toBeHidden();
+  await address.getByText('If a download keeps failing').click();
+  await expect(address.getByLabel('Address for the first set')).toHaveValue('https://example.com/isnet-general-use.onnx');
+  await expect(address.getByLabel('Address for the second set')).toHaveValue('https://example.com/u2net.onnx');
+  await expect(address.getByTestId('model-path-main')).toContainText('/data/models/isnet-general-use.onnx');
+  await expect(address.getByTestId('model-path-second')).toContainText('/data/models/u2net.onnx');
 
   now = second();   // it has come: nothing is shown on Add
   await page.goto('/add');
@@ -117,4 +120,51 @@ test('Advanced says what each model is for and how it stands, and tries a failed
 
   now = model({ second: READY });   // polled while it downloads: the line follows by itself
   await expect(secondLine).toHaveText('The second set is asked as well, for stripes and checks. It is ready.');
+});
+
+test('the second set\'s address is saved on its own, and Use default puts it back', async ({ page }) => {
+  const DEFAULT = 'https://example.com/u2net.onnx';
+  let secondUrl = DEFAULT;
+  const sent: { url: string; which?: string }[] = [];
+  const now = () => model({ second: second({ url: secondUrl }) });
+  await page.route('**/api/model', (route) => route.fulfill({ json: now() }));
+  await standInSettings(page, now);
+  await page.route('**/api/model/url', (route) => {
+    const body = route.request().postDataJSON() as { url: string; which?: string };
+    sent.push(body);
+    if (body.which === 'second') secondUrl = body.url || DEFAULT;
+    return route.fulfill({ json: now() });
+  });
+  await goToCloset(page);
+  await page.goto('/settings/advanced');
+  const section = page.getByRole('region', { name: 'Background removal' });
+  await section.getByText('If a download keeps failing').click();
+  const box = section.getByLabel('Address for the second set');
+  const save = section.getByRole('button', { name: "Save the second set's address" });
+  await expect(box).toHaveValue(DEFAULT);
+  await expect(save).toBeDisabled();   // nothing changed yet
+
+  await box.fill('https://mirror.example.com/u2net.onnx');
+  await save.click();
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  expect(sent.at(-1)).toEqual({ url: 'https://mirror.example.com/u2net.onnx', which: 'second' });
+  await expect(box).toHaveValue('https://mirror.example.com/u2net.onnx');
+  await expect(save).toBeDisabled();
+  await expect(section.getByLabel('Address for the first set')).toHaveValue('https://example.com/isnet-general-use.onnx');
+
+  await section.getByRole('button', { name: 'Use the default for the second set' }).click();
+  expect(sent.at(-1)).toEqual({ url: '', which: 'second' });
+  await expect(box).toHaveValue(DEFAULT);
+});
+
+test('with no second set on the server, the fold has only the first', async ({ page }) => {
+  await page.route('**/api/model', (route) => route.fulfill({ json: model({ second: null }) }));
+  await standInSettings(page, () => model({ second: null }));
+  await goToCloset(page);
+  await page.goto('/settings/advanced');
+  const section = page.getByRole('region', { name: 'Background removal' });
+  await section.getByText('If a download keeps failing').click();
+  await expect(section.getByLabel('Address for the first set')).toBeVisible();
+  await expect(section.getByLabel('Address for the second set')).toHaveCount(0);
+  await expect(section.getByTestId('model-second')).toHaveCount(0);
 });

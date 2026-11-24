@@ -34,14 +34,33 @@ async function fakeWeather(page: Page) {
   });
 }
 
-/** The changes the page sends to Nines from now on, by method and path. */
-function changesSent(page: Page): string[] {
-  const sent: string[] = [];
-  page.on('request', (r: Request) => {
+/**
+ * The changes the page sends from now on, by method and path: every one handed to the network (`tried`), those Nines
+ * answered (`answered`), and those that never reached it (`lost`: the browser still had the network down). A kept
+ * action is tried again after a try that never reached Nines; what must happen exactly once is Nines getting it.
+ */
+function changesSent(page: Page) {
+  const tried: string[] = [];
+  const answered: string[] = [];
+  const lost: string[] = [];
+  const name = (r: Request) => {
     const path = new URL(r.url()).pathname;
-    if (r.method() !== 'GET' && path.startsWith('/api/') && path !== '/api/outfits/today' && path !== '/api/outfits/figure') sent.push(`${r.method()} ${path}`);
-  });
-  return sent;
+    return r.method() !== 'GET' && path.startsWith('/api/') && path !== '/api/outfits/today' && path !== '/api/outfits/figure'
+      ? `${r.method()} ${path}` : null;
+  };
+  // only what is handed on from now: a try begun while the network was still down may fail after this
+  const seen = new Set<Request>();
+  page.on('request', (r) => { const n = name(r); if (n) { seen.add(r); tried.push(n); } });
+  page.on('response', (r) => { const n = name(r.request()); if (n && seen.has(r.request())) answered.push(n); });
+  page.on('requestfailed', (r) => { const n = name(r); if (n && seen.has(r)) lost.push(n); });
+  return { tried, answered, lost };
+}
+
+/** Nines got `change` exactly once; any other try of it never reached Nines (and so recorded nothing). */
+async function onceToNines(sent: ReturnType<typeof changesSent>, change: string) {
+  await expect.poll(() => sent.answered.filter((s) => s === change)).toHaveLength(1);
+  const of = (list: string[]) => list.filter((s) => s === change).length;
+  expect(of(sent.tried)).toBe(of(sent.answered) + of(sent.lost));
 }
 
 /** Today with its outfits saved on this device, then Nines out of reach and the page loaded again. */
@@ -98,7 +117,7 @@ test("worn while Nines can't be reached: worn at once, still after a reload, sen
     const wears = (await (await page.request.get(`/api/items/${id}/wears`)).json()).wears as { worn_on: string }[];
     expect(wears.filter((w) => w.worn_on === day)).toHaveLength(1);
   }
-  expect(sent.filter((s) => s === 'POST /api/wears')).toHaveLength(1);
+  await onceToNines(sent, 'POST /api/wears');
   expect(await page.evaluate(() => localStorage.getItem('closet-today-saved:outbox:demo'))).toBeNull();
   // Today now knows the outfit Nines recorded (on its card, or in the line over the outfits asked for again): taking it
   // back takes it off Nines
@@ -153,7 +172,7 @@ test('a wear taken back before Nines answers is never sent', async ({ page, cont
   await context.setOffline(false);
   await expect(banner(page)).toBeHidden({ timeout: 15_000 });
   await page.waitForLoadState('networkidle');
-  expect(sent.filter((s) => s.includes('/api/wears'))).toEqual([]);
+  expect(sent.tried.filter((s) => s.includes('/api/wears'))).toEqual([]);
 });
 
 test('a wear Nines refuses when it finally gets it is said once, and Today shows what Nines has', async ({ page, context }) => {
@@ -209,7 +228,7 @@ test("rated while Nines can't be reached: shown at once, still after a reload, s
   await expect(banner(page)).toBeHidden({ timeout: 15_000 });
   const rating = want === 'Fine' ? 'fine' : 'loved';
   await expect.poll(async () => (await (await page.request.get('/api/outfits/worn')).json()).outfits[0].rating).toBe(rating);
-  expect(sent.filter((s) => s === `PUT /api/outfits/worn/${id}/rating`)).toHaveLength(1);
+  await onceToNines(sent, `PUT /api/outfits/worn/${id}/rating`);
   await expect(page.getByTestId('worn-outfit').first().getByTestId('worn-rating')).toHaveText(new RegExp(`^${want}`));
 });
 
@@ -250,7 +269,7 @@ test("a packing tick while Nines can't be reached: ticked at once, still after a
     await context.setOffline(false);
     await expect(banner(page)).toBeHidden({ timeout: 15_000 });
     await expect.poll(async () => (await (await page.request.get(`/api/trips/${trip.id}`)).json()).packed).toEqual([trip.lines[0]]);
-    expect(sent.filter((s) => s === `PATCH /api/trips/${trip.id}`)).toHaveLength(1);
+    await onceToNines(sent, `PATCH /api/trips/${trip.id}`);
 
     // a tick Nines refuses later: the trip was deleted meanwhile (the tick itself finds Nines out of reach)
     await context.setOffline(true);

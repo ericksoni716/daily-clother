@@ -20,8 +20,9 @@ only here); take a line out when it is done.
   error instead of being kept; `api.ts` would have to tell a gateway's page from Nines' own. "Wear
   this instead" over an outfit Nines already has stays off offline (keeping a removal would be a
   fourth kind of action). An outfit worn offline shows on Today at once but joins Worn's list only
-  once it is sent. Two tabs open on the same phone each send what they find kept; the calls are safe
-  to repeat, so this costs a request, not a second wear.
+  once it is sent. Two tabs open on the same phone each send what they find kept: that is the only
+  way one action can reach Nines twice (one page sends it once); the calls are safe to repeat, so it
+  costs a request, not a second wear.
 - **"Added by hand" after a link's find is stopped** (24 November; DECISIONS, the row on Stop
   watching). Left: once you leave the page, a wish made from a link whose only find you stopped says
   "Added by hand" on its row and its page, since nothing on the wish keeps where it came from.

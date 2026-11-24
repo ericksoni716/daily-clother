@@ -294,6 +294,59 @@ describe('sending what was kept', () => {
   });
 });
 
+describe('one sender at a time', () => {
+  /** An outbox whose calls wait until let go, counting how often each action is handed to the network. */
+  function slowBox() {
+    const waiting: (() => void)[] = [];
+    const calls: string[] = [];
+    let reachable = false;
+    const made = makeBox((a) => {
+      calls.push(a.id);
+      if (!reachable) return Promise.reject(unreachable);
+      return new Promise((done) => waiting.push(() => done({})));
+    }, { ready: () => new Promise((done) => setTimeout(() => done(true), 0)) });
+    const letGo = async () => {
+      for (let i = 0; i < 50; i++) {
+        await new Promise((r) => setTimeout(r, 0));
+        while (waiting.length) waiting.shift()!();
+      }
+    };
+    return { ...made, calls, letGo, online: () => { reachable = true; calls.length = 0; } };
+  }
+
+  it('every way of asking at once (the app opening, online, visible, an answer, a screen reading) sends each action once', async () => {
+    const { box, calls, letGo, online } = slowBox();
+    const a = tick('item:1', true);
+    const b = rate('o1', 'loved');
+    await box.send(a);
+    await box.send(b);
+    online();
+    // the triggers, and Worn's and a trip's "send what is kept before reading", all at nearly the same moment
+    const asks = [box.flush(), box.flush(), box.flush(), box.flush(), box.flush()];
+    await Promise.resolve();
+    asks.push(box.flush());
+    setTimeout(() => void box.flush(), 0);   // an answer arriving while the first is on its way
+    await letGo();
+    await Promise.all(asks);
+    expect(calls).toEqual([a.id, b.id]);
+    expect(box.list).toEqual([]);
+  });
+
+  it('a new action while the list is being sent waits for it and is then sent once, after it', async () => {
+    const { box, calls, letGo, online } = slowBox();
+    const a = tick('item:1', true);
+    await box.send(a);
+    online();
+    const first = box.flush();
+    const c = tick('item:2', true);
+    const second = box.send(c);
+    await letGo();
+    await Promise.all([first, second]);
+    expect(calls).toEqual([a.id, c.id]);
+    expect(box.list).toEqual([]);
+  });
+});
+
 describe('what the screens show', () => {
   const outfit = (id: string, rating: WornOutfit['rating'] = null) => ({ id, worn_on: '2026-11-22', rating, rating_reasons: [], rating_note: null, rated_at: null }) as unknown as WornOutfit;
 

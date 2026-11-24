@@ -112,12 +112,36 @@ export interface DayContext {
   retry?: boolean;
   /** A day ahead inside a saved trip, which has that day's outfit. */
   trip?: { id: string; place: string | null; first_day: string; last_day: string };
+  /** Today inside a saved trip (the server's `closet/tripday.py`): dressed at its place from what is in the bag, or set
+   * aside for the day ("Not on this trip today"). Absent when no trip holds today, or your own words win over it. */
+  on_trip?: OnTrip | null;
   /** The hours dressed for, read from the forecast hour by hour; null when it has no hours or the day was typed. */
   detail?: DayDetail | null;
+  /** The occasion the outfits were chosen for (on a trip day, the trip's when the request sent the kept one). */
+  occasion?: string;
   /** The day in the owner's words, if a note holds today or is coming up. */
   note?: DayNote | null;
   /** Claude choosing the outfits; absent or null when Claude does not choose here (the demo closet, switched off). */
   stylist?: StylistState | null;
+}
+
+/** The saved trip that holds today, as Today dresses from it. */
+export interface OnTrip {
+  id: string;
+  /** The trip's place, as the owner chose it ("Lisbon, Portugal"); null when it has none. */
+  place: string | null;
+  first_day: string;
+  last_day: string;
+  /** Today is day `day` (1 is the first) of `days`. */
+  day: number;
+  days: number;
+  /** "Not on this trip today": dressed from the whole closet at home for the rest of the day. */
+  aside: boolean;
+  /** Today's occasion on the trip. */
+  occasion: string;
+  /** The first outfit is the trip's own for today: which of its pieces stay and which had to be swapped; null when
+   * it is not shown first (set aside, built around a piece, another occasion). */
+  planned: { kept: string[]; unavailable: string[]; away?: Record<string, string> } | null;
 }
 
 /** What the hours the owner is out are like (the server's `closet/day.py`). */
@@ -190,6 +214,8 @@ export interface TodayRequest {
   day?: string;
   /** false: other outfits than the day's plan. */
   planned?: boolean;
+  /** The occasion is the one this device kept, not one tapped today: on a trip day the trip's is used instead. */
+  occasion_kept?: boolean;
   /** Ask Claude to choose afresh (one request only: never kept with the request). */
   ask_again?: boolean;
   /** A message to Claude about the outfits on the page (one request only: never kept with the request). */
@@ -337,6 +363,40 @@ export function outingLine(o: Outing, name: string, today: string): string {
   return `An outing for your ${midName(name)}: you ${o.rating} ${it} and have not worn ${it} `
     + `${o.never_worn ? `since you added ${it} on ${when}` : `since ${when}`}.`;
 }
+
+// --------------------------------------------------------------------- a trip covers today
+
+/** "your trip to Lisbon", or "your trip" when it has no place: the trip named by its place, as the owner chose it. */
+function yourTrip(t: Pick<OnTrip, 'place'>): string {
+  const where = shortPlace(t.place);
+  return where ? `your trip to ${where}` : 'your trip';
+}
+
+/** The one line over the outfits on a day a trip covers: "Day 3 of 7 of your trip to Lisbon.", or for a trip of one
+ * day "Today is your trip to Lisbon."; set aside, "You're not on your trip today." (with Undo beside it). */
+export function tripTodayLine(t: Pick<OnTrip, 'place' | 'day' | 'days' | 'aside'>): string {
+  if (t.aside) return "You're not on your trip today.";
+  const trip = yourTrip(t);
+  return t.days <= 1 ? `Today is ${trip}.` : `Day ${t.day} of ${t.days} of ${trip}.`;
+}
+
+/** In Where you are, before "Not on this trip today": why Today looks as it does. */
+export function tripSheetLine(t: Pick<OnTrip, 'place'>): string {
+  return `You're on ${yourTrip(t)}, so Today dresses you there from what you packed.`;
+}
+
+/** The occasion the chips show: the one the answer was dressed for while the occasion sent is the one this device kept
+ * (`kept`; on a trip day the server dresses for the trip's), so the page shows it without asking again; else the one
+ * chosen. */
+export function occasionShown(chosen: string, kept: boolean, answered: string | null | undefined): string {
+  return kept && answered ? answered : chosen;
+}
+
+/** In a piece's choices on a trip day: where another piece comes from. */
+export const TRIP_PIECE_HINT = 'Another piece comes from what you packed.';
+
+/** Under the first outfit's button when it is the trip's own for today. */
+export const TRIP_OUTFIT_LINE = 'Your trip planned this outfit for today.';
 
 /** A temperature typed by hand ("5", "-3", "12.5", "12°"); null if it is not a number this app plans for. */
 export function parseTemp(text: string): number | null {

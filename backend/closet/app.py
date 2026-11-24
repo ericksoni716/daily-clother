@@ -72,6 +72,7 @@ from . import (
     tagjobs,
     tailnet,
     tracejobs,
+    tripday,
     trips,
     updates,
     vocab,
@@ -646,6 +647,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
 
     # laundry that keeps itself: the owner's counts and laundry day (Settings), read live
     wears.set_policy(lambda: wears.policy_from(state.get("laundry"), savedtrips.rewear(state)))
+    tripday.use_state(state)   # the item page asks whether a piece is in today's bag, "Not on this trip today" counted
 
     def conn_dep():
         path = cfg.db_path(state.get("profile"))
@@ -1517,6 +1519,15 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     async def delete_trip(trip_id: str):
         await trip_work(savedtrips.delete, trip_id)
         return Response(status_code=204)
+
+    # "Not on this trip today": the trip that holds today set aside for the rest of the day, and its Undo (`tripday.py`)
+    @app.put("/api/trips/{trip_id}/aside")
+    async def set_trip_aside(trip_id: str):
+        return await trip_work(tripday.set_aside, state, trip_id, True)
+
+    @app.delete("/api/trips/{trip_id}/aside")
+    async def undo_trip_aside(trip_id: str):
+        return await trip_work(tripday.set_aside, state, trip_id, False)
 
     # ---------------------------------------------------------------- model
     def model_payload() -> dict:

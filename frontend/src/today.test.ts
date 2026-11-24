@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  askedOf, buildAroundPiece,
+  askedOf, buildAroundPiece, occasionShown,
   addDays, dayName, daysAhead, onDay, weekdayOf,
   canDress, closetKey, dayParts, midName, newestOn, outingLine, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
-  parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, whatToAddFirst, wornOrder,
+  parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, tripSheetLine, tripTodayLine, whatToAddFirst, wornOrder,
   type DayContext, type Outfit, type SavedOutfits, wornNow, type WornToday, shortDate,
 } from './today';
 import type { ItemSummary } from './types';
@@ -313,5 +313,36 @@ describe('building around a piece from its page', () => {
     expect(askedOf('?again=o1')).toEqual({ again: 'o1', around: null });
     expect(askedOf('')).toEqual({ again: null, around: null });
     expect(askedOf('?around=')).toEqual({ again: null, around: null });
+  });
+});
+
+describe('a trip covers today', () => {
+  const trip = { place: 'Lisbon, Portugal', day: 3, days: 7, aside: false };
+  it('says which day of which trip, named by its place as the owner chose it', () => {
+    expect(tripTodayLine(trip)).toBe('Day 3 of 7 of your trip to Lisbon.');
+    expect(tripTodayLine({ ...trip, place: null })).toBe('Day 3 of 7 of your trip.');
+    expect(tripTodayLine({ ...trip, day: 1, days: 1 })).toBe('Today is your trip to Lisbon.');
+  });
+  it('set aside, says so in a sentence (Undo is beside it)', () => {
+    expect(tripTodayLine({ ...trip, aside: true })).toBe("You're not on your trip today.");
+  });
+  it('says in Where you are why Today looks as it does', () => {
+    expect(tripSheetLine(trip)).toBe("You're on your trip to Lisbon, so Today dresses you there from what you packed.");
+  });
+  it('never says a word the owner was not shown', () => {
+    for (const line of [tripTodayLine(trip), tripTodayLine({ ...trip, aside: true }), tripSheetLine(trip)]) {
+      expect(line).not.toMatch(/engine|model|token|tag|feed|queue|sync|!/i);
+    }
+  });
+});
+
+describe('the occasion on a trip day', () => {
+  it('shows the occasion the answer was dressed for while the one sent is the one this device kept', () => {
+    expect(occasionShown('smart_casual', true, 'casual')).toBe('casual');
+  });
+  it('shows the one chosen once it was tapped, or before an answer', () => {
+    expect(occasionShown('smart_casual', false, 'casual')).toBe('smart_casual');
+    expect(occasionShown('smart_casual', true, null)).toBe('smart_casual');
+    expect(occasionShown('smart_casual', true, undefined)).toBe('smart_casual');
   });
 });

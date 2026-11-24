@@ -145,7 +145,8 @@ test('today: "Not this piece" leaves it out, "Build around this piece" builds ar
   await expect.poll(() => asked.at(-1)).toMatchObject({ build_around: second, leave_out: [first] });
 
   await page.getByRole('button', { name: 'Clear all' }).click();
-  await expect.poll(() => asked.at(-1)).toEqual({ occasion: 'casual', mood: 'usual' });
+  // nothing left of the changes; the occasion is still the one this device kept, not tapped today (`occasion_kept`)
+  await expect.poll(() => asked.at(-1)).toEqual({ occasion: 'casual', mood: 'usual', occasion_kept: true });
   await expect(putBack).toHaveCount(0);
   await page.reload();
   await expect(current(page).getByTestId('piece').first()).toBeVisible();

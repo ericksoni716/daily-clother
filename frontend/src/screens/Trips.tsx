@@ -836,7 +836,7 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
           <ol className="trip-day-list">
             {plan.days.map((d) => (
               <DayCard key={d.date} day={d} tripOccasion={trip.occasion} byId={byId} view={view} shown={shown}
-                problemSaid={said.unknownDays.has(d.date)} />
+                problemSaid={said.unknownDays.has(d.date)} isToday={d.date === localDay()} />
             ))}
           </ol>
         </section>
@@ -908,19 +908,23 @@ function WeatherStrip({ days }: { days: TripDay[] }) {
   );
 }
 
-function DayCard({ day, tripOccasion, byId, view, shown, problemSaid }: {
+function DayCard({ day, tripOccasion, byId, view, shown, problemSaid, isToday = false }: {
   day: PlannedTrip['plan']['days'][number]; tripOccasion: string; byId: Map<string, ItemSummary>; view: GridView; shown: TodayView;
   /** Why this day has no outfit is already said above the list (the weather could not be had): not again here. */
   problemSaid: boolean;
+  /** Today is this day of the trip: marked, as Today dresses from it. */
+  isToday?: boolean;
 }) {
   const o: Outfit | null = day.outfit;
   // up to five pieces in one row; more wrap into rows of the same length, so none is left alone on a row
   const n = o ? outfitIds(o.pieces).length : 0;
   const cols = n <= 5 ? 5 : Math.ceil(n / 2);
   return (
-    <Card as="li" className={`trip-day${day.problem || day.warning ? ' has-problem' : ''}`} data-testid="trip-day">
+    <Card as="li" className={`trip-day${day.problem || day.warning ? ' has-problem' : ''}`} data-testid="trip-day"
+      aria-current={isToday ? 'date' : undefined}>
       <div className="trip-day-head">
         <strong>{longDate(day.date)}</strong>
+        {isToday && <span className="trip-day-occasion" data-testid="trip-today">Today</span>}
         <span className="muted">{dayTemps(day.weather)}{day.weather.rain ? ' · Rain' : ''}</span>
         {day.occasion !== tripOccasion && <span className="trip-day-occasion">{occasionLabel(day.occasion)}</span>}
         {day.laundry && <span className="trip-day-occasion trip-day-laundry">Laundry day</span>}

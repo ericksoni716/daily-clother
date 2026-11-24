@@ -12,6 +12,14 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **A trip covers today.** On a day inside a trip you saved in Trips, Today knows you are away without a
+  note: the weather is where the trip is, the trip's own outfit for the day comes first, and the other
+  outfits come only from what you packed. One line over the outfits says which day of the trip it is
+  ("Day 3 of 7 of your trip to Lisbon.") and opens the trip, where today is marked. What you wear counts
+  on the trip, so a shirt worn today is not offered again before a wash. **Not on this trip today**,
+  under Change, dresses you from your whole closet at home for the rest of the day, on the phone and the
+  computer alike; Undo is beside the line that says so. On a trip day Nines' own rules choose the outfits,
+  as for a day ahead; Claude is not asked.
 - **From a piece to an outfit.** On a piece's page, under Wearing and washing, **Build an outfit
   around it** opens Today built around that piece, in place of any piece built around before (the
   pieces you left out stay left out); Back returns to the piece. When Today could not (the piece is

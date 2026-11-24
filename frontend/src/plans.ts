@@ -34,9 +34,10 @@ export interface DayChoice {
   trip: string | null;
 }
 
-/** The trip that holds a day, if any. */
+/** The trip that holds a day, if any; of two, the one that started later, then by id (the server's `plans.trip_on`). */
 export function tripOn(trips: readonly TripSummary[] | null | undefined, day: string): TripSummary | null {
-  return (trips ?? []).find((t) => t.first_day <= day && day <= t.last_day) ?? null;
+  return (trips ?? []).filter((t) => t.first_day <= day && day <= t.last_day)
+    .sort((a, b) => b.first_day.localeCompare(a.first_day) || b.id.localeCompare(a.id))[0] ?? null;
 }
 
 /** Tomorrow and the next days by name, each marked when it has a plan or is part of a trip. */

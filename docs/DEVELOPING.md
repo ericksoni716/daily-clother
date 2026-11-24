@@ -117,7 +117,7 @@ PyInstaller build and its smoke test).
   returns what it gives back. The work is in the module named for the feature.
 - **Rules are pure.** `outfits`, `gaps`, `trips`, `insights`, `wouldwork`, `styling` and `day`
   take plain data and return plain data: no database, no network, no clock (today is passed
-  in). The module beside each one (`today.py`, `savedtrips.py`, `wouldjobs.py`) does the
+  in). The module beside each one (`today.py`, `savedtrips.py`, `tripday.py` (a trip that covers today: what Today dresses from, and "Not on this trip today"), `wouldjobs.py`) does the
   reading and writing. Keep new rules that way; it is why they are quick to test.
 - **The engine remembers its rule-only answers.** `outfits.py` keeps the answers of
   `_outfit_problems`, `_style` and the same rules inside `_search` in tables keyed by value (see

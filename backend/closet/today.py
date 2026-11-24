@@ -47,8 +47,8 @@ from .state import State
 from .tagger.taxonomy import FOOTWEAR, GARMENTS
 
 CHOICES = ("occasion", "mood", "build_around", "leave_out", "count", "again", "ask_again", "say", "looking_at", "day",
-           "planned")
-TALK = ("again", "ask_again", "say", "looking_at", "day", "planned")   # choices that are not the engine's
+           "planned", "occasion_kept")
+TALK = ("again", "ask_again", "say", "looking_at", "day", "planned", "occasion_kept")   # choices that are not the engine's
 WEATHER_FIELDS = ("low_c", "high_c", "rain")
 # The day dressed for when no forecast can be had and no temperatures were given (DECISIONS "Today's outfits by themselves")
 MILD = {"low_c": 14.0, "high_c": 20.0, "rain": False}
@@ -211,6 +211,45 @@ def again_of(outfit: dict, rows: list[dict], leave_out: set[str]) -> dict:
     return out
 
 
+TRIP_WEATHER = "The weather service could not be reached, so this is the forecast your trip has for today."
+NOTHING_IN_THE_BAG = ("Nothing you packed makes an outfit for today. Under Change, “Not on this trip today” dresses you "
+                      "from your whole closet.")
+
+
+def in_the_bag(rows: list[dict], free) -> list[dict]:
+    """The closet on a day a trip covers: the pieces of the bag that can be worn today (`free`) as they are in the bag,
+    clean and with you whatever the laundry or the cleaner's at home says (as the trip's own plan counts them)."""
+    out = []
+    for r in rows:
+        if r["id"] in free:
+            r = {**r, "laundry": "clean", "wears_since_wash": 0, "away": None, "away_since": None, "away_until": None,
+                 **({"condition": None} if r.get("away") == "tailor" else {})}
+        out.append(r)
+    return out
+
+
+def trip_first(rows: list[dict], ctx: outfits.Context, feedback, pieces: dict, others: list[dict],
+               count: int) -> tuple[list[dict], dict | None]:
+    """The outfit the trip's plan has for today first, then the other outfits that are not the same: (outfits,
+    planned). `planned` says which of its pieces stay and which had to be swapped (worn as often as their kind allows
+    on the trip, left out, gone), as a day's plan does; None when no outfit could be made from it."""
+    planned = again_of({"id": None, "worn_on": None, "pieces": pieces}, rows, set(ctx.leave_out))
+    del planned["id"], planned["worn_on"]
+    first_ctx = dataclasses.replace(ctx, keep=tuple(planned["kept"]))
+    if not planned["unavailable"]:   # every piece can be worn: the outfit as planned, with no place filled in
+        rest = sorted({r["id"] for r in rows} - set(plans.ids_of(pieces)) - set(ctx.leave_out))
+        first_ctx = dataclasses.replace(first_ctx, leave_out=(*ctx.leave_out, *rest))
+    found = outfits.suggest(rows, first_ctx, 1, feedback)["outfits"]
+    if not found:
+        return others, None
+    first = found[0]
+    if not planned["unavailable"]:   # its accessories as the trip chose them, those that can be worn
+        usable = {r["id"] for r in rows if outfits._unavailable(r, ctx) in (None, *outfits.ASKED_FOR_ONLY)}
+        first["pieces"]["accessories"] = [a for a in pieces.get("accessories") or [] if a in usable]
+    same = set(plans.ids_of(first["pieces"]))
+    return [first, *[o for o in others if set(plans.ids_of(o["pieces"])) != same]][:count], planned
+
+
 def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None = None, path=None,
             ahead: bool = False, from_hour: int | None = None) -> dict:
     """Outfits for today plus the context used. Raises outfits.ContextError with a sentence for a bad request.
@@ -240,6 +279,8 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
             raise outfits.ContextError(str(e)) from None
     if body.get("planned") is not None and not isinstance(body["planned"], bool):
         raise outfits.ContextError("planned must be true or false.")
+    if body.get("occasion_kept") is not None and not isinstance(body["occasion_kept"], bool):
+        raise outfits.ContextError("occasion_kept must be true or false.")
     on_day = other or today_
     if other is not None:
         trip = plans.trip_on(conn, other)
@@ -253,6 +294,17 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
     else:
         note = daynote.shown(state, today_)
         on = note if daynote.active(note, today_) else None   # a note for days still ahead changes nothing yet
+    rows = closet_rows(conn)
+    upcoming = plans.upcoming(conn, today_)
+    # A trip covers today (`closet/tripday.py`): its place and what is in the bag, unless your own words say otherwise
+    # (a note that puts you somewhere else, an outfit you planned for today) or you set the trip aside for the day
+    holds, on_trip = None, None
+    if other is None:
+        from . import tripday  # here, not at the top: savedtrips reads the closet's rows from this module
+        holds = tripday.today_on(conn, state, today_, rows)
+        if (holds and not holds["trip"]["aside"] and not (on and on.get("place"))
+                and not any(p["day"] == today_.isoformat() for p in upcoming)):
+            on_trip = holds
 
     forecast, place, old, message, mild, reading, retry = None, None, False, None, False, None, False
     if other is not None and len(given) < len(WEATHER_FIELDS):
@@ -263,9 +315,15 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
             mild = True
             message, retry = found["message"], found["retry"]
     elif len(given) < len(WEATHER_FIELDS):
-        found = weather.lookup(state, on.get("place") if on else None)
+        found = weather.lookup(state, on_trip["place"] if on_trip and on_trip["place"] else on.get("place") if on else None)
         place = found["place"]
-        if found["weather"] and found["is_today"]:
+        if on_trip and on_trip["weather"] and not (found["weather"] and found["is_today"] and not found["old"]):
+            # the weather service could not say: the weather the trip has for today stands, said once when it is a
+            # forecast from before (a day typed for the trip, or "usually, on these dates", says where it is from)
+            forecast, place = on_trip["weather"], on_trip["place"]
+            old = forecast.get("source") == "forecast"
+            message = TRIP_WEATHER if old else None
+        elif found["weather"] and found["is_today"]:
             forecast, old = found["weather"], found["old"]
             message = found["message"] if old else None
             at = found["hour"]
@@ -306,8 +364,18 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
     request = {k: body[k] for k in CHOICES if body.get(k) is not None and k not in TALK}
     if on and on.get("occasion") and "occasion" not in request:
         request["occasion"] = on["occasion"]
+    if on_trip and ("occasion" not in request or body.get("occasion_kept")):
+        # the occasion this device kept from another day is not a choice made today: the trip's for the day is used,
+        # and the answer says so (`context.occasion`), so the page shows it without asking again
+        request["occasion"] = on_trip["occasion"]
     ctx, count = outfits.parse_request({**request, **day, "worn_days_ago": worn_days_ago(conn, on_day)})
-    rows = closet_rows(conn)
+    if on_trip and on_trip["bag"]:
+        # the bag only, worn whatever the laundry at home says; the rest is at home (a piece built around excepted). A
+        # trip that packed nothing (its weather could not be had) is no bag: the whole closet, at the trip's place
+        # a piece of the bag built around is with you too, as the item page says (`tripday.with_you`)
+        rows = in_the_bag(rows, on_trip["free"] | ({ctx.build_around} & on_trip["bag"]))
+        home = sorted(r["id"] for r in rows if r["id"] not in on_trip["free"] and r["id"] != ctx.build_around)
+        ctx = dataclasses.replace(ctx, leave_out=(*ctx.leave_out, *home))
     expected: list[str] = []   # pieces away now that a day ahead counts as back by then
     if other is not None:
         expected = sorted(r["id"] for r in rows if plans.back_before(r, other))
@@ -328,7 +396,6 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         again = again_of(before, rows, set(ctx.leave_out))
         ctx = dataclasses.replace(ctx, keep=tuple(again["kept"]))
     # the day's plan: the outfits start from it, unless the owner asked for another start or for other outfits
-    upcoming = plans.upcoming(conn, today_)
     planned = None
     plan = next((p for p in upcoming if p["day"] == on_day.isoformat()), None)
     if plan and again is None and not ctx.build_around and body.get("planned") is not False:
@@ -362,6 +429,7 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         # the hours dressed for, read from the forecast (None when it has no hours, or every number was typed)
         "detail": reading if from_forecast else None,
         "note": daynote.describe(note, on_day, ahead=other is not None),
+        "occasion": ctx.occasion,   # the occasion dressed for (on a trip day, the trip's when the page sent the kept one)
     }
     if again is not None:
         context["again"] = again
@@ -377,6 +445,16 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
             context["expected"] = expected
         stylist = None   # another day is dressed by the rules: Claude chooses for today only
     answer = outfits.suggest(rows, ctx, count, feedback)
+    if on_trip:
+        stylist = None   # on a trip the rules choose, as for a day ahead: nothing more is sent to Claude
+        trip_planned = None
+        if on_trip["outfit"] and again is None and not ctx.build_around and ctx.occasion == on_trip["occasion"]:
+            answer["outfits"], trip_planned = trip_first(rows, ctx, feedback, on_trip["outfit"], answer["outfits"], count)
+        if not answer["outfits"] and not ctx.build_around:   # a piece asked for says why itself ("in the laundry")
+            answer["missing"] = [NOTHING_IN_THE_BAG]
+        context["on_trip"] = {**on_trip["trip"], "occasion": on_trip["occasion"], "planned": trip_planned}
+    elif holds and holds["trip"]["aside"]:
+        context["on_trip"] = {**holds["trip"], "occasion": holds["occasion"], "planned": None}
     if planned is not None and not planned["unavailable"] and answer["outfits"]:
         # the accessories planned with it go with it, as the owner chose them (those still in the closet and wearable)
         usable = {r["id"] for r in rows if outfits._unavailable(r, ctx) in (None, *outfits.ASKED_FOR_ONLY)}

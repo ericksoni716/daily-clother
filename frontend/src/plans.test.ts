@@ -23,6 +23,13 @@ describe('the day sheet', () => {
     expect(tripOn([trip], '2026-12-03')).toBeNull();
   });
 
+  it('of two trips holding a day, names the one that started later, as the server does', () => {
+    const inside = { ...trip, id: 'y', first_day: '2026-11-30', last_day: '2026-12-01' } as TripSummary;
+    expect(tripOn([trip, inside], '2026-11-30')?.id).toBe('y');
+    expect(tripOn([inside, trip], '2026-11-30')?.id).toBe('y');
+    expect(tripOn([trip, inside], '2026-11-29')?.id).toBe('x');
+  });
+
   it('takes a date of your choice after today and within reach', () => {
     expect(canChoose('2026-11-26', TODAY)).toBe(true);
     expect(canChoose(TODAY, TODAY)).toBe(false);

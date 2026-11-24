@@ -95,9 +95,10 @@ def check_day(value: object, today: date) -> date:
 
 
 def trip_on(conn, day: date) -> dict | None:
-    """The saved trip that holds this day, if there is one: {id, place, first_day, last_day}."""
+    """The saved trip that holds this day, if there is one: {id, place, first_day, last_day}. When two do, the one that
+    started later (a few days somewhere else inside a longer trip), then by id, so every screen names the same one."""
     r = conn.execute("SELECT id, place, first_day, last_day FROM trips WHERE first_day <= ? AND last_day >= ? "
-                     "ORDER BY first_day, id LIMIT 1", (day.isoformat(), day.isoformat())).fetchone()
+                     "ORDER BY first_day DESC, id DESC LIMIT 1", (day.isoformat(), day.isoformat())).fetchone()
     if r is None:
         return None
     place = json.loads(r["place"]) if r["place"] else {}

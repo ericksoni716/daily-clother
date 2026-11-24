@@ -1788,6 +1788,18 @@ def away_words(item: Mapping) -> str | None:
     return f"{why} until {day_words(until)}" if until else why
 
 
+def as_back(item: Mapping) -> dict:
+    """An away piece as coming back makes it (`away.bring_back`): in the closet, clean from the cleaner's (its count of
+    wears starts again), mended from the tailor's. One rule for a day ahead (`plans.back_by`) and a trip
+    (`trips._Planner`), which count on a piece being back by then."""
+    back = {**item, "away": None, "away_since": None, "away_until": None}
+    if item.get("away") == "cleaner":
+        back.update(laundry="clean", wears_since_wash=0)
+    elif item.get("away") == "tailor" and item.get("condition") == "needs_repair":
+        back["condition"] = None
+    return back
+
+
 def _missing_place(place: str, everything: list[tuple[Piece, dict]], pool: list[Piece], ctx: Context) -> str | None:
     if any(p.category in PLACE_CATEGORIES[place] for p in pool):
         return None

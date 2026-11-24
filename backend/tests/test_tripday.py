@@ -191,6 +191,24 @@ def test_not_on_this_trip_today_dresses_from_home_for_the_day_and_is_undone(clie
     assert suggest(client, occasion="casual")["context"]["on_trip"]["aside"] is False
 
 
+def test_a_wear_at_home_on_a_day_the_trip_is_set_aside_is_not_that_trip_days_outfit_when_planned_again(client, clock):
+    """Review 2, a suspicion shown: with the trip set aside for the day ("Not on this trip today") you wear an outfit
+    from home, with a shirt you never packed. Planning the trip again that day took that outfit as the trip's for the
+    day and put the shirt left at home on the packing list (so Today on the days after would offer it from the bag).
+    A day set aside is not a day of the trip: its wear is not the trip's."""
+    closet(client)
+    trip = make_trip(client, TODAY, TODAY + timedelta(days=2))
+    home_only = make_item(client, "z", name="Red flannel shirt", category="shirt", color="red", formality="casual")
+    assert client.put(f"/api/trips/{trip['id']}/aside").status_code == 200
+    at_home = suggest(client, occasion="casual", build_around=home_only)["outfits"][0]
+    wear(client, at_home)
+    again = client.patch(f"/api/trips/{trip['id']}", json={"replan": True})
+    assert again.status_code == 200, again.text
+    plan = again.json()["plan"]
+    assert home_only not in {p["id"] for p in plan["packed"]}, "the shirt left at home is on the packing list"
+    assert plan["days"][0]["outfit"]["pieces"] != at_home["pieces"]
+
+
 def test_only_the_trip_you_are_on_today_can_be_set_aside(client, clock):
     closet(client)
     later = make_trip(client, TODAY + timedelta(days=5), TODAY + timedelta(days=6))
@@ -256,6 +274,22 @@ def test_a_trip_that_packed_nothing_dresses_from_the_whole_closet_at_its_place(c
     assert body["outfits"] and body["context"]["place"] == YORK["name"] and body["context"]["on_trip"]["planned"] is None
 
 
+def test_on_a_trip_that_packed_nothing_today_says_the_real_reason(client, clock):
+    """Review 2, finding 8. Everything is in the laundry, and a trip starts today: it packs nothing. Today then dresses
+    from the whole closet at the trip's place ("a trip that packed nothing is no bag") and finds nothing. "Nothing you
+    packed makes an outfit for today" would be untrue twice over: nothing was packed, and the whole closet is what was
+    just tried. The reason the rules gave (everything is in the laundry) stands, as it does once the trip is set aside."""
+    ids = closet(client)
+    for i in ids.values():
+        assert client.post(f"/api/items/{i}/laundry", json={"state": "laundry"}).status_code == 200
+    trip = make_trip(client, TODAY, TOMORROW)
+    assert trip["plan"]["packed"] == []
+    answer = suggest(client, low_c=12, high_c=18, rain=False)
+    assert answer["context"]["on_trip"] and answer["outfits"] == []
+    assert answer["missing"] != [today.NOTHING_IN_THE_BAG], answer["missing"]
+    assert any("in the laundry" in m for m in answer["missing"])
+
+
 # ------------------------------------------------------------------ Claude
 styled = test_stylejobs.styled
 
@@ -309,6 +343,19 @@ def test_a_piece_of_the_bag_in_the_laundry_at_home_can_be_built_around_on_a_trip
     # set aside, the laundry at home counts again, on the page too
     client.put(f"/api/trips/{trip['id']}/aside")
     assert client.get(f"/api/items/{packed}").json()["build_around"] == "laundry"
+
+
+def test_a_piece_of_the_bag_at_the_cleaners_at_home_can_be_built_around_on_a_trip_day_and_its_page_says_so(client,
+                                                                                                         clock):
+    """Review 2, a suspicion tried: a piece in the bag of today's trip that the closet says is at the cleaner's is with
+    you, as Today counts it (it builds around it); its page should not say "Once it's back"."""
+    closet(client)
+    trip = make_trip(client, TODAY, TODAY + timedelta(days=2))
+    piece = sorted(bag_of(trip))[0]
+    assert client.put(f"/api/items/{piece}/away", json={"place": "cleaner"}).status_code == 200
+    around = suggest(client, occasion="casual", build_around=piece)
+    assert around["outfits"] and all(piece in ids_of(o) for o in around["outfits"])
+    assert client.get(f"/api/items/{piece}").json()["build_around"] is None
 
 
 def test_on_a_trip_day_the_occasion_this_device_kept_gives_way_to_the_trips_and_the_answer_says_which(client, clock):

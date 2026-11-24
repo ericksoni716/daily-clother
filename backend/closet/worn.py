@@ -362,6 +362,16 @@ def record_by_hand(conn, item_ids: object, worn_on: str | None) -> dict:
 
 
 # ------------------------------------------------------------------ rating
+def _changed_at(conn, outfit_id: str, outfit: dict) -> str | None:
+    """When the outfit's rating was last set or taken away: `rated_at`, or, once taken away (which empties it), the
+    outfit's last change, as rating is the only change made to a worn outfit after it is recorded. None when it was
+    never rated."""
+    if outfit["rated_at"]:
+        return outfit["rated_at"]
+    r = conn.execute("SELECT created_at, updated_at FROM worn_outfits WHERE id = ?", (outfit_id,)).fetchone()
+    return r["updated_at"] if r and r["updated_at"] != r["created_at"] else None
+
+
 def rate(conn, outfit_id: str, rating: object, reasons: object = None, note: object = None, tapped_at: object = None) -> dict:
     """Set, change or (with rating None) clear the rating of a worn outfit. The same rating sent again changes
     nothing, so a phone may repeat it safely. With `tapped_at` it was kept on the phone and is sent later: it is
@@ -381,7 +391,9 @@ def rate(conn, outfit_id: str, rating: object, reasons: object = None, note: obj
     if note and "other" not in reasons:
         raise _err("A note goes with the reason \"other\".")
     tapped = _check_tapped(tapped_at)
-    if tapped and before["rated_at"] and before["rated_at"] > tapped:
+    if tapped and (before["rating"], before["rating_reasons"], before["rating_note"]) == (rating, reasons, note):
+        return before   # already so (sent again after its answer was lost): nothing to refuse, nothing to change
+    if tapped and (_changed_at(conn, outfit_id, before) or "") > tapped:
         raise _err("You changed how it went somewhere else since.", 409)
     t = db.now()
     conn.execute("UPDATE worn_outfits SET rating = ?, rating_reasons = ?, rating_note = ?, rated_at = ?, updated_at = ? WHERE id = ?",

@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from closet import app as app_module
-from closet import db, picks, productpage, shop, shops, spend
+from closet import db, picks, productpage, shop, shops, sizes, spend
 from closet.items import ItemError
 from closet.tagger import shopping
 from closet.tagger.shopping import SaleFound
@@ -400,6 +400,22 @@ def test_the_daily_round_reads_a_shown_sale_again_and_takes_away_one_that_ended(
     services.picker.recheck()
     assert sales(client.get("/api/picks").json()) == []
     assert len(fake_shop.calls) == calls   # Claude is never asked
+
+
+def test_your_size_in_stock_is_not_said_once_the_page_no_longer_says_it(client, services, clock, pages):
+    """Review 2, a suspicion tried: the coat's page listed your size in stock when the sale was found (Claude said
+    nothing about sizes), so the card says "Your size is in stock". A day on the page lists no sizes any more: nobody
+    says it now, so neither does the card."""
+    own_line(client)
+    assert client.put(f"/api/sizes/{sizes.kind_of('coat')}", json={"size": "M"}).status_code == 200
+    pages.pages[COAT] = sale_page(140, 200, sizes={"M": True, "L": False})
+    coat = next(p for p in sales(sale_look(client)) if p["url"] == COAT)
+    assert coat["in_stock"] is True
+    clock[0] += timedelta(days=1, seconds=1)
+    pages.pages[COAT] = sale_page(140, 200)
+    services.picker.recheck()
+    coat = next(p for p in sales(client.get("/api/picks").json()) if p["url"] == COAT)
+    assert coat["in_stock"] is None
 
 
 def test_a_sold_out_sale_leaves_the_card_and_a_saved_one_is_left_to_its_wish(client, services, clock, pages):

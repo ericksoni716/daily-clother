@@ -561,6 +561,52 @@ def clock(monkeypatch):
     return now
 
 
+def test_a_daily_price_check_whose_answer_could_not_be_kept_is_not_asked_again_the_same_day(client, services, fake_shop,
+                                                                                            clock, monkeypatch):
+    """Review 2, finding 5, the daily price round. Claude answers the day's price check, and keeping the answer fails
+    once (the closet's database is busy, the fault `test_a_search_that_cannot_keep_its_finds_says_so` already expects).
+    Once Claude has been asked and has answered, the day's look is made, whatever happens to the answer afterwards: the
+    next hourly round does not ask Claude the same question again."""
+    find_some(client, wish(client))
+    fake_shop.calls.clear()
+    real, failed = shop.save_prices, []
+
+    def busy_once(*a, **k):
+        if not failed:
+            failed.append(1)
+            raise sqlite3.OperationalError("database is locked")
+        return real(*a, **k)
+    monkeypatch.setattr(shop, "save_prices", busy_once)
+    services.shopper.tick()
+    assert [c[0] for c in fake_shop.calls] == ["prices"]
+    clock[0] += timedelta(hours=1)
+    services.shopper.tick()
+    assert [c[0] for c in fake_shop.calls] == ["prices"], "Claude was asked for the same prices again an hour later"
+
+
+def test_a_daily_price_check_whose_look_could_not_be_recorded_either_waits_a_day_while_nines_runs(
+        client, services, fake_shop, clock, monkeypatch):
+    """Review 2, finding 5: when even recording that the day's look was made fails, Nines remembers the time of the try
+    while it runs, so the next hourly round still waits a day before asking Claude again."""
+    find_some(client, wish(client))
+    fake_shop.calls.clear()
+    real = shop.save_prices, shop.mark_checked
+
+    def busy(*a, **k):
+        raise sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr(shop, "save_prices", busy)
+    monkeypatch.setattr(shop, "mark_checked", busy)
+    services.shopper.tick()
+    clock[0] += timedelta(hours=1)
+    services.shopper.tick()
+    assert [c[0] for c in fake_shop.calls] == ["prices"]
+    monkeypatch.setattr(shop, "save_prices", real[0])
+    monkeypatch.setattr(shop, "mark_checked", real[1])
+    clock[0] += timedelta(days=1)
+    services.shopper.tick()
+    assert [c[0] for c in fake_shop.calls] == ["prices", "prices"]   # a day on: asked again
+
+
 def test_the_daily_round_checks_each_wish_at_most_once_a_day_and_never_the_demo(client, services, fake_shop, cfg, clock):
     wid = wish(client)
     find_some(client, wid)
@@ -1041,6 +1087,33 @@ def test_came_down_is_where_the_newest_price_came_down_to_a_drop():
     # sold out at the lower price: no news; another currency is not compared
     assert shop.came_down(h((100, "USD", True), (80, "USD", False))) is None
     assert shop.came_down(h((100, "EUR", True), (80, "USD", True))) is None
+
+
+def test_a_price_that_came_down_while_sold_out_is_news_once_it_is_back_in_stock(tmp_path):
+    """Review 2, finding 7. A find is seen at 100, then at 80 but sold out (no news, as decided), you open the wish (its
+    news is marked seen), and then it is back in stock at 80. That is the first moment you could buy it for less, so it
+    is news now: the moment of a drop is the first sighting at that price that could be bought."""
+    path = tmp_path / "closet.db"
+    db.migrate(path, tmp_path / "backups")
+    conn = db.connect(path)
+    try:
+        conn.execute("INSERT INTO wishes (id, name, note, news_seen_at, created_at, updated_at) "
+                     "VALUES ('w', 'A tan rain coat', '', ?, ?, ?)", (at(3), at(1), at(1)))
+        conn.execute("INSERT INTO finds (id, wish_id, name, shop, url, price, currency, piece, found_at, updated_at, link) "
+                     "VALUES ('f', 'w', 'A coat', 'Example Shop', 'https://shop.example/f', 80, 'USD', '{}', ?, ?, 0)",
+                     (at(1), at(1)))
+        for n, price, available in ((1, 100, 1), (2, 80, 0), (4, 80, 1)):
+            conn.execute("INSERT INTO find_prices (find_id, at, price, currency, available) VALUES ('f', ?, ?, 'USD', ?)",
+                         (at(n), price, available))
+        assert [(n["wish_id"], n["to"]) for n in shop.news(conn)] == [("w", 80.0)]
+    finally:
+        conn.close()
+    # and told once: sold out again for a while and back at the same price, it came down on the day it first could be
+    # bought at it
+    h = lambda *ps: [{"at": at(n + 1), "price": p, "currency": "USD", "available": a}  # noqa: E731
+                     for n, (p, a) in enumerate(ps)]
+    assert shop.came_down(h((100, True), (80, False), (80, True)))["at"] == at(3)
+    assert shop.came_down(h((100, True), (80, True), (80, False), (80, True)))["at"] == at(2)
 
 
 @pytest.fixture

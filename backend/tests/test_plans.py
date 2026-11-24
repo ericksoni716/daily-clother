@@ -262,6 +262,34 @@ def test_planned_pieces_are_kept_out_of_the_laundrys_way_on_the_days_before(clie
     assert "held" not in suggest(client)["context"]
 
 
+def test_a_piece_kept_for_a_plan_does_not_empty_today_with_the_words_left_out_today(client, clock):
+    """Review 2, finding 4. Two tees, one in the laundry. On Thursday you plan Saturday's outfit with the clean one.
+    Holding it back would leave Today with no outfit at all ("1 in the laundry and 1 left out today", though you left
+    nothing out). The hold is there to protect a plan, not to empty a day: Today asks again without it, offers the
+    outfit, and says which planned piece it uses (`held_offered`). Never "left out today" for a held piece."""
+    ids = small_closet(client)
+    client.post(f"/api/items/{ids['tee2']}/laundry", json={"state": "laundry"})
+    planned = {"base": ids["tee1"], "mid": None, "outer": None, "bottom": ids["jeans"], "shoes": ids["sneakers"],
+               "accessories": []}
+    assert client.put(f"/api/plans/{SATURDAY.isoformat()}", json={"pieces": planned}).status_code in (200, 201)
+    answer = suggest(client, low_c=12, high_c=18, rain=False)
+    assert answer["context"]["held"] == {ids["tee1"]: SATURDAY.isoformat()}
+    assert answer["outfits"] or not any("left out today" in m for m in answer["missing"]), answer["missing"]
+    assert answer["outfits"] and all(o["pieces"]["base"] == ids["tee1"] for o in answer["outfits"])
+    assert answer["context"]["held_offered"] == [ids["tee1"]]
+    # with no shoes to wear even so, there is no outfit, and the reason is the real one, not the plan
+    assert client.put(f"/api/items/{ids['sneakers']}/away", json={"place": "lent"}).status_code == 200
+    empty = suggest(client, low_c=12, high_c=18, rain=False)
+    assert not empty["outfits"] and not any("left out today" in m for m in empty["missing"]), empty["missing"]
+    assert "held_offered" not in empty["context"]
+    # with a clean tee besides it, the plan holds its tee back as before and nothing is said
+    assert client.post(f"/api/items/{ids['sneakers']}/back").status_code == 200
+    client.post(f"/api/items/{ids['tee2']}/laundry", json={"state": "clean"})
+    held = suggest(client, low_c=12, high_c=18, rain=False)
+    assert held["outfits"] and all(o["pieces"]["base"] == ids["tee2"] for o in held["outfits"])
+    assert "held_offered" not in held["context"]
+
+
 def test_with_no_plan_today_is_as_before(client, clock):
     small_closet(client)
     answer = suggest(client)

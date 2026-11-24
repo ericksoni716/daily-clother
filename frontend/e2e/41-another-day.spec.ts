@@ -298,6 +298,30 @@ test('the morning of a planned day: Today opens on the plan, says a piece was sw
   await expect(planLine(page)).toContainText('You planned this outfit for today.');
 });
 
+test('a plan that would empty Today gives way: the outfit uses its piece and says so once, under its button', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  // the server gives way when holding the planned piece back leaves no outfit (test_plans.py); here its answer says so
+  await page.route('**/api/outfits/today', async (route: Route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    const response = await route.fetch({ postData: { low_c: 9, high_c: 16, rain: false, ...body } });
+    const json = await response.json();
+    if (response.ok() && !body.day && json.outfits.length) {
+      const base = json.outfits[0].pieces.base;
+      json.context.held = { [base]: localDay(2) };
+      json.context.held_offered = [base];
+    }
+    await route.fulfill({ response, json });
+  });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  await page.goto('/today');
+  const line = current(page).getByTestId('held-offered');
+  await expect(line).toHaveText(/^This outfit uses your .+, which you planned for \w+\.$/);
+  await expect(page.getByTestId('held-offered')).toHaveCount(1);
+  await expect(page.getByText('left out today')).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('plan-gives-way.png') });
+});
+
 test('a day inside the saved trip says the trip has its outfit, and links to it', async ({ page }) => {
   await openDemo(page);
   const trip = ((await (await page.request.get('/api/trips')).json()).trips as { id: string; first_day: string }[])[0];

@@ -187,6 +187,11 @@ export function shortWhy(why: string[] | null | undefined): string {
 // --------------------------------------------------------------------- what to look for
 
 const PLURAL_CATEGORIES = ['jeans', 'trousers', 'shorts', 'sneakers', 'boots', 'dress_shoes', 'sandals'];
+
+/** Whether a piece of this category is a pair, said as "they" ("Blue jeans are…"), as the server's `outfits.be`. */
+export function isPairCategory(category: string | null): boolean {
+  return !!category && PLURAL_CATEGORIES.includes(category);
+}
 const THING: Record<string, string> = { tee: 'T-shirt', other: 'piece' };
 // The occasion's own words, as the Today screen names them.
 const FORMALITY_WORDS: Record<string, string> = {

@@ -301,6 +301,40 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **The laundry day leaves your suitcase alone.** What you wear on a trip goes in your suitcase, so the
+  laundry day at home no longer marks it clean while the trip is under way. It stays in the laundry
+  until the first laundry day after the trip, or until you say it is clean.
+- **A trip packs a piece due back from the cleaner's.** A piece at the cleaner's that you expect back
+  before you leave is packed clean, as Dress for another day already counts it, and the plan says it
+  counts on it being back. It used to be left out as still in the laundry when the trip was a day or two
+  away.
+- **Removing an old wear leaves a piece where it is.** Wearing a piece that is away brings it back, and
+  removing that wear the same day still sends it away again. Removing it on a later day no longer sends
+  it back to the cleaner's.
+- **A plan no longer empties Today.** When keeping a piece out of the laundry's way for a planned day
+  would leave Today with no outfit, Today offers the outfit anyway and says under it that it uses the
+  piece you planned ("This outfit uses your white tee, which you planned for Saturday."). It no longer
+  says the piece was left out today.
+- **A price check is asked once a day, whatever happens to the answer.** When Claude had answered the
+  day's price check or the week's look and Nines then could not keep the answer, Claude was asked the
+  same again at every hourly round. Once Claude has answered, the round counts as made.
+- **A rating you took away stays away.** A rating your phone kept while Nines was out of reach is turned
+  down when you changed the rating on the computer since, also when the change was taking it away.
+- **A price that came down while sold out is news once you can buy it.** It used to count as seen if you
+  had opened the wish in between.
+- **On a trip that packed nothing, Today gives the real reason.** It no longer says nothing you packed
+  makes an outfit; it says why nothing in your closet can be worn (everything in the laundry, say).
+- **"Blue jeans are back in your closet."** Recording an outfit that brings a pair of jeans, trousers or
+  shoes back now says "are", as the rest of Nines does.
+- **"Your size is in stock" only while it is said.** On a sale you might like, it goes when the shop's
+  page stops listing your size in stock and only the page had said so.
+- **Undoing a return keeps the wears since.** Undoing "It's back" for a piece you wore after it came
+  back keeps that wear in its count of wears since its last wash.
+- **A piece of today's trip that is away at home can be built around.** Its page no longer says "Once
+  it's back" for a piece in your bag, which Today on the trip already offers.
+- **A day you set the trip aside is not a day of the trip.** Planning a trip again on a day you chose
+  "Not on this trip today" no longer takes what you wore at home as the trip's outfit for that day, nor
+  puts a piece you left at home on the packing list.
 - **A find you stop watching stays put.** On a wish you sent as a link, stopping its find and then
   saving a note (or a price check ending) no longer puts "Added by hand" in above the find and pushes
   it down a line. The wish still came from a link, and says so until you leave the page. After

@@ -179,7 +179,7 @@ def detail(conn, row) -> dict:
     out["worn_in"] = worn.of_item(conn, row["id"])
     # why Today would find nothing to build around it ("laundry", "away", ...), or null when it can (`outfits`)
     out["build_around"] = outfits.cannot_build_around(dict(row))
-    if out["build_around"] == "laundry":   # in the bag of today's trip: with you and clean, as Today counts it
+    if out["build_around"] in ("laundry", "away"):   # in the bag of today's trip: with you and clean, as Today counts it
         from . import tripday  # tripday reads this module
         if tripday.with_you(conn, row["id"]):
             out["build_around"] = None

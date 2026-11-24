@@ -5,9 +5,9 @@ from datetime import date, timedelta
 
 import pytest
 
-from closet import db, outfits, trips, tripweather, wears, weather
+from closet import db, outfits, plans, trips, tripweather, wears, weather
 
-from .test_outfits import basic_closet, demo_items, item
+from .test_outfits import basic_closet, day, demo_items, item
 
 CORE = ("base", "mid", "outer", "bottom", "shoes")
 FIRST = date(2026, 12, 1)
@@ -139,6 +139,27 @@ def test_a_piece_in_the_laundry_today_is_packed_for_a_trip_far_enough_off():
     later = trips.plan(items, days(2), {"pin": ["tee1"]}, today=FIRST - timedelta(days=trips.CLEAN_BY_DAYS))
     assert "tee1" in {p["id"] for p in later["packed"]}
     assert not any("in the laundry" in n for n in later["notes"])
+
+
+def test_a_trip_packs_a_piece_due_back_from_the_cleaners_as_clean_like_a_day_ahead_does():
+    """Review 2, finding 2. The only wearable bottoms are jeans you took to the cleaner's out of the laundry basket,
+    expected back tomorrow; the trip starts the day after. A trip packs an away piece expected back before the first
+    day "as it will be by then", and back from the cleaner's a piece is clean: "Dress for another day" does exactly
+    that (`plans.back_by`) and offers the jeans for the trip's first day, and the trip packs them too, saying it
+    counts on them being back."""
+    thursday = date(2026, 11, 12)
+    first = thursday + timedelta(days=2)
+    items = [i for i in basic_closet() if i["category"] not in ("trousers", "shorts")]
+    jeans = next(i for i in items if i["id"] == "jeans1")
+    jeans.update(laundry="laundry", away="cleaner", away_since="2026-11-10",
+                 away_until=(first - timedelta(days=1)).isoformat())
+    # a day ahead, by the same rule, counts them back and clean
+    ahead = outfits.suggest(plans.back_by(items, first), day(4, 10), 3)
+    assert ahead["outfits"] and all(o["pieces"]["bottom"] == "jeans1" for o in ahead["outfits"])
+    # the trip starting that day
+    plan = trips.plan(items, days(2, first=first), {}, None, today=thursday)
+    assert "jeans1" in {p["id"] for p in plan["packed"]}, plan["uncovered"]
+    assert any("counts on" in n and "back" in n for n in plan["notes"]), plan["notes"]
 
 
 def test_a_day_that_cannot_be_covered_says_why():

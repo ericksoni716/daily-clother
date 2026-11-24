@@ -183,15 +183,23 @@ def undo_back(conn, item_id: str) -> dict:
         if last is None or last["event"] != "back" or not last["undo"] or row["away"] in PLACES:
             raise items.ItemError("There is no return to undo.", 409)
         _undo(conn, last, t)
+        # the wears since the return stay counted, as "All clean"'s undo adds them (back from the cleaner's, the count
+        # had started again; from anywhere else coming back left it as it was)
+        before = json.loads(last["undo"]).get("wears_since_wash") or 0
+        since = row["wears_since_wash"] - (0 if last["place"] == "cleaner" else before)
+        if since > 0:
+            conn.execute("UPDATE items SET wears_since_wash = wears_since_wash + ? WHERE id = ?", (since, item_id))
     _write(conn, undo)
     return items.detail(conn, items.get(conn, item_id))
 
 
 def unwear(conn, item_id: str, worn_at: str, t: str) -> None:
-    """A wear removed again sends the piece back where it was when that very wear brought it back (inside the
+    """A wear removed again sends the piece back where it was when that very wear brought it back, on the day of the
+    return, as long as its Undo lasts (`detail`); a wear removed on a later day leaves the piece where it is (inside the
     caller's transaction)."""
     last = _last(conn, item_id)
-    if last is not None and last["event"] == "back" and last["by"] == "wear" and last["at"] == worn_at and last["undo"]:
+    if (last is not None and last["event"] == "back" and last["by"] == "wear" and last["at"] == worn_at and last["undo"]
+            and _local_day(last["at"]) >= _today().isoformat()):
         _undo(conn, last, t)
 
 

@@ -225,17 +225,7 @@ def back_by(rows: list[dict], day: date) -> list[dict]:
     """The closet as it will be on a day ahead, for where pieces are: one away and expected back before that day is
     counted back, as coming back makes it (`away.bring_back`: clean from the cleaner's, mended from the tailor's); one
     away with no day said, or a later one, stays away and is not offered."""
-    out = []
-    for r in rows:
-        if back_before(r, day):
-            back = {**r, "away": None, "away_since": None, "away_until": None}
-            if r["away"] == "cleaner":
-                back.update(laundry="clean", wears_since_wash=0)
-            elif r["away"] == "tailor" and r.get("condition") == "needs_repair":
-                back["condition"] = None
-            r = back
-        out.append(r)
-    return out
+    return [outfits.as_back(r) if back_before(r, day) else r for r in rows]
 
 
 # ------------------------------------------------------------------ the routes

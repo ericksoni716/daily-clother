@@ -399,8 +399,8 @@ class _Planner:
             why = outfits._unavailable({**it, "kind": None} if swim or sport else it, out)
             if why in outfits.AWAY.values() and (p.id in carried or self._back_before(it)):
                 # in the bag already, or expected back before the first day: packed as it will be by then (back from
-                # the tailor's, it is mended), and the plan says it counts on it being back
-                back = {**it, "away": None, **({"condition": None} if it.get("away") == "tailor" else {})}
+                # the cleaner's, it is clean; from the tailor's, mended), and the plan says it counts on it being back
+                back = outfits.as_back(it)
                 if p.id not in carried:
                     self.expected[p.id] = outfits.away_words(it) or why
                 why = outfits._unavailable({**back, "kind": None} if swim or sport else back, out)

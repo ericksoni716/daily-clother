@@ -14,6 +14,14 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The second logic review's fixes** (24 November; DECISIONS, the rows dated 24 November). Left for the
+  owner: whether the laundry day should wash what was left in the basket at home while a trip is under way
+  (it still does; only the suitcase waits). Left undone: the count of wears behind a wash
+  (`wears.washed_since`) still takes a laundry day during a trip as having washed what was worn on the trip,
+  so a wear for a trip day sent late from the phone, after that laundry day, is not counted and puts nothing in
+  the laundry. "Not on this trip today" lapses with its day (decided), so a trip planned again on a later day
+  still takes that day's wear at home as the trip's outfit for it; remembering past set-aside days would
+  change that decision.
 - **Wearing while the computer is off** (23 November; DECISIONS, "Wearing while the computer is
   off"). Left undone: a gateway's answer while the computer sleeps (Cloudflare's 502 or 530 through
   the Cloudflare door) counts as an answer, not as Nines being out of reach, so a tap then shows the

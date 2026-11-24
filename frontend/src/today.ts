@@ -104,6 +104,8 @@ export interface DayContext {
   plan?: { day: string; kept: string[]; unavailable: string[]; note: string | null; away?: Record<string, string> };
   /** Planned pieces not offered, as wearing them now leaves them in the laundry on their day: id -> that day. */
   held?: Record<string, string>;
+  /** Planned pieces the outfits use all the same, as holding them back left no outfit at all (the page says so once). */
+  held_offered?: string[];
   /** A day dressed ahead (Dress for another day), not today. */
   ahead?: boolean;
   /** A day ahead: the pieces away now that it counts as back by then (expected back before it), as a trip packs them. */

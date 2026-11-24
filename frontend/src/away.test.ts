@@ -70,7 +70,24 @@ describe('wearing it anyway', () => {
     expect(backByWearing(list, TODAY, TODAY).map((p) => p.id)).toEqual(['a']);
     expect(backByWearing(list, '2026-11-20', TODAY)).toEqual([]);
     expect(recordedSentence([])).toBe('Outfit recorded');
-    expect(recordedSentence(['the grey suit'])).toBe('Outfit recorded. The grey suit is back in your closet.');
-    expect(recordedSentence(['the grey suit', 'the brown shoes'])).toBe('Outfit recorded. The grey suit and the brown shoes are back in your closet.');
+    expect(recordedSentence([{ name: 'the grey suit', category: 'suit' }])).toBe('Outfit recorded. The grey suit is back in your closet.');
+    expect(recordedSentence([{ name: 'the grey suit', category: 'suit' }, { name: 'the brown shoes', category: 'dress_shoes' }]))
+      .toBe('Outfit recorded. The grey suit and the brown shoes are back in your closet.');
+  });
+
+  /**
+   * Review 2, finding 9. "Record an outfit" for today with a piece that is away brings it back and says so. The verb
+   * goes by the piece, as the server's own sentences do (`outfits.be`: jeans, trousers, shorts and shoes are "they"),
+   * not only by how many came back: one pair of jeans "are back in your closet".
+   */
+  it('says that a pair of jeans are back, not is back', () => {
+    expect(recordedSentence([{ name: 'Blue jeans', category: 'jeans' }])).toBe('Outfit recorded. Blue jeans are back in your closet.');
+  });
+
+  it('still says that one shirt is back, and two pieces are', () => {
+    expect(recordedSentence([{ name: 'The grey suit', category: 'suit' }])).toBe('Outfit recorded. The grey suit is back in your closet.');
+    expect(recordedSentence([{ name: 'the grey suit', category: 'suit' }, { name: 'blue jeans', category: 'jeans' }]))
+      .toBe('Outfit recorded. The grey suit and blue jeans are back in your closet.');
+    expect(recordedSentence([{ name: 'Blue piece', category: null }])).toBe('Outfit recorded. Blue piece is back in your closet.');
   });
 });

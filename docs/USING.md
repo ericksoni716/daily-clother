@@ -117,7 +117,9 @@ day) and offers **See other outfits**; a piece swapped because it cannot be worn
 the outfit's button, where it moves nothing (a piece away with where it is: "Your navy blazer is at the
 cleaner's until Friday 27 November, so another piece takes its place."). On
 the days before, a planned piece that wearing would leave in the wash on its day is not offered; its
-choices say why if it is in an outfit anyway, with **Build around it anyway**. The plans of the
+choices say why if it is in an outfit anyway, with **Build around it anyway**. When holding it back would
+leave no outfit at all, Today offers the outfit anyway and says once, under its button, "This outfit uses your
+white tee, which you planned for Saturday." The plans of the
 coming week are one line on Today ("Saturday and Monday are planned."), each day a link. **Keep this
 outfit**, under each outfit's button, keeps it under Worn without wearing it.
 
@@ -135,7 +137,11 @@ an outfit again stays on the trip (a piece you build around is offered even if i
 trips hold today, the one that started later is the one you are on. Offline, Today shows what this device kept,
 line included. In that sheet on a trip day, the place saved is labelled "At home", and its search "Change where home
 is": it changes home, not the trip. From a piece's page, **Build an outfit around it** on a trip day builds from the
-bag; a packed piece counts as clean, whatever the laundry at home says, and its page says so.
+bag; a packed piece counts as clean and with you, whatever the laundry or the cleaner's at home says, and its
+page says so. When nothing you packed makes an outfit, Today says so and points to Not on this trip today; a trip
+that packed nothing dresses you from your whole closet, and when even that has no outfit Today gives the reason
+(everything in the laundry, say). What you wear on the trip goes in your suitcase: the laundry day at home leaves
+it in the laundry until the first laundry day after the trip.
 
 Below that, when a trip starts within two weeks (or is under way, and is not today's), a "Packing for a trip?"
 row opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
@@ -266,7 +272,8 @@ back from the cleaner's it is marked clean, back from the tailor's it is no long
 mending, and back from being lent nothing else changes. The row then says what coming back did, with
 Undo, for the rest of the day. A piece marked as needing mending reads "In your closet, waiting to be
 mended", with **Take it to the tailor's**. Wearing an away piece today (Wore it today, or an outfit
-recorded for today) brings it back, and undoing that wear sends it away again. The History fold says
+recorded for today) brings it back, and undoing that wear the same day sends it away again (removed on a later
+day, the piece stays where it is). Undoing a return keeps the wears since in its count. The History fold says
 when it went and came back.
 **Build an outfit around it** opens Today built around the piece, as Today's own "Build around this
 piece" does: in place of any piece built around before, with the pieces you left out still left out.
@@ -425,7 +432,7 @@ each state. **On sale** shows things marked down now: Claude starts from the sho
 smaller makers you may not know, and Nines opens each shop's page itself before showing it (the
 price is the page's; a sale that ended, a sold-out product or less than 15% off is left out).
 A sale row says its shop, then its prices in the wishlist's words ("Was $120.00, now $84.00 (30%
-less)"), the line from the closet, and "Your size is in stock." when the page says so, or
+less)"), the line from the closet, and "Your size is in stock." when the page says so (and only while it does, when only the page said it), or
 "Claude read the earlier price from the page." when only Claude did. Save keeps the earlier price
 on the wish, so its page shows the drop. Before the first look, with no shops named, it offers
 "Name a few shops you like and Nines starts there.", which opens Shops you like in Settings.

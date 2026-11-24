@@ -1,6 +1,6 @@
 import { backByWearing, recordedSentence } from '../away';
 import { queryOptions, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { api, ApiError, connection } from '../api';
 import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
 import { Pic } from '../components/ItemPic';

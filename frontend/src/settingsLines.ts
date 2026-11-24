@@ -76,6 +76,48 @@ export function claudeLine(s: ClaudeSettings, spend: Pick<TaggingSpend, 'spent_u
   return { tone: 'problem', text: "Nines can't reach Claude yet.", action: 'install' };
 }
 
+type LeadSettings = ClaudeSettings & Pick<Settings, 'tagging_route_order'>;
+
+/**
+ * The first line of Claude on the Advanced screen: `claudeLine`, but with what is right below it in view. The month's
+ * spending is left out (the limit and the spending are shown under the key), and when nothing works the one cause
+ * points at the control below that puts it right: allowing the key, saving one, or choosing the plan.
+ */
+export function claudeLead(s: LeadSettings, spend: Pick<TaggingSpend, 'spent_usd' | 'cap_usd' | 'reached'> | null,
+  tagging: TaggingStatus | null, error: string | null, offline: boolean): ClaudeLine {
+  const line = claudeLine(s, spend ? { ...spend, cap_usd: null } : null, tagging, error, offline);
+  if (line.tone !== 'problem' || error || !tagging) return line;
+  const order = tagging.order;
+  const keyHere = !!tagging.routes.find((r) => r.id === 'api')?.available;
+  if (s.tagging_api_off && order.includes('api')) {
+    // the sentence under the key says when, why and what to do
+    return { tone: 'problem', text: "Nines can't reach Claude: it stopped using your API key.", action: null };
+  }
+  if (keyHere && s.tagging_api_enabled && spend?.reached) return line;
+  if (!order.includes('plan')) {
+    return {
+      tone: 'problem', action: null,
+      text: s.api_key.set
+        ? "Nines can't reach Claude yet: you chose only the API key, and it isn't allowed. Allow it below, or choose your Claude plan."
+        : "Nines can't reach Claude yet: you chose only the API key, and none is saved. Save one below, or choose your Claude plan.",
+    };
+  }
+  if (s.api_key.set && order.includes('api') && !s.tagging_api_enabled) {
+    return { tone: 'problem', text: "Nines can't reach Claude yet: your API key is saved but not allowed. Allow it below, or use your Claude plan.", action: 'install' };
+  }
+  return line;
+}
+
+/**
+ * What the API key part of Advanced shows. With no key, only the box to paste one: the limit, the switch and the order
+ * can do nothing yet. The order stays reachable when the saved one needs a key that is no longer there, so it can be
+ * changed back.
+ */
+export function apiKeyShows(s: Pick<Settings, 'api_key' | 'tagging_route_order'>): { spending: boolean; order: boolean } {
+  const keyFirst = s.tagging_route_order === 'api-first' || s.tagging_route_order === 'api';
+  return { spending: s.api_key.set, order: s.api_key.set || keyFirst };
+}
+
 // ------------------------------------------------------------------ Updates
 
 /** What the Updates line offers: Install, a link to download by hand, or nothing. */
@@ -203,6 +245,30 @@ export function modelLines(model: ModelInfo): ModelLine[] {
   const lines: ModelLine[] = [modelLine('main', model)];
   if (model.second) lines.push(modelLine('second', model.second));
   return lines;
+}
+
+export interface ModelAddress {
+  id: 'main' | 'second';
+  /** The box's name: "Address for the first set". */
+  label: string;
+  url: string;
+  /** Where the file goes when it is put in place by hand: on the computer only, else null. */
+  path: string | null;
+}
+
+/**
+ * The fold under the two lines (Advanced → Background removal, "If a download keeps failing"): one sentence, then each
+ * set's address and, on the computer, where its file goes. The same for both sets; only the first when the server has
+ * no second.
+ */
+export function modelAddresses(model: ModelInfo, filesHere: boolean): { intro: string; sets: ModelAddress[] } {
+  const sets = [['main', model] as const, ...(model.second ? [['second', model.second] as const] : [])].map(([id, m]) => ({
+    id, label: `Address for ${MODEL_NAME[id]}`, url: m.url, path: filesHere ? m.path : null,
+  }));
+  const intro = filesHere
+    ? 'Each set is downloaded from the address in its box; you can type another address, or download the file yourself and put it where it is shown.'
+    : 'Each set is downloaded from the address in its box, and you can type another address.';
+  return { intro, sets };
 }
 
 function modelLine(id: 'main' | 'second', m: ModelInfo): ModelLine {

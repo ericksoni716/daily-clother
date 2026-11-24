@@ -56,7 +56,8 @@ test.describe('with a stand-in for Claude', () => {
     await expect(section.getByTestId('route-plan')).toBeVisible();
     // nothing is waiting, so nothing is said about it (step 6 removed "No items are waiting")
     await expect(section.getByTestId('tags-waiting')).toHaveCount(0);
-    const allow = section.getByRole('switch', { name: /Allow the API key/ });
-    await expect(allow).not.toBeChecked();
+    // no key is saved, so there is nothing to allow: only the box to paste one
+    await expect(section.getByRole('switch', { name: /Allow the API key/ })).toHaveCount(0);
+    await expect(section.getByTestId('api-key').getByLabel('Paste your API key')).toBeVisible();
   });
 });

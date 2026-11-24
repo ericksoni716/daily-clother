@@ -796,16 +796,15 @@ program from Anthropic that uses your Claude plan, so nothing extra is charged
 per photo. An API key can be used instead, but it is billed per photo by
 Anthropic, is only used when the plan can't be, and only if you turn on
 **Allow the API key** in **Settings → Advanced settings → Claude**. It is off until you do.
-That group shows each of the two once, with one line
-saying whether Nines can use it right now, which it will try first, and how
-many items are waiting to be described.
+That group starts with one line saying how Nines reaches Claude right now, with **Check
+again** beside it, then a line for your plan and one for the key, and how many items are
+waiting to be described when some are.
 
-**Which to use.** Under the API key box in **Settings → Advanced settings → Claude** you choose the
-order: **Use my Claude plan first, the key only if the plan can't** (the
-usual one), **Use the API key first** (if you would rather pay per photo than use
-up your plan), **Only my Claude plan**, or **Only the API key**. The two that put
-the key first can only be chosen once a key is saved, and removing the key puts
-you back on the plan first. Whatever you choose, the key is still only used once
+**Which to use.** Once a key is saved, under **Allow the API key** in **Settings → Advanced
+settings → Claude** you choose the order: **Your plan first, then the key** (the usual one),
+**The key first, then your plan** (if you would rather pay per photo than use up your plan),
+**Only your plan**, or **Only the key**. With no key saved there is nothing to choose, and
+removing the key puts you back on the plan first. Whatever you choose, the key is still only used once
 **Allow the API key** is on with a monthly limit. The choice applies to everything
 Nines asks Claude: describing clothes, finding where a patterned top's seams are,
 corrections you type, and "Would this work?".
@@ -817,9 +816,8 @@ Advanced settings → Claude**, then **Save key**. Nines asks Anthropic whether 
 keychain, or Windows Credential Manager), never in a file, under the name
 Nines. (Up to version 0.13.0 it was kept under Closet; the first start after the
 update moves it to Nines by itself.) It is never shown again; **Replace key**
-and **Remove key** are there when you need them. Then turn
-on **Allow the API key** and set a monthly limit (under **Monthly limit and
-spending**, just below the switch). A key saved here is used instead
+and **Remove key** are there when you need them. Then type a limit in **Monthly limit (US dollars)**,
+which shows under the key, and turn on **Allow the API key** just below it. A key saved here is used instead
 of one set as `ANTHROPIC_API_KEY`.
 
 **What the API key costs.** Clothes are described by Claude Sonnet, which
@@ -834,9 +832,10 @@ use the smaller, cheaper model. On your Claude plan the larger model uses a
 little more of the plan's allowance for each photo. Before every request Nines adds what this month has cost so
 far to the most that request could cost, and if that would pass the limit it
 does not ask: the item waits and says the monthly limit was reached. Your plan
-is still used whenever it can be. **Monthly limit and spending** shows what this month has cost, how
-many requests were made, what the waiting items would cost at most and the
-last few months. If Anthropic refuses the key or says the account is out of
+is still used whenever it can be. Under the limit, a few words say what this month has cost
+("November: $0.42 of $5.00 spent."), with what the waiting items would cost at most below;
+**Spending so far** folds this month's requests, the earlier months, why $5 is suggested and how
+costs are worked out. If Anthropic refuses the key or says the account is out of
 credit, Nines turns the API key off and says why in Settings. What Nines
 shows is worked out from its own price list; your Anthropic account shows what
 was really charged.
@@ -879,16 +878,17 @@ describe it needs **Try again**.
 ### Updates
 
 From the version after the one that added this, Nines updates itself. Once a
-day while it runs (and whenever you press **Check now** in **Settings →
-Advanced settings → Updates**) it asks GitHub whether a newer release is out; it sends nothing
-about you or your clothes. In **Settings → Advanced settings → Updates** choose:
+day while it runs (and whenever you press **Check now** in **Settings → Updates**) it asks
+GitHub whether a newer release is out; it sends nothing about you or your clothes. **Settings →
+Updates** shows the version, when it last looked, **Check now** and what it found. In
+**Settings → Advanced settings → Updates** choose:
 
 - **Ask me first** (the standard choice): Nines downloads the new version and
   checks it, then a slim bar at the top says "Nines 0.3.0 is ready ·
   Install". **Settings → Updates** shows the version and what's new. Nothing changes until
   you press **Install**.
 - **Install updates by themselves**: the same, without asking.
-- **Never check**: Nines only looks when you press **Check now**.
+- **Never check**: Nines only looks when you press **Check now** in **Settings → Updates**.
 
 Installing backs up every closet first (into `Nines\backups`, and into your
 backup folder if you chose one), replaces the program, and starts the new
@@ -946,7 +946,7 @@ newer one instead of damaging it. Up to version 0.11.0 the folder was called
 `Closet`; Nines renames it to `Nines` when it starts (see "Moving from Closet.exe to
 Nines.exe").
 
-**Settings → Advanced settings → Storage** shows how much space this folder takes, and how
+**Settings → Advanced settings → Storage** shows where this folder is (on the computer), how much space it takes, and how
 much free space the disk has left; open **What takes the space** for photos, cutouts,
 thumbnails, backups kept on this computer and the background-removal model.
 
@@ -982,21 +982,21 @@ which, until you press **OK**.
 
 ### Placing the model by hand
 
-If the computer cannot download the model, download
-`isnet-general-use.onnx` on another machine from the address shown in
+If the computer cannot download the model, open **If a download keeps failing** in
 **Settings → Advanced settings → Background removal** (the link is at the foot of
-Settings), and put it in
-`Nines\models`. Nines checks the file and starts using it. The address can be
-changed there too. A notice on **Add** says when the model is missing or
-did not download. **Advanced** also shows where your closet is stored and the
-version of Nines.
+Settings): it shows the address each of the two sets of files comes from and, on the
+computer, where each one goes. Download `isnet-general-use.onnx` on another machine from
+that address and put it in `Nines\models`. Nines checks the file and starts using it. Each
+address can be changed there too, and **Use default** puts it back. A notice on **Add**
+says when the model is missing or did not download. Where your closet is stored is under
+**Storage** on the same screen, and the version of Nines under **Settings → Updates**.
 
 Nines also downloads a second model, `u2net.onnx`, about the same size. It
 fixes cutouts the first one gets wrong: a striped or checked shirt whose darker
 stripes were taken for background, or the bed a piece lies on kept with it.
 If it didn't download, the notice on the closet says so, with a button to try
-again, and Nines also tries again by itself; **Advanced** shows its address and where to put it by
-hand. Photos cut out before it is there are looked at again once it is, and the
+again, and Nines also tries again by itself; the same fold shows its address (which you can
+change) and where to put it by hand. Photos cut out before it is there are looked at again once it is, and the
 ones it would do better are cut out again.
 
 ### Where you are

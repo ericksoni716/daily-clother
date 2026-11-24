@@ -190,6 +190,18 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **Settings, tidied.** **Check now** is back on the main Settings page, under **Updates**, beside
+  when Nines last looked, with what it found coming in under the button and **Install now** when
+  there is a new version; the version is shown there once, and the separate "This copy of Nines"
+  group on Advanced is gone (where your closet is stored is now under **Storage**). Advanced keeps
+  only the choice of when updates are installed. **Background removal** no longer shows one
+  download address in the open when there are two sets of files: both addresses, each with
+  **Save** and **Use default**, and on the computer where each file goes, are in one fold, **If a
+  download keeps failing**. **Claude** on Advanced is much shorter: one line saying how Nines
+  reaches Claude with **Check again** beside it, a line for your plan and one for the key. With no
+  key there is only the box to paste one; with a key, the monthly limit (a short box with Save limit
+  beside it) and this month's spending in a few words are in view instead of folded, then **Allow the API key** and **Which to use** as one short
+  choice.
 - **"Would this work?", a search and a look answer sooner.** Checking a piece against your
   closet takes about a quarter of the time it took, with exactly the same answers. Today's outfits,
   What's missing and a trip's plan are worked out sooner too.

@@ -1,6 +1,6 @@
 /** Plain words for what the API key costs: amounts, months, the limit and the estimates. */
 import type { ApiKeyInfo, RouteOrder, TaggingRoute, TaggingSpend } from './types';
-import { dayOf, fullDate } from './wears';
+import { dayOf, fullDate, monthYear } from './wears';
 
 /** "$1.20", "$1,000.00"; "$0.00" for nothing, and "under 1¢" for a sum too small to show in cents. */
 export function formatUsd(amount: number | null | undefined): string {
@@ -104,6 +104,26 @@ export function spentLine(s: Pick<TaggingSpend, 'spent_usd' | 'cap_usd' | 'api_c
   return `${spent} spent; ${calls}.${plan}`;
 }
 
+/** This month's spending in a few words, in view under the limit: "November: $0.42 of $5.00 spent." */
+export function monthSpentLine(s: Pick<TaggingSpend, 'month' | 'spent_usd' | 'cap_usd'>): string {
+  const month = monthYear(s.month).replace(/ \d+$/, '');
+  const spent = s.spent_usd > 0;
+  if (s.cap_usd) return spent ? `${month}: ${formatUsd(s.spent_usd)} of ${formatUsd(s.cap_usd)} spent.` : `${month}: nothing spent yet of ${formatUsd(s.cap_usd)}.`;
+  return spent ? `${month}: ${formatUsd(s.spent_usd)} spent, with no limit set yet.` : `${month}: nothing spent yet, and no limit set.`;
+}
+
+/** What this month sent, for the fold under the limit: the requests with the key and those through the plan. */
+export function requestsLine(s: Pick<TaggingSpend, 'api_calls' | 'plan_calls'>): string {
+  const key = s.api_calls ? `This month ${count(s.api_calls, 'request', 'requests')} went to Claude with the API key.` : 'Nothing was sent with the API key this month.';
+  const plan = s.plan_calls ? ` ${count(s.plan_calls, 'request', 'requests')} went through your Claude plan, at no extra cost.` : '';
+  return key + plan;
+}
+
+/** The months before this one that had requests, newest first: this month is said in its own sentence above them. */
+export function earlierMonths(s: Pick<TaggingSpend, 'month' | 'history'>): TaggingSpend['history'] {
+  return s.history.filter((m) => m.month !== s.month);
+}
+
 /** What the items waiting would cost if the plan can't be used; empty when nothing waits. */
 export function waitingLine(w: TaggingSpend['waiting']): string {
   if (!w.items) return '';
@@ -154,10 +174,10 @@ export function apiKeySavedLine(info: ApiKeyInfo, allowed: boolean): string {
 
 /** The orders the owner can choose in Settings, in plain words; `needsKey` ones put the API key first. */
 export const ROUTE_ORDERS: { value: RouteOrder; label: string; needsKey: boolean }[] = [
-  { value: 'auto', label: "Use my Claude plan first, the key only if the plan can't", needsKey: false },
-  { value: 'api-first', label: 'Use the API key first', needsKey: true },
-  { value: 'plan', label: 'Only my Claude plan', needsKey: false },
-  { value: 'api', label: 'Only the API key', needsKey: true },
+  { value: 'auto', label: 'Your plan first, then the key', needsKey: false },
+  { value: 'api-first', label: 'The key first, then your plan', needsKey: true },
+  { value: 'plan', label: 'Only your plan', needsKey: false },
+  { value: 'api', label: 'Only the key', needsKey: true },
 ];
 
 /** Which route Nines will try first, in a sentence: the first in `order` that is ready (the key only once allowed).

@@ -19,6 +19,10 @@ test('settings show how much space the demo closet takes, on the Advanced screen
   const section = page.getByRole('region', { name: 'Storage' });
   await expect(section.getByTestId('storage-line')).toHaveText(/^Nines uses [\d.]+ (KB|MB|GB) for 49 items · .+ free on this disk\.$/);
   await expect(section.getByTestId('storage-line')).not.toHaveText(/^Nines uses 0 /);
+  // the answer first: the space used, then where the closet is kept, then the fold
+  const tops = await Promise.all([section.getByTestId('storage-line'), section.getByTestId('data-folder'), section.getByText('What takes the space')]
+    .map(async (l) => (await l.boundingBox())!.y));
+  expect(tops).toEqual([...tops].sort((a, b) => a - b));
   // the breakdown is folded under the one line
   await expect(section.getByText('Photos', { exact: true })).toBeHidden();
   await section.getByText('What takes the space').click();
@@ -42,7 +46,7 @@ test('settings: short groups in one column beside the sidebar, the technical par
   expect(column.x - (sidebar.x + sidebar.width)).toBeLessThan(40);   // left-aligned beside the sidebar, not centred
 
   // the technical parts are not on the page: they are on Advanced, a screen of its own
-  await expect(page.getByLabel('Download address')).toHaveCount(0);
+  await expect(page.getByLabel('Address for the first set')).toHaveCount(0);
   await expect(page.getByText('Your closet is stored in')).toHaveCount(0);
 
   // Quit is a row after the last group, not a card; there is nothing to log out of
@@ -54,9 +58,13 @@ test('settings: short groups in one column beside the sidebar, the technical par
 
   await page.getByRole('link', { name: 'Advanced settings' }).click();
   await expect(page).toHaveURL(/\/settings\/advanced$/);
-  await expect(page.getByLabel('Download address')).toBeVisible();
-  await expect(page.getByText('Your closet is stored in')).toBeVisible();
-  await expect(page.getByText('Version', { exact: true })).toBeVisible();
+  const removal = page.getByRole('region', { name: 'Background removal' });
+  await removal.getByText('If a download keeps failing').click();
+  await expect(removal.getByLabel('Address for the first set')).toBeVisible();
+  // the folder the closet is kept in is with the space it takes; the version is in Updates on Settings, once
+  await expect(page.getByRole('region', { name: 'Storage' }).getByText('Your closet is stored in')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'This copy of Nines' })).toHaveCount(0);
+  await expect(page.getByText('Version', { exact: true })).toHaveCount(0);
 });
 
 test('the Advanced screen: opened from Settings, kept through a reload, and Back and "‹ Settings" return to Settings', async ({ page }) => {

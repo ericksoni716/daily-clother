@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { availableLine, busyLine, checkedLine, followInstall, lastInstallLine, MODES, showBanner, type FollowDeps, type UpdateStatus } from './updates';
+import { availableLine, busyLine, checkAnswer, checkedLine, followInstall, lastInstallLine, MODES, showBanner, type FollowDeps, type UpdateStatus } from './updates';
 
 const status = (over: Partial<UpdateStatus> = {}): UpdateStatus => ({
   version: '0.2.1', mode: 'ask', can_install: true, checked_at: '2026-11-13T09:00:00Z', check_error: null, latest: '0.2.1',
@@ -27,6 +27,21 @@ describe('update wording', () => {
     expect(availableLine(status({ available: release, latest: '0.3.0' }))).toBe('Nines 0.3.0 is out.');
     expect(availableLine(status({ available: release, latest: '0.3.0', ready: true }))).toBe('Nines 0.3.0 is ready to install.');
     expect(availableLine(status({ available: release, latest: '0.3.0', can_install: false }))).toMatch(/by hand/);
+  });
+
+  it('answers Check now under the button only after a press, and never in the words the line above already has', () => {
+    expect(checkAnswer(status(), false)).toBe('');                       // on open the line says "· up to date"
+    expect(checkAnswer(status(), true)).toBe('You have the latest version.');
+    expect(checkAnswer(status({ can_install: false, latest: '0.3.0' }), true)).toBe('The latest version is 0.3.0.');
+    // a newer version found: the line above says "Nines 0.3.0 is out." and Install now comes in under the button
+    expect(checkAnswer(status({ available: release, latest: '0.3.0' }), true)).toBe('');
+    expect(checkAnswer(status({ busy: 'checking' }), true)).toBe('');      // "Checking for a new version…" says it
+    expect(checkAnswer(status({ check_error: "Couldn't reach GitHub." }), true)).toBe('');   // the error is the answer
+    expect(checkAnswer(status({ problem: 'The download broke.' }), true)).toBe('');
+  });
+
+  it('says where Check now is from the choice that never checks', () => {
+    expect(MODES.find((m) => m.value === 'never')?.hint).toBe('Nines does not look for new versions unless you press Check now, under Updates in Settings.');
   });
 
   it('shows the banner only in "Ask me first" once the new version is ready', () => {

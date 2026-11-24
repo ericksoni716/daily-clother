@@ -362,7 +362,8 @@ export const api = {
   /** The items being worked on in the background, asked every few seconds while there are any. */
   progress: () => request<ProgressList>('/api/progress'),
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
-  setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),
+  /** The address one set of files is downloaded from: the first (`main`, as before) or the second; empty for the default. */
+  setModelUrl: (url: string, which: 'main' | 'second' = 'main') => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url, which } }),
   settings: () => request<Settings>('/api/settings'),
   /** Settings' "Show drawings instead of photos" on its own, for the open closet. */
   pictures: () => request<{ show_drawings: boolean }>('/api/settings/pictures'),

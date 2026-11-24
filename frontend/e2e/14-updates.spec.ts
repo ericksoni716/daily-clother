@@ -14,26 +14,34 @@ async function openUpdates(page: Page) {
   return page.getByRole('region', { name: 'Updates' });
 }
 
-test('settings: Updates is one line with this version; the choice is on Advanced and is kept', async ({ page }) => {
+test('settings: Updates has this version, when it last looked and Check now; only the choice is on Advanced, and is kept', async ({ page }) => {
   await goToCloset(page);
   const version = (await (await page.request.get('/api/updates')).json()).version;
-  const line = (await openUpdates(page)).getByTestId('update-line');
+  const section = await openUpdates(page);
+  const line = section.getByTestId('update-line');
   await expect(line).toHaveText(new RegExp(`^Nines ${version.replace(/\./g, '\\.')}`));
+  await expect(section.getByRole('button', { name: 'Check now' })).toBeVisible();
+  await expect(section.getByTestId('update-checked')).toBeVisible();
   await page.getByRole('link', { name: 'Advanced settings' }).click();
-  const section = page.getByRole('region', { name: 'Updates' });
-  await expect(section.getByTestId('update-version')).toHaveText(version);
-  const choice = section.getByRole('group', { name: 'When a new version is out' });
+  const manage = page.getByRole('region', { name: 'Updates' });
+  // Advanced keeps only the choice: the version, Check now and the last check are on Settings (one home each)
+  await expect(manage.getByRole('button', { name: 'Check now' })).toHaveCount(0);
+  await expect(manage.getByTestId('update-checked')).toHaveCount(0);
+  await expect(manage).not.toContainText(version);
+  await expect(page.getByRole('region', { name: 'This copy of Nines' })).toHaveCount(0);
+  const choice = manage.getByRole('group', { name: 'When a new version is out' });
   await expect(choice.getByRole('button', { name: 'Ask first' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(section.getByTestId('update-mode-hint')).toContainText('asks before installing');
+  await expect(manage.getByTestId('update-mode-hint')).toContainText('asks before installing');
   await expect(page.getByTestId('update-banner')).toHaveCount(0);
 
   await choice.getByRole('button', { name: 'Never', exact: true }).click();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
   expect((await (await page.request.get('/api/updates')).json()).mode).toBe('never');
+  await expect(manage.getByTestId('update-mode-hint')).toContainText('unless you press Check now, under Updates in Settings');
   await page.reload();
   await expect(choice.getByRole('button', { name: 'Never', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(section.getByTestId('update-checked')).toHaveText(/never to check/);
   await page.goto('/settings');
+  await expect(section.getByTestId('update-checked')).toHaveText(/never to check/);
   await expect(line).toHaveText(`Nines ${version} · not looking for new versions`);
 });
 
@@ -119,11 +127,9 @@ test('updates (stand-in): the banner offers the new version, Install restarts Ni
   expect(await axeViolations(page, '[data-testid="update-notes"]')).toEqual([]);
   await expect(section.getByRole('button', { name: 'Install now' })).toBeVisible();
 
-  // how updates are fetched, Check now and the release page are on Advanced
-  await page.getByRole('link', { name: 'Advanced settings' }).click();
-  const manage = page.getByRole('region', { name: 'Updates' });
-  await expect(manage.getByRole('link', { name: 'The release page' })).toHaveAttribute('href', RELEASE.page);
-  await manage.getByRole('button', { name: 'Check now' }).click();
+  // Check now and the release page are in the same group
+  await expect(section.getByRole('link', { name: 'The release page' })).toHaveAttribute('href', RELEASE.page);
+  await section.getByRole('button', { name: 'Check now' }).click();
   await expect.poll(() => checks).toBe(1);
 
   await banner.getByRole('button', { name: 'Install' }).click();
@@ -132,39 +138,48 @@ test('updates (stand-in): the banner offers the new version, Install restarts Ni
 
   // once the new Nines answers, the page reloads by itself
   await expect(page.getByRole('alertdialog')).toHaveCount(0, { timeout: 15_000 });
-  await expect(manage.getByTestId('update-version')).toHaveText('0.3.0');
-  await expect(manage.getByTestId('update-last')).toHaveText(/Updated from 0.2.1 to 0.3.0/);
-  await page.goto('/settings');
   await expect(section.getByTestId('update-line')).toHaveText('Nines 0.3.0 · up to date');
+  await expect(section.getByTestId('update-last')).toHaveText(/Updated from 0.2.1 to 0.3.0/);
   await expect(banner).toHaveCount(0);
 });
 
-test('updates (stand-in): Check now on Advanced says what it found and offers Install now beside it', async ({ page }) => {
-  // checked before, when nothing newer was out; Check now finds 0.3.0, not downloaded yet
-  let found = false;
-  const answer = () => (found ? standIn({ ready: false })
+test('updates (stand-in): Check now on Settings says what it found, under the button, and offers Install now', async ({ page }) => {
+  // checked before, when nothing newer was out; the first Check now still finds nothing, the second finds 0.3.0
+  let presses = 0;
+  const answer = () => (presses >= 2 ? standIn({ ready: false })
     : standIn({ latest: '0.2.1', available: null, ready: false, download_size: null }));
   await page.route('**/api/updates', (route) => route.fulfill({ json: answer() }));
   await standInSettings(page, answer);
   await page.route('**/api/updates/check', (route) => {
-    found = true;
+    presses += 1;
     return route.fulfill({ json: answer() });
   });
   await goToCloset(page);
-  await openUpdates(page);
-  await page.getByRole('link', { name: 'Advanced settings' }).click();
-  const manage = page.getByRole('region', { name: 'Updates' });
-  await expect(manage.getByTestId('update-found')).toHaveText('You have the latest version.');
-  await expect(manage.getByRole('button', { name: 'Install now' })).toHaveCount(0);
+  const section = await openUpdates(page);
+  const check = section.getByRole('button', { name: 'Check now' });
+  // on open the line already says it, so it is not said again
+  await expect(section.getByTestId('update-line')).toHaveText('Nines 0.2.1 · up to date');
+  await expect(section.getByTestId('update-found')).toHaveCount(0);
+  await expect(section.getByRole('button', { name: 'Install now' })).toHaveCount(0);
+  // where the button sits in its group (the page scrolls to it when it is pressed)
+  const within = async () => (await check.boundingBox())!.y - (await section.boundingBox())!.y;
+  const before = await within();
 
-  await manage.getByRole('button', { name: 'Check now' }).click();
-  await expect(manage.getByTestId('update-found')).toHaveText('Nines 0.3.0 is out.');
-  await expect(manage.getByRole('button', { name: 'Install now' })).toBeVisible();
-  await expect(manage.getByText('52 MB. Your closets are backed up first.')).toBeVisible();
-  await expect(manage.getByRole('link', { name: 'The release page' })).toHaveAttribute('href', RELEASE.page);
-  // the same answer is on the Settings line
-  await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
-  await expect(page.getByRole('region', { name: 'Updates' }).getByTestId('update-available')).toHaveText('Nines 0.3.0 is out.');
+  // pressed with nothing newer out: the answer comes in under the button, which stays where it was
+  await check.click();
+  await expect(section.getByTestId('update-found')).toHaveText('You have the latest version.');
+  expect(await within()).toBe(before);
+  expect((await section.getByTestId('update-found').boundingBox())!.y).toBeGreaterThan((await check.boundingBox())!.y);
+
+  // pressed again once 0.3.0 is out: the line says so, and Install now comes in under the button
+  await check.click();
+  await expect(section.getByTestId('update-available')).toHaveText('Nines 0.3.0 is out.');
+  await expect(section.getByTestId('update-found')).toHaveCount(0);   // not the line's sentence a second time
+  const install = section.getByRole('button', { name: 'Install now' });
+  await expect(install).toBeVisible();
+  expect((await install.boundingBox())!.y).toBeGreaterThan((await check.boundingBox())!.y);
+  await expect(section.getByText('52 MB. Your closets are backed up first.')).toBeVisible();
+  await expect(section.getByRole('link', { name: 'The release page' })).toHaveAttribute('href', RELEASE.page);
 });
 
 test('updates (stand-in): a problem before restarting is shown and Nines keeps running', async ({ page }) => {

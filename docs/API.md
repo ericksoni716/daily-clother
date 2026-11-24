@@ -384,7 +384,7 @@ The answer (`answer`, when `ready`): `{enough, message, verdict, verdict_words, 
 |---|---|
 | `GET /api/model` | `{state: missing\|downloading\|failed\|ready, downloaded_bytes, total_bytes, error, url, path, sha256, name, second}`: the first background model, and as `second` the same fields for the second model (`u2net`, asked as well when the first leaves a cutout see-through or keeps what the garment lies on), without its own `second`; null when there is none (a cutter standing in, in tests). Also notices a file put in the models folder by hand. |
 | `POST /api/model/download` | 202 with the same; starts or resumes the download of each model that is not ready. |
-| `PUT /api/model/url {url}` | Sets the first model's download address (https only); empty restores the default. Answers the same as `GET`. |
+| `PUT /api/model/url {url, which?}` | Sets one model's download address (https only, else 422); empty restores the default. `which` is `main` (the first model, `model_url` in the settings; the default when left out) or `second` (`second_model_url`); anything else is 422, and `second` is 404 when there is no second model. Answers the same as `GET`. |
 
 ## Settings and program
 | Call | Result |

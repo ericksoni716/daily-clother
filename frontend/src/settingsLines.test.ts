@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { PhoneAccess } from './components/PhoneAccess';
 import { StatusLine } from './components/Toggle';
 import { deviceOf } from './here';
-import { backupLine, claudeLine, computerOnly, mainGroups, modelLines, storageLine, updatesLine } from './settingsLines';
+import { apiKeyShows, backupLine, claudeLead, claudeLine, computerOnly, mainGroups, modelAddresses, modelLines, storageLine, updatesLine } from './settingsLines';
 import type { ApiKeyInfo, ModelInfo, Settings, TaggingStatus } from './types';
 import type { UpdateStatus } from './updates';
 
@@ -64,6 +64,50 @@ describe('the Claude line', () => {
       tone: 'problem', text: "Nines couldn't check how it reaches Claude: timed out", action: 'check',
     });
     expect(claudeLine(claude(), spend(), routes(true, false), null, true).tone).toBe('quiet');
+  });
+});
+
+describe('the first line of Claude on Advanced', () => {
+  const lead = (over: Partial<Pick<Settings, 'tagging_api_enabled' | 'tagging_api_off' | 'api_key' | 'tagging_route_order'>> = {}) =>
+    ({ ...claude(), tagging_route_order: 'auto' as const, ...over });
+
+  it('says what is used now, without the month that is shown under the key', () => {
+    expect(claudeLead(lead(), spend(), routes(true, false), null, false).text).toBe('Using your Claude plan.');
+    expect(claudeLead(lead({ tagging_api_enabled: true, api_key: savedKey }), spend(), routes(false, true), null, false))
+      .toEqual({ tone: 'ok', text: 'Using your API key.', action: null });
+    expect(claudeLead(lead(), spend(), null, null, false).tone).toBe('waiting');
+    expect(claudeLead(lead(), spend(), null, 'timed out', false).action).toBe('check');
+  });
+
+  it('names one cause when nothing works, and points at what below puts it right', () => {
+    expect(claudeLead(lead(), spend(), routes(false, false), null, false))
+      .toEqual({ tone: 'problem', text: "Nines can't reach Claude yet.", action: 'install' });
+    expect(claudeLead(lead({ api_key: savedKey }), spend(), routes(false, true), null, false)).toEqual({ tone: 'problem', action: 'install',
+      text: "Nines can't reach Claude yet: your API key is saved but not allowed. Allow it below, or use your Claude plan." });
+    expect(claudeLead(lead({ api_key: savedKey, tagging_route_order: 'api' }), spend(), routes(false, true, ['api']), null, false).text)
+      .toBe("Nines can't reach Claude yet: you chose only the API key, and it isn't allowed. Allow it below, or choose your Claude plan.");
+    // the key in ANTHROPIC_API_KEY went away with only the key chosen: save one, or choose the plan
+    expect(claudeLead(lead({ tagging_route_order: 'api' }), spend(), routes(false, false, ['api']), null, false).text)
+      .toBe("Nines can't reach Claude yet: you chose only the API key, and none is saved. Save one below, or choose your Claude plan.");
+    const off = { reason: 'key' as const, at: '2026-11-03T10:00:00Z' };
+    expect(claudeLead(lead({ api_key: savedKey, tagging_api_off: off }), spend(), routes(false, true), null, false).text)
+      .toBe("Nines can't reach Claude: it stopped using your API key.");
+    expect(claudeLead(lead({ tagging_api_enabled: true, api_key: savedKey }), spend({ reached: true }), routes(false, true), null, false).text)
+      .toBe("This month's limit for the API key is reached, and your Claude plan can't be used.");
+  });
+});
+
+describe('what the API key part of Advanced shows', () => {
+  it('shows only the box to paste a key when there is none, and everything else once one is saved', () => {
+    expect(apiKeyShows({ api_key: noKey, tagging_route_order: 'auto' })).toEqual({ spending: false, order: false });
+    expect(apiKeyShows({ api_key: noKey, tagging_route_order: 'plan' })).toEqual({ spending: false, order: false });
+    expect(apiKeyShows({ api_key: savedKey, tagging_route_order: 'auto' })).toEqual({ spending: true, order: true });
+    expect(apiKeyShows({ api_key: { ...savedKey, source: 'environment' }, tagging_route_order: 'plan' })).toEqual({ spending: true, order: true });
+  });
+
+  it('keeps the order in reach when the order saved needs a key that is gone', () => {
+    expect(apiKeyShows({ api_key: noKey, tagging_route_order: 'api' })).toEqual({ spending: false, order: true });
+    expect(apiKeyShows({ api_key: noKey, tagging_route_order: 'api-first' })).toEqual({ spending: false, order: true });
   });
 });
 
@@ -225,5 +269,20 @@ describe('the two background-removal models, a line each', () => {
 
   it('shows one line when the server has no second model', () => {
     expect(modelLines(m({ second: null })).map((l) => l.id)).toEqual(['main']);
+  });
+
+  it('puts the address of each set in one fold, the same for both, with where its file goes on the computer only', () => {
+    const both = m({ second: m({ name: 'u2net', url: 'https://example.com/b.onnx', path: '/data/models/b.onnx' }) });
+    expect(modelAddresses(both, true)).toEqual({
+      intro: 'Each set is downloaded from the address in its box; you can type another address, or download the file yourself and put it where it is shown.',
+      sets: [
+        { id: 'main', label: 'Address for the first set', url: 'https://example.com/a.onnx', path: '/data/models/a.onnx' },
+        { id: 'second', label: 'Address for the second set', url: 'https://example.com/b.onnx', path: '/data/models/b.onnx' },
+      ],
+    });
+    const phone = modelAddresses(both, false);
+    expect(phone.intro).toBe('Each set is downloaded from the address in its box, and you can type another address.');
+    expect(phone.sets.map((x) => x.path)).toEqual([null, null]);
+    expect(modelAddresses(m({ second: null }), true).sets.map((x) => x.id)).toEqual(['main']);
   });
 });

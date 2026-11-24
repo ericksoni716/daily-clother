@@ -4,23 +4,23 @@
  * page was open before, and gates once on them.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { StatusLine, Toggle } from '../components/Toggle';
-import { UpdatesManage } from '../components/Updates';
-import { Button, Failed, Notice, PageHeader } from '../components/ui';
+import { UpdatesMode } from '../components/Updates';
+import { Button, Failed, Fold, Notice, PageHeader } from '../components/ui';
 import { deviceOf } from '../here';
 import { formatSize } from '../labels';
 import { touch, useEdit, useModel } from '../queries';
 import { queryKeys } from '../queryKeys';
-import { routeIds, settingsQuery, settingsSaved, storageQuery, taggingQuery, useSaveSettings, writePart } from '../settings';
-import { backupLine, computerOnly, modelLines, storageLine, type ComputerOnly } from '../settingsLines';
-import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, readCents, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
+import { settingsQuery, settingsSaved, storageQuery, taggingQuery, useSaveSettings, writePart } from '../settings';
+import { apiKeyShows, backupLine, claudeLead, computerOnly, modelAddresses, modelLines, storageLine, type ComputerOnly, type ModelAddress as ModelAddressLine } from '../settingsLines';
+import { apiKeyLine, apiKeySavedLine, dayName, earlierMonths, formatUsd, monthName, monthSpentLine, readCents, requestsLine, ROUTE_ORDERS, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useApp } from '../store';
-import type { ModelInfo, Profile, RouteOrder, Settings, TaggingRoute, TaggingSpend } from '../types';
+import type { ModelInfo, Profile, RouteOrder, Settings, TaggingSpend } from '../types';
 import { README_CLAUDE_CODE, Section, type Toast } from './Settings';
 
-export function AdvancedScreen({ version }: { version: string }) {
+export function AdvancedScreen() {
   const { offline, profile, switchProfile, toast } = useApp();
   const saveSettings = useSaveSettings();
   const model = useModel();
@@ -68,25 +68,12 @@ export function AdvancedScreen({ version }: { version: string }) {
         <TaggingSection offline={offline} settings={settings} toast={toast} />
 
         <Section title="Updates" id="s-updates">
-          <UpdatesManage offline={offline} toast={toast} />
+          <UpdatesMode offline={offline} toast={toast} />
         </Section>
 
         <BackupSection settings={settings} profile={profile} only={only} toast={toast} disabled={offline} />
-        <StorageSection offline={offline} profile={profile} />
+        <StorageSection offline={offline} profile={profile} dataDir={only.dataFolder ? settings.data_dir : null} />
         <ModelAddress model={model ?? settings.model} only={only} toast={toast} disabled={offline} />
-
-        <Section title="This copy of Nines" id="s-about">
-          <dl className="facts">
-            {only.dataFolder && (
-              <>
-                <dt>Your closet is stored in</dt>
-                <dd><code className="path">{settings.data_dir}</code></dd>
-              </>
-            )}
-            <dt>Version</dt>
-            <dd>{settings.version ?? version}</dd>
-          </dl>
-        </Section>
 
         {/* last: once your own clothes are in, the sample closet is rarely wanted; while it shows, the strip at the
             top of every screen has Leave, so the way back never depends on finding this */}
@@ -105,13 +92,12 @@ export function AdvancedScreen({ version }: { version: string }) {
 }
 
 /** The two background-removal models, a line each with how it stands and Download or Try again when it is missing
- * or failed; where they are downloaded from, and, on the computer, where to put them by hand. */
+ * or failed; then, in one fold, where each is downloaded from (to change) and, on the computer, where its file goes. */
 function ModelAddress({ model, only, toast, disabled }: { model: ModelInfo; only: ComputerOnly; toast: Toast; disabled: boolean }) {
   const qc = useQueryClient();
   const edit = useEdit('model');
-  const [url, setUrl] = useState(model.url);
   const [starting, setStarting] = useState(false);
-  useEffect(() => setUrl(model.url), [model.url]);
+  const addresses = modelAddresses(model, only.modelFiles);
 
   async function download() {
     setStarting(true);
@@ -125,16 +111,16 @@ function ModelAddress({ model, only, toast, disabled }: { model: ModelInfo; only
     }
   }
 
-  async function saveUrl(e: FormEvent | null, value: string) {
-    e?.preventDefault();
+  async function saveUrl(which: ModelAddressLine['id'], value: string): Promise<boolean> {
     try {
-      const info = await api.setModelUrl(value);
-      setUrl(info.url);
+      const info = await api.setModelUrl(value, which);
       writePart(qc, { model: info });
       void touch(qc, 'model', ['model']);
       toast('Saved');
+      return true;
     } catch (err) {
       toast((err as ApiError).message, 'error');
+      return false;
     }
   }
 
@@ -153,36 +139,38 @@ function ModelAddress({ model, only, toast, disabled }: { model: ModelInfo; only
           )}
         </StatusLine>
       ))}
-      <form className="field-row" onSubmit={(e) => saveUrl(e, url)}>
-        <label className="field">
-          <span>Download address</span>
-          <input type="url" value={url} disabled={disabled} onChange={(e) => setUrl(e.target.value)} spellCheck={false} />
-        </label>
-        <div className="row">
-          <button className="btn" type="submit" disabled={disabled || url === model.url}>Save address</button>
-          <button className="btn btn-ghost" type="button" disabled={disabled} onClick={() => saveUrl(null, '')}>Use default</button>
-        </div>
-      </form>
-      {only.modelFiles && (
-        <details className="more">
-          <summary>Put the files in place by hand</summary>
-          <p className="hint">Get the file from the address above on another computer and put it here, then come back to this page:</p>
-          <p><code className="path">{model.path}</code></p>
-          {model.second && (
-            <>
-              <p className="hint">The second file works the same way. It is at this address:</p>
-              <p><code className="path">{model.second.url}</code></p>
-              <p className="hint">and goes here:</p>
-              <p><code className="path">{model.second.path}</code></p>
-            </>
-          )}
-        </details>
-      )}
+      <details className="more model-addresses" data-testid="model-addresses">
+        <summary>If a download keeps failing</summary>
+        <p className="hint">{addresses.intro}</p>
+        {addresses.sets.map((set) => <ModelAddressForm key={set.id} set={set} disabled={disabled} onSave={saveUrl} />)}
+      </details>
     </Section>
   );
 }
 
-
+/** One set's address, with Save and Use default, and where its file goes on the computer. */
+function ModelAddressForm({ set, disabled, onSave }: {
+  set: ModelAddressLine; disabled: boolean; onSave(which: ModelAddressLine['id'], url: string): Promise<boolean>;
+}) {
+  const [url, setUrl] = useState(set.url);
+  useEffect(() => setUrl(set.url), [set.url]);
+  const name = set.id === 'main' ? 'the first set' : 'the second set';
+  return (
+    <form className="model-address" data-testid={`model-address-${set.id}`}
+      onSubmit={(e) => { e.preventDefault(); void onSave(set.id, url); }}>
+      <label className="field">
+        <span>{set.label}</span>
+        <input type="url" value={url} disabled={disabled} onChange={(e) => setUrl(e.target.value)} spellCheck={false} />
+      </label>
+      <div className="row">
+        <button className="btn btn-small" type="submit" disabled={disabled || url.trim() === set.url} aria-label={`Save ${name}'s address`}>Save</button>
+        <button className="btn btn-small btn-ghost" type="button" disabled={disabled} aria-label={`Use the default for ${name}`}
+          onClick={() => void onSave(set.id, '')}>Use default</button>
+      </div>
+      {set.path && <p className="hint" data-testid={`model-path-${set.id}`}>On this computer, its file goes here: <code className="path">{set.path}</code></p>}
+    </form>
+  );
+}
 
 /** Backups: the folder (typed on the computer only: it is the computer's path), the last one, and Back up now. */
 function BackupSection({ settings, profile, only, toast, disabled }: {
@@ -243,17 +231,20 @@ function BackupSection({ settings, profile, only, toast, disabled }: {
   );
 }
 
-/** The space used: a slow walk of the closet's folders, so the rows are drawn at once and filled in when it is done. */
-function StorageSection({ offline, profile }: { offline: boolean; profile: Profile }) {
+/** The space used (a slow walk of the closet's folders, so the rows are drawn at once and filled in when it is done),
+ * then where the closet is kept, on the computer. */
+function StorageSection({ offline, profile, dataDir }: { offline: boolean; profile: Profile; dataDir: string | null }) {
   const { data: storage, error, refetch, isFetching } = useQuery({ ...storageQuery(), enabled: !offline });
 
+  const folder = dataDir && <p data-testid="data-folder">Your closet is stored in <code className="path">{dataDir}</code></p>;
   let body: ReactNode;
-  if (offline) body = <p className="hint">Storage details aren't available while you're offline.</p>;
+  if (offline) body = <><p className="hint">Storage details aren't available while you're offline.</p>{folder}</>;
   else if (error && !storage) {
     body = (
       <>
         <p className="form-error" role="alert">Couldn't work out how much space Nines uses: {error.message}</p>
         <button className="btn" disabled={isFetching} onClick={() => void refetch()}>Try again</button>
+        {folder}
       </>
     );
   } else {
@@ -272,6 +263,7 @@ function StorageSection({ offline, profile }: { offline: boolean; profile: Profi
           {storage ? storageLine(formatSize(storage.total_bytes), storage.items, storage.free_bytes !== null ? formatSize(storage.free_bytes) : null)
             : <span className="muted">Adding up how much space Nines uses…</span>}
         </p>
+        {folder}
         <details className="more">
           <summary>What takes the space</summary>
           <dl className="storage-list">
@@ -296,127 +288,66 @@ function StorageSection({ offline, profile }: { offline: boolean; profile: Profi
 }
 
 
-const ROUTE_TEXT: Record<TaggingRoute['id'], { name: string; hint: string }> = {
-  plan: { name: 'Your Claude plan, through Claude Code', hint: 'Costs nothing extra; counts against your plan’s usage limits.' },
-  api: { name: 'An API key', hint: 'Billed per photo; only used if you allow it below, and never past your monthly limit.' },
-};
-
 interface TaggingProps {
   offline: boolean;
   settings: Settings;
   toast: Toast;
 }
 
-/** How Nines reaches Claude. Whether Claude Code is signed in is a slow lookup of its own, asked once each time the
- * page opens and again when a key or the order changes; what it last said stays on screen meanwhile. */
+/**
+ * How Nines reaches Claude: one line saying how it does now, with Check again; the plan's line; and the API key, with,
+ * once a key is saved, its monthly limit and spending in view, the switch that allows it and which to use first. Whether
+ * Claude Code is signed in is a slow lookup of its own, asked once each time the page opens and again when a key or the
+ * order changes; what it last said stays on screen meanwhile.
+ */
 function TaggingSection({ offline, settings, toast }: TaggingProps) {
   const qc = useQueryClient();
   const tagging = useQuery({ ...taggingQuery(), enabled: !offline });
+  const spend = useQuery<TaggingSpend>({ queryKey: queryKeys.spend(), queryFn: api.tagSpend, enabled: false }).data ?? settings.tagging_spend;
   const status = tagging.data ?? null;
   const error = tagging.error ? tagging.error.message : null;
-
-  const checkAgain = (
-    <button className="btn" disabled={tagging.isFetching} onClick={() => {
-      void tagging.refetch();
-      void qc.invalidateQueries({ queryKey: queryKeys.settings(), exact: true });   // the items waiting
-    }}>Check again</button>
-  );
-  const apiAllowed = settings.tagging_api_enabled;
   const waiting = settings.pending_tags;
-  const byId = new Map((status?.routes ?? []).map((r) => [r.id, r]));
-  // in the order chosen, known with the settings, so the list does not reorder when the lookup lands
-  const order: TaggingRoute['id'][] = routeIds(settings.tagging_route_order);
-  let routeState: ReactNode;
-  if (error) {
-    routeState = (
-      <>
-        <p className="form-error" role="alert">Couldn't check how Nines can reach Claude: {error}</p>
-        <button className="btn" disabled={tagging.isFetching} onClick={() => void tagging.refetch()}>Try again</button>
-      </>
-    );
-  } else if (!status) {
-    // the same shape as the answer (a line, then the button), so nothing below moves when it lands
-    routeState = (
-      <>
-        <p className="hint" aria-busy="true">Checking how Nines can reach Claude…</p>
-        {checkAgain}
-      </>
-    );
-  } else {
-    const routes = order.map((id) => byId.get(id)).filter((r): r is TaggingRoute => !!r);
-    const none = !routes.some((r) => r.available && (r.id !== 'api' || apiAllowed));
-    const apiOnlyOff = none && byId.get('api')?.available && !apiAllowed;
-    const planMissing = byId.get('plan')?.available === false;
-    const planInOrder = status.order.includes('plan');
-    const first = firstRouteLine(status.order, status.routes, apiAllowed);
-    routeState = (
-      <>
-        {first && <p className="hint" data-testid="route-first">{first}</p>}
-        {!planInOrder && none ? (
-          <p className="form-error">
-            Nines can't reach Claude yet: you chose to use only the API key, and it isn't ready. Allow it below with a monthly limit, or choose to use your Claude plan.
-          </p>
-        ) : apiOnlyOff ? (
-          <p className="form-error">
-            Nines can't reach Claude yet: your API key is set but not allowed below. <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a> to use your plan instead, or allow the key.
-          </p>
-        ) : none ? (
-          <p className="form-error">
-            Nines can't reach Claude yet. <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a>, then check again.
-          </p>
-        ) : planMissing && (
-          <p className="hint">
-            To use your plan instead of paying per photo, <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">install Claude Code and sign in</a>.
-          </p>
-        )}
-        {checkAgain}
-      </>
-    );
-  }
-
-  /** Each route once, with one line saying whether it can be used: the plan as Claude Code reports it, the key as it is kept. */
-  function routeLine(id: TaggingRoute['id']): ReactNode {
-    if (id === 'api') {
-      return <ApiKeyBox offline={offline} settings={settings} toast={toast} />;
-    }
-    const r = byId.get(id);
-    const text = error ? 'Not checked' : !r ? 'Checking…' : r.available ? 'Ready to use.' : r.detail || 'Not available.';
-    return (
-      <p className={`state-line ${r?.available ? 'state-ready' : r ? 'state-missing' : ''}`}>
-        <span className="state-dot" aria-hidden="true" />
-        <span>{text}</span>
-      </p>
-    );
-  }
+  const lead = claudeLead(settings, spend, status, error, offline);
+  const shows = apiKeyShows(settings);
+  const plan = status?.routes.find((r) => r.id === 'plan');
+  const planText = error ? 'Not checked.' : !status ? 'Checking…' : plan?.available ? 'Ready to use.' : plan?.detail || 'Not available.';
+  const install = <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">install Claude Code and sign in</a>;
 
   return (
     <Section title="Claude" id="s-tagging">
       {offline ? <p className="hint">How Nines reaches Claude can't be checked while you're offline.</p> : (
         <>
-          <p className="hint">Nines tries these in this order and uses the first one that works.</p>
-          <ol className="route-list">
-            {order.map((id) => (
-              <li key={id} data-testid={`route-${id}`}>
-                <h3 className="route-name">{ROUTE_TEXT[id]?.name ?? id}</h3>
-                {routeLine(id)}
-                <p className="hint">{ROUTE_TEXT[id]?.hint}</p>
-              </li>
-            ))}
-          </ol>
-          {!order.includes('api') && (
-            <div className="route-unused" data-testid="route-api-unused">
-              <h3 className="route-name">{ROUTE_TEXT.api.name}</h3>
-              <ApiKeyBox offline={offline} settings={settings} toast={toast} />
-              <p className="hint">Not used: you chose to use only your Claude plan.</p>
-            </div>
-          )}
-          {routeState}
+          <div className="claude-lead">
+            <StatusLine line={lead} testId="claude-lead">
+              {lead.action === 'install' && <> <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a>, then check again.</>}
+            </StatusLine>
+            <Button small disabled={tagging.isFetching} onClick={() => {
+              void tagging.refetch();
+              void qc.invalidateQueries({ queryKey: queryKeys.settings(), exact: true });   // the items waiting
+            }}>Check again</Button>
+          </div>
+          <div className="claude-route" data-testid="route-plan">
+            <h3 className="route-name">Your Claude plan</h3>
+            <p className={`state-line ${plan?.available ? 'state-ready' : plan ? 'state-missing' : ''}`}>
+              <span className="state-dot" aria-hidden="true" />
+              <span>{planText}</span>
+            </p>
+            <p className="hint">
+              {plan && !plan.available && lead.action !== 'install' ? <>To use your plan, {install}.</> : 'Costs nothing extra; it counts toward your plan’s limits.'}
+            </p>
+          </div>
+          <div className="claude-route" data-testid="route-api">
+            <h3 className="route-name">An API key</h3>
+            <ApiKeyBox offline={offline} settings={settings} toast={toast} />
+            {shows.spending
+              ? <ApiKeySpend offline={offline} settings={settings} spend={spend} toast={toast} />
+              : shows.order && <RouteOrderChoice offline={offline} settings={settings} toast={toast} />}
+          </div>
         </>
       )}
       {waiting > 0 && (
         <p className="hint" data-testid="tags-waiting">{`${waiting} ${waiting === 1 ? 'item is' : 'items are'} waiting to be described.`}</p>
       )}
-      <ApiKeySpend offline={offline} settings={settings} toast={toast} />
     </Section>
   );
 }
@@ -480,13 +411,15 @@ function ApiKeyBox({ offline, settings, toast }: { offline: boolean; settings: S
             <input type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-…" value={key}
               disabled={offline || busy} onChange={(e) => setKey(e.target.value)} />
           </label>
-          <button className="btn" type="submit" disabled={offline || busy || key.trim() === ''}>{busy ? 'Checking…' : 'Save key'}</button>
-          {replacing && <button className="btn" type="button" disabled={busy} onClick={() => { setReplacing(false); setKey(''); setError(null); }}>Cancel</button>}
+          <div className="row">
+            <button className="btn" type="submit" disabled={offline || busy || key.trim() === ''}>{busy ? 'Checking…' : 'Save key'}</button>
+            {replacing && <button className="btn" type="button" disabled={busy} onClick={() => { setReplacing(false); setKey(''); setError(null); }}>Cancel</button>}
+          </div>
         </form>
       )}
       {askForKey && (
         <p className="hint">
-          Make one in your <a href={ANTHROPIC_KEYS} target="_blank" rel="noreferrer">Anthropic account, under API keys</a>, and paste it here. Nines checks it with Anthropic (this costs nothing) and keeps it in {info.where}. It is never shown again, not even here.
+          Make one under <a href={ANTHROPIC_KEYS} target="_blank" rel="noreferrer">API keys in your Anthropic account</a>; Nines checks it for free, keeps it in {info.where} and never shows it again.
         </p>
       )}
       {!info.can_save && !info.set && (
@@ -500,9 +433,9 @@ function ApiKeyBox({ offline, settings, toast }: { offline: boolean; settings: S
             <button className="btn" type="button" disabled={busy} onClick={() => setRemoving(false)}>Keep it</button>
           </p>
         ) : (
-          <p className="field-row field-row-inline">
-            <button className="btn" type="button" disabled={offline} onClick={() => { setReplacing(true); setError(null); }}>Replace key</button>
-            <button className="btn" type="button" disabled={offline} onClick={() => setRemoving(true)}>Remove key</button>
+          <p className="row">
+            <button className="btn btn-small" type="button" disabled={offline} onClick={() => { setReplacing(true); setError(null); }}>Replace key</button>
+            <button className="btn btn-small" type="button" disabled={offline} onClick={() => setRemoving(true)}>Remove key</button>
           </p>
         )
       )}
@@ -511,13 +444,12 @@ function ApiKeyBox({ offline, settings, toast }: { offline: boolean; settings: S
   );
 }
 
-/** Which route to Claude is tried first. Choices that put the key first need a key; the key is still only used once
- * it is allowed with a monthly limit. */
+/** Which way to Claude is tried first, as one choice. Choices that put the key first need a key; the key is still only
+ * used once it is allowed with a monthly limit. */
 function RouteOrderChoice({ offline, settings, toast }: { offline: boolean; settings: Settings; toast: Toast }) {
   const saveSettings = useSaveSettings();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const group = useId();
   const hasKey = settings.api_key.set;
 
   async function choose(order: RouteOrder) {
@@ -534,29 +466,28 @@ function RouteOrderChoice({ offline, settings, toast }: { offline: boolean; sett
   }
 
   return (
-    <fieldset className="route-order" data-testid="route-order" disabled={offline || busy}>
-      <legend>Which to use</legend>
-      {ROUTE_ORDERS.map((o) => (
-        <label key={o.value} className="route-order-choice">
-          <input type="radio" name={group} value={o.value} checked={settings.tagging_route_order === o.value}
-            disabled={o.needsKey && !hasKey} onChange={() => void choose(o.value)} />
-          <span>{o.label}{o.needsKey && !hasKey && <span className="muted"> (save an API key first)</span>}</span>
-        </label>
-      ))}
-      <p className="hint">The API key is only used once you turn on Allow the API key below and set a monthly limit.</p>
+    <div className="route-order" data-testid="route-order">
+      <label className="field">
+        <span>Which to use</span>
+        <select value={settings.tagging_route_order} disabled={offline || busy}
+          onChange={(e) => void choose(e.target.value as RouteOrder)}>
+          {ROUTE_ORDERS.map((o) => (
+            <option key={o.value} value={o.value} disabled={o.needsKey && !hasKey && o.value !== settings.tagging_route_order}>{o.label}</option>
+          ))}
+        </select>
+      </label>
       {error && <p className="form-error" role="alert">{error}</p>}
-    </fieldset>
+    </div>
   );
 }
 
-/** The API key's monthly limit and what it has cost. The spending comes with the settings, so it is drawn with them
- * and follows every save. */
-function ApiKeySpend({ offline, settings, toast }: { offline: boolean; settings: Settings; toast: Toast }) {
+/** Once a key is saved: its monthly limit and this month's spending, in view; the switch that allows it; which to use
+ * first; and, folded, the earlier months and how costs are worked out. The spending comes with the settings, so it is
+ * drawn with them and follows every save. */
+function ApiKeySpend({ offline, settings, spend, toast }: { offline: boolean; settings: Settings; spend: TaggingSpend | null; toast: Toast }) {
   const saveSettings = useSaveSettings();
-  const spend = useQuery<TaggingSpend>({ queryKey: queryKeys.spend(), queryFn: api.tagSpend, enabled: false }).data ?? settings.tagging_spend;
   const [cap, setCap] = useState(settings.tagging_api_cap_usd !== null ? String(settings.tagging_api_cap_usd) : '');
   const [capError, setCapError] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
   const saved = settings.tagging_api_cap_usd;
 
   useEffect(() => setCap(saved !== null ? String(saved) : ''), [saved]);
@@ -565,7 +496,6 @@ function ApiKeySpend({ offline, settings, toast }: { offline: boolean; settings:
   function typedCap(): number | null {
     const cents = readCents(cap);
     if (cents === null || cents === undefined || cents <= 0) {
-      setOpen(true);
       setCapError('Type a monthly limit in dollars, such as 5 or 2.50.');
       return null;
     }
@@ -584,65 +514,58 @@ function ApiKeySpend({ offline, settings, toast }: { offline: boolean; settings:
   }
 
   const placeholder = spend ? String(spend.suggested_cap_usd) : '';
+  const earlier = spend ? earlierMonths(spend) : [];
   return (
     <div className="api-spend" data-testid="api-spend">
       {settings.tagging_api_off && <p className="form-error" role="alert">{turnedOffLine(settings.tagging_api_off)}</p>}
-      <RouteOrderChoice offline={offline} settings={settings} toast={toast} />
+      <form className="api-limit" onSubmit={(e) => {
+        e.preventDefault();
+        const limit = typedCap();
+        if (limit !== null) void save({ tagging_api_cap_usd: limit }, 'Saved');
+      }}>
+        <label className="field">
+          <span>Monthly limit (US dollars)</span>
+          <input inputMode="decimal" value={cap} placeholder={placeholder} disabled={offline}
+            onChange={(e) => setCap(e.target.value)} />
+        </label>
+        <button className="btn" type="submit" disabled={offline || cap.trim() === '' || readCents(cap) === Math.round((saved ?? -1) * 100)}>Save limit</button>
+      </form>
+      {capError && <p className="form-error" role="alert">{capError}</p>}
+      {spend && <p className="hint" data-testid="spend-month">{monthSpentLine(spend)}</p>}
+      {spend?.allowed && spend.reached && (
+        <p className="notice" role="status">
+          This month's limit is reached, so the API key won't be used again until next month or until you raise the limit. Your plan is still used whenever it can be.
+        </p>
+      )}
       <Toggle label="Allow the API key"
-        hint="Lets Nines use your API key, in the order chosen above. Each photo is billed to your Anthropic account, and Nines stops before this month's spending would pass the limit below."
+        hint="Each photo is then billed to your Anthropic account, and Nines stops before the month would pass the limit."
         checked={settings.tagging_api_enabled} disabled={offline}
         onChange={(on) => {
           if (!on) return void save({ tagging_api_enabled: false }, 'The API key will not be used');
           const limit = typedCap();
           if (limit !== null) void save({ tagging_api_enabled: true, tagging_api_cap_usd: limit }, `The API key may be used, up to ${formatUsd(limit)} a month`);
         }} />
-      <details className="more settings-spend" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-        <summary>
-          <span>Monthly limit and spending</span>
-          {saved !== null && <span className="muted settings-spend-cap">{formatUsd(saved)} a month</span>}
-        </summary>
-        <div className="settings-spend-body">
-          <form className="field-row field-row-inline" onSubmit={(e) => {
-            e.preventDefault();
-            const limit = typedCap();
-            if (limit !== null) void save({ tagging_api_cap_usd: limit }, 'Saved');
-          }}>
-            <label className="field">
-              <span>Monthly limit for the API key (US dollars)</span>
-              <input inputMode="decimal" value={cap} placeholder={placeholder} disabled={offline}
-                onChange={(e) => setCap(e.target.value)} />
-            </label>
-            <button className="btn" type="submit" disabled={offline || cap.trim() === '' || readCents(cap) === Math.round((saved ?? -1) * 100)}>Save limit</button>
-          </form>
-          {spend && (
-            <>
-              {saved === null && <p className="hint">{suggestionLine(spend.suggested_cap_usd, spend.per_photo_usd, spend.prices_checked)}</p>}
-              <p className="state-line" data-testid="spend-month"><span><strong>{monthName(spend.month)}:</strong> {spentLine(spend)}</span></p>
-              {spend.history.length > 0 && (
-                <dl className="storage-list" aria-label="Spent with the API key, by month" data-testid="spend-history">
-                  {spend.history.map((m) => (
-                    <div key={m.month}>
-                      <dt>{monthName(m.month)}</dt>
-                      <dd>{formatUsd(m.spent_usd)}</dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-              <p className="hint">
-                Costs are worked out from Anthropic's prices as written down on {dayName(spend.prices_checked)}. Your Anthropic account shows what was really charged.
-              </p>
-            </>
-          )}
-        </div>
-      </details>
-      {capError && <p className="form-error" role="alert">{capError}</p>}
-      {spend?.allowed && spend.reached && (
-        <p className="notice" role="status">
-          This month's limit is reached, so the API key won't be used again until next month or until you raise the limit. Your plan is still used whenever it can be.
-        </p>
-      )}
+      <RouteOrderChoice offline={offline} settings={settings} toast={toast} />
       {spend && waitingLine(spend.waiting) && <p className="hint" data-testid="spend-waiting">{waitingLine(spend.waiting)}</p>}
+      {spend && (
+        <Fold title="Spending so far" testId="spend-more">
+          <p className="hint" data-testid="spend-requests">{requestsLine(spend)}</p>
+          {saved === null && <p className="hint">{suggestionLine(spend.suggested_cap_usd, spend.per_photo_usd, spend.prices_checked)}</p>}
+          {earlier.length > 0 && (
+            <dl className="storage-list" aria-label="Spent with the API key, by month" data-testid="spend-history">
+              {earlier.map((m) => (
+                <div key={m.month}>
+                  <dt>{monthName(m.month)}</dt>
+                  <dd>{formatUsd(m.spent_usd)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          <p className="hint">
+            Costs are worked out from Anthropic's prices as written down on {dayName(spend.prices_checked)}. Your Anthropic account shows what was really charged.
+          </p>
+        </Fold>
+      )}
     </div>
   );
 }
-

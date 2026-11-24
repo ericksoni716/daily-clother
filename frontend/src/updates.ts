@@ -43,7 +43,7 @@ export interface UpdateStatus {
 export const MODES: { value: UpdateMode; label: string; short: string; hint: string }[] = [
   { value: 'auto', label: 'Install updates by themselves', short: 'By itself', hint: 'Nines backs up your closets, installs the new version and restarts. This page reconnects by itself.' },
   { value: 'ask', label: 'Ask me first', short: 'Ask first', hint: 'Nines gets a new version ready and asks before installing it.' },
-  { value: 'never', label: 'Never check', short: 'Never', hint: 'Nines does not look for new versions unless you press Check now.' },
+  { value: 'never', label: 'Never check', short: 'Never', hint: 'Nines does not look for new versions unless you press Check now, under Updates in Settings.' },
 ];
 
 const BUSY: Record<UpdateBusy, string> = {
@@ -73,6 +73,16 @@ export function availableLine(s: UpdateStatus): string {
   }
   if (!s.can_install) return `Nines ${r.version} is out. Download it from the release page and install it by hand.`;
   return s.ready ? `Nines ${r.version} is ready to install.` : `Nines ${r.version} is out.`;
+}
+
+/**
+ * The answer to Check now, pressed on this visit, under the button: what the check found, in `availableLine`'s words.
+ * Nothing before a press (the Settings line already says how things stand), while it is still busy, or when a newer
+ * version was found, since the line above then says exactly that and Install now comes in under the button.
+ */
+export function checkAnswer(s: UpdateStatus, pressed: boolean): string {
+  if (!pressed || s.busy || s.check_error || s.problem || s.available) return '';
+  return availableLine(s);
 }
 
 /** The slim banner on every screen, only in "Ask me first" once the new version is downloaded and checked. */

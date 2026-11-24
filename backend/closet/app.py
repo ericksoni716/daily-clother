@@ -11,6 +11,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
@@ -490,6 +491,8 @@ class ProfileChoice(BaseModel):
 
 class ModelUrl(BaseModel):
     url: str | None = None
+    # which set of files the address is for: the first (`model_url`) or the second (`second_model_url`)
+    which: Literal["main", "second"] = "main"
 
 
 # the routes that correct an item answer wrong input with a sentence, not pydantic's list of errors
@@ -1564,7 +1567,12 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         url = (body.url or "").strip() or None
         if url and not url.lower().startswith("https://"):
             raise HTTPException(422, "The download address must start with https://")
-        state.update(model_url=url)
+        if body.which == "second":
+            if sv.second_model is None:
+                raise HTTPException(404, "There is no second set of files here.")
+            state.update(second_model_url=url)
+        else:
+            state.update(model_url=url)
         return model_payload()
 
     # ------------------------------------------------------------- settings

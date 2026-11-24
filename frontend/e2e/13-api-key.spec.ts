@@ -29,6 +29,13 @@ test.describe('the API key box in Settings', () => {
     await expect(section.getByText(/No API key/)).toHaveCount(1);
     const input = box.getByLabel('Paste your API key');
     await expect(input).toHaveAttribute('type', 'password');
+    // with no key, only the box to paste one and one sentence: the limit, the switch and the order can do nothing yet
+    const limit = section.getByLabel('Monthly limit (US dollars)');
+    const allow = section.getByRole('switch', { name: /Allow the API key/ });
+    await expect(box.getByText(/^Make one under API keys in your Anthropic account; Nines checks it for free/)).toBeVisible();
+    await expect(limit).toHaveCount(0);
+    await expect(allow).toHaveCount(0);
+    await expect(section.getByTestId('route-order')).toHaveCount(0);
 
     // something that is not a key, then a key Anthropic turns down: neither is kept
     await input.fill('hello');
@@ -45,6 +52,15 @@ test.describe('the API key box in Settings', () => {
     await expect(page.getByText('Key saved. Anthropic accepted it. Turn on Allow the API key below to use it.')).toBeVisible();
     await expect(box).toContainText("Your API key is saved in this Mac's keychain.");
     await expect(box.getByLabel('Paste your API key')).toHaveCount(0);
+    // with a key saved, its monthly limit is in view without opening anything, then the switch and the order
+    await expect(limit).toBeVisible();
+    // the field is short, with Save limit beside it on the same row
+    const field = (await limit.boundingBox())!;
+    const save = (await section.getByRole('button', { name: 'Save limit' }).boundingBox())!;
+    expect(save.x).toBeGreaterThan(field.x + field.width - 1);
+    expect(save.y).toBeLessThan(field.y + field.height);
+    await expect(allow).toBeVisible();
+    await expect(section.getByLabel('Which to use')).toBeVisible();
     await page.reload();
     await expect(box).toContainText("Your API key is saved in this Mac's keychain.");
     expect(await page.content()).not.toContain(KEY.slice(-30));
@@ -58,5 +74,7 @@ test.describe('the API key box in Settings', () => {
     await box.getByRole('button', { name: 'Remove', exact: true }).click();
     await expect(page.getByText('Key removed', { exact: true })).toBeVisible();
     await expect(box).toContainText('No API key yet.');
+    await expect(limit).toHaveCount(0);
+    await expect(allow).toHaveCount(0);
   });
 });

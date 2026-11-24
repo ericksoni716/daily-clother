@@ -49,7 +49,7 @@ export function Shell({ version }: { version: string }) {
   else if (route.name === 'several') content = <SeveralScreen key={route.id} id={route.id} />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
   else if (route.name === 'advanced') {
-    content = <Suspense fallback={<p className="hint" aria-busy="true">Opening the advanced settings…</p>}><AdvancedScreen version={version} /></Suspense>;
+    content = <Suspense fallback={<p className="hint" aria-busy="true">Opening the advanced settings…</p>}><AdvancedScreen /></Suspense>;
   }
   else if (route.name === 'review') content = <ReviewScreen />;
   else if (route.name === 'trips') content = <TripsScreen tripId={route.tripId} />;

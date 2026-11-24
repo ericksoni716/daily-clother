@@ -172,7 +172,8 @@ and Remove. The outfits you keep are newest first, each with a name you can type
 you leave the box), when it was kept, its pieces, a line when a piece has left the closet, and
 **Wear this** (Today starts from it as from "Wear this again", and names a piece away with where it
 is); behind ⋯, **Wear this on another
-day** (the days sheet, then that day starting from it) and Remove, which leaves a line with Undo.
+day** (the days sheet, then that day starting from it) and Remove, which leaves a line with Undo
+(the count under the heading leaves it out until Undo).
 With none kept, one sentence says how; when they can't be read, the page says so with Try again. Keeping the same pieces again says so instead. A piece
 opens at `/today/worn/item/<id>`, and "‹ Worn" goes back to where you were. "Record an outfit"
 opens a sheet with the day (today or an earlier day), a search, and your pieces in four groups
@@ -190,10 +191,15 @@ Nines answers; recording, removing and the choices behind ⋯ wait until it can 
 `/trips`, `/trips/new`, `/trips/<id>`, from the link at the foot of Today or its trip row;
 "‹ Today" goes back from the list. Plan a trip: where, the first and last day, the
 occasion, laundry on the trip, **Swimming or the beach**, and **Playing on the trip** (Tennis, Golf).
-Nines shows the weather for the
+What is sent to look up the weather is folded under the search ("What is sent to look up the
+weather"). Nines shows the weather for the
 dates (the forecast where it reaches, otherwise what those dates are usually like), what to
-pack with how many days each piece is worn, basics, an outfit for each day, and "Why these
-counts". "Not this one" swaps a piece and "I want to take this" insists on one. Swimming or
+pack with how many days each piece is worn ("What to pack · 9 pieces and 3 basics", counted as the
+packing bar counts), basics, an outfit for each day, and "Why these counts" (closed until you open
+it). When no day's weather can be looked up, a new trip says so in one sentence with **Try again**
+and **Type the temperatures** (a low, a high and rain for each day, in a sheet), and shows no
+packing list and no Save until a day can be dressed; the temperatures you type are kept with the
+trip as "Your temperatures". "Not this one" swaps a piece and "I want to take this" insists on one. Swimming or
 the beach turns on by itself when a day of the trip reaches 27°C; you can turn it on or off,
 and your choice is kept when the trip is planned again, until you tap "Follow the forecast
 again". While it is on, your swim trunks are
@@ -205,11 +211,16 @@ are otherwise packed only when you choose "I want to take this", beside the days
 on no day. A piece away is packed only when you expect it back before the first day, and the trip
 then says it counts on it being back. What to pack comes first, under the weather: the days with something to watch for are
 one line that opens, and a forecast that could not be had is said once. A packed piece's ⋯ opens
-a sheet with "Not this one" and "See it". Each day's outfit shows up to five pieces in a row. A
+a sheet with "Not this one" and "See it". Each day's outfit shows up to five pieces in a row; on a
+phone the pictures alone (a tap opens a sheet that names the piece, with "See it"), with the names
+whole under them where there is room. A day's temperature is in the strip at the top, not again in
+Day by day. The list of trips and the trip say the days with a warning the same way ("1 day has
+something to watch for"). A
 saved trip is a packing list to tick off, on the computer or the phone, with its choices under
 "Change the trip". What you have ticked stays on the list when the trip is planned again, and can
-be worn whatever the laundry at home says. Offline you can still tick what you pack: the ticks are
-kept on this phone and sent when Nines answers, and the trip's choices wait. Once the trip has begun, the days already gone keep
+be worn whatever the laundry at home says. Offline you can still tick what you pack ("You can still tick what you pack.", under the banner that
+says Nines can't be reached): the ticks are kept on this phone and sent when Nines answers, and the
+trip's choices wait. Once the trip has begun, the days already gone keep
 their outfits and their weather, the days to come are dressed only from what you packed, and the
 trip says the forecast changed only when it changed for the days still to come. A day on which you recorded
 another outfit than the plan's counts what you wore, once the trip is planned again. Today's day is marked
@@ -385,7 +396,11 @@ shows (one piece, several pieces, or a view of a shoe) and sorts them; a shoe's 
 gathered into one shoe. Photos are made smaller in the browser and sent two at a time; a
 list shows each one's upload until it is in, then, in the same row, how far Nines has got
 with the piece (with the step's mark) and, once described, what Claude called it; it can be
-paused, retried and cleared, and survives closing the tab. Why pieces wait, when it is
+paused, retried and cleared, and survives closing the tab. The list's heading, "Going into your
+closet", and its count say what went in; no line above it says it again. In the demo closet one line
+says new photos go into the demo, and to use Leave, in the strip above, to add to your own. Offline
+the banner at the top says so; Add says only, when photos are still to go, that they carry on by
+themselves. Why pieces wait, when it is
 something you can see to in Settings, is said once above the rows. The same photo is not added twice. After that the piece is cut
 out, described and drawn in the background; you do not have to wait on this screen. Once the
 uploads are done and a piece has been described, "Check them one at a time" leads to the review,
@@ -420,16 +435,18 @@ suggestions back, the days you ruled out and what you hid are folded at the end 
 Swim trunks, shoes made for one sport (tennis, golf, studded boots) and what you wear at home
 (pyjamas, lounge pants, robes) are not counted there: a pair of tennis shoes never stands in for
 everyday sneakers, nor lounge pants for trousers. **You might like**: three things Claude found on sale from what you wear and love,
-not from a gap, each with the shop's picture (a hanger until there is one), its name (which
-opens the shop's page in your browser), the shop and price, one line from the closet ("Goes
+not from a gap, each with the shop's picture (a hanger until there is one, and then its name has three lines), its
+name (which opens the shop's page in your browser), the shop and price, one line from the closet ("Goes
 with 6 of your pieces."), **Save** (onto the wishlist, with the product as its first find, so
-its price is checked once a day), **More like this** (a look for more like it, which joins
+its price is checked once a day; the pick then says "On your wishlist", which opens the wish, with
+**Undo** on the same line), **More like this** (a look for more like it, which joins
 the card) and **×**, Not for me (gone for good, with Undo in its place; after three alike,
 such as three bright colours, it may offer a line for Your style, kept only when you tap Save
 to Your style, with Undo). The newest three show, older ones behind "See earlier ones". Before
 the first look it says what it does, with **Look now** (and what a look costs through the API
 key, when that is on); with too little to go on it says to wear and rate a few more pieces
-and does not search; the demo closet never searches. **How Nines looks**, folded, says what a
+and does not search (with an empty closet the card is not shown); while a look runs the card keeps
+the room of three picks, so nothing below it moves; the demo closet never searches. **How Nines looks**, folded, says what a
 look sends and holds **Look for me each week**, on once you have tapped Look now, off before:
 then Nines looks by itself once a week while it is running. Nothing it shows is a product Claude
 made up; a week with nothing new says so. The card has two views, **For you** and **On sale**
@@ -452,7 +469,7 @@ nine pieces you wore most over the last 30 days, 90 days or all time (it opens o
 nine), as a square of three by three of their pictures (photos or drawings, as Settings says),
 each with how many times you wore it and opening the piece. Everything you wore counts, lounge
 pants and tennis shoes too. With fewer than nine it shows those and says how many; with nothing
-recorded it says so. **Not worn**: pieces never worn, each to Archive or Keep, under one sentence
+recorded it says so. Its periods are 44 pixels high to tap. **Not worn**: pieces never worn, each to Archive or Keep, under one sentence
 that says how many and since when; pieces not worn for a long time in their season are listed
 under it only when there are some (never swim trunks, sport shoes or what you wear at home; after
 months with nothing recorded it says so instead of listing everything). Then one line on what
@@ -466,26 +483,33 @@ first) and those that have not yet (a price and fewer than three wears), and wha
 would cost at today's prices, said separately for each currency when shops price in more than
 one. A piece opens in the Wardrobe
 (`/wardrobe/item/<id>`; beside the page on a computer), with "‹ Wardrobe". Offline, it shows
-what it last found, marked as saved earlier.
+what it last found, marked "Saved earlier today, at 20:06." (the banner at the top says it is
+offline).
 
 ## Wishlist
 
 `/wardrobe/wishlist`, from the Wishlist row on the Wardrobe or the price banner's "See them";
 "‹ Wardrobe" goes back. "Add a link" (a product's page: a new wish made from it, then its page
-opens) and "Add by hand" (what you are looking for, and a note), then a row per wish that opens
+opens) and "Add by hand" (what you are looking for, and a note), each in a sheet over the list (a
+small window under the button on a computer; Cancel or Escape closes it), then a row per wish that opens
 its page. A row shows the note, what to look for, or the page it was sent as ("$68.00 at Example
 Shop"), and "Down from $68.00 to $54.40" when a price went down, with "That's within your price."
 when it is no more than the most you'd pay. With nothing on it: "Your wishlist is empty", "Things
 you'd like to buy wait here, and Nines tells you when their price goes down.", and "See what's
 worth buying", which opens the Wardrobe. It shows once the wishes are in, without waiting for what
-is worth buying. Offline, it shows the copy saved on this device, marked as saved earlier, and
-nothing can be added.
+is worth buying. A wish removed from its page leaves a line in its place, "You removed …", with **Undo**,
+which puts it back as it was (its finds, prices, codes, the most you'd pay and its note), until you
+leave the wishlist, while Nines keeps running. Offline, it shows the copy saved on this device,
+marked as saved earlier, and nothing can be added.
 
 ## A wish
 
-`/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wishlist" goes back. Top to bottom: what to
+`/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wishlist" goes back. A wish made from one
+product (a link sent, a pick saved) is headed by the product's whole name, and that find starts at its
+shop and price. Top to bottom: what to
 look for (or "Added by hand"); what is watched, the pages you sent first ("You sent this link", and
-"Claude read its price from the page" when it did), then what Claude found, each checked against the
+"Claude read its price from the page" when it did), then what Claude found (the oldest first, so what a later search finds comes after what you have
+read), each checked against the
 closet (a page you sent too, once Claude has described it from the page's words: its verdict, what it
 goes with, what it repeats and what gap it would fill, with the shop's picture; until then one sentence
 says why it is not checked, such as "Nines checks it against your closet once Claude can describe
@@ -506,7 +530,8 @@ when the page stops showing it, and one you typed stays until you remove it. Und
 sentence, "Nines checks the price once a day while it's running and tells you when it goes down."
 (with a price, "…when it goes down to $150.00 or less."), with "Set the most you'd pay" or
 "Change", then when it was last checked and "Check now" (the pages you sent read by Nines, the rest
-by Claude, and a page you sent that is not described yet described by Claude). Then looking for
+by Claude, and a page you sent that is not described yet described by Claude); while it checks,
+"Checking the price…" stands in place of when it was last checked, so nothing moves. Then looking for
 more: "Find some" or "Find more" (Claude searches shops; under them, "A search sends Claude the
 wish, your style, what you tend to wear, the brands you own and your size, never a photo or a
 note.", except in the demo closet) and "Add a link" (a product's page added as
@@ -517,7 +542,7 @@ Worth buying, from what to look for, or the wish's name when it has none); with 
 you leave the box or tap Save note, saying "Saving…", "Saved" or "Didn't save" with Try again), and
 "Would it go with my clothes?" (Would this work? for this wish; for a page you sent it starts with
 the product's name), "I bought it" (it leaves the list and Add opens) and "Remove from the list"
-(back to the wishlist). **The most you'd pay** opens in a sheet: one amount and its currency, with
+(back to the wishlist, where Undo puts it back). Everything on the page is 44 pixels high to tap. **The most you'd pay** opens in a sheet: one amount and its currency, with
 Save, Clear and Cancel; Nines tells you when a price goes down to it or less, and Claude's searches
 stay under it. A wish that still has a lowest price from
 before says so until it is changed. While a page is read the wish says who is reading it ("Claude
@@ -545,7 +570,8 @@ keeps the rain off, a name), each a sheet over the page. Closing one works the a
 the last answer staying in place, dimmed, until the new one is ready. What you
 described and the answer stay on this device for the rest of the day, after a reload too, until
 **Check another piece**.
-The answer says what it goes with, what it repeats, what it would fill, what
+The answer says what it goes with, what it repeats (said once: when a reason under the verdict
+already names the piece you have like it, "What it repeats" shows only its picture), what it would fill, what
 would hold it back, when you would wear it, and example outfits. The example outfits have the
 **Pieces / As worn** switch of Today and Trips (the same remembered choice): As worn draws each one
 on the figure with the new piece among your own, its pieces named under it, and one line saying the
@@ -572,7 +598,9 @@ the item page.
   **Edit the text** opens the whole of it as one text in a sheet. Then the switch **Let Claude
   choose my outfits**. Lines kept from the conversation on Today are added to it too.
 - **Everyday**: "Weather for New York" with **Change**, which opens the place search, Use my
-  location, today's weather and what is sent where (the weather is only looked up then); How
+  location and today's weather, with what is sent where folded at the end under "What is sent to
+  look up the weather", as on Today (the weather is only looked up then; a forecast out of reach
+  says so without offering temperatures, which this sheet has no box for); How
   you live with **Edit my answers**; the switch **Show drawings instead of photos**, kept on the
   computer so it holds on every device: the closet, Today, Worn, trips, the Wardrobe and an
   item's page then show a piece's drawing (a piece with no drawing yet shows its photo); the
@@ -658,7 +686,8 @@ back. Its code loads only when it is opened. In order:
 - **Updates**: only the choice of when a new version is installed: by itself, ask first or
   never check, with a sentence on the one chosen. The version, Check now and the last check
   are on Settings.
-- **Backups**: the backup line, the folder (typed on the computer only) and Back up now.
+- **Backups**: "A copy every day to a folder you choose, such as a folder your computer copies to
+  the cloud, or a USB drive.", the backup line, the folder (typed on the computer only) and Back up now.
 - **Storage**: one line ("Nines uses 2.9 MB for 49 items · 59 GB free on this disk"), then,
   on the computer, where your closet is stored, then what takes the space, folded.
 - **Background removal**: a line for each of the two models, saying what it is for (the main

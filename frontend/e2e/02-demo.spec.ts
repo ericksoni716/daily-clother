@@ -238,3 +238,19 @@ test('archive and unarchive, delete with confirmation', async ({ page }) => {
   await page.getByRole('button', { name: 'Keep it' }).click();
   await expect(page.getByTestId('tile').filter({ hasText: 'White tee' })).toHaveCount(1);
 });
+
+test('in the demo closet, Add names the strip\'s own button, and Leave is 44px to tap (the review of 24 November, 10 and 56)', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await useProfile(page, 'demo');
+  await page.goto('/add');
+  // it said 'Use "Back to my closet" above', a button that is not there: the strip says Leave
+  await expect(page.getByText("You're in the demo closet, so new photos are added to the demo. Use Leave, above, to add to your own.")).toBeVisible();
+  await expect(page.locator('main')).not.toContainText('Back to my closet');
+  const leave = page.locator('.ribbon').getByRole('button', { name: 'Leave the demo closet' });
+  await expect(leave).toHaveText('Leave');
+  // the button was 32px high against the screen's top edge, so its hit area could not reach 44px there
+  const box = await leave.evaluate((el) => el.getBoundingClientRect().toJSON() as DOMRect);
+  expect(box.top).toBeGreaterThanOrEqual(0);
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  expect(box.width).toBeGreaterThanOrEqual(44);
+});

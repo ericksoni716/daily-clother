@@ -3,6 +3,7 @@ import {
   BEFORE_BY_CLAUDE, cardState, DEMO, IN_STOCK, LOOK_SENDS, LOOKING, lookCostWords, NEVER_LOOKED, offerWords, pickName,
   picksOf, picksPoll, PICKS_POLL_MS, SALE_NEVER, SALE_NOTHING, saleNote, salePriceLine, savedPicks, savedView, savePicks,
   saveView, SHOPS_OFFER, shopLine, shopsLine, THIN, verdictLine, VIEW_OPTIONS, withRefused, type PicksAnswer, type ShopPick,
+  offersPicks, PICK_NAME_MAX, PICK_NAME_BARE_MAX,
 } from './picks';
 import { dropWords, SALE_SENDS, SEARCH_SENDS } from './shop';
 
@@ -132,5 +133,19 @@ describe('On sale', () => {
     saveView('sale', kv);
     expect(savedView(kv)).toBe('sale');
     expect(savedView(null)).toBe('taste');
+  });
+});
+
+describe('the review of 24 November', () => {
+  it('offers no You might like card while the closet is empty (55)', () => {
+    expect(offersPicks({ checked: { items: 0 } })).toBe(false);
+    expect(offersPicks({ checked: { items: 3 } })).toBe(true);
+  });
+  it('gives a name beside a hanger three lines, so the kind of piece is not cut off (44)', () => {
+    const trench = 'Water-repellent cotton gabardine single-breasted trench coat with a removable warm lining';
+    expect(pickName(trench, PICK_NAME_MAX)).not.toContain('coat');
+    expect(pickName(trench, PICK_NAME_BARE_MAX)).toContain('trench coat');
+    expect(pickName('Garment-dyed heavyweight cotton canvas chore jacket with four patch pockets and corozo buttons', PICK_NAME_BARE_MAX))
+      .toContain('chore jacket');
   });
 });

@@ -5,7 +5,7 @@ import { whenAt } from '../wears';
 import { locate } from '../location';
 import { settingsSaved, weatherQuery } from '../settings';
 import type { Place, Settings } from '../types';
-import { weatherLine } from '../weather';
+import { weatherLine, withoutTyping } from '../weather';
 import { Fold } from './ui';
 
 type Toast = (m: string, k?: 'ok' | 'error') => void;
@@ -107,8 +107,7 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline, tri
   );
   return (
     <>
-      {/* on Today, in the sheet behind Change, the controls come first and what is sent is one tap away */}
-      {!inline && sent}
+      {/* the controls come first, in Settings as on Today, and what is sent is one tap away at the end */}
       {saved}
       {!offline && (
         <>
@@ -139,9 +138,15 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline, tri
           )}
         </>
       )}
-      {inline && <Fold title="What is sent to look up the weather" className="where-sent">{sent}</Fold>}
+      <WeatherSent>{sent}</WeatherSent>
     </>
   );
+}
+
+/** What is sent to look up the weather, behind one closed thing to open: under where you are (Settings and Today) and
+ * under where a trip is going. */
+export function WeatherSent({ children }: { children: ReactNode }) {
+  return <Fold title="What is sent to look up the weather" className="where-sent">{children}</Fold>;
 }
 
 /** Today's weather for the saved place, in one row. A slow lookup of its own; while the place just chosen is looked
@@ -154,7 +159,8 @@ function TodaysWeather({ place, offline }: { place: Place; offline: boolean }) {
   if (error && !isFetching) return <><p className="form-error" role="alert">Couldn't look up today's weather: {error.message}</p>{again}</>;
   if (!lookup) return <p className="hint" aria-busy="true">Looking up today's weather…</p>;
   const w = lookup.weather;
-  if (!w) return <><p className="hint">{lookup.message}</p>{again}</>;
+  // no box for temperatures here (Today has one): the sentence without the clause that offers it
+  if (!w) return <><p className="hint">{withoutTyping(lookup.message ?? '')}</p>{again}</>;
   return (
     <>
       <p data-testid="weather-today">{lookup.is_today ? 'Today' : `Forecast for ${w.date}`}: {weatherLine(w)}</p>

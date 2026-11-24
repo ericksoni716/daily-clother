@@ -32,7 +32,10 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
 
   // editing is disabled too (the page reloaded on the saved item)
   const panel = page.locator('.detail-panel');
-  await expect(panel.getByText("You're offline, so this item can't be changed right now.")).toBeVisible();
+  // offline is said once, by the banner: the piece adds no sentence of its own saying it again (the review of 24
+  // November, 30)
+  await expect(panel.getByRole('heading').first()).toBeVisible();
+  await expect(panel.getByText("You're offline, so this item can't be changed")).toHaveCount(0);
   await openFold(panel, 'Details');
   await expect(panel.getByRole('button', { name: /^What is it\?:/ })).toBeDisabled();
   await openFold(panel, 'Archive or delete');
@@ -40,7 +43,8 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
 
   // an item never opened before still shows what the closet knows about it
   await page.getByTestId('tile').filter({ hasText: 'Grey hoodie' }).click();
-  await expect(panel.getByText(/You're offline, so this item can't be changed right now/)).toBeVisible();
+  await expect(panel.getByText('Its full details were not saved on this device.')).toBeVisible();
+  await expect(panel.getByText("You're offline, so this item can't be changed")).toHaveCount(0);
   await expect(panel.getByRole('heading', { name: 'Grey hoodie' })).toBeVisible();
 
   // back online: the banner goes away by itself
@@ -57,7 +61,9 @@ test('settings opened offline recover when the computer is reachable again', asy
   await page.waitForLoadState('networkidle');
   await context.setOffline(true);
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings', exact: true }).click();
-  await expect(page.getByText("You're offline, so settings can't be shown or changed right now.")).toBeVisible();
+  // what is Settings' own, in a few words: the banner says it is offline (the review of 24 November, 30)
+  await expect(page.getByText('Your settings were not saved on this device.')).toBeVisible();
+  await expect(page.locator('main')).not.toContainText("You're offline");
   // offline the saved copy is all this device has to show, so it cannot be forgotten then
   await page.getByTestId('saved-copies').locator('summary').click();
   await expect(page.getByRole('button', { name: 'Forget saved copies' })).toBeDisabled();

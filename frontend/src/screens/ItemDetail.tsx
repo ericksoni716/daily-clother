@@ -171,7 +171,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         <article className="detail" aria-label={summary.name || 'Item'} aria-busy={away ? undefined : 'true'}>
           <DetailTop inPanel={inPanel} backTo={backTo} />
           <Picture item={asItem} progress={progress} fallbackThumb={summary.thumb_url} />
-          {away && <Notice as="p">You're offline, so this item can't be changed right now. Its full details show once Nines can be reached again.</Notice>}
+          {/* offline is said once, by the banner over the page: only what is the piece's own here */}
+          {away && <Notice as="p">Its full details were not saved on this device.</Notice>}
           <header className="detail-head">
             <h2 className="detail-title"><span className="name-field name-field-static">{summary.name || label('category', summary.category) || 'Item'}</span></h2>
           </header>
@@ -214,7 +215,6 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     <KeptAt.Provider value={kept}>
     <article className="detail" aria-label={item.name || 'Item'}>
       <DetailTop inPanel={inPanel} backTo={backTo} />
-      {locked && <Notice as="p">You're offline, so this item can't be changed right now.</Notice>}
       <Failed query={query} what="this piece" />
 
       {/* 1. the picture and the name, the name typed over in place; what went wrong with the picture sits under it */}

@@ -270,6 +270,13 @@ export function wornWords(n: number): string {
   return n === 1 ? 'Worn once' : `Worn ${n} times`;
 }
 
+/** What "What it repeats" says beside the pictures: its sentence only when no reason under the verdict already says
+ * it, and each piece's count of wears unless that sentence, said above, names the one piece's already. */
+export function repeatsShown(a: Pick<WouldAnswer, 'repeats' | 'reasons'>): { text: string | null; worn: boolean } {
+  const said = !!a.repeats.text && a.reasons.includes(a.repeats.text);
+  return { text: said ? null : a.repeats.text, worn: !said || a.repeats.items.length > 1 };
+}
+
 /** The check started from a wish: the wish, if it is still on the list. */
 export function wishById(wishes: Wish[] | null, id: string | null): Wish | null {
   if (!id || !wishes) return null;

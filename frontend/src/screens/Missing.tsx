@@ -3,14 +3,14 @@
  * that opens the wishlist, and the wishlist's and a wish's own pages. The page itself, which reads the lists, is
  * Wardrobe.tsx.
  */
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { CheckIcon, ChevronIcon, HangerIcon, LinkIcon, PlusIcon } from '../components/Icons';
 import { Pieces } from '../components/ItemPic';
 import {
   colorWords, type Gap, type GapsAnswer, groupReasons, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
   type LookFor, reasonLabel, shortWhy, type Wish,
 } from '../gaps';
-import { Button, buttonClass, Card, EmptyState, Fold, SaveStatus, ShowMore, useSaveStatus } from '../components/ui';
+import { Button, buttonClass, Card, EmptyState, Fold, SaveStatus, Sheet, ShowMore, useSaveStatus } from '../components/ui';
 import { swatchOf } from '../labels';
 import { Link, navigate, WISHLIST_PATH, wishPath } from '../router';
 import type { ItemSummary } from '../types';
@@ -113,6 +113,8 @@ export interface Actions {
   savePrice(w: Wish, changes: { price_min: number | null; price_max: number | null; price_currency: string | null }): Promise<boolean>;
   bought(w: Wish): Promise<unknown>;
   remove(w: Wish): Promise<boolean>;
+  /** Undo for "Remove from the list": the wish back as it was. */
+  restore(w: Wish): Promise<unknown>;
 }
 
 /**
@@ -434,35 +436,67 @@ function WishlistRow({ wishes }: { wishes: Wish[] | null }) {
  * The wishlist's own page (`/wardrobe/wishlist`): "Add a link" and "Add by hand", then a row per wish that opens its
  * page (its note, shop finds and prices), or, with nothing on it, what a wishlist is for.
  */
-export function Wishlist({ wishes, actions }: { wishes: Wish[]; actions: Actions }) {
+export function Wishlist({ wishes, actions, removed = null }: {
+  wishes: Wish[]; actions: Actions;
+  /** the wish just removed from its page, and where it was: a line with Undo stays in its place */
+  removed?: { wish: Wish; at: number } | null;
+}) {
   const [adding, setAdding] = useState(false);
   const [linking, setLinking] = useState(false);
+  const linkButton = useRef<HTMLButtonElement>(null);
+  const handButton = useRef<HTMLButtonElement>(null);
   const offTitle = actions.locked ? OFFLINE_TITLE : undefined;
+  const listed = withRemoved(wishes, removed);
+  // the two forms open in a sheet over the list (a popover under their button on a computer), so the wishes below
+  // never move (DESIGN, "The page holds still")
   return (
     <div className="wishlist" data-testid="wishlist">
-      {!adding && !linking && (
-        <div className="row wishlist-adds">
-          <Button small disabled={actions.locked} title={offTitle} onClick={() => setLinking(true)}><LinkIcon /> Add a link</Button>
-          <Button small disabled={actions.locked} title={offTitle} onClick={() => setAdding(true)}><PlusIcon /> Add by hand</Button>
-        </div>
-      )}
-      {linking && (
-        <LinkForm submit="Add to the list" busy={actions.busy === 'new-link'} locked={actions.locked} lockedTitle={OFFLINE_TITLE}
-          onSubmit={actions.addLink} onCancel={() => setLinking(false)} />
-      )}
-      {adding && <AddWish actions={actions} onClose={() => setAdding(false)} />}
-      {wishes.length === 0 && !adding && !linking && (
+      <div className="row wishlist-adds">
+        <button ref={linkButton} type="button" className={buttonClass({ small: true })} disabled={actions.locked} title={offTitle}
+          aria-haspopup="dialog" aria-expanded={linking} onClick={() => { setAdding(false); setLinking(!linking); }}><LinkIcon /> Add a link</button>
+        <button ref={handButton} type="button" className={buttonClass({ small: true })} disabled={actions.locked} title={offTitle}
+          aria-haspopup="dialog" aria-expanded={adding} onClick={() => { setLinking(false); setAdding(!adding); }}><PlusIcon /> Add by hand</button>
+        {linking && (
+          <Sheet title="Add a link" popover keep={linkButton} closeLabel="Cancel" className="wish-add-sheet" testId="link-sheet"
+            onClose={() => setLinking(false)}>
+            <LinkForm submit="Add to the list" busy={actions.busy === 'new-link'} locked={actions.locked} lockedTitle={OFFLINE_TITLE}
+              onSubmit={actions.addLink} onCancel={() => setLinking(false)} cancel={false} />
+          </Sheet>
+        )}
+        {adding && (
+          <Sheet title="Add by hand" popover keep={handButton} closeLabel="Cancel" className="wish-add-sheet" testId="hand-sheet"
+            onClose={() => setAdding(false)}>
+            <AddWish actions={actions} onClose={() => setAdding(false)} />
+          </Sheet>
+        )}
+      </div>
+      {listed.length === 0 && (
         <EmptyState testId="wishlist-empty" title="Your wishlist is empty"
           body="Things you'd like to buy wait here, and Nines tells you when their price goes down."
           action={<Link to="/wardrobe" className={buttonClass()}>See what's worth buying</Link>} />
       )}
-      {wishes.length > 0 && (
+      {listed.length > 0 && (
         <ul className="wish-list">
-          {wishes.map((w) => <li key={w.id}><WishRow wish={w} /></li>)}
+          {listed.map((w) => <li key={w.id}>{w.id === removed?.wish.id && !wishes.some((x) => x.id === w.id) ? (
+            <p className="wish-removed" role="status" data-testid="wish-removed">
+              <span>You removed “{w.name}”.</span>
+              <Button variant="ghost" disabled={actions.locked || actions.busy === w.id} title={offTitle}
+                aria-label={`Undo: put ${w.name} back on your wishlist`} onClick={() => void actions.restore(w)}>Undo</Button>
+            </p>
+          ) : <WishRow wish={w} />}</li>)}
         </ul>
       )}
     </div>
   );
+}
+
+/** The wishes, with the one just removed back in the place it had, so its Undo is where it was and nothing below it
+ * moves. One the server lists again is not shown twice. */
+export function withRemoved(wishes: Wish[], removed: { wish: Wish; at: number } | null): Wish[] {
+  if (!removed || wishes.some((w) => w.id === removed.wish.id)) return wishes;
+  const out = [...wishes];
+  out.splice(Math.min(removed.at, out.length), 0, removed.wish);
+  return out;
 }
 
 /** A wish in the list: what it is and its note (or the page it was sent as), and a price that went down, opening its
@@ -508,7 +542,6 @@ function AddWish({ actions, onClose }: { actions: Actions; onClose(): void }) {
       </label>
       <div className="row">
         <button className="btn btn-primary btn-small" type="submit" disabled={busy || actions.locked || !name.trim()}>Add to the list</button>
-        <button className="btn btn-ghost btn-small" type="button" onClick={onClose}>Cancel</button>
       </div>
     </form>
   );

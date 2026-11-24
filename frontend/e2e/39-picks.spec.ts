@@ -45,13 +45,25 @@ test.describe('you might like', () => {
     await expect(card.getByTestId('picks-sends')).toHaveText(/^A look sends Claude your style, what you tend to wear/);
     await expect(card.getByRole('switch')).toHaveCount(0);   // no weekly look to turn on before the first
 
+    await card.getByText('How Nines looks').click();   // closed again, as the card usually is
     await card.getByTestId('picks-look').click();
     await expect(card.getByRole('status').filter({ hasText: 'Claude is searching shops' })).toBeVisible();
+    // while it looks, the card keeps the room of three picks: what is below it does not move when they come (it moved
+    // down with each: the review of 24 November, 45)
+    const below = page.getByRole('heading', { name: 'Thinking of buying something?' });
+    const belowAt = async () => below.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+    const whileLooking = await belowAt();
     const picks = card.getByTestId('pick');
     // the five finds are each checked against the closet on 40 kinds of day, about 30 seconds of computing in all on
     // a developer machine; in CI two such looks run at once, and a slow runner took just over a minute, so the wait is
     // three minutes
     await expect(picks).toHaveCount(3, { timeout: 180_000 });
+    await expect(card.getByRole('status').filter({ hasText: 'Claude is searching shops' })).toHaveCount(0);
+    // within about two lines either way (the picks' own words and the font decide their height), not the whole card
+    expect(Math.abs((await belowAt()) - whileLooking)).toBeLessThanOrEqual(48);
+    // beside a hanger (no picture from the shop) a name has three lines, so the kind of piece is there (44)
+    await expect(picks.first().locator('.pick-name')).toContainText('trench coat');
+    await expect(picks.nth(1).locator('.pick-name')).toContainText('chore jacket');
     await expect(card).not.toContainText('Not a real link');
     await expect(card).not.toContainText('Striped oxford');   // it repeats a shirt the closet has
     const coat = picks.first();
@@ -59,6 +71,7 @@ test.describe('you might like', () => {
     await expect(coat).toContainText('Fills a gap in your closet.');
     await expect(picks.nth(1)).toContainText(/Goes with \d+ of your pieces\./);
     await expect(coat.getByRole('link', { name: /^Water-repellent/ })).toHaveAttribute('target', '_blank');
+    await card.getByText('How Nines looks').click();
     await expect(card.getByRole('switch', { name: 'Look for me each week' })).toBeChecked();   // on once you have looked
     expect(await axeViolations(page)).toEqual([]);
 
@@ -70,6 +83,14 @@ test.describe('you might like', () => {
     expect(made).toBeTruthy();
     const finds = (await (await page.request.get(`${backend.url}/api/wishlist/${made.id}/finds`)).json()).finds;
     expect(finds.map((f: { price: number }) => f.price)).toEqual([320]);
+    // saved: "On your wishlist" and Undo on one line, as a gap's card (the buttons stacked, with no Undo: 43)
+    const actions = coat.locator('.pick-actions');
+    expect(await actions.evaluate((el) => el.getBoundingClientRect().height)).toBeLessThanOrEqual(48);
+    await actions.getByRole('button', { name: /^Undo/ }).click();
+    await expect(coat.getByRole('button', { name: 'Save' })).toBeVisible();
+    expect((await (await page.request.get(backend.url + '/api/wishlist')).json()).wishes.map((w: { id: string }) => w.id)).not.toContain(made.id);
+    await coat.getByRole('button', { name: 'Save' }).click();
+    await expect(coat.getByRole('link', { name: 'On your wishlist' })).toBeVisible();
 
     // Not for me: gone, with Undo in its place
     const jacket = picks.filter({ hasText: 'Garment-dyed' });

@@ -301,6 +301,46 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **Removing a wish can be undone.** "Remove from the list" on a wish's page takes you back to the
+  wishlist, where the wish's place says "You removed …" with **Undo**, which puts it back as it was:
+  its finds with their prices and codes, the most you'd pay and its note. It stays until you leave
+  the wishlist (and while Nines keeps running).
+- **A wish's page holds still and names its find once.** **Check now** says "Checking the price…" in
+  place of "Last checked …" instead of putting a line in under it that moved **Find more** and said
+  Claude was checking. What a later search finds comes after the finds you have already read. A wish
+  made from one product has that product's whole name as its heading, and the find under it starts at
+  its shop and price. "See it with your clothes", "Add a code", **Find more**, **I bought it** and
+  **Remove from the list** are all 44 pixels high, and so are the periods of **Your nines**.
+- **The wishlist's forms open over the list.** **Add a link** and **Add by hand** open in a sheet (a
+  small window under the button on a computer) instead of pushing the wishes down; Escape closes it.
+- **You might like.** After **Save**, the pick says "On your wishlist" with **Undo** on one line, as
+  a suggestion's card does, instead of stacking its buttons. A name beside a hanger has three lines,
+  so the kind of piece is not cut off. While it looks, the card keeps the room of three picks, so the
+  rest of the Wardrobe does not move down as they come. With an empty closet the card is not shown.
+- **Would this work? says what it repeats once, in plain words.** The piece you have like it is said in
+  the reasons and shown by its picture, not again under "What it repeats"; "worn three times", not
+  "worn three times in the log"; "a good outfit on most kinds of day", not "on 22 of the 40 kinds of
+  day the closet is tried on". The same goes for each find on a wish.
+- **Offline is said once.** The banner at the top says Nines can't be reached; a trip, the Wardrobe,
+  the wishlist, a piece, Settings and Add no longer say it again under it. A trip says "You can still
+  tick what you pack.", the Wardrobe and the wishlist "Saved earlier today, at 20:06.", and Add, only
+  when photos are still to go, that they carry on by themselves.
+- **Trips.** A saved trip's "What to pack" counts what its bar counts ("9 pieces and 3 basics" beside
+  "0 of 12 packed"). In Day by day on a phone each day shows its pictures alone (a tap opens a sheet
+  that names the piece), with the names whole where there is room, and no longer repeats each day's
+  temperature from the strip at the top. "Why these counts" is closed until you open it. The list of
+  trips says "1 day has something to watch for", as the trip does. Plan a trip keeps what is sent to
+  look up the weather behind "What is sent to look up the weather". When the weather can't be looked
+  up for any day, a new trip says so once, with **Try again** and **Type the temperatures** (one low,
+  high and rain for each day), and offers neither a packing list of nothing nor Save. A trip's dates
+  are written as every other date in the app.
+- **Worn, Add and the demo closet.** Removing an outfit you keep counts down under the heading ("2
+  kept", back to 3 with Undo). Add no longer says "3 photos are going into your closet." over the list
+  headed "Going into your closet". In the demo closet, Add names the strip's own button ("Use Leave,
+  above, to add to your own."), and Leave is 44 pixels high.
+- **Settings.** "Where you are" opens on its controls, with what is sent to look up the weather
+  folded at the end as on Today, and a forecast out of reach no longer offers temperatures the sheet
+  has no box for. Backups suggest "a folder your computer copies to the cloud, or a USB drive".
 - **The closet no longer opens on an empty laundry or "Needs a check" view.** Left showing the laundry
   after **All clean**, or "Needs a check" after you answered the last check, the closet opened on that
   view with nothing in it ("0 of 49") until you noticed the chip. Like the Away view, it now opens on

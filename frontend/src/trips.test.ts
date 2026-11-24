@@ -3,7 +3,7 @@ import { forgetSaved } from './today';
 import {
   addDays, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, laundryDays, laundryEvery, laundryMode,
   laundryWords, progress, REWEAR_KINDS, rewearWords, shortDay, sourceLabel, sourceRuns, startLaundry, swimHint, swimOn, toggleSport,
-  loadSavedTrips, sameReasons, saveTrips, tripProblems,
+  loadSavedTrips, sameReasons, saveTrips, tripProblems, packWords, watchCount,
   tripComingUp, tripDays, tripTitle, upcomingFirst, wornWords, type TripDay, type TripSummary,
 } from './trips';
 
@@ -223,5 +223,18 @@ describe('what a trip says about its days', () => {
     const said = tripProblems(trip);
     expect(said.uncovered).toEqual([{ days: 'Sunday 6 Dec', reason: 'Nothing warm enough.' }]);
     expect(said.watch).toEqual({ title: '1 day has something to watch for', lines: [{ days: 'Monday 7 Dec', reason: jacket }] });
+  });
+});
+
+describe('the review of 24 November', () => {
+  it('counts what to pack the way the bar counts what there is to tick: the pieces and the basics (47)', () => {
+    expect(packWords(9, 3)).toBe('9 pieces and 3 basics');
+    expect(packWords(1, 1)).toBe('1 piece and 1 basic');
+    expect(packWords(4, 0)).toBe('4 pieces');
+    expect(packWords(0, 3)).toBe('3 basics');
+  });
+  it('names the days with a warning the same way on the list and on the trip (49)', () => {
+    expect(watchCount(1)).toBe('1 day has something to watch for');
+    expect(watchCount(3)).toBe('3 days have something to watch for');
   });
 });

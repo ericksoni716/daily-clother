@@ -952,7 +952,7 @@ thumbnails, backups kept on this computer and the background-removal model.
 
 ### Backups
 
-In **Settings → Advanced settings → Backups**, choose a folder (a cloud-synced folder is ideal).
+In **Settings → Advanced settings → Backups**, choose a folder (a folder your computer copies to the cloud is ideal).
 Nines backs up there once a day while it is running, catches up at the next
 start if the computer was off, and shows the date of the last good backup. It
 keeps the 14 most recent database snapshots, each with the photos and cutouts

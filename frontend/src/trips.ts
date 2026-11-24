@@ -1,5 +1,5 @@
 import { joinWords, longDate, SAVED_PREFIX, shortPlace, temps, type Outfit } from './today';
-import { dayAndDate, MONTHS } from './wears';
+import { dayAndDate, dayRange } from './wears';
 import type { Place, RewearKind } from './types';
 
 /** Where a day's weather comes from: the forecast, what the dates are usually like, typed in, or not known. */
@@ -231,6 +231,19 @@ export function progress(lines: string[], packed: string[]): { done: number; tot
   return { done, total, words: total && done === total ? `All ${total} packed` : `${done} of ${total} packed` };
 }
 
+/** What to pack, counted as the bar counts what there is to tick: "9 pieces and 3 basics". */
+export function packWords(pieces: number, basics: number): string {
+  const say = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  if (!basics) return say(pieces, 'piece', 'pieces');
+  if (!pieces) return say(basics, 'basic', 'basics');
+  return `${say(pieces, 'piece', 'pieces')} and ${say(basics, 'basic', 'basics')}`;
+}
+
+/** The days dressed with something to watch for, in the same words on the list of trips and on the trip. */
+export function watchCount(n: number): string {
+  return n === 1 ? '1 day has something to watch for' : `${n} days have something to watch for`;
+}
+
 export function sourceLabel(source: WeatherSource): string {
   if (source === 'forecast') return 'Forecast';
   if (source === 'usual') return 'Usually, on these dates';
@@ -277,15 +290,8 @@ export function shortDay(day: string): { weekday: string; date: string } {
   return dayAndDate(day);
 }
 
-/** "1–5 Dec", "28 Nov – 3 Dec", "28 Dec 2026 – 3 Jan 2027", or one day. */
-export function dateRange(first: string, last: string): string {
-  const [y1, m1, d1] = parts(first);
-  const [y2, m2, d2] = parts(last);
-  if (first === last) return longDate(first);
-  if (y1 !== y2) return `${d1} ${MONTHS[m1 - 1]} ${y1} – ${d2} ${MONTHS[m2 - 1]} ${y2}`;
-  if (m1 !== m2) return `${d1} ${MONTHS[m1 - 1]} – ${d2} ${MONTHS[m2 - 1]}`;
-  return `${d1}–${d2} ${MONTHS[m1 - 1]}`;
-}
+/** "1–5 Dec", "28 Nov – 3 Dec", "28 Dec 2026 – 3 Jan 2027", or one day: written by the family of dates (`wears.ts`). */
+export const dateRange = dayRange;
 
 /** "Lisbon, 1–5 Dec": what a trip is called in the list. */
 export function tripTitle(t: { place: Place; first_day: string; last_day: string }): string {
@@ -458,7 +464,7 @@ export function tripProblems(trip: Pick<PlannedTrip, 'weather' | 'weather_messag
   const uncovered = sameReasons(trip.plan.uncovered.filter((u) => !unknownDays.has(u.date)));
   const w = trip.plan.warnings;
   const watch = w.length === 0 ? null : {
-    title: w.length === 1 ? '1 day has something to watch for' : `${w.length} days have something to watch for`,
+    title: watchCount(w.length),
     lines: sameReasons(w),
   };
   return { unknown, unknownDays, uncovered, watch };

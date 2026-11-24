@@ -9,7 +9,7 @@ import type { Wish } from '../gaps';
 import { touch, useItems } from '../queries';
 import {
   addedByHand, canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, withStopped, googleShoppingLink,
-  historyWords, lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll,
+  historyWords, isTheWish, lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll,
   type ShopRun, typedCode, watchWords, webLink, wishlistAgain,
 } from '../shop';
 import { SEARCH_SENDS } from '../shop';
@@ -29,9 +29,11 @@ type PriceChange = { price_min: number | null; price_max: number | null; price_c
  * it) and on the page a shared link opens. Nothing is added until its button is pressed. `onSubmit` gives back the
  * sentence to show when the link was not taken, or null.
  */
-export function LinkForm({ initial = '', submit, busy, locked, lockedTitle, onSubmit, onCancel, autoFocus = true }: {
+export function LinkForm({ initial = '', submit, busy, locked, lockedTitle, onSubmit, onCancel, autoFocus = true, cancel = true }: {
   initial?: string; submit: string; busy: boolean; locked: boolean; lockedTitle?: string;
   onSubmit(url: string): Promise<string | null>; onCancel(): void; autoFocus?: boolean;
+  /** its own Cancel; false in a sheet, whose Cancel is beside its title */
+  cancel?: boolean;
 }) {
   const [text, setText] = useState(initial);
   const [problem, setProblem] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export function LinkForm({ initial = '', submit, busy, locked, lockedTitle, onSu
       <div className="row">
         <button className="btn btn-primary btn-small" type="submit" disabled={busy || locked || !text.trim()}
           title={locked ? lockedTitle : undefined}>{submit}</button>
-        <button className="btn btn-ghost btn-small" type="button" onClick={onCancel}>Cancel</button>
+        {cancel && <button className="btn btn-ghost btn-small" type="button" onClick={onCancel}>Cancel</button>}
       </div>
     </form>
   );
@@ -152,7 +154,10 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   // what a run says goes under what started it: a price check (and a link being read) under Check now, a search under
   // Find some; a refusal, under the button that was refused
   const checking = finds.length > 0 && (begin.error ? begin.variables === 'prices' : run !== null && run.kind !== 'find');
-  const said = <RunSaid run={run} error={begin.error?.message ?? null} />;
+  // a price check running is said in place of "Last checked …", so nothing under it moves (DESIGN, "The page holds
+  // still")
+  const pricing = finds.length > 0 && run?.state === 'running' && run.kind === 'prices';
+  const said = <RunSaid run={pricing ? null : run} error={begin.error?.message ?? null} />;
   // the currency the most you'd pay starts in when none is set: the newest find's
   const currency = answer?.finds[0]?.currency;
   // above what is watched, and decided with it, so that stopping a link's find on this visit, or the wishlist read again
@@ -177,14 +182,14 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
           <ul className="find-list" aria-label="Found in shops">
             {finds.map((f, i) => (
               <li key={f.id}>
-                <FindCard find={f} demo={demo} locked={locked} byId={byId} stopped={isStopped(f)}
+                <FindCard find={f} demo={demo} locked={locked} byId={byId} stopped={isStopped(f)} own={isTheWish(f, wish)}
                   onStop={() => void stop(f, i)} onUndo={() => void undoStop(f)} />
               </li>
             ))}
           </ul>
           <PriceLine wish={wish} currency={currency} locked={locked} onPrice={onPrice}>{watchWords(wish)}</PriceLine>
           <p className="muted wish-shop-line" data-testid="prices-checked">
-            {checkedWords(lastChecked({ ...answer!, finds: listed }))}{' '}
+            {pricing ? runWords(run!) : checkedWords(lastChecked({ ...answer!, finds: listed }))}{' '}
             <Button variant="link" small className="wish-inline-button" data-testid="check-prices" disabled={pricesOff}
               title={pricesOff ? title : undefined} onClick={() => begin.mutate('prices')}>Check now</Button>
           </p>
@@ -251,8 +256,10 @@ function RunSaid({ run, error }: { run: ShopRun | null; error: string | null }) 
   );
 }
 
-function FindCard({ find, demo, locked, byId, stopped, onStop, onUndo }: {
+function FindCard({ find, demo, locked, byId, stopped, own = false, onStop, onUndo }: {
   find: Find; demo: boolean; locked: boolean; byId: Map<string, ItemSummary>;
+  /** the wish itself (made from it, with its name): the page's heading names it, so the card starts at its shop */
+  own?: boolean;
   /** you stopped watching it on this visit: it stays, saying so, with Undo where its buttons were */
   stopped: boolean;
   onStop(): void;
@@ -268,7 +275,7 @@ function FindCard({ find, demo, locked, byId, stopped, onStop, onUndo }: {
     <Card as="article" className="find-card" data-testid="find" aria-label={find.name} data-verdict={find.verdict ?? ''}>
       {image && <img className="find-image" src={image} alt="" loading="lazy" referrerPolicy="no-referrer" />}
       <div className="find-body">
-        <h2 className="find-name">{find.name}</h2>
+        {!own && <h2 className="find-name">{find.name}</h2>}
         <p className="find-shop">
           {find.shop} · <strong>{priceWords(find.price, find.currency)}</strong>
           {!find.available && <span className="find-sold"> · Sold out</span>}

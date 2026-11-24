@@ -373,3 +373,25 @@ def test_one_pair_of_jeans_like_it_is_spoken_of_as_they(closet):
     a = wouldwork.check(keep, log, {"category": "jeans", "color": "navy", "formality": "casual"})
     assert a["repeats"]["text"].startswith("You have one like it ("), a["repeats"]["text"]
     assert a["repeats"]["text"].endswith(", and they are hardly worn."), a["repeats"]["text"]
+
+
+def test_the_repeat_and_the_days_are_said_in_plain_words(closet):
+    # "worn three times in the log" and "on 22 of the 40 kinds of day the closet is tried on" (the review of 24
+    # November, finding 39): the log and the grid of days are the app's workings, not the owner's words
+    a = check(closet, {"category": "shirt", "color": "light_blue", "formality": "smart_casual"})
+    assert a["repeats"]["text"] == "You have one like it (your blue oxford shirt), worn three times."
+    goes = a["goes_with"]["text"]
+    assert goes.startswith("It makes a good outfit on most kinds of day, most often with "), goes
+    for said in [*a["reasons"], *a["holds_back"]]:
+        assert "in the log" not in said and "the closet is tried on" not in said, said
+
+
+def test_how_many_kinds_of_day_is_said_as_all_most_or_some():
+    assert wouldwork.share_words(40, 40) == "every kind of day"
+    assert wouldwork.share_words(22, 40) == "most kinds of day"
+    assert wouldwork.share_words(20, 40) == "some kinds of day"
+    assert wouldwork.share_words(1, 40) == "some kinds of day"
+
+
+def test_a_piece_that_suits_no_day_says_so_without_the_grid():
+    assert wouldwork.SUITS_NO_DAY == "It does not suit any kind of day Nines tries it on."

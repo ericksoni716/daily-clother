@@ -210,7 +210,7 @@ function BackupSection({ settings, profile, only, toast, disabled }: {
   }
 
   return (
-    <Section title="Backups" id="s-backup" hint="A copy every day to a folder you choose, such as a synced folder or a USB drive.">
+    <Section title="Backups" id="s-backup" hint="A copy every day to a folder you choose, such as a folder your computer copies to the cloud, or a USB drive.">
       <StatusLine line={backupLine(settings, profile, only.backupFolder ? 'computer' : 'phone')} testId="backup-status" />
       {only.backupFolder && (
         <form className="field-row field-row-inline" onSubmit={saveFolder}>

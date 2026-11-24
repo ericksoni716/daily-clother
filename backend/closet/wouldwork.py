@@ -62,6 +62,17 @@ EXAMPLES_MAX = 3             # example outfits, one per kind of day
 REASONS_MAX = 2              # sentences under the verdict
 NAMES_MAX = 3                # pieces named in a sentence
 
+# Said of a piece that suits none of the kinds of day it is tried on, in the owner's words (not the grid's).
+SUITS_NO_DAY = "It does not suit any kind of day Nines tries it on."
+
+
+def share_words(good: int, tried: int) -> str:
+    """How many of the kinds of day tried a piece makes a good outfit on, in words rather than "22 of the 40": every
+    one, more than half (most), or fewer (some)."""
+    if tried and good >= tried:
+        return "every kind of day"
+    return "most kinds of day" if good * 2 > tried else "some kinds of day"
+
 # Colour groups for "does the same job": dark neutrals stand in for each other, as do light ones and earth tones;
 # the other colours by the engine's own families (light blue with blue, burgundy with red).
 COLOR_GROUPS = {"black": "dark", "navy": "dark", "white": "light", "cream": "light", "grey": "grey",
@@ -440,7 +451,7 @@ def _repeats(c: gaps._Closet, cand: outfits.Piece) -> dict:
         text += f", and the wear log is too short yet to say how often {they} worn."
     elif n == 1:
         worn = items[0]["worn"]
-        text += f", and {they} hardly worn." if hardly else f", worn {_count(worn)} time{'' if worn == 1 else 's'} in the log."
+        text += f", and {they} hardly worn." if hardly else f", worn {_count(worn)} time{'' if worn == 1 else 's'}."
     elif hardly:
         text += f", and {_count(hardly)} of them {'is' if hardly == 1 else 'are'} hardly worn."
     else:
@@ -538,7 +549,7 @@ def _holds_back(c: gaps._Closet, cand: outfits.Piece, tried: list[dict], fills: 
         out.append("Nothing you own can go over it: it is heavier or bulkier than every layer you have.")
     suits = [r for r in tried if r["suits"]]
     if not suits:
-        out.append("It does not suit any of the kinds of day the closet is tried on.")
+        out.append(SUITS_NO_DAY)
     elif not any(f["filled"] for f in fills):
         short = {d["temperature"] for g in before.get("gaps", []) if "days" in g.get("found_by", [])
                  for d in g["evidence"]["days"]}
@@ -681,8 +692,8 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
     goes_text = None
     if good:
         with_words = _names([c.by_id[i] for i in partners[:2]]) if partners else ""
-        goes_text = (f"It makes a good outfit on {_count(len(good))} of the {len(tried)} kinds of day the closet is "
-                     f"tried on" + (f", most often with {with_words}." if with_words else "."))
+        goes_text = (f"It makes a good outfit on {share_words(len(good), len(tried))}"
+                     + (f", most often with {with_words}." if with_words else "."))
     answer["goes_with"].update(days=len(good), suits=len(suits), items=partners, pairs=len(every_partner),
                                examples=_examples(tried), text=goes_text)
     answer["fills"] = fills
@@ -719,7 +730,7 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
         reasons = [fill_text, goes_text or closet_text]
     elif verdict == "hard_to_wear":
         if not suits:
-            reasons = ["It does not suit any of the kinds of day the closet is tried on."]
+            reasons = [SUITS_NO_DAY]
         else:
             who, many = _others(cand, peers) if peers else ("", False)
             if not good:

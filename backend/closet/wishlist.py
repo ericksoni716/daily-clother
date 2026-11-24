@@ -10,8 +10,10 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
+import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.concurrency import run_in_threadpool
@@ -27,6 +29,12 @@ NAME_MAX = 120
 NOTE_MAX = 1000
 PRICE_MAX = 1_000_000.0
 CURRENCY_DEFAULT = "USD"
+# how long, and how many, wishes you removed can be put back (Undo), while Nines keeps running: as finds you stopped
+# watching (shop.UNDO_KEEP_S), so the wish's page can offer Undo on the wishlist it goes back to
+UNDO_KEEP_S = 3600
+UNDO_KEEP_MAX = 20
+NOT_PUT_BACK = "That wish can no longer be put back. Add it again to look for it."
+WISHED_AGAIN = "That suggestion is on your wishlist again already."
 
 
 # ------------------------------------------------------------------ marking the analysis
@@ -267,9 +275,56 @@ def mark_bought(conn: sqlite3.Connection, wish_id: str) -> dict:
     return get_wish(conn, wish_id)
 
 
-def remove_wish(conn: sqlite3.Connection, wish_id: str) -> None:
-    if not conn.execute("DELETE FROM wishes WHERE id = ?", (wish_id,)).rowcount:
-        raise ItemError("That wish is not on the list.", 404)
+def remove_wish(conn: sqlite3.Connection, wish_id: str) -> dict:
+    """Takes a wish off the list, and with it its finds and their prices. Gives back what was removed, for
+    `restore_wish` (Undo)."""
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        row = conn.execute("SELECT rowid AS row_at, * FROM wishes WHERE id = ?", (wish_id,)).fetchone()
+        if row is None:
+            raise ItemError("That wish is not on the list.", 404)
+        finds = [dict(f) for f in conn.execute("SELECT rowid AS row_at, * FROM finds WHERE wish_id = ? ORDER BY rowid",
+                                                (wish_id,))]
+        prices = [dict(p) for p in conn.execute("SELECT * FROM find_prices WHERE find_id IN "
+                                                 "(SELECT id FROM finds WHERE wish_id = ?) ORDER BY id", (wish_id,))]
+        conn.execute("DELETE FROM wishes WHERE id = ?", (wish_id,))   # its finds and their prices go with it
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    return {"wish": dict(row), "finds": finds, "prices": prices}
+
+
+def _put(conn: sqlite3.Connection, table: str, row: Mapping) -> None:
+    """A row back as it was, in its old place (rowid) unless a newer row has it."""
+    values = dict(row)
+    row_at = values.pop("row_at", None)
+    if row_at is not None and conn.execute(f"SELECT 1 FROM {table} WHERE rowid = ?", (row_at,)).fetchone() is None:
+        values = {"rowid": row_at, **values}
+    conn.execute(f"INSERT INTO {table} ({', '.join(values)}) VALUES ({', '.join('?' * len(values))})", list(values.values()))
+
+
+def restore_wish(conn: sqlite3.Connection, removed: Mapping) -> dict:
+    """Puts back a wish `remove_wish` took away, as it was: its note, price, finds with their whole price history and
+    codes. 409 when the gap it came from is on the list again meanwhile."""
+    wish = removed["wish"]
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if conn.execute("SELECT 1 FROM wishes WHERE id = ?", (wish["id"],)).fetchone():
+            raise ItemError(NOT_PUT_BACK, 404)
+        if wish["gap_id"] and not wish["bought_at"] and conn.execute(
+                "SELECT 1 FROM wishes WHERE gap_id = ? AND bought_at IS NULL", (wish["gap_id"],)).fetchone():
+            raise ItemError(WISHED_AGAIN, 409)
+        _put(conn, "wishes", wish)
+        for f in removed["finds"]:
+            _put(conn, "finds", f)
+        for p in removed["prices"]:
+            _put(conn, "find_prices", p)
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    return get_wish(conn, wish["id"])
 
 
 # ------------------------------------------------------------------ the routes
@@ -369,9 +424,32 @@ def router(conn_dep: Callable, gaps_now: Callable[[], dict], settings=None,
     def bought(wish_id: str, conn=Depends(conn_dep)):
         return shown(conn, [mark_bought(conn, wish_id)])[0]
 
+    # the wishes removed, kept while Nines runs so Undo can put them back: (closet, wish) -> (when, what)
+    removed: dict[tuple[str | None, str], tuple[float, dict]] = {}
+    removed_lock = threading.Lock()
+
+    def closet() -> str | None:
+        return settings.get("profile") if settings else None
+
     @r.delete("/api/wishlist/{wish_id}", status_code=204)
     def delete_wish(wish_id: str, conn=Depends(conn_dep)):
-        remove_wish(conn, wish_id)
+        taken = remove_wish(conn, wish_id)
+        now = time.monotonic()
+        with removed_lock:
+            for k in [k for k, (at, _) in removed.items() if now - at > UNDO_KEEP_S]:
+                del removed[k]
+            removed[(closet(), wish_id)] = (now, taken)
+            while len(removed) > UNDO_KEEP_MAX:
+                del removed[min(removed, key=lambda k: removed[k][0])]
         return Response(status_code=204)
+
+    @r.post("/api/wishlist/{wish_id}/restore")
+    def put_back_wish(wish_id: str, conn=Depends(conn_dep)):
+        """Undo "Remove from the list": the wish back as it was, with its finds. 404 once it cannot be."""
+        with removed_lock:
+            held = removed.pop((closet(), wish_id), None)
+        if held is None or time.monotonic() - held[0] > UNDO_KEEP_S:
+            raise ItemError(NOT_PUT_BACK, 404)
+        return shown(conn, [restore_wish(conn, held[1])])[0]
 
     return r

@@ -336,6 +336,25 @@ def test_save_makes_a_wish_whose_price_is_watched(client, cfg):
     assert client.post("/api/picks/nope/save").status_code == 404
 
 
+def test_undo_save_takes_the_wish_off_the_list_and_offers_save_again(client):
+    # "On your wishlist" with Undo on the pick, as on a gap's card (the review of 24 November, finding 43)
+    own_line(client)
+    pick = look(client)["picks"][0]
+    wish_id = client.post(f"/api/picks/{pick['id']}/save").json()["wish_id"]
+    r = client.delete(f"/api/picks/{pick['id']}/save")
+    assert r.status_code == 200
+    again = next(p for p in r.json()["picks"] if p["id"] == pick["id"])
+    assert again["state"] == "shown" and again["wish_id"] is None
+    assert wish_id not in [w["id"] for w in client.get("/api/wishlist").json()["wishes"]]
+    # saved again: a new wish, with the product as its find
+    assert client.post(f"/api/picks/{pick['id']}/save").json()["wish_id"] != wish_id
+    # a pick that is not saved is left as it is; one that is not there is said so
+    other = look(client)["picks"][1]
+    assert next(p for p in client.delete(f"/api/picks/{other['id']}/save").json()["picks"]
+                if p["id"] == other["id"])["state"] == "shown"
+    assert client.delete("/api/picks/nope/save").status_code == 404
+
+
 def test_not_for_me_hides_it_for_good_with_undo_and_tells_the_next_look(client, fake_shop):
     own_line(client)
     pick = look(client)["picks"][1]

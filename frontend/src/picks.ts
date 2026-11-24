@@ -79,6 +79,8 @@ export interface PicksAnswer {
 export const PICKS_SHOWN = 3;
 /** About two lines of a name on a phone; the whole name is the link's title. */
 export const PICK_NAME_MAX = 34;
+/** About three lines, beside a hanger where the shop gave no picture: enough to reach the kind of piece. */
+export const PICK_NAME_BARE_MAX = 64;
 export const PICKS_POLL_MS = 2000;
 
 export const NEVER_LOOKED = 'Nines can look for three things you might like, from what you wear and love.';
@@ -103,6 +105,12 @@ export const SHOPS_HINT = 'Nines starts here when it looks for things on sale, a
 export function shopsLine(shops: { shops: { name: string }[] } | undefined): string {
   const names = (shops?.shops ?? []).map((s) => s.name);
   return names.length ? `Shops you like: ${names.join(' · ')}` : 'You have not named any shops you like yet.';
+}
+
+/** Whether the Wardrobe offers You might like at all: not while the closet is empty (the gaps' own sentence says to add
+ * clothes first, and the card would ask you to wear and rate pieces you do not have). */
+export function offersPicks(gaps: { checked?: { items: number } | null }): boolean {
+  return (gaps.checked?.items ?? 0) > 0;
 }
 
 /** The card's two views, as Today's "Pieces / As worn". */

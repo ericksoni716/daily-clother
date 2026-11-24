@@ -149,17 +149,21 @@ test("\"I'll look for this\" puts a gap on the wishlist; the note is kept; it ca
   await page.reload();
   await expect(page.getByTestId('wish').getByLabel('Note')).toHaveValue('Size 42, under 150');
 
-  // removed from its page, it goes back to the wishlist, now empty, and on the Wardrobe the gap is offered again
+  // removed from its page, it goes back to the wishlist, where its place says so with Undo (the review of 24
+  // November, 5), and on the Wardrobe the gap is offered again; the wishlist is empty once you come back to it
   await page.getByTestId('wish').getByRole('button', { name: 'Remove' }).click();
   await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
   await expect(page.getByTestId('wish-row')).toHaveCount(0);
-  const empty = page.getByTestId('wishlist-empty');
-  await expect(empty).toContainText('Your wishlist is empty');
-  await expect(empty.getByRole('link', { name: "See what's worth buying" })).toHaveAttribute('href', '/wardrobe');
+  await expect(page.getByTestId('wish-removed')).toContainText(`You removed “${name}”.`);
   await page.locator('.page-back').click();   // "‹ Wardrobe"
   await expect(page).toHaveURL(/\/wardrobe$/);
   await seeAll(page);
   await expect((await openGap(page, name)).getByRole('button', { name: "I'll look for this" })).toBeVisible();
+  await openWishlist(page);
+  const empty = page.getByTestId('wishlist-empty');
+  await expect(empty).toContainText('Your wishlist is empty');
+  await expect(empty.getByRole('link', { name: "See what's worth buying" })).toHaveAttribute('href', '/wardrobe');
+  await expect(page.getByTestId('wish-removed')).toHaveCount(0);
 });
 
 test('"Not for me" hides a gap with a reason, and it can be brought back', async ({ page }) => {
@@ -261,7 +265,8 @@ test("what's missing offline: the answer fetched earlier is shown as saved, and 
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
-  await expect(page.getByText(/^Saved earlier today/)).toBeVisible();
+  // when it was saved, in a few words: the banner says it is offline (the review of 24 November, 30)
+  await expect(page.getByText(/^Saved earlier today/)).toHaveText(/^Saved earlier today, at \d\d:\d\d\.$/);
   await seeAll(page);
   expect(await gapNames(page)).toEqual(names);
   const wish = (await openGap(page, names[0])).getByRole('button', { name: "I'll look for this" });
@@ -269,7 +274,7 @@ test("what's missing offline: the answer fetched earlier is shown as saved, and 
   await expect(wish).toHaveAttribute('title', /needs Nines on your computer/i);
   // the wishlist opens offline too, from the copy saved on this device, and its buttons say why they are off
   await openWishlist(page);
-  await expect(page.getByText(/^Saved earlier today/)).toBeVisible();
+  await expect(page.getByText(/^Saved earlier today/)).toHaveText(/^Saved earlier today, at \d\d:\d\d\.$/);
   await expect(page.getByRole('button', { name: 'Add by hand' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Add a link' })).toHaveAttribute('title', /needs Nines on your computer/i);
 });

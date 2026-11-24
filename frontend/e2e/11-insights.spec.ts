@@ -99,7 +99,8 @@ test("insights offline: one closet's saved answer is never shown as the other's"
   await context.setOffline(true);
   await page.goto('/wardrobe');
   await expect(page.locator('#wardrobe-title')).toBeVisible();
-  await expect(page.getByText(/nothing was saved on this device yet/)).toBeVisible();
+  await expect(page.getByText('Your wardrobe was not saved on this device yet.', { exact: true })).toBeVisible();
+  await expect(page.locator('main')).not.toContainText("You're offline");   // the banner says it (the review of 24 November, 30)
   await expect(page.getByText(demoSentence)).toHaveCount(0);
   await expect(page.getByText('$1,527')).toHaveCount(0);
 });
@@ -136,6 +137,11 @@ test('Your nines: the nine pieces worn most, as a square, over the time you choo
     const tiles = nines.getByTestId('nine');
     await expect(tiles).toHaveCount(9);
     await expect(nines.getByRole('button', { name: 'Last 30 days' })).toHaveAttribute('aria-pressed', 'true');
+    // the periods are 44px to tap (they were 34: the review of 24 November, 46)
+    for (const period of ['Last 30 days', 'Last 90 days', 'All time']) {
+      const box = await nines.getByRole('button', { name: period }).evaluate((el) => el.getBoundingClientRect().toJSON() as DOMRect);
+      expect(box.height, period).toBeGreaterThanOrEqual(44);
+    }
     // each says its number of wears, the most first
     const counts = (await tiles.locator('.nines-count').allInnerTexts()).map(Number);
     expect(counts).toEqual([...counts].sort((a, b) => b - a));

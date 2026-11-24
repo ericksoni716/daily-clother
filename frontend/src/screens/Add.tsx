@@ -49,17 +49,17 @@ const STATUS_TEXT: Record<UploadStatus, string> = {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** What happened to the files just chosen or dropped, in plain words. */
+/** What happened to the files just chosen or dropped, in plain words. The photos that went in are not counted here:
+ * the list under it says so, with its heading "Going into your closet" and its count. '' when that is all. */
 function describeAdded(queued: number, alreadyListed: number, skipped: File[]): string {
   const parts: string[] = [];
-  if (queued) parts.push(`${plural(queued, 'photo is', 'photos are')} going into your closet.`);
   if (alreadyListed) parts.push(`${plural(alreadyListed, 'photo was', 'photos were')} already waiting to go in, so ${alreadyListed === 1 ? 'it was' : 'they were'} left out.`);
   if (skipped.length) {
     const names = skipped.slice(0, 3).map((f) => f.name).join(', ');
     const more = skipped.length > 3 ? ` and ${skipped.length - 3} more` : '';
     parts.push(`Skipped ${plural(skipped.length, 'file')} that ${skipped.length === 1 ? 'is not a photo' : 'are not photos'}: ${names}${more}.`);
   }
-  return parts.join(' ') || 'There were no photos in what you chose.';
+  return parts.join(' ') || (queued ? '' : 'There were no photos in what you chose.');
 }
 
 /** "3 waiting · 2 uploading · 10 added …", leaving out what is zero. */
@@ -262,7 +262,7 @@ export function AddScreen() {
       alreadyListed += skipped;
       if (asSeveral && files.length === 1 && ids.length === 1) setFollow(ids[0]);
     }
-    if (queued || alreadyListed) said.push(describeAdded(queued, alreadyListed, []));
+    if (alreadyListed) said.push(describeAdded(queued, alreadyListed, []));
     const left = tooManyForAShoe(chosen);
     if (left) said.push(`A shoe takes up to ${SHOE_PHOTOS} photos, so ${left === 1 ? 'one photo was' : `${left} photos were`} left out.`);
     const sent: ShoeSent[] = [];
@@ -372,7 +372,7 @@ export function AddScreen() {
     if (trayRef.current.length + photos.length > SORT_MAX) {
       // a big import (a folder) goes in one piece per photo, as before, without waiting to be sorted
       const { skipped: alreadyListed } = photos.length ? addFiles(photos, false) : { skipped: 0 };
-      setNote(`${describeAdded(photos.length - alreadyListed, alreadyListed, skipped)} That is more than Nines sorts at once, so each photo goes in as one piece; add photos of several pieces or of shoes a few at a time.`);
+      setNote(`${describeAdded(photos.length - alreadyListed, alreadyListed, skipped)} That is more than Nines sorts at once, so each photo goes in as one piece; add photos of several pieces or of shoes a few at a time.`.trim());
       return;
     }
     const now = trayRef.current;
@@ -409,17 +409,15 @@ export function AddScreen() {
   return (
     <section className="add" aria-labelledby="add-title">
       <PageHeader title="Add clothes" titleId="add-title" />
-      {profile === 'demo' && <Notice as="p">You're in the demo closet, so new photos are added to the demo. Use "Back to my closet" above to add to your own.</Notice>}
+      {profile === 'demo' && <Notice as="p">You're in the demo closet, so new photos are added to the demo. Use Leave, above, to add to your own.</Notice>}
 
-      {offline ? (
+      {/* offline is said once, by the banner over the page; Add says only what is its own */}
+      {offline ? (pending > 0 && (
         <div className="notice notice-warn" data-testid="import-offline">
           <CloudOffIcon />
-          <div>
-            <p>Importing photos is unavailable right now: Nines on your computer can't be reached. Check that the computer is on and Nines is running; this page will work again as soon as it is.</p>
-            {pending > 0 && <p>The {plural(pending, 'photo')} still to go will carry on by themselves when it is back.</p>}
-          </div>
+          <p>The {plural(pending, 'photo')} still to go will carry on by themselves when Nines is back.</p>
         </div>
-      ) : (
+      )) : (
         <>
           {counts.missing > 0 && (
             <div className="notice notice-warn resume" data-testid="resume">

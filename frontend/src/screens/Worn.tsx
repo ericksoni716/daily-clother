@@ -498,6 +498,8 @@ function KeptList() {
   const { profile, offline } = useApp();
   const read = useQuery(keptQuery());
   const list = read.data ?? null;
+  // the outfits removed on this visit: each keeps its place with Undo, and the count under the heading leaves it out
+  const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
   const byId = useAllItems();
   const plans = useQuery(plansQuery(profile)).data;
   const trips = useQuery(tripsQuery(profile)).data;
@@ -508,7 +510,7 @@ function KeptList() {
   return (
     <div className="worn">
       <PageHeader title="Worn" back={{ to: '/today', label: 'Today' }}
-        count={list && <>{list.length} kept</>} />
+        count={list && <>{list.filter((o) => !gone.has(o.id)).length} kept</>} />
       <WornSwitch kept />
       {error === 'failed' ? <Failed query={read} what="the outfits you keep" />
         : error ? <p className="notice" role="alert">{error}</p> : list && <Failed query={read} what="the outfits you keep" />}
@@ -518,7 +520,12 @@ function KeptList() {
       )}
       {list && list.length > 0 && (
         <ol className="worn-list" aria-label="Outfits you keep">
-          {list.map((o) => <li key={o.id}><KeptCard outfit={o} byId={byId} offline={offline} plans={plans} trips={trips} /></li>)}
+          {list.map((o) => <li key={o.id}><KeptCard outfit={o} byId={byId} offline={offline} plans={plans} trips={trips}
+            removed={gone.has(o.id)} onRemoved={(was) => setGone((g) => {
+              const next = new Set(g);
+              if (was) next.add(o.id); else next.delete(o.id);
+              return next;
+            })} /></li>)}
         </ol>
       )}
     </div>
@@ -527,15 +534,17 @@ function KeptList() {
 
 /** One kept outfit: its name (given in place), when it was kept, its pieces, and Wear this; behind ⋯, Wear this on
  * another day and Remove. Removed, it leaves a line with Undo in its place. */
-function KeptCard({ outfit, byId, offline, plans, trips }: {
+function KeptCard({ outfit, byId, offline, plans, trips, removed, onRemoved }: {
   outfit: KeptOutfit; byId: Map<string, ItemSummary>; offline: boolean;
   plans: Parameters<typeof DaySheet>[0]['plans']; trips: Parameters<typeof DaySheet>[0]['trips'];
+  /** removed on this visit: a line with Undo in its place (the list keeps it so the count can leave it out) */
+  removed: boolean;
+  onRemoved(removed: boolean): void;
 }) {
   const { toast } = useApp();
   const qc = useQueryClient();
   const status = useSaveStatus();
   const [name, setName] = useState(outfit.name ?? '');
-  const [removed, setRemoved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const [choosing, setChoosing] = useState(false);
@@ -556,7 +565,7 @@ function KeptCard({ outfit, byId, offline, plans, trips }: {
     setBusy(true);
     try {
       await act();
-      setRemoved(gone);
+      onRemoved(gone);
       if (!gone) void touch(qc, 'kept');
     } catch (e) {
       toast((e as ApiError).message, 'error');

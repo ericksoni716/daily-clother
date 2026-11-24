@@ -71,8 +71,12 @@ test('keep an outfit from Today and from one worn, find it under Worn, name it, 
   await card.getByRole('button', { name: 'More for this outfit' }).click();
   await page.getByRole('dialog', { name: 'This outfit' }).getByRole('button', { name: 'Remove' }).click();
   await expect(page.getByTestId('kept-removed')).toContainText('You removed “Market morning”.');
+  // the count under the heading follows (it stayed at 4: the review of 24 November, 52), and comes back with Undo
+  const count = page.locator('.page-header .count');
+  await expect(count).toHaveText('3 kept');
   await page.getByTestId('kept-removed').getByRole('button', { name: 'Undo' }).click();
   await expect(kept(page)).toHaveCount(4);
+  await expect(count).toHaveText('4 kept');
   await expect(kept(page).first().getByLabel('Name of this outfit')).toHaveValue('Market morning');
   expect(await axeViolations(page)).toEqual([]);
 });

@@ -298,7 +298,8 @@ opens every screen at 375, 393, 402, 430 and 440px wide, light and once dark, an
 full-page picture of each into `frontend/phone-shots/`, then opens the sheets of Settings → Your
 style (the conversation, every line), an item's Colour row (its colours and the shades of its
 colour), a wish's most you'd pay and its find's checkout code, the closet's Filter sheet and its grid with Smaller pictures, Today's sheets (a piece's choices, where you are behind
-Change, and the days behind Another day), a day planned ahead and a day with nothing planned, Worn's (an outfit's choices and
+Change, and the days behind Another day), a day planned ahead and a day with nothing planned, Today on a day of a trip (a
+trip starting today, made for that picture and deleted after it), Worn's (an outfit's choices and
 Record an outfit), the outfits you keep and a kept outfit's choices and a packed piece's choices on a trip, and How you live,
 and pictures those. It also pictures two screens whose read fails (the closet, a trip) and fails if one shows a status text or
 code. `PHONE_CHECK_TEXT=125` checks every screen with the text at 125% (pictures named `t125-…`). It fails when a screen is wider than
@@ -308,7 +309,11 @@ requirements, as for the browser tests. A new screen is added to its list of rou
 It also prints how much each screen asks you to read, at 393px in light: the words on the
 page, the words in the first phone screen (above the tab bar) and the page's height, and
 lists as warnings the screens over the budget in [DESIGN.md](DESIGN.md) (about 150 words in
-the first screen, 350 on the page). It does not fail on them yet. `PHONE_CHECK_SIZES=393`
+the first screen, 350 on the page). It does not fail on them yet. A word is counted when a
+phone shows it as the page opens, scrolled through: not inside anything `inert`, `aria-hidden`
+or `hidden` (Today's outfits behind the dots), not in a box of a pixel or less (words for a
+screen reader only, a layer's name a phone hides), not in a closed fold (DECISIONS, "What the
+reading load counts"). `PHONE_CHECK_SIZES=393`
 pictures only that width, for a quick look while working; `320` there (the first iPhone SE, narrower than the 375
 the app is made for) is pictured only when named.
 

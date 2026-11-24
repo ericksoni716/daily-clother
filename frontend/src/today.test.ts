@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   askedOf, buildAroundPiece, occasionShown,
   addDays, dayName, daysAhead, onDay, weekdayOf,
-  canDress, closetKey, dayParts, midName, newestOn, outingLine, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
+  addFirstTitle, canDress, closetKey, dayParts, midName, newestOn, outingLine, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
   parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, tripSheetLine, tripTodayLine, whatToAddFirst, wornOrder,
-  type DayContext, type Outfit, type SavedOutfits, wornNow, type WornToday, shortDate,
+  type DayContext, type Outfit, type SavedOutfits, withWorn, wornNow, type WornToday, shortDate,
 } from './today';
 import type { ItemSummary } from './types';
 import { dayMonth } from './wears';
@@ -142,6 +142,14 @@ describe('can the closet dress the owner?', () => {
     ]);
     expect(whatToAddFirst([item('1', 'tee'), item('2', 'sneakers')])).toEqual(['something for your legs (trousers, jeans or shorts)']);
     expect(canDress([item('1', 'shirt'), item('2', 'trousers'), item('3', 'boots')])).toBe(true);
+  });
+
+  it('names in its headline only what the closet still needs (second review of the screens, finding 54)', () => {
+    // a closet of three tops was asked for a top, and the line under the headline said what was missing a second time
+    const tops = [item('1', 'tee'), item('2', 'shirt'), item('3', 'polo')];
+    expect(addFirstTitle(tops)).toBe('Add something for your legs and a pair of shoes, and Today can dress you');
+    expect(addFirstTitle([])).toBe('Add a top, something for your legs and a pair of shoes, and Today can dress you');
+    expect(addFirstTitle([item('1', 'tee'), item('2', 'jeans')])).toBe('Add a pair of shoes, and Today can dress you');
   });
 
   it('does not count untagged, archived or disliked clothes', () => {
@@ -344,5 +352,15 @@ describe('the occasion on a trip day', () => {
     expect(occasionShown('smart_casual', false, 'casual')).toBe('smart_casual');
     expect(occasionShown('smart_casual', true, null)).toBe('smart_casual');
     expect(occasionShown('smart_casual', true, undefined)).toBe('smart_casual');
+  });
+});
+
+describe('the outfit worn today', () => {
+  const o = (base: string): Outfit => ({ pieces: { base, mid: null, outer: null, bottom: 'j', shoes: 's', accessories: [] }, score: 1, reasons: [], warnings: [] } as unknown as Outfit);
+  it('is always on a card: in its place when the outfits hold it, else first', () => {
+    const list = [o('a'), o('b')];
+    expect(withWorn(list, null)).toBe(list);
+    expect(withWorn(list, { ids: ['b', 'j', 's'], outfit: o('b') })).toBe(list);
+    expect(withWorn(list, { ids: ['c', 'j', 's'], outfit: o('c') }).map((x) => x.pieces.base)).toEqual(['c', 'a', 'b']);
   });
 });

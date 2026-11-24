@@ -24,6 +24,8 @@ export interface PlanSaved {
 export const NAMED_DAYS = 6;
 /** The furthest a day can be dressed ahead (the server's `plans.MAX_AHEAD_DAYS`). */
 export const MAX_AHEAD_DAYS = 60;
+/** Said for a day further ahead than that: on its page (an address kept from before) and under the sheet's date box. */
+export const TOO_FAR = `Nines dresses days up to ${MAX_AHEAD_DAYS} days ahead.`;
 
 /** One day in the sheet: its name, and whether it has a plan or is part of a trip. */
 export interface DayChoice {

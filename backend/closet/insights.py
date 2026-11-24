@@ -205,8 +205,11 @@ def _join(words: list[str]) -> str:
     return words[0] if len(words) == 1 else f"{', '.join(words[:-1])} and {words[-1]}"
 
 
-def _your(pieces: list[_Piece], capital: bool = False) -> str:
-    return ("Your " if capital else "your ") + _join([p.name for p in pieces])
+def _your(pieces: list[_Piece], capital: bool = False, small: bool = False) -> str:
+    """ "your White canvas sneakers"; with `small`, each name as the middle of a sentence writes it ("your white canvas
+    sneakers", but "your GANT polo"), as the outfit rules' reasons do."""
+    names = [p.name[0].lower() + p.name[1:] if small and len(p.name) > 1 and not p.name[1].isupper() else p.name for p in pieces]
+    return ("Your " if capital else "your ") + _join(names)
 
 
 def _ago(days: int) -> str:
@@ -419,7 +422,7 @@ def _spread(pieces: list[_Piece], log: _Log, today: date) -> dict:
         label = CATEGORY_PLURAL.get(category, category)
         if few:
             sentence = (f"{label}: {k} of {len(group)} {'gets' if k == 1 else 'get'} {share}% of the wears "
-                        f"({_your([p for _, p in counted[:k]])}).")
+                        f"({_your([p for _, p in counted[:k]], small=True)}).")
         else:
             sentence = f"{label}: worn fairly evenly; it takes {k} of {len(group)} to make up {share}% of the wears."
         found.append({"category": category, "pieces": len(group), "wears": total, "doing_most": k, "share": share,

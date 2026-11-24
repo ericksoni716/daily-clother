@@ -1511,8 +1511,8 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
     if not strong:
         reasons.append("All neutral colours, so everything goes together.")
     elif len(strong) == 1:
-        colour = "a mix of colours" if strong[0].color == "multi" else (strong[0].color or "").replace("_", " ")
-        reasons.append(f"One colour, {colour} from {_the(strong[0])}, against neutrals.")
+        # the piece's name says its colour more often than not ("the navy jacket", "the madras plaid shirt"): named once
+        reasons.append(f"{_the(strong[0], True)} {'bring' if plural(strong[0]) else 'brings'} the colour; the rest is neutral.")
     elif all(_tonal(a, b) for a, b in itertools.combinations(strong, 2)):
         family = FAMILY_WORDS.get(COLOR_FAMILY.get(strong[0].color or "", ""), "shades of one colour")
         reasons.append(f"Tonal {family}: {_join([_the(p) for p in strong])}.")
@@ -1523,8 +1523,11 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
     if len(loud) == 1 and len(patterned) == 1:
         reasons.append(f"{_the(loud[0], True)} {_is(loud[0])} the only pattern; everything else is plain.")
     elif len(patterned) == 1:
-        reasons.append(f"The {patterned[0].pattern} of {_the(patterned[0])} is the only pattern"
-                       f"{', always safe' if R.one_pattern_safe else ''}.")
+        # "The madras plaid shirt is the only pattern.", not "The plaid of the madras plaid shirt"; the pattern is named
+        # only when the name does not say it ("The stripe of the white oxford shirt")
+        p = patterned[0]
+        said = (p.pattern or "").replace("_", " ").rstrip("e") in p.label.lower()
+        reasons.append(f"{_the(p, True)} {_is(p)} the only pattern." if said else f"The {p.pattern} of {_the(p)} is the only pattern.")
     warm = _for_the_cold(o, ctx.occasion, forced[0] if forced else None)
     if warm:
         reasons.append(f"{_join([_the(p) for p in warm]).capitalize()} {be(warm)} for the cold, whatever "
@@ -1581,11 +1584,13 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
 
 # ====================================================================== learning from ratings
 def _date_words(day: str) -> str:
-    """ "3 November" from "2026-11-03"; the day as given if it is not a date."""
-    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", day or "")
-    if not m or not 1 <= int(m.group(2)) <= 12:
+    """ "Tuesday 3 Nov" from "2026-11-03", as the page writes a day (`wears.ts`, DECISIONS "One way to write a date");
+    the day as given if it is not a date."""
+    try:
+        d = date.fromisoformat(str(day or ""))
+    except ValueError:
         return day
-    return f"{int(m.group(3))} {MONTH_WORDS[int(m.group(2)) - 1]}"
+    return f"{WEEKDAY_WORDS[d.weekday()]} {d.day} {MONTH_WORDS[d.month - 1][:3]}"
 
 
 def _pairs(ids: object) -> frozenset[frozenset[str]]:

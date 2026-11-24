@@ -13,3 +13,4 @@
 .day-sheet-note.is-planned { color: var(--ink); font-weight: var(--weight-label); }
 .day-sheet-other { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); margin-top: var(--space-4); }
 .day-sheet-other .field { flex: 1 1 10rem; margin: 0; }
+.day-sheet-far { margin: var(--space-2) 0 0; }

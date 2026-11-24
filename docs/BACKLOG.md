@@ -14,6 +14,13 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Today and a day ahead, the second review of the screens** (24 November; DECISIONS, the section of that name).
+  Left: the waiting shape while the outfits are chosen is as tall as the demo closet's first outfit, so a closet whose
+  reasons are much shorter or longer still moves what is under it a little; when Claude's outfits replace the rules'
+  (usually shorter reasons) what is under them still moves up (the review's second move). The chips of a change say a
+  piece's name as the closet writes it ("Without Chambray shirt"), capital and all. The server's away sentences still
+  write "Friday 27 November" while the reasons now write "Saturday 14 Nov". After Undo on an outfit worn on another
+  visit (the first card), the card goes and the next outfit takes its place.
 - **The Windows job does not hold a merge** (25 November; DECISIONS, "A starting copy writes its lock before its
   server answers"). A pull request merges once "Lint and tests (Linux)" is green, a minute or two before "Backend
   tests (Windows)" ends, so a failure there is seen by nobody: #337 merged with it red, and earlier ones may have.
@@ -53,8 +60,7 @@ only here); take a line out when it is done.
   day: the rules do, as for a day ahead; Claude being told the place and offered only the bag would need a
   new line in what is sent. The trip's own outfit leads only for the trip's occasion of the day. The trip's
   days on the trip page change to what you wore only when the trip is planned again (a change or Plan
-  again). The phone check pictures no trip day;
-  `e2e/48-trip-today.spec.ts` does.
+  again).
 - **The check against the closet, sooner** (23 November; DECISIONS, "The outfit engine", the row
   on remembered answers). Left: with the owner's answers, each situation's grid is run again even
   when the piece is not worn for that situation and the closet it judges is the same as before (a
@@ -81,8 +87,7 @@ only here); take a line out when it is done.
   Today's page reads about 66 words more than before (484 to 550 at 393px in the phone check's closet):
   14 are this work's own (Another day, Keep this outfit under each of three outfits, "Thursday is
   planned."), the rest the rules' reasons for a different third outfit, as the demo's plan keeps its
-  oxford shirt and chinos out of the laundry's way. Every outfit on Today and a day ahead repeats the
-  rules' taste line ("Dressed a little lighter than usual…"); saying it once is Today's to decide.
+  oxford shirt and chinos out of the laundry's way.
   A failed read of the kept outfits on Today only leaves "Keep this outfit" in place of "Kept under
   Worn" (keeping again says it is kept already); Worn says the read failed.
 
@@ -96,8 +101,7 @@ only here); take a line out when it is done.
   "Saved" beside them); a find stopped watching, and a wish removed from the list, can be put back
   only while Nines keeps running (an hour, at most 20), not after a restart.
 - **The review of the shared parts** (23 November; DECISIONS, "The failed state", "Banners wait for the next screen",
-  "One way to write a date"). Left: Today's own failed state ("Couldn't choose today's outfits: …") still words
-  itself and was left to the Today batch; on iPhone the system Text Size does not reach Safari's rem (only the browser's own text
+  "One way to write a date"). Left: on iPhone the system Text Size does not reach Safari's rem (only the browser's own text
   size does); price news never asked for on a screen you never leave shows only on the next screen or the next open.
   Brought onto the newer base, the newer screens had no failed read of their own to move onto `Failed`; a few older
   lines still word a failed read themselves (Advanced's space used, Today's weather lookup, the style conversation,

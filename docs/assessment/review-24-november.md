@@ -43,13 +43,14 @@ All are fixed. Of the screens' 59 findings, 57 are done and 2 were decided again
 ## What was done
 
 The fixes: #335 the rules (the nine faults and four of the suspicions, migration 0054), #336 the
-closet and a piece's page (ten findings), #337 the Wardrobe, the wishlist, Trips, Worn, Add and the demo
-closet (twenty-three findings), and #TODAY Today, a day ahead and a trip day (twenty-four findings).
-On the way CI found two faults, neither a finding of either review, both fixed in #337: an answer asked
-for just before a change was taken as the new one (it was on `main` already), and, on CI's Windows job, a
-copy of Nines just started could be taken for the one before it. #338, merged after #337, finishes that
-second fix: the check for a running copy reads its lock again after the copy answers. #334 (Settings tidied) answered the owner's own four complaints that day and is not a
-finding of either review. Each rule's test is in its module's own test file.
+closet and a piece's page (ten findings), #337 the Wardrobe, the wishlist, Trips, Worn, Add and the
+demo closet (twenty-three findings), and #339 Today, a day ahead and a trip day (twenty-four
+findings). On the way CI found two faults, neither a finding of either review, both fixed in #337: an
+answer asked for just before a change was taken as the new one (it was on `main` already), and, on
+CI's Windows job, a copy of Nines just started could be taken for the one before it. #338, merged
+after #337, finishes that second fix: the check for a running copy reads its lock again after the copy
+answers. #334 (Settings tidied) answered the owner's own four complaints that day and is not a finding
+of either review. Each rule's test is in its module's own test file.
 
 ### The rules
 
@@ -73,35 +74,35 @@ finding of either review. Each rule's test is in its module's own test file.
 
 | Finding | What was done | Where |
 |---|---|---|
-| 1. "I'm wearing this" takes away the outfit and puts a notice above | The card stays, says you are wearing it, with Undo where the button was | #TODAY |
+| 1. "I'm wearing this" takes away the outfit and puts a notice above | The card stays, says you are wearing it, with Undo where the button was | #339 |
 | 2. The closet opens on an empty laundry view | It opens on all your clothes, keeping the search and filters; Undo after All clean stays while you are in the view | #336 |
 | 3. The closet opens on an empty "Needs a check" view; "0 to check" | The same, decided once its count arrives; "0 to check" is never said | #336 |
 | 4. "It's back" moves the rows | The row changes in place and keeps its place and height | #336 |
 | 5. "Remove from the list" with no Undo | Undo in the wish's place on the wishlist puts it back whole, while Nines keeps running | #337 |
 | 6. Try again on a piece leaves an empty card | Asks again for everything the page waits for | #336 |
-| 7. A day ahead says a piece must be back only under the first outfit | Under every outfit that counts on it | #TODAY |
-| 8. Not this piece and Build around put rows of chips above the outfit | Said under the outfits, with Clear all | #TODAY |
-| 9. Offline, Today says it twice and pushes the button off the first screen | The banner says it; the time saved is a few words beside the weather | #TODAY |
+| 7. A day ahead says a piece must be back only under the first outfit | Under every outfit that counts on it | #339 |
+| 8. Not this piece and Build around put rows of chips above the outfit | Said under the outfits, with Clear all | #339 |
+| 9. Offline, Today says it twice and pushes the button off the first screen | The banner says it; the time saved is a few words beside the weather | #339 |
 | 10. The demo closet's Add names a button that is not there | "Use Leave, above" | #337 |
-| 11. The dots move when the outfit changes | In the outfits' heading; "1 of 3" gone | #TODAY |
-| 12. The row under the button wraps | One line in every state | #TODAY |
-| 13. With a trip coming, Today points to Trips twice | The foot line only when no trip is coming | #TODAY |
-| 14. On a trip day, "Going away?" at the foot | Not on a trip day | #TODAY |
+| 11. The dots move when the outfit changes | In the outfits' heading; "1 of 3" gone | #339 |
+| 12. The row under the button wraps | One line in every state | #339 |
+| 13. With a trip coming, Today points to Trips twice | The foot line only when no trip is coming | #339 |
+| 14. On a trip day, "Going away?" at the foot | Not on a trip day | #339 |
 | 15. The same sentence under each of three outfits | Not done (below) | |
-| 16. Reasons read badly with a name in them | "The madras plaid shirt is the only pattern." | #TODAY |
-| 17. The reasons write dates a third way | "on Saturday 14 Nov" | #TODAY |
-| 18. Small things to tap on Today | Try again, a planned day's link, the trip's line and the arrow back are 44 points | #TODAY |
-| 19. A planned day says "the only outfit" | Headed "Your plan for Fri" | #TODAY |
-| 20. A day inside a trip shows the occasion and mood | Not there | #TODAY |
-| 21. A failed read said twice, two Try again | One message in the shared words, one Try again for both | #TODAY |
-| 22. A day ahead that fails says "today's outfits" | It names its day | #TODAY |
-| 23. "The weather" alone as a label | "The weather isn't known yet." | #TODAY |
-| 24. A day past 60 days offers a Try again that cannot work | One sentence and the way back; the days sheet says it under its date box | #TODAY |
-| 25. The weather line leaves a dot at the end of a line | No dot at a line's end | #TODAY |
-| 26. At 320 the first screen loses the button | "Another day" stays beside the date | #TODAY |
-| 27. With Claude choosing, the page under the outfit moves twice | What is under the outfits sits where it will be while they are chosen (partly: below) | #TODAY |
-| 28. Offline, a planned day is laid out differently | Laid out as online | #TODAY |
-| 29. Names keep their capitals mid-sentence | A small letter in More numbers; Today's notice that had them is gone (1) | #TODAY |
+| 16. Reasons read badly with a name in them | "The madras plaid shirt is the only pattern." | #339 |
+| 17. The reasons write dates a third way | "on Saturday 14 Nov" | #339 |
+| 18. Small things to tap on Today | Try again, a planned day's link, the trip's line and the arrow back are 44 points | #339 |
+| 19. A planned day says "the only outfit" | Headed "Your plan for Fri" | #339 |
+| 20. A day inside a trip shows the occasion and mood | Not there | #339 |
+| 21. A failed read said twice, two Try again | One message in the shared words, one Try again for both | #339 |
+| 22. A day ahead that fails says "today's outfits" | It names its day | #339 |
+| 23. "The weather" alone as a label | "The weather isn't known yet." | #339 |
+| 24. A day past 60 days offers a Try again that cannot work | One sentence and the way back; the days sheet says it under its date box | #339 |
+| 25. The weather line leaves a dot at the end of a line | No dot at a line's end | #339 |
+| 26. At 320 the first screen loses the button | "Another day" stays beside the date | #339 |
+| 27. With Claude choosing, the page under the outfit moves twice | What is under the outfits sits where it will be while they are chosen (partly: below) | #339 |
+| 28. Offline, a planned day is laid out differently | Laid out as online | #339 |
+| 29. Names keep their capitals mid-sentence | A small letter in More numbers; Today's notice that had them is gone (1) | #339 |
 | 30. Offline, each screen adds its own sentence | The banner says it once; a screen adds only what is its own | #337 |
 | 31. "When you wore it": pictures 40 by 46 to tap | The whole row opens the outfit's choices | #336 |
 | 32. One list writes its days two ways | Not done (below) | |
@@ -126,12 +127,12 @@ finding of either review. Each rule's test is in its module's own test file.
 | 51. A plan with no weather says so four ways and offers Save | Said once, with Try again and Type the temperatures; no Save until a day is dressed | #337 |
 | 52. Outfits you keep: the count stays after Remove | It counts down, and back up with Undo | #337 |
 | 53. Add says "going into your closet" twice | Once | #337 |
-| 54. Too few clothes: what is missing said twice, Another day offered | One headline naming what is still missing; no other day | #TODAY |
+| 54. Too few clothes: what is missing said twice, Another day offered | One headline naming what is still missing; no other day | #339 |
 | 55. An empty closet asks you to "wear and rate a few more pieces" | No You might like card until there are clothes | #337 |
 | 56. The demo strip's Leave is small | 44px | #337 |
 | 57. Settings' Where you are leads with 70 words | Controls first, the words folded | #337 |
 | 58. Backups name the folder in a word you may not know | "a folder your computer copies to the cloud" | #337 |
-| 59. The guide describes "Why this works" as the page does not show it | `docs/USING.md` says what is on the screen | #TODAY |
+| 59. The guide describes "Why this works" as the page does not show it | `docs/USING.md` says what is on the screen | #339 |
 
 The rules: 9 fixed, and 4 of the 7 suspicions. The screens: 57 fixed, 2 decided against.
 

@@ -115,6 +115,27 @@ test('in the demo closet: say what it is with the kind picker, see the drawing c
   await expect(drawing).toHaveAttribute('src', before);
 });
 
+// The review of the shared parts left the History fold saying a failed read in a toast, in the server's own words
+// (BACKLOG, "The review of the shared parts"): it says it inside the fold, as every screen does, with Try again.
+test('in the demo closet: a history that cannot be read says so in its fold, and Try again reads it', async ({ page }) => {
+  let fail = true;
+  await page.route('**/api/items/*/history', (route) => (fail && route.request().method() === 'GET'
+    ? route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }) : route.fallback()));
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
+  const detail = page.locator('.detail-panel');
+  await detail.locator('summary', { hasText: 'History' }).click();
+  const failed = detail.getByTestId('failed-history');
+  await expect(failed).toContainText("Couldn't load its history.");
+  await expect(failed).toContainText('Nines on your computer answered with a fault. Trying again usually helps.');
+  await expect(page.getByText('Internal Server Error')).toHaveCount(0);
+  fail = false;
+  await failed.getByRole('button', { name: 'Try again' }).click();
+  await expect(failed).toHaveCount(0);
+  await expect(detail.locator('.fix-history .tag-body')).toContainText(/No changes to its description yet\.|You /);
+});
+
 test('on a phone the details fit the screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await goToCloset(page);

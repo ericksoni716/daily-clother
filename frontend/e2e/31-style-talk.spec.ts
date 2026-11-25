@@ -89,4 +89,24 @@ test.describe('talking to Claude about your style', () => {
     await lines.getByRole('button', { name: 'Done' }).click();
     await expect(summary.filter({ hasText: KEPT })).toHaveCount(0);
   });
+
+  // The review of the shared parts left the conversation saying a failed read in the server's own words, with no way to
+  // ask again but closing the sheet (BACKLOG, "The review of the shared parts"): it says it as every screen does.
+  test('a conversation that cannot be read says so in the words every screen uses, and Try again opens it', async ({ page }) => {
+    let fail = true;
+    await page.route('**/api/style/talk', (route) => (fail && route.request().method() === 'GET'
+      ? route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }) : route.fallback()));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await stayOnCloset(page, backend.url);
+    await page.goto(backend.url + '/settings');
+    await section(page).getByRole('button', { name: 'Talk to Claude about your style' }).click();
+    const failed = talkSheet(page).getByTestId('failed-style-talk');
+    await expect(failed).toContainText("Couldn't load the conversation about your style.");
+    await expect(failed).toContainText('Nines on your computer answered with a fault. Trying again usually helps.');
+    await expect(talkSheet(page)).not.toContainText('Internal Server Error');
+    fail = false;
+    await failed.getByRole('button', { name: 'Try again' }).click();
+    await expect(failed).toHaveCount(0);
+    await expect(box(page)).toBeVisible();
+  });
 });

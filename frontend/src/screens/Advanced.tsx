@@ -11,7 +11,7 @@ import { UpdatesMode } from '../components/Updates';
 import { Button, Failed, Fold, Notice, PageHeader } from '../components/ui';
 import { deviceOf } from '../here';
 import { formatSize } from '../labels';
-import { touch, useEdit, useModel } from '../queries';
+import { stale, touch, useEdit, useModel } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { settingsQuery, settingsSaved, storageQuery, taggingQuery, useSaveSettings, writePart } from '../settings';
 import { apiKeyShows, backupLine, claudeLead, computerOnly, modelAddresses, modelLines, storageLine, type ComputerOnly, type ModelAddress as ModelAddressLine } from '../settingsLines';
@@ -234,7 +234,8 @@ function BackupSection({ settings, profile, only, toast, disabled }: {
 /** The space used (a slow walk of the closet's folders, so the rows are drawn at once and filled in when it is done),
  * then where the closet is kept, on the computer. */
 function StorageSection({ offline, profile, dataDir }: { offline: boolean; profile: Profile; dataDir: string | null }) {
-  const { data: storage, error, refetch, isFetching } = useQuery({ ...storageQuery(), enabled: !offline });
+  const storageQ = useQuery({ ...storageQuery(), enabled: !offline });
+  const { data: storage, error } = storageQ;
 
   const folder = dataDir && <p data-testid="data-folder">Your closet is stored in <code className="path">{dataDir}</code></p>;
   let body: ReactNode;
@@ -242,8 +243,7 @@ function StorageSection({ offline, profile, dataDir }: { offline: boolean; profi
   else if (error && !storage) {
     body = (
       <>
-        <p className="form-error" role="alert">Couldn't work out how much space Nines uses: {error.message}</p>
-        <button className="btn" disabled={isFetching} onClick={() => void refetch()}>Try again</button>
+        <Failed query={storageQ} what="how much space Nines uses" testId="failed-storage" />
         {folder}
       </>
     );
@@ -323,7 +323,7 @@ function TaggingSection({ offline, settings, toast }: TaggingProps) {
             </StatusLine>
             <Button small disabled={tagging.isFetching} onClick={() => {
               void tagging.refetch();
-              void qc.invalidateQueries({ queryKey: queryKeys.settings(), exact: true });   // the items waiting
+              void stale(qc, queryKeys.settings(), { exact: true });   // the items waiting
             }}>Check again</Button>
           </div>
           <div className="claude-route" data-testid="route-plan">

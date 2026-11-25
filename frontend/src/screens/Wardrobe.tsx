@@ -14,7 +14,7 @@ import { BackLink, EmptyState, Failed, Notice, PageHeader } from '../components/
 import { savedWhen, saveGaps, type Wish } from '../gaps';
 import { saveInsights } from '../insights';
 import { goBack, navigate, WISHLIST_PATH, wishPath } from '../router';
-import { touch, useItems } from '../queries';
+import { stale, touch, useItems } from '../queries';
 import { queryKeys, type EditKind, type KeyName } from '../queryKeys';
 import { shownWithCopy, useTellFailure } from '../savedCopy';
 import { useApp } from '../store';
@@ -25,7 +25,7 @@ import { INSIGHTS_OFFLINE, savedInsights, Usage } from './Insights';
 import {
   LifeAbout, LifeBasis, OFFLINE_TITLE, savedLists, savedWishes, Thinking, WishCard, Wishlist, WorthBuying, type Actions, type Lists,
 } from './Missing';
-import { sharedLink, wishTitle } from '../shop';
+import { sharedLink, titleLength, wishTitle } from '../shop';
 import { LinkForm } from './Shop';
 import { WouldWork } from './WouldWork';
 import { YouMightLike } from './YouMightLike';
@@ -111,8 +111,8 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
   const wasChecking = useRef(check);
   useEffect(() => {
     if (wasChecking.current && !check) {
-      void qc.invalidateQueries({ queryKey: queryKeys.gaps() });
-      void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
+      void stale(qc, queryKeys.gaps());
+      void stale(qc, queryKeys.wishlist());
     }
     wasChecking.current = check;
   }, [check, qc]);
@@ -231,9 +231,11 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
   // a wish on its own page, which needs only the wishes too (not the analysis of what is worth buying)
   if (wish !== null) {
     const shown = wishById(wishShown.kind === 'ready' ? wishShown.data : null, wish);
+    const title = shown ? wishTitle(shown, wishFinds?.finds) : 'A wish';
+    const length = titleLength(title);
     return (
       <section className="wish-page" aria-labelledby="wish-title">
-        <PageHeader title={shown ? wishTitle(shown, wishFinds?.finds) : 'A wish'} titleId="wish-title" back={{ to: WISHLIST_PATH, label: 'Wishlist' }} />
+        <PageHeader title={title} titleId="wish-title" className={length ? `title-${length}` : undefined} back={{ to: WISHLIST_PATH, label: 'Wishlist' }} />
         {wishShown.kind === 'ready' && wishShown.savedAt && <SavedEarlier at={wishShown.savedAt} />}
         {shown ? <WishCard key={shown.id} wish={shown} actions={actions} onNote={saveNote} onRemoved={() => goBack(WISHLIST_PATH)} />
           : wishShown.kind === 'loading' ? <div className="missing-skeleton" aria-hidden="true" />

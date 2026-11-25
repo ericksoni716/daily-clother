@@ -16,7 +16,7 @@ import { Link, navigate, useMediaQuery } from '../router';
 import { sourceLine } from '../several';
 import { aboutUsd, importLine } from '../spend';
 import { progressOf } from '../progress';
-import { itemSaved, itemsQuery, reviewQuery, useItems, useProgress } from '../queries';
+import { itemSaved, itemsQuery, reviewQuery, stale, useItems, useProgress } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
 import { photoRoom, shoeAddedLine } from '../shoe';
@@ -301,7 +301,7 @@ export function AddScreen() {
   const sentSeveral = queue.filter((e) => e.sourceId).length;
   const sentBefore = useRef(sentSeveral);
   useEffect(() => {
-    if (sentSeveral !== sentBefore.current) void qc.invalidateQueries({ queryKey: queryKeys.sources() });
+    if (sentSeveral !== sentBefore.current) void stale(qc, queryKeys.sources());
     sentBefore.current = sentSeveral;
   }, [sentSeveral, qc]);
 

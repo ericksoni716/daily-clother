@@ -56,15 +56,6 @@ function fixable(options: DetailOptions | null | undefined): DetailOptions['grou
 /** What changes the item as a whole: when it moves, what is shown here is asked for again. */
 const stampOf = (item: Item) => `${item.updated_at}|${item.tagged_at}|${item.illustration_url}`;
 
-/** The latest error handler, without asking again each time the item page draws itself. */
-function useLatest<T>(value: T) {
-  const ref = useRef(value);
-  useEffect(() => {
-    ref.current = value;
-  });
-  return ref;
-}
-
 /**
  * "Fix the details": one button under the item's summary line ("Something wrong? Tell Claude") that opens a sheet over
  * the page (a popover under the button on a computer). The sheet opens on a box to say what's wrong; the details
@@ -388,14 +379,9 @@ export function ItemHistory({ item, disabled, onSaved, onError }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const id = item.id;
-  const report = useLatest(onError);
   const qc = useQueryClient();
   const history = useQuery({ queryKey: queryKeys.history(id), queryFn: () => api.history(id), enabled: open && !disabled });
   const entries: HistoryEntry[] | null = history.data ?? null;
-  const historyError = history.error?.message;
-  useEffect(() => {
-    if (historyError) report.current(historyError);
-  }, [historyError, report]);
 
   const undo = async (entry: HistoryEntry) => {
     setBusy(true);
@@ -415,6 +401,7 @@ export function ItemHistory({ item, disabled, onSaved, onError }: Props) {
       <summary>History</summary>
       <div className="tag-body">
         {disabled && <p className="muted">You're offline, so the history can't be shown or undone right now.</p>}
+        {!disabled && <Failed query={history} what="its history" testId="failed-history" />}
         {!disabled && entries?.length === 0 && <p className="muted">No changes to its description yet.</p>}
         {!disabled && entries && entries.length > 0 && (
           <ol className="fix-history-list">

@@ -53,15 +53,26 @@ def startup_lock(cfg: Config, timeout: float = 60):
 
 
 def running_info(cfg: Config) -> dict | None:
-    """The copy already running for this data folder, if any: its port, version and process id."""
+    """The copy already running for this data folder, if any: its port, version and process id.
+
+    The lock is read again once the copy has answered, and only a lock that held still is given back. Asking can take
+    a while (on Windows a connection to a port nobody listens on yet is tried again for a second or so before it
+    fails), long enough for a new copy to write its lock and begin to answer; the answer would then be paired with
+    the lock of the copy before it, which was killed: its process id and its token. A copy writes its lock before its
+    server answers (cli._serve), so a lock that is the same before and after the answer is the answering copy's."""
     try:
         lock = json.loads(cfg.lock_path.read_text())
-        port = int(lock["port"])
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1.5) as r:
-            health = json.loads(r.read())
-        if health.get("app") == "closet":
-            return {"port": port, "version": str(health.get("version") or ""), "pid": lock.get("pid"),
-                    "token": lock.get("token"), "background": lock.get("background") is True}
+        for _ in range(3):
+            port = int(lock["port"])
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1.5) as r:
+                health = json.loads(r.read())
+            if health.get("app") != "closet":
+                return None
+            now = json.loads(cfg.lock_path.read_text())
+            if now == lock:
+                return {"port": port, "version": str(health.get("version") or ""), "pid": lock.get("pid"),
+                        "token": lock.get("token"), "background": lock.get("background") is True}
+            lock = now   # it changed while the copy was asked: one was starting. Ask the copy it describes now
     except Exception:
         pass
     return None

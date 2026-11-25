@@ -1,4 +1,5 @@
 """A newer copy of the program that finds an older one running says so and offers to replace it."""
+import io
 import json
 import os
 import socket
@@ -237,6 +238,59 @@ def test_simultaneous_launches_share_one_startup(cfg):
                 if proc.poll() is None:
                     proc.terminate()
                 proc.communicate(timeout=30)
+
+
+def _answers(asked: list, then=lambda: None):
+    """A stand-in for asking a copy whether it is there: it answers as Nines does, after `then()` has happened (what
+    went on while the question was on its way)."""
+    def ask(url, timeout=None):
+        asked.append(url)
+        then()
+        return io.BytesIO(json.dumps({"app": "closet", "version": "0.3.0"}).encode())
+    return ask
+
+
+def test_a_copy_that_started_while_it_was_asked_for_is_given_with_its_own_lock(cfg, monkeypatch):
+    """`running_info` reads the lock, then asks the copy on its port. The question can take a while: on Windows a
+    connection to a port nobody listens on yet is tried again for a second or so before it fails. That is long enough
+    for a new copy to write its lock and begin to answer, and the answer must not then be paired with the lock read
+    before it: the process id and token of the copy that was killed. (CI's Windows runner met it twice on #337.)"""
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    cfg.lock_path.write_text(json.dumps({"pid": 111, "port": 4000, "token": "the-dead-copy's", "background": True}))
+    asked: list = []
+    started = iter([lambda: cfg.lock_path.write_text(json.dumps({"pid": 222, "port": 4000, "token": "the-new-copy's"}))])
+    monkeypatch.setattr(instance.urllib.request, "urlopen", _answers(asked, lambda: next(started, lambda: None)()))
+    assert instance.running_info(cfg) == {"port": 4000, "version": "0.3.0", "pid": 222, "token": "the-new-copy's",
+                                          "background": False}
+
+
+def test_a_copy_that_started_on_another_port_while_it_was_asked_for_is_asked_there(cfg, monkeypatch):
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    cfg.lock_path.write_text(json.dumps({"pid": 111, "port": 4000, "token": "the-dead-copy's"}))
+    asked: list = []
+    started = iter([lambda: cfg.lock_path.write_text(json.dumps({"pid": 222, "port": 4001, "token": "the-new-copy's",
+                                                                 "background": True}))])
+    monkeypatch.setattr(instance.urllib.request, "urlopen", _answers(asked, lambda: next(started, lambda: None)()))
+    assert instance.running_info(cfg) == {"port": 4001, "version": "0.3.0", "pid": 222, "token": "the-new-copy's",
+                                          "background": True}
+    assert asked == ["http://127.0.0.1:4000/api/health", "http://127.0.0.1:4001/api/health"]
+
+
+def test_a_lock_that_goes_while_its_copy_is_asked_for_means_nothing_is_running(cfg, monkeypatch):
+    """The copy answered and then let go of its lock: it is quitting."""
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    cfg.lock_path.write_text(json.dumps({"pid": 111, "port": 4000, "token": "t"}))
+    monkeypatch.setattr(instance.urllib.request, "urlopen", _answers([], cfg.lock_path.unlink))
+    assert instance.running_info(cfg) is None
+
+
+def test_a_lock_that_never_holds_still_is_not_followed_for_ever(cfg, monkeypatch):
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    cfg.lock_path.write_text(json.dumps({"pid": 0, "port": 4000, "token": "t"}))
+    asked: list = []
+    monkeypatch.setattr(instance.urllib.request, "urlopen", _answers(asked, lambda: cfg.lock_path.write_text(
+        json.dumps({"pid": len(asked), "port": 4000, "token": "t"}))))
+    assert instance.running_info(cfg) is None and len(asked) == 3
 
 
 LOCK_WRITTEN_SLOWLY = textwrap.dedent("""

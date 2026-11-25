@@ -7,7 +7,7 @@ import {
   addedByHand, atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, withStopped, googleShoppingLink,
   historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
   runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, watchWords,
-  webLink, wishlistAgain, wishlistWords, withinWords, isTheWish, wishTitle,
+  webLink, wishlistAgain, wishlistWords, withinWords, isTheWish, wishTitle, titleLength,
 } from './shop';
 import { timeOf } from './today';
 
@@ -381,6 +381,15 @@ describe('a wish made from one product names it once (the review of 24 November,
     expect(wishTitle({ name: cut }, [{ name: 'Navy pique polo' }, { name: whole }])).toBe(whole);
     expect(wishTitle({ name: cut }, null)).toBe(cut);
     expect(wishTitle({ name: 'A tan rain coat' }, [{ name: 'Tan gabardine rain coat' }])).toBe('A tan rain coat');
+  });
+  it('steps a long heading down in size, so a whole name keeps to a few lines', () => {
+    expect(titleLength('A tan rain coat')).toBeNull();
+    expect(titleLength('x'.repeat(40))).toBeNull();
+    expect(titleLength('x'.repeat(41))).toBe('long');
+    expect(titleLength(cut)).toBe('long');
+    expect(titleLength('x'.repeat(71))).toBe('longer');
+    expect(titleLength(whole)).toBe('longer');
+    expect(titleLength(`  ${'x'.repeat(40)}  `)).toBeNull();   // the spaces around it are not letters
   });
   it('names the find by its shop and price alone when it is the wish itself', () => {
     expect(isTheWish({ name: whole }, { name: cut })).toBe(true);

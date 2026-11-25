@@ -357,7 +357,32 @@ test.describe('shopping for a wish', () => {
     // its name once: the heading whole (the wish's own name is cut at 60 letters), the find by its shop and price
     const name = (await find.getAttribute('aria-label'))!;
     expect(name.length).toBeGreaterThan(60);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
+    const heading = page.getByRole('heading', { level: 1 });
+    await expect(heading).toHaveText(name);
+    // a whole name of over a hundred letters is set smaller than a page title (it took six lines of the largest type
+    // at 375): at most four lines at 375; at 320 it takes no more height than that (CI's wider font needs a fifth line
+    // of the body's size there); never wider than the screen
+    let tallest = 0;
+    for (const width of [375, 320]) {
+      await page.setViewportSize({ width, height: 667 });
+      await expect(page.locator('.page-header.title-longer')).toHaveCount(1);
+      const shape = await heading.evaluate((el) => ({
+        height: el.getBoundingClientRect().height,
+        lines: Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)),
+        right: el.getBoundingClientRect().right,
+        wide: document.documentElement.scrollWidth,
+      }));
+      if (width === 375) {
+        expect(shape.lines, 'lines at 375').toBeLessThanOrEqual(4);
+        tallest = shape.height;
+      } else {
+        expect(shape.height, `the heading's height at ${width}`).toBeLessThanOrEqual(tallest);
+      }
+      expect(shape.right, `the heading's right edge at ${width}`).toBeLessThanOrEqual(width);
+      expect(shape.wide, `the page's width at ${width}`).toBeLessThanOrEqual(width);
+      await page.screenshot({ path: test.info().outputPath(`wish-long-title-${width}.png`) });
+    }
+    await page.setViewportSize({ width: 375, height: 667 });
     await expect(find.getByRole('heading')).toHaveCount(0);
     await expect(find).toContainText(/^Example Shop · /);
 

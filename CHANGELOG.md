@@ -352,6 +352,15 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   wishlist, where the wish's place says "You removed …" with **Undo**, which puts it back as it was:
   its finds with their prices and codes, the most you'd pay and its note. It stays until you leave
   the wishlist (and while Nines keeps running).
+- **Three more places say a failed read as every screen does.** How much space Nines uses (Advanced,
+  Storage), the conversation about your style and a piece's History now say what could not be loaded
+  and why in plain words, with **Try again**, instead of the computer's own words (in a toast, for
+  History).
+- **Would this work?, opened from a wish, goes back to the wish.** Its back link says "‹ Wish" and
+  takes you to the wish's page, where you were, instead of to the Wardrobe.
+- **A long name heads a wish's page in smaller type.** A wish named after a product's whole name took
+  six lines of the largest type on a phone; a long name is now set a size or two smaller, so it keeps to
+  about four lines and never runs off the screen.
 - **A wish's page holds still and names its find once.** **Check now** says "Checking the price…" in
   place of "Last checked …" instead of putting a line in under it that moved **Find more** and said
   Claude was checking. What a later search finds comes after the finds you have already read. A wish
@@ -419,6 +428,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - **The laundry day leaves your suitcase alone.** What you wear on a trip goes in your suitcase, so the
   laundry day at home no longer marks it clean while the trip is under way. It stays in the laundry
   until the first laundry day after the trip, or until you say it is clean.
+- **A wear on a trip that reaches Nines late still counts.** An outfit you marked on the phone on a day
+  of a trip, sent once Nines could be reached after a laundry day of that trip, was taken as worn
+  before that wash, so it put nothing in the laundry. The laundry day did not wash what was in your
+  suitcase, so the wear now counts as any other.
 - **A trip packs a piece due back from the cleaner's.** A piece at the cleaner's that you expect back
   before you leave is packed clean, as Dress for another day already counts it, and the plan says it
   counts on it being back. It used to be left out as still in the laundry when the trip was a day or two

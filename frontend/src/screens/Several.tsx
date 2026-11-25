@@ -8,7 +8,7 @@ import {
   addLabel, boxStyle, CORNERS, cropStyle, differsFromFound, foundVersion, moveBox, moveCorner, newBox, pieceName, pointAt, putBack,
   remember, removedFound, sameBox, sourcePoll, type Corner, type Undo,
 } from '../several';
-import { touch } from '../queries';
+import { stale, touch } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
 import type { BoxEdges, PlainBox, SourceBox, SourcePhoto } from '../types';
@@ -44,7 +44,7 @@ export function SeveralScreen({ id }: { id: string }) {
   const boxesSaved = (next: SourcePhoto) => {
     void qc.cancelQueries({ queryKey: key, exact: true });   // a poll from before the change must not undo it
     qc.setQueryData(key, next);
-    void qc.invalidateQueries({ queryKey: queryKeys.sources(), exact: true });
+    void stale(qc, queryKeys.sources(), { exact: true });
   };
 
   /** Runs a change to the boxes; the photo as it is afterwards comes back. `words` say what it was, for Undo; an undo

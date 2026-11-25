@@ -442,6 +442,20 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* page titles: large and light; a phone gets the smaller size */
 .page-title-row h1 { font-size: var(--text-2xl); font-weight: var(--weight-body); letter-spacing: -0.02em; line-height: 1.1; }
 @media (min-width: 700px) { .page-title-row h1 { font-size: var(--text-3xl); } }
+/* a long title (a wish headed by a product's whole name: shop.titleLength) steps down a size or two, so it keeps to a
+   few lines, and a word too long for the line breaks rather than running off the screen */
+.page-header.title-long .page-title-row, .page-header.title-longer .page-title-row { min-width: 0; }
+.page-header.title-long .page-title-row h1, .page-header.title-longer .page-title-row h1 { min-width: 0; overflow-wrap: anywhere; }
+.page-header.title-long .page-title-row h1 { font-size: var(--text-xl); line-height: 1.2; }
+.page-header.title-longer .page-title-row h1 { font-size: var(--text-lg); line-height: 1.25; letter-spacing: -0.01em; }
+/* under 360 wide the longest take the body's size, set in the heading weight so they still read as the title */
+@media (max-width: 359px) {
+  .page-header.title-longer .page-title-row h1 { font-size: var(--text-md); font-weight: var(--weight-heading); letter-spacing: 0; }
+}
+@media (min-width: 700px) {
+  .page-header.title-long .page-title-row h1 { font-size: var(--text-2xl); }
+  .page-header.title-longer .page-title-row h1 { font-size: var(--text-xl); }
+}
 
 .segmented { display: inline-flex; padding: 3px; border-radius: var(--radius-pill); background: var(--inset); border: 1px solid var(--line); gap: 2px; }
 .segmented > * {

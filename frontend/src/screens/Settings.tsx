@@ -16,7 +16,7 @@ import { StatusLine, Toggle } from '../components/Toggle';
 import { UpdatesLine } from '../components/Updates';
 import { Button, buttonClass, confirmKeys, Failed, Fold, Notice, PageHeader, Section as UiSection, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { Link } from '../router';
-import { touch } from '../queries';
+import { stale, touch } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { phonePoll, settingsQuery, settingsSaved, taggingQuery, useSaveSettings, writePart } from '../settings';
 import { backupLine, claudeLine, computerOnly, mainGroups, type Device, type Group } from '../settingsLines';
@@ -345,7 +345,7 @@ function ClaudeSection({ offline, settings }: { offline: boolean; settings: Sett
   const checkAgain = (
     <Button small disabled={tagging.isFetching} onClick={() => {
       void tagging.refetch();
-      void qc.invalidateQueries({ queryKey: queryKeys.settings(), exact: true });
+      void stale(qc, queryKeys.settings(), { exact: true });
     }}>Check again</Button>
   );
   return (

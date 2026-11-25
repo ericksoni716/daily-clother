@@ -8,7 +8,7 @@ import { itemName, Pieces } from '../components/ItemPic';
 import { WornOutfit } from '../components/WornWith';
 import { useTodayView, VIEW_OPTIONS } from '../figure';
 import type { Wish } from '../gaps';
-import { navigate } from '../router';
+import { navigate, wishPath } from '../router';
 import { vocabQuery } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
@@ -298,7 +298,8 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   return (
     <section className={`wouldwork${wide ? ' is-wide' : ''}`} aria-labelledby={titleId} data-testid="would-work">
       <PageHeader className="wouldwork-head" title="Would this work?" titleId={titleId}
-        back={{ to: '/wardrobe', label: 'Wardrobe', className: 'wouldwork-back' }}
+        back={wishId ? { to: wishPath(wishId), label: 'Wish', className: 'wouldwork-back' }   // back to the wish it was opened from
+          : { to: '/wardrobe', label: 'Wardrobe', className: 'wouldwork-back' }}
         subtitle={wish ? <>Checking a find for <strong>{wish.name}</strong> against your closet.</> : 'Check a piece against your closet before you buy it.'} />
       {wide ? (
         <div className="wouldwork-columns">

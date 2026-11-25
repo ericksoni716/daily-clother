@@ -6,7 +6,7 @@ import { useNewsSeen } from '../components/PriceNews';
 import { SeeItWorn } from '../components/WornWith';
 import { Button, buttonClass, Card, Failed, Notice, SegmentedControl, Sheet } from '../components/ui';
 import type { Wish } from '../gaps';
-import { touch, useItems } from '../queries';
+import { stale, touch, useItems } from '../queries';
 import {
   addedByHand, canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, withStopped, googleShoppingLink,
   historyWords, isTheWish, lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll,
@@ -107,7 +107,7 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
     // the wish's name (a link's page names it) and its row's price may have changed: asked for again as soon as the
     // pages are read, not only when the run ends (src/shop.ts, wishlistAgain)
     if (wishlistAgain(answered.current ? lastRun.current : undefined, run)) {
-      void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
+      void stale(qc, queryKeys.wishlist());
     }
     if (lastRun.current?.state === 'running' && run && run.state !== 'running') {
       toast(runDoneWords(run, wish.name), run.state === 'failed' ? 'error' : undefined);
@@ -124,8 +124,8 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
       await api.removeFind(wish.id, f.id);
       setStopped((was) => [...was.filter((s) => s.find.id !== f.id), { find: f, at }]);
       // this wish's finds changed, and with them its row in the wishlist (its link and its drop)
-      await qc.invalidateQueries({ queryKey: key, exact: true });
-      void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
+      await stale(qc, key, { exact: true });
+      void stale(qc, queryKeys.wishlist());
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -135,7 +135,7 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
       qc.setQueryData(key, await api.restoreFind(wish.id, f.id));
       setStopped((was) => was.filter((s) => s.find.id !== f.id));
       // the wish reads as before the stop again, its row in the wishlist too
-      void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
+      void stale(qc, queryKeys.wishlist());
     } catch (e) {
       toast((e as Error).message, 'error');
     }

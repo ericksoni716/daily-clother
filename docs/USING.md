@@ -522,8 +522,8 @@ marked as saved earlier, and nothing can be added.
 ## A wish
 
 `/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wishlist" goes back. A wish made from one
-product (a link sent, a pick saved) is headed by the product's whole name, and that find starts at its
-shop and price. Top to bottom: what to
+product (a link sent, a pick saved) is headed by the product's whole name (a long name in smaller type, so it
+keeps to about four lines), and that find starts at its shop and price. Top to bottom: what to
 look for (or "Added by hand"); what is watched, the pages you sent first ("You sent this link", and
 "Claude read its price from the page" when it did), then what Claude found (the oldest first, so what a later search finds comes after what you have
 read), each checked against the
@@ -577,7 +577,7 @@ When what was shared holds no link, it says so and the box is empty.
 ## Would this work?
 
 `/wardrobe/check` (and `/wardrobe/check/wish/<id>` from a wish), from the Wardrobe;
-"‹ Wardrobe" goes back. A piece you might buy, from a photo or described by hand, checked
+"‹ Wardrobe" goes back ("‹ Wish", to the wish's page, when it was opened from a wish). A piece you might buy, from a photo or described by hand, checked
 against the closet by rule. By hand it asks two things first, what kind of piece it is and its main
 colour, and answers as soon as both are chosen, with no button to press. The piece is then one line
 ("Light blue shirt") and the verdict comes straight under it; under the verdict one line says what

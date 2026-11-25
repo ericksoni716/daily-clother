@@ -8,7 +8,7 @@ import type { RememberHow } from '../today';
 import type { QuestionAnswer, StyleLine, StyleQuestion, StyleTalk as Conversation } from '../types';
 import { CheckIcon } from './Icons';
 import { Talk, type TalkWords } from './Talk';
-import { Button, Notice } from './ui';
+import { Button, Failed, Notice } from './ui';
 
 const STYLE_TALK: TalkWords = {
   list: 'Your conversation with Claude about your style', box: 'Tell Claude about your style',
@@ -31,7 +31,8 @@ export function StyleTalk({ offline }: { offline: boolean }) {
   const [answered, setAnswered] = useState<{ question: StyleQuestion; line: StyleLine | null } | null>(null);
   const data = talk.data;
   if (!data) {
-    return talk.error ? <p role="alert">{talk.error.message}</p> : <p className="muted" role="status">Opening the conversation…</p>;
+    return talk.error ? <Failed query={talk} what="the conversation about your style" testId="failed-style-talk" />
+      : <p className="muted" role="status">Opening the conversation…</p>;
   }
   const put = (next: Conversation) => qc.setQueryData(queryKeys.styleTalk(), next);
   const locked = offline || !!data.refused;

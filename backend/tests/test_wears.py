@@ -398,6 +398,38 @@ def test_the_laundry_day_at_home_leaves_what_you_wore_on_a_trip_under_way_in_the
     assert [client.get(f"/api/items/{i}").json()["laundry"] for i in dirty] == ["clean"] * len(dirty)
 
 
+def test_a_wear_for_a_trip_day_sent_after_a_laundry_day_of_the_trip_is_counted(client, trip_clock):
+    """BACKLOG, left over from the second logic review's fixes. The same trip, Friday to Tuesday, laundry day Sunday.
+    Saturday's outfit is tapped on the phone with the computer out of reach and reaches Nines on Monday. Sunday's
+    laundry day did not wash what was in the suitcase, so the wear counts: the tee goes in the laundry (and stays
+    there until a laundry day after the trip) rather than being taken as worn before a wash."""
+    friday, saturday = TODAY + timedelta(days=1), TODAY + timedelta(days=2)
+    trip_closet(client)
+    make_trip(client, friday, friday + timedelta(days=4))
+    trip_clock["day"] = saturday
+    worn = client.post("/api/outfits/today", json={"low_c": 12, "high_c": 18, "rain": False}).json()["outfits"][0]
+    tees = [i for i in trip_ids_of(worn) if client.get(f"/api/items/{i}").json()["category"] == "tee"]
+    assert tees and [laundry(client, i) for i in tees] == ["clean"] * len(tees)
+
+    trip_clock["day"] = friday + timedelta(days=3)   # Monday: Sunday has gone by, the trip is still under way
+    wear_outfit(client, worn, saturday)
+    assert [laundry(client, i) for i in tees] == ["laundry"] * len(tees), \
+        "a wear on the trip was taken as washed by the laundry day at home"
+    assert [client.get(f"/api/items/{i}").json()["wears_since_wash"] for i in tees] == [1] * len(tees)
+
+    trip_clock["day"] = friday + timedelta(days=9)   # the Sunday after the trip washes it, as it does the rest
+    assert [laundry(client, i) for i in tees] == ["clean"] * len(tees)
+
+
+def test_a_wear_before_a_trip_is_still_washed_by_a_laundry_day_at_home(client):
+    """The other side of the rule above: a piece not in any trip's bag on the laundry day was in the basket at home,
+    so a wear filled in for a day before that laundry day is behind its wash, as before."""
+    assert client.put("/api/settings", json={"laundry": {"auto": True, "day": 6}}).status_code == 200
+    tee = kind(client, "tee", "t")
+    wear(client, tee, 6)   # last Friday, before Sunday's laundry day
+    assert laundry(client, tee) == "clean"
+
+
 def test_the_laundry_setting_can_be_turned_off_and_is_checked(client):
     assert client.get("/api/settings").json()["laundry"] == {"auto": True, "day": 6}
     assert client.put("/api/settings", json={"laundry": {"auto": False}}).status_code == 200

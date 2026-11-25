@@ -365,7 +365,10 @@ The page reads through TanStack Query. Why, and the numbers: [DECISIONS.md](DECI
   `qc.setQueryData(queryKeys.x(), answer)` rather than asking again. The screen still says "Saved" or the error.
   A read still on its way when the save lands was asked before it, so `touch` drops it and asks again (or, for a
   screen that is not showing, marks it stale once it lands); go through `touch` (or `useEdit`) rather than
-  `qc.invalidateQueries`, which keeps a first read and takes its old answer as new.
+  `qc.invalidateQueries`, which keeps a first read and takes its old answer as new. Where a screen knows the one key
+  a change made out of date rather than a kind of edit (back from a check, an upload done, Check again), use
+  `stale(qc, queryKeys.x(), { exact: true })`, which takes the same care for one key. The one call left with the
+  library's own is asking again for everything on coming back online.
 - **Polling while work runs.** Decide how often as a pure function of the data, in `src/<feature>.ts` with a test
   (as `src/work.ts` does). When only one screen watches the query, give it
   `refetchInterval: (q) => (running(q.state.data) ? 2000 : false)`. When several screens show the same data, poll

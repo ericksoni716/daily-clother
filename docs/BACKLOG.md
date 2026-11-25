@@ -23,22 +23,14 @@ only here); take a line out when it is done.
   visit (the first card), the card goes and the next outfit takes its place.
 - **The Windows job does not hold a merge** (25 November; DECISIONS, "A starting copy writes its lock before its
   server answers"). A pull request merges once "Lint and tests (Linux)" is green, a minute or two before "Backend
-  tests (Windows)" ends, so a failure there is seen by nobody: #337 merged with it red, and earlier ones may have.
+  tests (Windows)" ends, so a failure there is seen by nobody: #337 merged with it red (the ten runs before it were green).
   Making it required is a setting of the repository (the owner's), or a change to the `ci` workflow's last job so that
   it waits for the Windows job too. Until then the nightly run is where a Windows failure shows.
-- **A read on its way when an edit lands** (24 November; DECISIONS, "A read on its way when an edit lands is
-  dropped"). `touch` drops it and asks again. The fifteen or so places that mark one key stale by hand
-  (`qc.invalidateQueries` in `store.tsx`, `Shop.tsx`, `Wardrobe.tsx` after a check, `Review.tsx`, `Add.tsx`,
-  `Several.tsx`, Settings) still keep a first read that is on its way; none is known to show a fault. A helper
-  beside `touch` for one key would close them.
 - **The second logic review's fixes** (24 November; DECISIONS, the rows dated 24 November). Left for the
   owner: whether the laundry day should wash what was left in the basket at home while a trip is under way
-  (it still does; only the suitcase waits). Left undone: the count of wears behind a wash
-  (`wears.washed_since`) still takes a laundry day during a trip as having washed what was worn on the trip,
-  so a wear for a trip day sent late from the phone, after that laundry day, is not counted and puts nothing in
-  the laundry. "Not on this trip today" lapses with its day (decided), so a trip planned again on a later day
-  still takes that day's wear at home as the trip's outfit for it; remembering past set-aside days would
-  change that decision.
+  (it still does; only the suitcase waits). Left undone: "Not on this trip today" lapses with its day
+  (decided), so a trip planned again on a later day still takes that day's wear at home as the trip's
+  outfit for it; remembering past set-aside days would change that decision.
 - **Wearing while the computer is off** (23 November; DECISIONS, "Wearing while the computer is
   off"). Left undone: a gateway's answer while the computer sleeps (Cloudflare's 502 or 530 through
   the Cloudflare door) counts as an answer, not as Nines being out of reach, so a tap then shows the
@@ -103,9 +95,8 @@ only here); take a line out when it is done.
 - **The review of the shared parts** (23 November; DECISIONS, "The failed state", "Banners wait for the next screen",
   "One way to write a date"). Left: on iPhone the system Text Size does not reach Safari's rem (only the browser's own text
   size does); price news never asked for on a screen you never leave shows only on the next screen or the next open.
-  Brought onto the newer base, the newer screens had no failed read of their own to move onto `Failed`; a few older
-  lines still word a failed read themselves (Advanced's space used, Today's weather lookup, the style conversation,
-  Several, the History fold on a piece's page, which says it in a toast).
+  Brought onto the newer base, the newer screens had no failed read of their own to move onto `Failed`; Today's
+  weather lookup still words a failed read itself.
 - **Where a piece is** (23 November; DECISIONS, "Where a piece is"). Left undone: recording an
   outfit by hand that brings an away piece back says so in the toast, but its Undo is on the piece's
   page, not beside the toast (the toast has no button); the away view keeps the pieces brought back
@@ -191,9 +182,8 @@ only here); take a line out when it is done.
   not as soon as Claude can be reached; "Would it go with my clothes?" on a described link still
   starts from the name alone rather than from Claude's description; the Google Shopping search has no
   size or brands (step 3) and is always "men's".
-- **The wishlist's own page** (23 November; DECISIONS, "The wishlist's own page"). Would this work?
-  opened from a wish ("Would it go with my clothes?") still goes back to the Wardrobe, not to the wish
-  or the wishlist. The toast after "I'll look for this" cannot open the list: toasts take no action.
+- **The wishlist's own page** (23 November; DECISIONS, "The wishlist's own page"). The toast after
+  "I'll look for this" cannot open the list: toasts take no action.
 - **Checkout codes** (23 November; DECISIONS, "Checkout codes"). Nines reads a code only from a
   page's text: text a page hides with its styles (`display: none`, `hidden`) is still read, a
   code's end date is not, and a banner put in by a script is never seen. Claude's finds get a
@@ -552,6 +542,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 
 **First, what is already there made right**
 - [x] **The review's findings** (`docs/assessment/review-23-november.md` is the short report of the two reviews of 23 November, the screens and the rules, with what was done about each finding; the fixes went in as #316 to #319, #322, #324 and #326. Left: a few words under P3 in that report).
+- [x] **The second reviews' findings** (`docs/assessment/review-24-november.md` is the short report of the two reviews of 24 November, the rules and the screens, with what was done about each finding; the fixes went in as #335, #336, #337 and #TODAY. Left for the owner: whether to fold "Why this works", and the laundry day at home while a trip is under way).
 - [x] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
 - [x] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
 - [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.

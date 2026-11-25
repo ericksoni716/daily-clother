@@ -367,6 +367,14 @@ export function wishTitle(wish: Pick<Wish, 'name'>, finds: Pick<Find, 'name'>[] 
   return (finds ?? []).find((f) => isTheWish(f, wish))?.name ?? wish.name;
 }
 
+/** How long a wish's heading is, for its type size: a product's whole name can run to a hundred letters or more, which
+ * at the page title's size took six lines on a phone. `long` (over 40 letters) and `longer` (over 70) step the size
+ * down so a name keeps to about three or four lines; a short name keeps the page title's size. */
+export function titleLength(title: string): 'long' | 'longer' | null {
+  const n = title.trim().length;
+  return n > 70 ? 'longer' : n > 40 ? 'long' : null;
+}
+
 /** Whether a wish's page says "Added by hand": it came from no gap and no page was sent for it. The server knows a
  * wish's link only while its find is watched, so the finds the page shows count too, a link's find you stopped
  * watching on this visit among them: the line does not appear, and push that find down, until you leave the page.

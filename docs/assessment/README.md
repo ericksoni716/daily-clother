@@ -23,6 +23,9 @@ history findings cover only that window.
 *Added 23 November:* two later reviews, of the rules and of the screens, and what was done about
 each finding, are in `review-23-november.md`. They are not part of the order of work below.
 
+*Added 25 November:* the second pair of reviews, of 24 November, and what was done about each
+finding, are in `review-24-november.md`. They are not part of the order of work either.
+
 ## The short version
 
 - The code is not full of dead files. Every module is reachable and the dependency lists are

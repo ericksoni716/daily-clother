@@ -1,6 +1,6 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
-import { dropItem, itemSaved, pickSummary, touch, upsertSummary, writeItem } from './queries';
+import { dropItem, itemSaved, pickSummary, stale, touch, upsertSummary, writeItem } from './queries';
 import { AWAY_MS, makeQueryClient, refetchOnReturn, STALE_MS } from './queryClient';
 import { queryKeys } from './queryKeys';
 import type { Item, ItemSummary } from './types';
@@ -134,6 +134,52 @@ describe('writing into the cache', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(qc.getQueryData(queryKeys.gaps())).toBe('from before the edit');
     expect(qc.getQueryState(queryKeys.gaps())?.isInvalidated).toBe(true);
+  });
+
+  // `stale`: the same care for the places that mark one key stale by hand (BACKLOG, "A read on its way when an edit
+  // lands"): a read already on its way was asked for before the change, so its answer may be from before it.
+  it('stale: a first read on its way for a screen that is showing is asked again, and its old answer never taken', async () => {
+    const qc = makeQueryClient();
+    const read = slowRead();
+    const seen: string[] = [];
+    const observer = new QueryObserver(qc, { queryKey: queryKeys.wishlist(), queryFn: read.queryFn });
+    const stop = observer.subscribe((r) => { seen.push(`${r.status}/${r.fetchStatus}`); });
+    expect(read.give).toHaveLength(1);
+    const done = stale(qc, queryKeys.wishlist());
+    expect(read.give).toHaveLength(2);
+    expect(qc.getQueryState(queryKeys.wishlist())?.fetchStatus).toBe('fetching');
+    read.give[0]('from before the change');
+    await Promise.resolve();
+    expect(qc.getQueryData(queryKeys.wishlist())).toBeUndefined();
+    read.give[1]('from after it');
+    await done;
+    expect(qc.getQueryData(queryKeys.wishlist())).toBe('from after it');
+    expect(seen).not.toContain('pending/idle');
+    stop();
+  });
+
+  it('stale: a read on its way for a screen that is not showing lands for whoever asked, then is marked stale', async () => {
+    const qc = makeQueryClient();
+    const read = slowRead();
+    const asked = qc.fetchQuery({ queryKey: queryKeys.sources(), queryFn: read.queryFn });
+    await stale(qc, queryKeys.sources(), { exact: true });
+    read.give[0]('from before the change');
+    await expect(asked).resolves.toBe('from before the change');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(qc.getQueryState(queryKeys.sources())?.isInvalidated).toBe(true);
+    expect(read.give).toHaveLength(1);
+  });
+
+  it('stale: only the key given (and the keys under it, unless exact), nothing else', async () => {
+    const qc = setup();
+    qc.setQueryData(queryKeys.finds('w1'), []);
+    qc.setQueryData(queryKeys.findOutfits('w1', 'f1'), []);
+    await stale(qc, queryKeys.items('active'), { exact: true });
+    expect(qc.getQueryState(queryKeys.items('active'))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(queryKeys.items('archived'))?.isInvalidated).toBe(false);
+    await stale(qc, ['finds']);
+    expect(qc.getQueryState(queryKeys.finds('w1'))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(queryKeys.findOutfits('w1', 'f1'))?.isInvalidated).toBe(false);
   });
 
   it('after an item save, the lists it wrote stay fresh and the rest it touches goes stale', () => {

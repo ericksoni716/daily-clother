@@ -153,7 +153,9 @@ test('the second set\'s address is saved on its own, and Use default puts it bac
   await expect(section.getByLabel('Address for the first set')).toHaveValue('https://example.com/isnet-general-use.onnx');
 
   await section.getByRole('button', { name: 'Use the default for the second set' }).click();
-  expect(sent.at(-1)).toEqual({ url: '', which: 'second' });
+  // the click returns once it is made, not once the request it starts has reached the stand-in: wait for that
+  // request (read at once, it was still the address saved before when the browser was slow, as in a full run)
+  await expect.poll(() => sent.at(-1)).toEqual({ url: '', which: 'second' });
   await expect(box).toHaveValue(DEFAULT);
 });
 

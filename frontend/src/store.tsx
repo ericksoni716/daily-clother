@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api, connection } from './api';
 import { keepShowDrawings, loadShowDrawings, ShowDrawings } from './drawing';
 import { outboxFor, refusedLine, type KeptAction, type Outbox, type OutboxEvent } from './outbox';
-import { itemsQuery, modelQuery, progressQuery, touch, vocabQuery, writeItem } from './queries';
+import { itemsQuery, modelQuery, progressQuery, stale, touch, vocabQuery, writeItem } from './queries';
 import { makeQueryClient } from './queryClient';
 import { queryKeys } from './queryKeys';
 import { picturesQuery } from './settings';
@@ -124,9 +124,9 @@ function OpenCloset({ profile, onProfile, onQuit, toast, children }: Props) {
     const moved = movedOn(before.current, progress);
     before.current = progress;
     if (!moved.length) return;
-    void qc.invalidateQueries({ queryKey: queryKeys.items('active'), exact: true });
-    void qc.invalidateQueries({ queryKey: queryKeys.items('archived'), exact: true });
-    for (const id of moved) void qc.invalidateQueries({ queryKey: queryKeys.item(id), exact: true });
+    void stale(qc, queryKeys.items('active'), { exact: true });
+    void stale(qc, queryKeys.items('archived'), { exact: true });
+    for (const id of moved) void stale(qc, queryKeys.item(id), { exact: true });
   }, [progress, qc]);
 
   // Back online: ask again for everything on screen. While offline, check the server every few seconds.
@@ -174,8 +174,8 @@ function OpenCloset({ profile, onProfile, onQuit, toast, children }: Props) {
     return uploads.subscribe((entries) => {
       const now = entries.filter((e) => e.status === 'done').length;
       if (now > done) {
-        void qc.invalidateQueries({ queryKey: queryKeys.items('active'), exact: true });
-        void qc.invalidateQueries({ queryKey: queryKeys.progress(), exact: true });
+        void stale(qc, queryKeys.items('active'), { exact: true });
+        void stale(qc, queryKeys.progress(), { exact: true });
       }
       done = now;
     });

@@ -34,6 +34,25 @@ test('settings show how much space the demo closet takes, on the Advanced screen
   }
 });
 
+// The review of the shared parts left this one wording a failed read itself, with the server's own words after a colon
+// (BACKLOG, "The review of the shared parts"): it says it as every other screen does, with Try again.
+test('when the space used cannot be read, Storage says so in the words every screen uses, and Try again reads it', async ({ page }) => {
+  let fail = true;
+  await page.route('**/api/storage', (route) => (fail ? route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }) : route.fallback()));
+  await goToCloset(page);
+  await page.goto('/settings/advanced');
+  const section = page.getByRole('region', { name: 'Storage' });
+  const failed = section.getByTestId('failed-storage');
+  await expect(failed).toContainText("Couldn't load how much space Nines uses.");
+  await expect(failed).toContainText('Nines on your computer answered with a fault. Trying again usually helps.');
+  await expect(section).not.toContainText('Internal Server Error');
+  await section.screenshot({ path: test.info().outputPath('storage-failed.png') });
+  fail = false;
+  await failed.getByRole('button', { name: 'Try again' }).click();
+  await expect(section.getByTestId('storage-line')).toHaveText(/^Nines uses [\d.]+ (KB|MB|GB) for \d+ items/);
+  await expect(failed).toHaveCount(0);
+});
+
 test('settings: short groups in one column beside the sidebar, the technical parts on Advanced, Quit at the end', async ({ page }) => {
   await goToCloset(page);
   await useProfile(page, 'demo');

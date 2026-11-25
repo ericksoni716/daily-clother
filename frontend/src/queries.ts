@@ -190,13 +190,26 @@ export function dropItem(qc: QueryClient, id: string): void {
  */
 export function touch(qc: QueryClient, kind: EditKind, written: readonly KeyName[] = []): Promise<void> {
   const names = touched(kind, written);
-  for (const name of names) {
-    for (const q of qc.getQueryCache().findAll({ queryKey: [name], fetchStatus: 'fetching' })) {
-      if (!q.isActive()) void q.fetch().then(() => q.invalidate(), () => undefined);
-      else if (q.state.data === undefined) void q.cancel({ silent: true });
-    }
-  }
+  for (const name of names) readsOnTheirWay(qc, [name], false);
   return Promise.all(names.map((name) => qc.invalidateQueries({ queryKey: [name] }))).then(() => undefined);
+}
+
+/**
+ * Marks one key stale (and the keys under it, unless `exact`), with the same care as `touch` for a read still on its
+ * way: for the places that know the one key a change made out of date rather than a kind of edit (back from a check,
+ * a finished upload, Check again). Coming back online asks again for everything with the library's own call.
+ */
+export function stale(qc: QueryClient, queryKey: readonly unknown[], { exact = false }: { exact?: boolean } = {}): Promise<void> {
+  readsOnTheirWay(qc, queryKey, exact);
+  return qc.invalidateQueries({ queryKey, exact });
+}
+
+/** `touch`'s care for the reads under a key that are still on their way when it is marked stale. */
+function readsOnTheirWay(qc: QueryClient, queryKey: readonly unknown[], exact: boolean): void {
+  for (const q of qc.getQueryCache().findAll({ queryKey, exact, fetchStatus: 'fetching' })) {
+    if (!q.isActive()) void q.fetch().then(() => q.invalidate(), () => undefined);
+    else if (q.state.data === undefined) void q.cancel({ silent: true });
+  }
 }
 
 /** After a save that answered with the item: written where it shows, and the rest of what it touches made stale. */

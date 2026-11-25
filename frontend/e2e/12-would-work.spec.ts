@@ -204,9 +204,12 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   const { wishes } = await (await page.request.get('/api/wishlist')).json();
   expect(wishes).toHaveLength(1);
   expect(wishes[0].note).toContain('keeps the rain off');
-  await page.locator('.wouldwork-back').click();
-  await page.getByTestId('wishlist-open').click();
-  await page.getByTestId('wish-row').first().click();
+  // back goes to the wish it was opened from, not to the Wardrobe (BACKLOG, "The wishlist's own page"), where the
+  // note shows what was added
+  const back = page.locator('.wouldwork-back');
+  await expect(back).toHaveText(/Wish$/);
+  await back.click();
+  await expect(page).toHaveURL(new RegExp(`/wardrobe/wish/${encodeURIComponent(wishes[0].id)}$`));
   await expect(page.getByTestId('wish').getByRole('textbox', { name: 'Note' })).toHaveValue(/keeps the rain off/);
 });
 

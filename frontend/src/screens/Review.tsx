@@ -6,7 +6,7 @@ import { Button, EmptyState, Failed, PageHeader } from '../components/ui';
 import { CloudOffIcon, HangerIcon } from '../components/Icons';
 import { FIELD_TITLES, label } from '../labels';
 import { checkBody, notReadyText, progressText, reviewRows, skippedText, sureText, typedOf, type ReviewRow, type Typed } from '../review';
-import { itemSaved, itemsQuery, reviewQuery, useVocab } from '../queries';
+import { itemSaved, itemsQuery, reviewQuery, stale, useVocab } from '../queries';
 import { WhatItIs } from '../components/WhatItIs';
 import type { KindInfo } from '../kinds';
 import { queryKeys } from '../queryKeys';
@@ -31,7 +31,7 @@ export function useReviewCount(): number | null {
   const seen = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (states === undefined) return;
-    if (seen.current !== undefined && seen.current !== states) void qc.invalidateQueries({ queryKey: queryKeys.review() });
+    if (seen.current !== undefined && seen.current !== states) void stale(qc, queryKeys.review());
     seen.current = states;
   }, [states, qc]);
   return count ?? null;

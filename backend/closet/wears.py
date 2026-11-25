@@ -106,7 +106,9 @@ def washed_since(conn, row, day: date) -> bool:
     Washed by hand: marked clean on a later date (a wear on the day it was marked clean still counts). Washed by the
     laundry day: the piece goes in by itself, the first laundry day after `day` has come (a wash on the day itself is
     at its first minute, before the wear), and its wears in the week before that laundry day, this one included,
-    reached its count, so it was in the basket. Wears carried over from earlier weeks are not followed."""
+    reached its count, so it was in the basket. Wears carried over from earlier weeks are not followed. A laundry day
+    on which the piece was in the bag of a trip that holds that day did not wash it (it was in the suitcase, as
+    `catch_up` has it): the wash is the first laundry day it was not, and the wears counted run up to that one."""
     washed = None
     if row["washed_at"]:
         washed = min(_local_date(row["washed_at"]), today())   # a wash is never later than today
@@ -117,9 +119,13 @@ def washed_since(conn, row, day: date) -> bool:
     if not cap or policy is None or policy.day is None:
         return False
     wash = next_laundry_day(policy.day, day)
+    start = wash - timedelta(days=7)
+    from . import savedtrips  # it reads this module for the day
+    while wash <= today() and row["id"] in savedtrips.in_bag_on(conn, wash):
+        wash = next_laundry_day(policy.day, wash)
     if wash > today():
         return False
-    start = max(wash - timedelta(days=7), washed) if washed else wash - timedelta(days=7)
+    start = max(start, washed) if washed else start
     others = conn.execute("SELECT COUNT(*) FROM wears WHERE item_id = ? AND worn_on >= ? AND worn_on < ? AND worn_on != ?",
                           (row["id"], start.isoformat(), wash.isoformat(), day.isoformat())).fetchone()[0]
     return others + 1 >= cap

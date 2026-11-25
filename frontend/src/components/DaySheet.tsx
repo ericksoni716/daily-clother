@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type RefObject } from 'react';
-import { canChoose, choiceNote, dayChoices, MAX_AHEAD_DAYS, type Plan } from '../plans';
-import { addDays } from '../today';
+import { canChoose, choiceNote, dayChoices, MAX_AHEAD_DAYS, TOO_FAR, type Plan } from '../plans';
+import { addDays, daysAhead } from '../today';
 import type { TripSummary } from '../trips';
 import { Button, Sheet } from './ui';
 import './DaySheet.css';
@@ -44,6 +44,10 @@ export function DaySheet({ today, plans, trips, anchor, onClose, onChoose, title
         </label>
         <Button type="submit" disabled={!canChoose(date, today)}>Dress for this day</Button>
       </form>
+      {/* a date past the furthest says why the button is off, rather than leave it off without a word */}
+      {/^\d{4}-\d{2}-\d{2}$/.test(date) && daysAhead(today, date) > MAX_AHEAD_DAYS && (
+        <p className="hint day-sheet-far" role="status" data-testid="too-far-date">{TOO_FAR}</p>
+      )}
     </Sheet>
   );
 }

@@ -42,6 +42,9 @@ test('every old address lands on its new place, stays there after a reload, and 
 
 test('on a phone: Worn, Trips, the review and the wishlist are one level down in their place, and their back links go Back', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  // the foot of Today leads to Trips only when no trip is coming (second review of the screens, finding 13): the demo's
+  // trip twelve days away is left out of the list here
+  await page.route('**/api/trips', (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { trips: [] } }) : route.fallback()));
   await goToCloset(page);
   await useProfile(page, 'demo');
   const tabbar = page.locator('nav.tabbar');
@@ -64,7 +67,7 @@ test('on a phone: Worn, Trips, the review and the wishlist are one level down in
   expect(await page.evaluate(() => history.length)).toBe(length + 1);
 
   // Trips: a plain link at the foot of Today, lit as Today, with "‹ Today"
-  await page.getByRole('link', { name: 'Trips', exact: true }).click();
+  await page.getByRole('link', { name: 'Going away? Trips says what to pack.', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Trips', level: 1 })).toBeVisible();
   await expect(lit).toHaveText('Today');
   await page.locator('.page-back').click();

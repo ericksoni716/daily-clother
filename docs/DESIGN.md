@@ -136,7 +136,8 @@ check" in [DEVELOPING.md](DEVELOPING.md).
 - What does it show while it waits, when there is nothing yet, when the answer is a guess,
   and when the weather, Claude or the computer cannot be reached?
 - Is it under the word budget? Is each hint one line? (The phone check prints each screen's
-  words and lists the ones over.)
+  words and lists the ones over. It counts what a phone shows as the page opens: not what is
+  behind a swipe, a closed fold or only for a screen reader.)
 - Does it make sense on the phone, and is anything computer-only hidden there?
 - Can it be undone, or does it ask first?
 - Tokens and `components/ui/` only? At least 44px to tap?

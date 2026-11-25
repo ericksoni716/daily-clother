@@ -1,6 +1,7 @@
-import type { Page, Route } from '@playwright/test';
+import type { Locator, Page, Route } from '@playwright/test';
 import { axeViolations } from './a11y';
-import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { danglingDots, expect, goToCloset, hitArea, serviceWorkerInCharge, stayOnCloset, test, useProfile } from './fixtures';
+import { startBackend, type Backend } from './server';
 
 const BROOKLYN = 'Brooklyn, New York, United States';
 
@@ -333,7 +334,9 @@ test('today kept open overnight does not undo yesterday when wearing another out
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('closet-today-saved:outfits:demo')!));
   const outfit = saved.answer.outfits[0];
-  const ids = await pieceIds(page);
+  // the first outfit asked for (the demo's outfit worn on the day the clock is set to is on a card of its own, first:
+  // second review of the screens, finding 1)
+  const ids = (Object.values(outfit.pieces).flat().filter(Boolean) as string[]);
   const recorded = await (await page.request.post('/api/wears', {
     data: { item_ids: ids, worn_on: saved.day, outfit: { pieces: outfit.pieces } },
   })).json();
@@ -412,8 +415,12 @@ test('today when the forecast cannot be fetched: an outfit for a mild day, one l
   expect((await notice.boundingBox())!.height).toBeLessThanOrEqual(48);
   await expect(page.getByText('No forecast.')).toHaveCount(1);
 
-  await notice.getByRole('button', { name: 'Type temperatures' }).click();
+  // today's temperatures are typed behind Change, on the weather line (the line about no forecast has only Try again;
+  // second review of the screens, the reading load)
+  await expect(notice.getByRole('button')).toHaveCount(1);
+  await page.getByTestId('day-line').getByRole('button', { name: 'Change', exact: true }).click();
   const panel = page.getByRole('dialog', { name: 'Where you are' });
+  await expect(panel.getByRole('heading', { name: "Or type today's temperatures" })).toBeVisible();
   await expect(panel.getByText('Using: New York, United States')).toBeVisible();
   await panel.getByLabel('Low °C').fill('18');
   await panel.getByLabel('High °C').fill('26');
@@ -475,7 +482,8 @@ test('today offline: the outfits fetched earlier are shown as saved, and the but
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
-  await expect(page.getByText(/^Saved earlier today/)).toBeVisible();
+  // when they were saved, in a few words where Change is (the banner says offline, once: second review, finding 9)
+  await expect(page.getByTestId('saved-at')).toHaveText(/^saved at \d\d:\d\d$/);
   expect(await pieceNames(page)).toEqual(names);
   // wearing is kept on this phone and sent when Nines answers (47-outbox), so it stays on; changing the outfits waits
   await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeEnabled();
@@ -490,8 +498,11 @@ test("today in a closet that can't dress the owner yet: says what is needed, wha
   await goToCloset(page);
   await page.goto('/today');
   const empty = page.getByTestId('today-empty');
-  await expect(empty).toContainText('Add a top, something for your legs and shoes, and Today can dress you');
-  await expect(page.getByTestId('add-first')).toContainText('Still to add:');
+  // the headline names what is still to add, once (second review of the screens, finding 54; the unit test has a
+  // closet of tops), and no day ahead is offered while no day can be dressed
+  await expect(empty).toContainText('Add a top, something for your legs and a pair of shoes, and Today can dress you');
+  await expect(page.getByTestId('add-first')).toHaveCount(0);
+  await expect(page.getByTestId('another-day')).toHaveCount(0);
   await expect(empty.getByRole('link', { name: 'Add clothes' })).toHaveAttribute('href', '/add');
   // nothing to dress, so no weather or occasion either
   await expect(page.getByTestId('day-line')).toHaveCount(0);
@@ -515,4 +526,282 @@ test('the app opens on Today once the closet can dress the owner', async ({ page
   // the new tab asked for today's outfits: let that answer arrive and its faked route finish before the test ends
   await expect(current(fresh).getByTestId('piece').first()).toBeVisible();
   await fresh.unrouteAll({ behavior: 'wait' });
+});
+
+
+// ------------------------------------------------------------------ the second review of the screens (24 November)
+
+const PHONE = { width: 375, height: 667 };
+const dots = (page: Page) => page.getByRole('group', { name: 'Choose an outfit' }).getByRole('button');
+/** Taps outfit `i`'s dot and waits for the outfits to stop sliding (a tap on an outfit still sliding in can miss it). */
+async function toOutfit(page: Page, i: number) {
+  await dots(page).nth(i).click();
+  await expect(current(page)).toHaveAttribute('aria-label', new RegExp(`^Outfit ${i + 1} of`));
+  await expect.poll(() => page.locator('.today-track').evaluate((el, n) => Math.round(el.scrollLeft) === Math.round(n * el.clientWidth), i)).toBe(true);
+}
+/** Where something is on the page (not on the screen), so a scroll does not count as a move. */
+const onPage = (l: Locator) => l.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+const fiveOrMore = (json: { outfits: { pieces: Record<string, unknown> }[] }) =>
+  json.outfits.filter((o) => Object.values(o.pieces).flat().filter(Boolean).length === 5);
+
+test('finding 1: "I\'m wearing this" turns the card you tapped into what you wear, where it is, with nothing put in above', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  const asked = await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  // the second outfit, so that staying where it is is not the same as going back to the first
+  await toOutfit(page, 1);
+  const ids = await pieceIds(page);
+  const button = current(page).getByRole('button', { name: "I'm wearing this" });
+  const cardAt = await onPage(current(page));
+  const buttonAt = await onPage(button);
+  const headAt = await onPage(page.locator('.today-outfits-head'));
+  let worn: string | undefined;
+  try {
+    const before = asked.length;
+    const wore = page.waitForResponse((r) => r.url().endsWith('/api/wears') && r.request().method() === 'POST');
+    await button.click();
+    worn = (await (await wore).json()).outfit.id;
+    // the closet changed (wears, the laundry): the outfits are asked for again, and the card stays as it is
+    await expect.poll(() => asked.length).toBeGreaterThan(before);
+    await expect(page.locator('.today-outfits.is-asking')).toHaveCount(0);
+    await expect(current(page).getByTestId('worn-today')).toHaveText("You're wearing this today");
+    expect(await pieceIds(page)).toEqual(ids);
+    await expect(current(page)).toHaveAttribute('aria-label', /^Outfit 2 of/);
+    expect(await onPage(page.locator('.today-outfits-head'))).toBe(headAt);
+    expect(await onPage(current(page))).toBe(cardAt);
+    expect(Math.abs(await onPage(current(page).getByTestId('worn-today')) - buttonAt)).toBeLessThanOrEqual(2);
+    await expect(page.getByText(/^You're wearing this today:/)).toHaveCount(0);
+    // the other outfits stay behind the dots, to wear instead
+    await toOutfit(page, 0);
+    await expect(current(page).getByRole('button', { name: 'Wear this instead' })).toBeVisible();
+  } finally {
+    if (worn) await page.request.delete(`/api/outfits/worn/${worn}`);
+    for (const id of ids) await page.request.post(`/api/items/${id}/laundry`, { data: { state: 'clean' } });
+  }
+});
+
+test('finding 8: "Not this piece" and "Build around this piece" leave the outfit and its button where they were', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const buttonAt = async () => onPage(current(page).getByRole('button', { name: "I'm wearing this" }));
+  const at = await buttonAt();
+  const [first] = await pieceIds(page);
+  const [name] = await pieceNames(page);
+  await current(page).getByRole('button', { name: `Choices for ${name}` }).click();
+  await page.getByRole('dialog', { name }).getByRole('button', { name: 'Not this piece' }).click();
+  await expect.poll(() => pieceIds(page)).not.toContain(first);
+  await expect(page.getByRole('button', { name: `Without ${name}, put it back` })).toBeVisible();
+  expect(await buttonAt()).toBe(at);
+  const [, secondName] = await pieceNames(page);
+  await current(page).getByRole('button', { name: `Choices for ${secondName}` }).click();
+  await page.getByRole('dialog', { name: secondName }).getByRole('button', { name: 'Build around this piece' }).click();
+  const stop = page.getByRole('button', { name: `Stop building around ${secondName}` });
+  await expect(stop).toBeVisible();
+  await expect(page.locator('.today-outfits.is-asking')).toHaveCount(0);
+  expect(await buttonAt()).toBe(at);
+  // what was changed is said under the outfits, beside "Changing an outfit", with the way to undo each and all
+  const outfitsEnd = await page.locator('.today-outfits').evaluate((el) => el.getBoundingClientRect().bottom + window.scrollY);
+  expect(await onPage(stop)).toBeGreaterThan(outfitsEnd);
+  await page.getByRole('button', { name: 'Clear all' }).click();
+  await expect(stop).toHaveCount(0);
+  await expect(page.locator('.today-outfits.is-asking')).toHaveCount(0);
+  expect(await buttonAt()).toBe(at);
+});
+
+test('finding 11: the dots are in the outfits\' heading and hold still from outfit to outfit', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const group = page.getByRole('group', { name: 'Choose an outfit' });
+  await expect(page.locator('.today-outfits-head').getByRole('group', { name: 'Choose an outfit' })).toHaveCount(1);
+  // "1 of 3" is not shown (the dots say it); a screen reader still hears which outfit is in front
+  const shown = (h: Element) => [...h.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE || (n as Element).getBoundingClientRect().width > 1)
+    .map((n) => n.textContent).join('').trim();
+  expect(await page.locator('.today-outfits-head h2').evaluate(shown)).toBe('Best for today');
+  await expect(page.getByRole('heading', { name: /^Best for today\W+1 of 3$/ })).toBeVisible();
+  const where: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    await toOutfit(page, i);
+    where.push(await onPage(group));
+  }
+  expect(new Set(where).size).toBe(1);
+  await expect(dots(page).nth(2)).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('finding 12: the row under the button is one line on the last outfit and once the outfit is kept', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const row = () => current(page).locator('.today-wear-more');
+  const oneLine = async () => expect((await row().boundingBox())!.height).toBeLessThanOrEqual(48);
+  await oneLine();
+  await toOutfit(page, 2);
+  await oneLine();
+  await toOutfit(page, 0);
+  await current(page).getByRole('button', { name: 'Keep this outfit' }).click();
+  await expect(current(page).getByTestId('kept-mark')).toBeVisible();
+  try {
+    await oneLine();
+  } finally {
+    const kept = (await (await page.request.get('/api/outfits/kept')).json()).outfits as { id: string }[];
+    for (const k of kept.slice(0, kept.length - 2)) await page.request.delete(`/api/outfits/kept/${k.id}`);
+  }
+});
+
+test('findings 13 and 18: with a trip coming, Today points to it once, in a row with no question; the links under the outfits take 44px', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  // the demo's trip starts in twelve days
+  const row = page.getByTestId('today-trip');
+  await expect(row).toBeVisible();
+  await expect(row).not.toContainText('Packing for a trip?');
+  await expect(row).toContainText(/in \d+ days · \d+ of \d+ packed/);
+  await expect(page.locator('.today-more')).toHaveCount(0);
+  // the demo's plan three days ahead: the whole line leads to that day
+  const soon = page.getByTestId('plans-soon');
+  await expect(soon).toContainText(/is planned\.$/);
+  expect((await hitArea(soon.getByRole('link'))).height).toBeGreaterThanOrEqual(44);
+});
+
+test('finding 18: with no forecast, Try again takes 44px and Type temperatures is left to Change', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await openToday(page);
+  const notice = page.getByTestId('no-weather');
+  await expect(notice).toHaveText('No forecast. Try again');
+  expect((await hitArea(notice.getByRole('button', { name: 'Try again' }))).height).toBeGreaterThanOrEqual(44);
+});
+
+test('finding 13: with no trip coming, the foot line leads to Trips, the whole line 44px to tap', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await fakeWeather(page);
+  await page.route('**/api/trips', (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { trips: [] } }) : route.fallback()));
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const foot = page.locator('.today-more');
+  await expect(foot.getByRole('link')).toHaveText('Going away? Trips says what to pack.');
+  expect((await hitArea(foot.getByRole('link'))).height).toBeGreaterThanOrEqual(44);
+});
+
+test('finding 21: a failed read is said once, in the shared words, and one Try again brings everything back', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await fakeWeather(page);
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  let failing = true;
+  const fail = (route: Route) => (failing ? route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }) : route.fallback());
+  await page.route('**/api/plans', fail);
+  await page.route('**/api/outfits/today', fail);
+  await page.goto('/today');
+  const failed = page.getByTestId('failed');
+  await expect(failed).toHaveCount(1);
+  await expect(failed).toContainText("Couldn't load today's outfits.");
+  await expect(failed).toContainText('Nines on your computer answered with a fault. Trying again usually helps.');
+  await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(1);
+  await expect(page.getByText(/Couldn't choose/)).toHaveCount(0);
+  // finding 23: where the weather goes, a sentence rather than a label
+  await expect(page.getByTestId('day-line')).toContainText("The weather isn't known yet.");
+  await page.screenshot({ path: test.info().outputPath('today-failed.png') });
+  failing = false;
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  await expect(page.getByTestId('plans-soon')).toBeVisible();
+  await expect(failed).toHaveCount(0);
+});
+
+test('finding 25: the weather line never leaves a dot at the end of a line', async ({ page }) => {
+  // no forecast at home in the tests: "14–20°C · no rain · a mild day" is longer than its line at 320
+  await page.setViewportSize({ width: 320, height: 568 });
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  expect(await danglingDots(page)).toEqual([]);
+});
+
+test('finding 27: while the outfits are chosen, what is under them is already where it will be', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((r) => { release = r; });
+  await page.route('**/api/outfits/today', async (route) => {
+    await held;
+    const response = await route.fetch({ postData: { ...route.request().postDataJSON(), low_c: 14, high_c: 20, rain: false } });
+    const json = await response.json();
+    if (response.ok()) Object.assign(json.context, { source: 'forecast', place: BROOKLYN, rain_chance: 10, old: false, message: null });
+    await route.fulfill({ response, json });
+  });
+  await openToday(page);
+  const recent = page.getByTestId('recent-outfits');
+  await expect(page.locator('.today-loading')).toBeVisible();
+  await expect(recent).toBeVisible();
+  const waiting = await onPage(recent);
+  release();
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const shown = await onPage(recent);
+  expect(Math.abs(shown - waiting), `Recent outfits at ${waiting} while waiting, ${shown} once shown`).toBeLessThanOrEqual(60);
+});
+
+
+// The review measured these in the owner's own closet (the phone check's copy of the demo closet), which has no ribbon
+// saying it is the demo: here too, on a backend of their own whose owner's closet starts as that copy.
+test.describe("in the owner's closet, a copy of the demo closet", () => {
+  let own: Backend;
+  test.beforeAll(async ({ playwright }) => {
+    own = await startBackend({ fakes: true, seed: 'demo' });
+    // the demo's price drops are news in a copy of it: marked seen, as the phone check does, so no banner is over Today
+    const api = await playwright.request.newContext({ baseURL: own.url, extraHTTPHeaders: { 'X-Closet-Client': '1' } });
+    const { news } = await (await api.get('/api/wishlist/news')).json();
+    await api.post('/api/wishlist/news/seen', { data: { wish_ids: news.map((n: { wish_id: string }) => n.wish_id) } });
+    await api.dispose();
+  });
+  test.afterAll(async () => {
+    await own?.stop();
+  });
+
+  test('finding 9: offline, it is said once, the saved time is a few words beside the weather, and the button is on the first screen', async ({ page, context }) => {
+    await page.setViewportSize(PHONE);
+    await stayOnCloset(page, own.url);
+    // no faked weather: home has no forecast in the tests, so the "No forecast" line is there online
+    await page.goto(own.url + '/today');
+    await serviceWorkerInCharge(page);
+    await expect(current(page).getByTestId('piece').first()).toBeVisible();
+    await expect(page.getByTestId('no-weather')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await context.setOffline(true);
+    await page.reload();
+    await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
+    await expect(current(page).getByTestId('piece').first()).toBeVisible();
+    await expect(page.getByTestId('saved-at')).toHaveText(/^saved at \d\d:\d\d$/);
+    await expect(page.getByText(/You're offline, so these can't be changed/)).toHaveCount(0);
+    await expect(page.getByTestId('no-weather')).toHaveCount(0);
+    const tabbar = (await page.locator('nav.tabbar').boundingBox())!;
+    const wear = (await current(page).getByRole('button', { name: "I'm wearing this" }).boundingBox())!;
+    await page.screenshot({ path: test.info().outputPath('today-offline.png') });
+    expect(wear.y + wear.height).toBeLessThanOrEqual(tabbar.y);
+    await context.setOffline(false);
+  });
+
+  test('finding 26: at 320 by 568 the first screen still holds five pieces and "I\'m wearing this"', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.route('**/api/outfits/today', async (route) => {
+      const response = await route.fetch();
+      const json = await response.json();
+      if (response.ok()) json.outfits = fiveOrMore(json);
+      await route.fulfill({ response, json });
+    });
+    await stayOnCloset(page, own.url);
+    await page.goto(own.url + '/today');
+    await expect(current(page).getByTestId('piece')).toHaveCount(5);
+    const tabbar = (await page.locator('nav.tabbar').boundingBox())!;
+    const wear = (await current(page).getByRole('button', { name: "I'm wearing this" }).boundingBox())!;
+    await page.screenshot({ path: test.info().outputPath('today-320.png') });
+    expect(wear.y + wear.height).toBeLessThanOrEqual(tabbar.y);
+    // and nothing wider than the phone
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+    expect(await current(page).evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+  });
 });

@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { axeViolations } from './a11y';
-import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, hitArea, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 // Dress for another day, on a phone: the sheet of days, a day's own view, "Wear this on <day>" (a plan, not a wear),
 // taking the plan away with Undo, the morning of a planned day, a day inside the trip, and a plan shown offline.
@@ -342,6 +342,127 @@ test('offline, a plan made earlier is shown from what this device kept, and cann
   await page.waitForLoadState('networkidle');
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByTestId('planned-offline')).toContainText("Planned for tomorrow. You're offline, so the plan can't be changed");
-  await expect(page.getByTestId('planned-offline').locator('.today-piece')).not.toHaveCount(0);
+  // laid out as online (second review of the screens, finding 28): "Planned", and Remove the plan off with why, the
+  // banner saying offline once
+  const planned = page.getByTestId('planned-offline');
+  await expect(planned.getByTestId('planned-day')).toHaveText('Planned');
+  const remove = planned.getByRole('button', { name: 'Remove the plan' });
+  await expect(remove).toBeDisabled();
+  await expect(remove).toHaveAttribute('title', /needs Nines on your computer/i);
+  await expect(page.getByRole('heading', { name: 'Your plan for ' + ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(Date.now() + 86_400_000).getDay()] })).toBeVisible();
+  await expect(planned.locator('.today-piece')).not.toHaveCount(0);
+});
+
+
+// ------------------------------------------------------------------ the second review of the screens (24 November)
+
+const dots = (page: Page) => page.getByRole('group', { name: 'Choose an outfit' }).getByRole('button');
+
+test('finding 7: any outfit that counts on a piece being back says so under its button, not only the first', async ({ page }) => {
+  await openDemo(page);
+  const day = localDay(1);
+  // the server counts on a piece expected back before the day; here it is one only the third outfit has
+  let counted = '';
+  await page.route('**/api/outfits/today', async (route: Route) => {
+    const response = await route.fetch();
+    const json = await response.json();
+    if (response.ok() && json.outfits.length >= 3) {
+      const ids = (o: { pieces: Record<string, unknown> }) => Object.values(o.pieces).flat().filter(Boolean) as string[];
+      const first = new Set([...ids(json.outfits[0]), ...ids(json.outfits[1])]);
+      counted = ids(json.outfits[2]).find((id) => !first.has(id)) ?? '';
+      json.context.expected = [counted];
+    }
+    await route.fulfill({ response, json });
+  });
+  await page.goto(`/today/day/${day}`);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  expect(counted).not.toBe('');
+  await expect(current(page).getByTestId('counts-on')).toHaveCount(0);
+  await dots(page).nth(2).click();
+  await expect(current(page)).toHaveAttribute('aria-label', /^Outfit 3 of/);
+  await expect(current(page).getByTestId('counts-on')).toHaveText(/^This counts on your .+ being back by then\.$/);
+  await page.screenshot({ path: test.info().outputPath('day-third-outfit-counts-on.png') });
+});
+
+test('finding 19: a planned day is headed "Your plan for", with nothing under it', async ({ page }) => {
+  await openDemo(page);
+  const day = localDay(2);
+  await page.request.put(`/api/plans/${day}`, { data: { pieces: await firstOutfit(page) } });
+  await page.goto(`/today/day/${day}`);
+  await expect(current(page).getByTestId('planned-day')).toBeVisible();
+  const head = page.locator('.today-outfits-head h2');
+  expect(await head.innerText()).toMatch(/^Your plan for \w{3}$/);
+  await expect(page.getByText('the only outfit')).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('day-planned.png') });
+});
+
+test('finding 20: a day inside the saved trip has no occasion or mood to choose', async ({ page }) => {
+  await openDemo(page);
+  const trip = ((await (await page.request.get('/api/trips')).json()).trips as { id: string; first_day: string }[])[0];
+  await page.goto(`/today/day/${trip.first_day}`);
+  await expect(page.getByTestId('trip-day')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Occasion' })).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Mood' })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('day-in-a-trip.png') });
+});
+
+test('finding 22: a day ahead whose read fails names its day, in the shared words, with one Try again', async ({ page }) => {
+  await openDemo(page);
+  let failing = true;
+  await page.route('**/api/outfits/today', (route: Route) =>
+    (failing ? route.fulfill({ status: 500, json: { detail: 'Internal Server Error' } }) : route.fallback()));
+  await page.goto(`/today/day/${localDay(1)}`);
+  const failed = page.getByTestId('failed');
+  await expect(failed).toContainText("Couldn't load the outfits for tomorrow.");
+  await expect(page.getByText("today's outfits")).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(1);
+  await page.screenshot({ path: test.info().outputPath('day-failed.png') });
+  failing = false;
+  await failed.getByRole('button', { name: 'Try again' }).click();
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+});
+
+test('finding 24: a day past 60 days says so in one sentence with the way back, and so does the days sheet', async ({ page }) => {
+  await openDemo(page);
+  await page.goto(`/today/day/${localDay(90)}`);
+  const far = page.getByTestId('too-far');
+  await expect(far).toContainText('Nines dresses days up to 60 days ahead.');
+  await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+  await expect(page.getByText(/Couldn't/)).toHaveCount(0);
+  await far.getByRole('link', { name: 'Back to Today' }).click();
+  await expect(page).toHaveURL(/\/today$/);
+  await page.getByTestId('another-day').click();
+  const sheet = page.getByTestId('another-day-sheet');
+  await sheet.getByTestId('another-date').fill(localDay(61));
+  await expect(sheet.getByText('Nines dresses days up to 60 days ahead.')).toBeVisible();
+  await sheet.getByTestId('another-date').fill(localDay(20));
+  await expect(sheet.getByText('Nines dresses days up to 60 days ahead.')).toHaveCount(0);
+});
+
+test('finding 18: the arrow back from a day ahead takes 44px', async ({ page }) => {
+  await openDemo(page);
+  await page.goto(`/today/day/${localDay(1)}`);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  expect((await hitArea(page.locator('.today-ahead-header .page-back'))).height).toBeGreaterThanOrEqual(44);
+});
+
+test('finding 28: offline, a planned day is laid out as it is online', async ({ page, context }) => {
+  await openDemo(page);
+  await page.request.put(`/api/plans/${localDay(1)}`, { data: { pieces: await firstOutfit(page) } });
+  await page.goto(`/today/day/${localDay(1)}`);
+  await serviceWorkerInCharge(page);
+  await expect(current(page).getByTestId('planned-day')).toBeVisible();
+  const rowOnline = await current(page).locator('.today-piece').evaluateAll((all) => all.map((p) => Math.round(p.getBoundingClientRect().top)));
+  await page.waitForLoadState('networkidle');
+  await context.setOffline(true);
+  await page.reload();
+  const planned = page.getByTestId('planned-offline');
+  await expect(planned).toBeVisible();
+  const rowOffline = await planned.locator('.today-piece').evaluateAll((all) => all.map((p) => Math.round(p.getBoundingClientRect().top)));
+  // as many to a row as online (four on a phone), and no layer written over the names
+  expect(rowOffline.filter((t) => t === rowOffline[0]).length).toBe(rowOnline.filter((t) => t === rowOnline[0]).length);
+  for (const place of await planned.locator('.today-piece-place').all()) expect((await place.boundingBox())!.width).toBeLessThanOrEqual(1);
+  await expect(planned.getByTestId('planned-day')).toHaveText('Planned');
+  await expect(planned.getByRole('button', { name: 'Remove the plan' })).toBeDisabled();
+  await page.screenshot({ path: test.info().outputPath('day-planned-offline.png') });
 });

@@ -244,7 +244,8 @@ def test_the_spread_tells_a_few_pieces_doing_the_work_from_even_wear():
     assert spread["enough"] is True
     cats = {c["category"]: c for c in spread["categories"]}
     assert cats["jeans"]["kind"] == "few" and cats["jeans"]["doing_most"] == 1 and cats["jeans"]["share"] == 90
-    assert cats["jeans"]["sentence"] == "Jeans: 1 of 3 gets 90% of the wears (your Dark jeans)."
+    # a name in the middle of a sentence starts small, as the rules write it (second review of the screens, finding 29)
+    assert cats["jeans"]["sentence"] == "Jeans: 1 of 3 gets 90% of the wears (your dark jeans)."
     assert [i["wears"] for i in cats["jeans"]["items"]] == [9, 1, 0]
     assert cats["tee"]["kind"] == "even" and cats["tee"]["doing_most"] == 2
     assert spread["categories"][0]["category"] == "jeans"   # the few-doing-the-work first

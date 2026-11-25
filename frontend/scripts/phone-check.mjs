@@ -41,6 +41,9 @@ const TEXT = Number(process.env.PHONE_CHECK_TEXT || 100);
 const PREFIX = TEXT === 100 ? '' : `t${TEXT}-`;
 // The reading budget in docs/DESIGN.md ("Reading load is a budget"): about 150 words in the first phone screen, about
 // 350 on the whole screen. Counted at 393px in light; a screen over either is listed, but does not fail the check yet.
+// What is counted is what a phone shows when the page opens, scrolled through: not what is out of reach by design
+// (`inert`, `aria-hidden`, `hidden`, a closed fold, words for a screen reader only, words a phone hides). Today's two
+// outfits behind the dots are not counted; the one in front is.
 const BUDGET = { screen: 150, page: 350 };
 const COUNTED_AT = '393';
 // Made-up names, long on purpose.
@@ -271,28 +274,42 @@ function overflow() {
 }
 
 /**
- * How much there is to read on the screen: the words in the page (not the tab bar or the sidebar), the words in the
- * first phone screen (what shows above the tab bar before scrolling), and the page's height. Runs inside the page.
+ * How much there is to read on the screen: the words a phone shows in the page (not the tab bar or the sidebar), the
+ * words in the first phone screen (what shows above the tab bar before scrolling), and the page's height. A word is
+ * counted when it is drawn: not inside something `inert`, `aria-hidden` or `hidden`, not in a box of a pixel or less
+ * (words for a screen reader only, a layer's name a phone hides), not in a closed fold. Runs inside the page.
  */
 function measure() {
   const root = document.querySelector('main') ?? document.body;
   const tabbar = document.querySelector('nav.tabbar');
   const fold = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
   const count = (text) => (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’.-]*/gu) ?? []).length;
+  let words = 0;
   let first = 0;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const el = node.parentElement;
     if (!el || !node.textContent?.trim()) continue;
     const style = window.getComputedStyle(el);
-    if (style.visibility === 'hidden' || style.display === 'none' || el.closest('[hidden], [aria-hidden="true"], .visually-hidden')) continue;
+    if (style.visibility === 'hidden' || style.display === 'none' || el.closest('[hidden], [inert], [aria-hidden="true"], .visually-hidden')) continue;
+    const box = el.getBoundingClientRect();
+    if (box.width <= 1 || box.height <= 1) continue;
+    // inside a closed fold (but not its summary, the line you tap to open it): the browser still lays it out
+    let folded = false;
+    for (let at = el; at && at !== root; at = at.parentElement) {
+      const fold = at.parentElement;
+      if (fold && fold.tagName === 'DETAILS' && !fold.open && at.tagName !== 'SUMMARY') folded = true;
+    }
+    if (folded) continue;
     const range = document.createRange();
     range.selectNodeContents(node);
     const r = range.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
-    if (r.top + window.scrollY < fold) first += count(node.textContent);
+    const n = count(node.textContent);
+    words += n;
+    if (r.top + window.scrollY < fold) first += n;
   }
-  return { words: count(root.innerText || ''), first, height: document.documentElement.scrollHeight };
+  return { words, first, height: document.documentElement.scrollHeight };
 }
 
 /** Waits until the screen has its heading and has stopped fetching, up to a few seconds each. */
@@ -360,6 +377,29 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           if (extra > 1) failures.push(`${route} at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
           if (errors.length) failures.push(`${route} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
           await page.close();
+        }
+        {
+          // Today on a day of a trip: a trip that starts today (its weather given), for this picture only
+          const page = await context.newPage();
+          const errors = [];
+          page.on('pageerror', (e) => errors.push(e.message));
+          const weather = [0, 1, 2, 3].map((i) => ({ date: localDay(i), low_c: 12, high_c: 19, rain: i === 0 }));
+          const made = await page.request.post(base + '/api/trips', { headers: { 'X-Closet-Client': '1' },
+            data: { place: PLACE, first_day: localDay(0), last_day: localDay(3), weather } });
+          const trip = await made.json();
+          try {
+            await page.goto(base + '/today');
+            await settle(page);
+            if (size === COUNTED_AT && scheme === 'light') reading.push({ route: '/today (a trip day)', ...(await page.evaluate(measure)) });
+            await scrollThrough(page);
+            await page.screenshot({ path: join(OUT, `${PREFIX}${size}-${scheme}-today-trip-day.png`), fullPage: true });
+            const { extra, culprits } = await page.evaluate(overflow);
+            if (extra > 1) failures.push(`today on a trip day at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
+            if (errors.length) failures.push(`today on a trip day at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
+          } finally {
+            await page.request.delete(base + `/api/trips/${encodeURIComponent(trip.id)}`, { headers: { 'X-Closet-Client': '1' } });
+            await page.close();
+          }
         }
         {
           // the closet with Smaller pictures (three across on a phone), chosen in its Filter sheet and kept on the device

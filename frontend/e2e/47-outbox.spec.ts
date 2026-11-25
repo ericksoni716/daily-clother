@@ -76,7 +76,7 @@ async function todayOffline(page: Page, context: import('@playwright/test').Brow
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
-  await expect(page.getByText(/^Saved earlier today/)).toBeVisible();
+  await expect(page.getByTestId('saved-at')).toHaveText(/^saved at \d\d:\d\d$/);
 }
 
 async function wornOn(page: Page, day: string) {
@@ -145,7 +145,7 @@ test("with something kept on the phone, Today's first screen on the smallest pho
   await page.unroute('**/api/outfits/today');
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByText(/^Saved earlier today/)).toBeVisible();
+  await expect(page.getByTestId('saved-at')).toHaveText(/^saved at \d\d:\d\d$/);
   await current(page).getByRole('button', { name: "I'm wearing this" }).click();
   await expect(keptLine(page)).toBeVisible();
   const tabbar = (await page.locator('nav.tabbar').boundingBox())!;
@@ -178,6 +178,7 @@ test('a wear taken back before Nines answers is never sent', async ({ page, cont
 test('a wear Nines refuses when it finally gets it is said once, and Today shows what Nines has', async ({ page, context }) => {
   await todayOffline(page, context);
   const day = localDay();
+  const tapped = await pieceIds(page);
   await current(page).getByRole('button', { name: "I'm wearing this" }).click();
   await expect(keptLine(page)).toBeVisible();
   // meanwhile another outfit is recorded for today, on the computer
@@ -189,9 +190,14 @@ test('a wear Nines refuses when it finally gets it is said once, and Today shows
     await expect(page.getByText('The outfit you wore today was not recorded. Another outfit was recorded for that day in the meantime.')).toBeVisible({ timeout: 15_000 });
     await expect(banner(page)).toBeHidden();
     expect((await wornOn(page, day)).map((o) => o.id)).toEqual([elsewhere.id]);
-    // the outfit tapped here is no longer said to be worn; the one Nines has is
-    await expect(current(page).getByTestId('worn-today')).toHaveCount(0);
-    await expect(page.getByText(/^You're wearing this today:/)).toBeVisible();
+    // the outfit tapped here is no longer said to be worn; the one Nines has is, on a card of its own (first: the
+    // outfits do not hold it), never in a line above them (second review of the screens, finding 1)
+    const worn = page.locator('.today-slide', { has: page.getByTestId('worn-today') });
+    await expect(worn).toHaveCount(1);
+    const wornIds = (await worn.getByTestId('piece').evaluateAll((a) => a.map((x) => x.getAttribute('href')!.split('/').pop()!))).sort();
+    expect(wornIds).toEqual([...other].sort());
+    expect(wornIds).not.toEqual([...tapped].sort());
+    await expect(page.getByText(/^You're wearing this today:/)).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('closet-today-saved:outbox:demo'))).toBeNull();
   } finally {
     await page.request.delete(`/api/outfits/worn/${elsewhere.id}`);

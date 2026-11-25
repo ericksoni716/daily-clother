@@ -430,6 +430,11 @@ export function whatToAddFirst(items: ItemSummary[] | null | undefined): string[
     .map((need) => NEED_WORDS[need]);
 }
 
+/** The headline of Today while the closet cannot dress you yet. */
+export function addFirstTitle(items: ItemSummary[] | null | undefined): string {
+  return `Add ${joinWords(whatToAddFirst(items).map((w) => w.replace(/ \(.*\)$/, '')))}, and Today can dress you`;
+}
+
 /** True when the closet holds at least a top, a bottom and shoes the owner has not rated dislike. */
 export function canDress(items: ItemSummary[] | null | undefined): boolean {
   return !!items && whatToAddFirst(items).length === 0;
@@ -682,6 +687,14 @@ export function withThing(answer: TodayAnswer, turnId: string, index: number, th
 /** Whether two lists of outfits are the same outfits in the same order (after Claude answered a message). */
 export function sameOutfits(a: Outfit[], b: Outfit[]): boolean {
   return a.length === b.length && a.every((o, i) => outfitIds(o.pieces).join(',') === outfitIds(b[i].pieces).join(','));
+}
+
+/** The outfits to show while an outfit is worn today: as they are when the worn one is among them, else with the worn
+ * one first (asked again after the wear, or on another visit, the outfits no longer hold it), so it is always on a card
+ * that says so, never in a line above them. */
+export function withWorn(outfits: Outfit[], worn: Pick<WornToday, 'ids' | 'outfit'> | null): Outfit[] {
+  if (!worn || outfits.some((o) => sameOutfit(outfitIds(o.pieces), worn.ids))) return outfits;
+  return [worn.outfit, ...outfits];
 }
 
 /**

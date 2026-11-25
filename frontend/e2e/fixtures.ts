@@ -147,3 +147,47 @@ export async function openFold(scope: Page | Locator, title: string | RegExp) {
   await expect(fold).toHaveAttribute('open', '');
   return fold;
 }
+
+/** The area that takes a tap on `target`, found by probing the page from its middle outwards, as the review measured. */
+export async function hitArea(target: Locator) {
+  await target.scrollIntoViewIfNeeded();
+  return target.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+    const takes = (x: number, y: number) => {
+      const at = document.elementFromPoint(x, y);
+      return !!at && (at === el || el.contains(at));
+    };
+    const reach = (dx: number, dy: number) => {
+      let n = 0;
+      while (n < 200 && takes(cx + dx * (n + 1), cy + dy * (n + 1))) n++;
+      return n;
+    };
+    return { height: reach(0, -1) + reach(0, 1) + 1 };
+  });
+}
+
+/** The dots of the weather line that end a line or start one, as drawn: none should. */
+export async function danglingDots(page: Page) {
+  return page.locator('.today-day-parts').evaluate((box) => {
+    const clip = box.getBoundingClientRect();
+    const parts = ([...box.querySelectorAll('span')] as HTMLElement[]).filter((p) => p.children.length === 0);
+    const tops = parts.map((p) => Math.round(p.getBoundingClientRect().top));
+    const found: string[] = [];
+    parts.forEach((p, i) => {
+      const after = getComputedStyle(p, '::after').content;
+      const before = getComputedStyle(p, '::before').content;
+      const has = (c: string) => c !== 'none' && c !== 'normal' && c.includes('·');
+      // a dot after a part that the next part does not follow on the same line
+      if (has(after) && i < parts.length - 1 && tops[i + 1] !== tops[i]) found.push(`after "${p.textContent}"`);
+      if (has(after) && i === parts.length - 1) found.push(`after the last part "${p.textContent}"`);
+      // a dot before a part that starts a line, drawn inside the line's box
+      const starts = i === 0 || tops[i - 1] !== tops[i];
+      const dot = parseFloat(getComputedStyle(p, '::before').width) || 0;
+      if (has(before) && starts && p.getBoundingClientRect().left - dot >= clip.left - 0.5) found.push(`before "${p.textContent}"`);
+      // a part's own words never start outside what is shown
+      if (p.getBoundingClientRect().left < clip.left - 0.5) found.push(`"${p.textContent}" cut at the start`);
+    });
+    return found;
+  });
+}

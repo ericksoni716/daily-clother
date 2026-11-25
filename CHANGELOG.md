@@ -190,6 +190,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- **Today reads shorter.** The outfit's count ("1 of 3") is gone: the dots, now beside the outfit's heading,
+  say it. The line about no forecast keeps only **Try again**; today's temperatures are typed behind
+  **Change**. The row about a coming trip names the place, the days and how much is packed, without
+  "Packing for a trip?", and the line at the foot about Trips shows only when no trip is coming. A day
+  inside a saved trip no longer shows the occasion and mood, which had nothing to change there.
 - **Settings, tidied.** **Check now** is back on the main Settings page, under **Updates**, beside
   when Nines last looked, with what it found coming in under the button and **Install now** when
   there is a new version; the version is shown there once, and the separate "This copy of Nines"
@@ -301,6 +306,39 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **"I'm wearing this" leaves the outfit where it is.** The card you tapped now says you are wearing it,
+  with Undo where the button was, and the other outfits stay behind the dots to wear instead. Nothing
+  is put in above the outfits any more, and the page no longer moves under your finger, online or not.
+- **Changing an outfit leaves it in place.** "Built around …" and "Without …" (with **Clear all**) are
+  said under the outfits, beside "Changing an outfit", instead of in rows put in above the outfit that
+  pushed it and its button down.
+- **The dots hold still.** The dots that choose an outfit sit in the outfits' heading, so they no longer
+  move when the outfit in front is taller or shorter.
+- **Offline, Today says it once.** The banner says you are offline; the time the outfits were saved is a
+  few words beside the weather, and the line about no forecast is not shown while offline. **I'm wearing
+  this** is on the first screen again on a small phone.
+- **One message when Today can't be read.** A failed read says so once, in the words every screen uses,
+  with one **Try again** that asks again for everything Today waits for. A day ahead names its day
+  ("Couldn't load the outfits for tomorrow."). Where the weather goes, it says "The weather isn't known
+  yet." rather than a bare label.
+- **A day too far ahead says so.** A day more than 60 days ahead, opened from an old address, says "Nines
+  dresses days up to 60 days ahead." with the way back to Today, and the days sheet says the same under
+  its date box when the date is too far, instead of leaving its button off without a word.
+- **Every outfit that counts on a piece says so.** On a day ahead, any outfit that counts on a piece
+  being back by then says so under its button, not only the first.
+- **A planned day reads as one.** Its heading is "Your plan for Fri", without "the only outfit" under it,
+  and offline it is laid out as it is online (four to a row on a phone, "Planned" with Remove the plan).
+- **Small fixes on Today.** The row under the button stays on one line on the last outfit ("The best
+  one") and once an outfit is kept. The weather line no longer leaves a dot at the end of a line. Try
+  again, "Friday is planned.", the line about Trips, the trip's line and the arrow back from a day ahead
+  each take a full 44 points to tap. On the narrowest phones "Another day" stays beside the date and the
+  weather on one line, so the button is on the first screen. While the outfits are being chosen, what is
+  under them already sits where it will be. With too few clothes, Today names only what is still
+  missing, once, and offers no other day.
+- **The reasons read better.** "The madras plaid shirt is the only pattern." and "The madras plaid shirt
+  brings the colour; the rest is neutral." instead of naming the piece's pattern or colour twice, and a
+  date in a reason reads as the rest of the app writes one ("on Saturday 14 Nov"). In More numbers on
+  the Wardrobe, names in the middle of a sentence start with a small letter.
 - **A change made just as a screen opens is no longer shown undone.** A screen that was still
   reading when you changed something (a wish opened from a link and removed at once, say) could
   take the answer it had asked for before the change as the new one: the Wardrobe went on saying

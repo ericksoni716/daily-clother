@@ -270,3 +270,36 @@ def test_the_bands_say_which_ask_for_a_layer_over_the_base():
     # from the owner's file: "base + light mid or light outer" asks for one of the two; "optional ..." and "base only" do not
     asks = {b.high_min: b.asks_layer for b in outfits.rules().bands}
     assert asks == {27: False, 21: False, 16: True, 10: True, 4: True, -99: True}
+
+
+# ====================================================================== the reasons as sentences (second review of the screens)
+def test_a_piece_named_for_its_pattern_and_colour_is_named_once_in_the_reasons():
+    # finding 16 of the review of 24 November: "One colour, a mix of colours from the madras plaid shirt, against
+    # neutrals." and "The plaid of the madras plaid shirt is the only pattern, always safe." read badly with the name in
+    items = [
+        item("madras", "shirt", "multi", "casual", pattern="plaid", name="Madras plaid shirt"),
+        item("chinos", "trousers", "beige", "casual", name="Stone chinos"),
+        item("shoes", "sneakers", "white", "casual", name="White canvas sneakers"),
+    ]
+    reasons = [r for o in outfits.suggest(items, day(20, 24))["outfits"] for r in o["reasons"]]
+    assert "The madras plaid shirt brings the colour; the rest is neutral." in reasons
+    assert "The madras plaid shirt is the only pattern." in reasons
+    assert not any(r.startswith(("One colour,", "The plaid of")) for r in reasons)
+
+
+def test_a_pattern_the_name_does_not_say_is_still_named():
+    items = [
+        item("shirt", "shirt", "white", "casual", pattern="stripe", name="White oxford shirt"),
+        item("chinos", "trousers", "beige", "casual", name="Stone chinos"),
+        item("shoes", "sneakers", "white", "casual", name="White canvas sneakers"),
+    ]
+    reasons = [r for o in outfits.suggest(items, day(20, 24))["outfits"] for r in o["reasons"]]
+    assert "The stripe of the white oxford shirt is the only pattern." in reasons
+
+
+def test_the_reasons_write_a_date_as_the_page_does():
+    # finding 17: "together on 14 November", where the rest of the app writes "Saturday 14 Nov" (DECISIONS, "One way
+    # to write a date")
+    assert outfits._date_words("2026-11-14") == "Saturday 14 Nov"
+    assert outfits._date_words("2026-11-03") == "Tuesday 3 Nov"
+    assert outfits._date_words("not a date") == "not a date"

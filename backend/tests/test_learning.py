@@ -43,16 +43,16 @@ def test_a_loved_set_is_preferred_when_otherwise_equal_and_says_so():
     loved = [rated("2026-11-03", "loved", base="tee2", bottom="jeans1", shoes="sneakers1")]
     result = suggest(items, ctx, loved)
     assert first(result) == ("tee2", None, None, "jeans1", "sneakers1")
-    assert "You loved this outfit on 3 November." in result["outfits"][0]["reasons"]
+    assert "You loved this outfit on Tuesday 3 Nov." in result["outfits"][0]["reasons"]
     # part of a loved outfit is named piece by piece
     part = [rated("2026-11-03", "loved", base="tee2", mid="hoodie1", bottom="jeans1", shoes="dshoes1")]
     reasons = [r for o in suggest(items, ctx, part)["outfits"] for r in o["reasons"]]
-    assert any(r.startswith("You loved the white tee tee2 and the blue jeans jeans1 together on 3 November") for r in reasons)
+    assert any(r.startswith("You loved the white tee tee2 and the blue jeans jeans1 together on Tuesday 3 Nov") for r in reasons)
     # compliments count as liked too
     praised = [rated("2026-11-05", "fine", ["compliments"], base="tee2", bottom="jeans1", shoes="sneakers1")]
     result = suggest(items, ctx, praised)
     assert first(result) == ("tee2", None, None, "jeans1", "sneakers1")
-    assert "You got compliments for this outfit on 5 November." in result["outfits"][0]["reasons"]
+    assert "You got compliments for this outfit on Thursday 5 Nov." in result["outfits"][0]["reasons"]
 
 
 def test_a_loved_set_is_only_a_little_more_likely():
@@ -74,7 +74,7 @@ def test_a_not_again_outfit_is_not_offered_again_as_it_was():
     assert top not in offered and result["outfits"]
     # with no reason, its pieces are less likely together: an outfit holding two of them says why
     together = [o for o in result["outfits"] if len({base, bottom, shoes} & set(first({"outfits": [o]}))) >= 2]
-    assert all(any("you said not again to on 2 November" in w for w in o["warnings"]) for o in together)
+    assert all(any("you said not again to on Monday 2 Nov" in w for w in o["warnings"]) for o in together)
 
 
 def test_not_again_for_a_reason_only_avoids_the_pieces_that_were_the_problem():
@@ -98,7 +98,7 @@ def test_only_a_not_again_outfit_left_says_so():
     items = [item("t", "tee", "white", "casual"), item("j", "jeans", "blue", "casual"), item("s", "sneakers", "white", "casual")]
     history = [rated("2026-11-02", "not_again", base="t", bottom="j", shoes="s")]
     result = suggest(items, day(22), history)
-    assert result == {"outfits": [], "missing": [NOT_AGAIN_ONLY.format("2 November")]}
+    assert result == {"outfits": [], "missing": [NOT_AGAIN_ONLY.format("Monday 2 Nov")]}
 
 
 NOT_AGAIN_ONLY = ("The only outfit that suits today is one you said not again to on {}. "
@@ -112,7 +112,7 @@ def test_a_not_again_outfit_is_never_the_reason_a_rule_breaking_outfit_is_offere
     assert [o["pieces"]["bottom"] for o in outfits.suggest(items, day(8), 5)["outfits"]] == ["j"]
     history = [rated("2026-11-02", "not_again", base="t", bottom="j", shoes="s")]
     result = suggest(items, day(8), history)
-    assert result == {"outfits": [], "missing": [NOT_AGAIN_ONLY.format("2 November")]}
+    assert result == {"outfits": [], "missing": [NOT_AGAIN_ONLY.format("Monday 2 Nov")]}
 
 
 def test_an_outfit_with_a_piece_no_longer_in_the_closet_teaches_nothing():
@@ -151,12 +151,12 @@ def test_too_cold_on_similar_days_dresses_warmer_within_its_bound():
     plain = outfits.suggest(items, ctx, 5)
     warmer = suggest(items, ctx, cold)
     assert warmer != plain and warmth(warmer)[0] > warmth(plain)[0]
-    assert any("Dressed a little warmer than usual: you were cold on a day like this on 10 October." in o["reasons"]
+    assert any("Dressed a little warmer than usual: you were cold on a day like this on Saturday 10 Oct." in o["reasons"]
                for o in warmer["outfits"])
     # the bound holds however many times it was said
     assert outfits.feedback_from(cold * 5, items, ctx).warmth_shift == outfits.WARMTH_SHIFT_MAX
     lighter = suggest(items, ctx, warm)
-    assert any("Dressed a little lighter than usual: you were too warm on a day like this on 20 October." in o["reasons"]
+    assert any("Dressed a little lighter than usual: you were too warm on a day like this on Tuesday 20 Oct." in o["reasons"]
                for o in lighter["outfits"])
 
 
@@ -180,4 +180,4 @@ def test_odd_ratings_never_crash():
            {"rating": "not_again", "rating_reasons": ["nope", None], "pieces": {"base": "gone", "bottom": "jeans1"}, "worn_on": None},
            {"rating": "fine", "rating_reasons": ["too_cold"], "context": {"low_c": True, "high_c": "x"}, "pieces": {}}]
     assert suggest(items, ctx, odd)["outfits"]
-    assert outfits._date_words("2026-11-03") == "3 November" and outfits._date_words("soon") == "soon"
+    assert outfits._date_words("2026-11-03") == "Tuesday 3 Nov" and outfits._date_words("soon") == "soon"

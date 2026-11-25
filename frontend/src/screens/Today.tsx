@@ -11,7 +11,7 @@ import { WhereYouAre } from '../components/WhereYouAre';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
 import { keptToast, keptWith } from '../kept';
-import { awayClause, countsOnLine, heldLine, heldOfferedLine, planFor, planLine, plannedFor, plannedToast, plansSoon, swapLine, tripLine, wearOn, type Plan } from '../plans';
+import { awayClause, countsOnLine, heldLine, heldOfferedLine, MAX_AHEAD_DAYS, planFor, planLine, plannedFor, plannedToast, plansSoon, swapLine, TOO_FAR, tripLine, wearOn, type Plan } from '../plans';
 import { newActionId, outboxFor, type WearAction } from '../outbox';
 import { keptQuery, plansQuery, touch, useAllItems, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
@@ -19,9 +19,9 @@ import { Link, navigate } from '../router';
 import { settingsQuery } from '../settings';
 import { useApp, useKept } from '../store';
 import {
-  askedOf, buildAroundPiece, canDress, occasionShown, chosenBy, closetKey, dayName, dayParts, daysAhead, joinWords, longDate, weekdayOf, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
+  addFirstTitle, askedOf, buildAroundPiece, canDress, occasionShown, chosenBy, closetKey, dayName, dayParts, daysAhead, joinWords, longDate, weekdayOf, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
   OCCASIONS, outfitIds, outingLine, parseTemp, placeLabel, readFor, sameOutfit, sameOutfits, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
-  timeOf, TRIP_OUTFIT_LINE, TRIP_PIECE_HINT, tripSheetLine, tripTodayLine, waitingLine, whatToAddFirst, withThing, wornNow, wornOrder,
+  timeOf, TRIP_OUTFIT_LINE, TRIP_PIECE_HINT, tripSheetLine, tripTodayLine, waitingLine, whatToAddFirst, withThing, withWorn, wornNow, wornOrder,
   type Choice, type DayAnswer, type DayNote, type OnTrip, type Outfit, type Place, type RememberHow,
   type StylistState, type TodayAnswer, type TodayRequest, type TypedDay, type WearManyAnswer, type WornToday,
 } from '../today';
@@ -102,6 +102,8 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const [today, setToday] = useState(localDay);
   // Dress for another day: the day ahead this screen shows, or null for today (a day that has come is today's)
   const ahead = forDay && daysAhead(today, forDay) >= 1 ? forDay : null;
+  // further ahead than a day can be dressed (an address kept from before, or typed): said, never asked
+  const tooFar = !!ahead && daysAhead(today, ahead) > MAX_AHEAD_DAYS;
   const kept = useMemo(() => keptFor(profile), [profile]);
   const remembered = !ahead && memory && memory.profile === profile && memory.day === today ? memory : null;
 
@@ -124,6 +126,10 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const [saved, setSaved] = useState<{ answer: TodayAnswer; savedAt: string } | null>(null);
   const [index, setIndex] = useState(remembered?.index ?? 0);
   const [wornOnDay, setWorn] = useState<WornToday | null>(() => kept.worn(today));
+  // "I'm wearing this": the outfits on the page when it was tapped stay there, the card tapped turned into what you wear,
+  // the others behind the dots to wear instead, while Today is asked the same question (the wear changes the closet, so
+  // the outfits are asked for again). Building around a piece ended by the wear is not a new question here (`key`).
+  const [pinned, setPinned] = useState<{ outfits: Outfit[]; day: string; key: string } | null>(null);
   // "See other outfits": the day's plan set aside for this visit
   const [otherOutfits, setOtherOutfits] = useState(false);
   // what Undo puts back after a plan was removed or replaced on this screen, with the line saying so
@@ -237,7 +243,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
       return got;
     },
     // once the closet's list has been read (or could not be: offline, the question is asked all the same)
-    enabled: itemsRead.status !== 'pending' && !saved,
+    enabled: itemsRead.status !== 'pending' && !saved && !tooFar,
     staleTime: 'static',
     gcTime: Infinity,
     placeholderData: (before) => before ?? keptAnswer(qc, ahead ?? today),
@@ -248,6 +254,8 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const asking = answer.isFetching;
   const failed = answer.error as ApiError | null;
 
+  const pinKey = useMemo(() => JSON.stringify({ ...request, build_around: undefined }), [request]);
+  const pin = pinned && !ahead && pinned.day === today && pinned.key === pinKey ? pinned : null;
   let phase: Phase;
   if (saved) phase = { kind: 'ready', answer: saved.answer, savedAt: saved.savedAt };
   else if (answer.data) phase = { kind: 'ready', answer: answer.data, savedAt: null };
@@ -258,6 +266,10 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   } else if (failed) {
     phase = failed.status === 422 && request.low_c === undefined && !ahead ? { kind: 'needs-day', message: failed.message } : { kind: 'error', message: failed.message, offline: false };
   } else phase = { kind: 'loading' };
+  // an outfit worn today is always on a card that says so: in its place among the outfits shown, or first
+  const asked0 = phase.kind === 'ready' ? phase.answer.outfits : null;
+  const shownList = useMemo(() => (asked0 ? withWorn(pin?.outfits ?? asked0, worn) : null), [asked0, pin, worn]);
+  if (phase.kind === 'ready' && shownList && shownList !== phase.answer.outfits) phase = { ...phase, answer: { ...phase.answer, outfits: shownList } };
   // the occasion the chips show: on a trip day the answer to the occasion kept is for the trip's, shown without
   // asking again (`occasionShown`); a tap is the owner's own
   const occasion = occasionShown(choice.occasion, !tapped && !ahead, phase.kind === 'ready' ? phase.answer.context.occasion : null);
@@ -289,11 +301,18 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
     if (!fresh || !answeredAt || answeredAt === seenAt.current) return;
     seenAt.current = answeredAt;
     const outfits = fresh.outfits;
+    forgetOtherAnswers(qc, hash);
+    if (pin) {
+      // asked again after a wear: the worn card stays where it is; once the wear is undone, the new outfits show
+      if (worn) return;
+      setPinned(null);
+      if (!sameOutfits(pin.outfits, outfits)) setIndex(0);
+      return;
+    }
     const keepPlace = followUp.current && !!shownBefore.current && sameOutfits(shownBefore.current, outfits);
     followUp.current = false;
     if (!keepPlace) setIndex(0);
-    forgetOtherAnswers(qc, hash);
-  }, [fresh, answeredAt, hash, qc]);
+  }, [fresh, answeredAt, hash, qc, pin, worn]);
   const shownNow = phase.kind === 'ready' ? phase.answer.outfits : null;
   useEffect(() => {
     shownBefore.current = shownNow;
@@ -494,6 +513,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
     const day = localDay();
     setToday(day);
     const ids = outfitIds(o.pieces);
+    if (phase.kind === 'ready') setPinned({ outfits: phase.answer.outfits, day, key: pinKey });
     setBusy(true);
     let changed = false;
     try {
@@ -595,6 +615,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
       if (buildAround === id) setBuildAround(null);
     },
     startFrom: (id) => {
+      setPinned(null);
       setBuildAround(buildAround === id ? null : id);
       setLeaveOut((l) => l.filter((x) => x !== id));
     },
@@ -618,16 +639,17 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
       Another day
     </button>
   );
-  const header = ahead ? (
+  const headerWith = (secondary: ReactNode) => (ahead ? (
     // on a phone, one row: ‹, "Wed 25 Nov" and Another day, so the day's outfit and its button stay on the first screen
     <PageHeader className="today-header today-ahead-header" titleId="today-title"
       title={<><span className="date-long">{weekdayOf(ahead)}</span><span className="date-short">{weekdayOf(ahead).slice(0, 3)}</span></>}
-      back={{ to: '/today', label: 'Today' }} secondary={anotherDay}
+      back={{ to: '/today', label: 'Today' }} secondary={secondary}
       count={dayMonth(ahead, today)} />
   ) : (
-    <PageHeader className="today-header" title="Today" titleId="today-title" secondary={anotherDay}
+    <PageHeader className="today-header" title="Today" titleId="today-title" secondary={secondary}
       count={<><span className="date-long">{longDate(today)}</span><span className="date-short">{shortDate(today)}</span></>} />
-  );
+  ));
+  const header = headerWith(anotherDay);
   const daySheet = choosingDay && (
     <DaySheet today={today} plans={plans} trips={tripsRead} anchor={dayButton} onClose={() => setChoosingDay(false)}
       onChoose={(d) => {
@@ -636,18 +658,29 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
       }} />
   );
 
-  // An empty closet: nothing to dress, so no weather or choices either, only what to add.
+  // An empty closet: nothing to dress, so no weather or choices either, only what to add (named once, in the headline),
+  // and no other day to dress.
   if (items !== null && !canDress(items)) {
     return (
       <div className="today">
-        {header}
+        {headerWith(null)}
         <EmptyState big icon={<HangerIcon />} className="today-empty" testId="today-empty"
-          title="Add a top, something for your legs and shoes, and Today can dress you"
+          title={addFirstTitle(items)}
           action={offline
             ? <span className="btn btn-primary is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Add clothes</span>
-            : <Link to="/add" className="btn btn-primary">Add clothes</Link>}>
-          <p className="muted" data-testid="add-first">Still to add: {joinWords(whatToAddFirst(items))}.</p>
-        </EmptyState>
+            : <Link to="/add" className="btn btn-primary">Add clothes</Link>} />
+      </div>
+    );
+  }
+
+  // A day further ahead than Nines dresses: one sentence and the way back (finding 24)
+  if (tooFar) {
+    return (
+      <div className="today today-ahead">
+        {header}
+        {daySheet}
+        <EmptyState icon={<WarnIcon />} className="today-too-far" testId="too-far" title={TOO_FAR}
+          action={<Link to="/today" className="btn btn-primary">Back to Today</Link>} />
       </div>
     );
   }
@@ -709,16 +742,46 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const ctxPlan = phase.kind === 'ready' && !otherOutfits ? phase.answer.context.plan ?? null : null;
   const expected = phase.kind === 'ready' ? phase.answer.context.expected ?? [] : [];
   const firstIds = phase.kind === 'ready' && phase.answer.outfits[0] ? outfitIds(phase.answer.outfits[0].pieces) : [];
+  // a piece the day counts on being back is said under the button of each outfit it is in, not only the first's
+  const countsOn = (o: Outfit) => countsOnLine(expected.filter((id) => outfitIds(o.pieces).includes(id)).map(nameOf));
   const tripPlanned = onTrip && !onTrip.aside ? onTrip.planned : null;
   const planNote = {
     swapped: ctxPlan ? swapLine(ctxPlan.unavailable.map((id) => ({ name: nameOf(id), away: ctxPlan.away?.[id] })), ctxPlan.day, today)
       : tripPlanned ? swapLine(tripPlanned.unavailable.map((id) => ({ name: nameOf(id), away: tripPlanned.away?.[id] })), today, today) ?? TRIP_OUTFIT_LINE
         : null,
-    countsOn: countsOnLine(expected.filter((id) => firstIds.includes(id)).map(nameOf)),
     heldOffered: phase.kind === 'ready'
       ? heldOfferedLine((phase.answer.context.held_offered ?? []).filter((id) => firstIds.includes(id))
         .map((id) => ({ name: nameOf(id), day: phase.answer.context.held?.[id] ?? '' })), today)
       : null,
+  };
+
+  // what was changed ("Built around …", "Without …"), said under the outfits beside "Changing an outfit", where it moves
+  // no outfit, each with the way to undo it (finding 8)
+  const changes = (buildAround || leaveOut.length > 0) && (
+    <div className="chips today-changes" role="group" aria-label="Your changes">
+      {buildAround && (
+        <button className="chip chip-change" disabled={locked} title={locked ? OFFLINE_TITLE : undefined}
+          aria-label={`Stop building around ${nameOf(buildAround)}`} onClick={() => setBuildAround(null)}>
+          Built around {nameOf(buildAround)} <span aria-hidden="true">×</span>
+        </button>
+      )}
+      {leaveOut.map((id) => (
+        <button key={id} className="chip chip-change" disabled={locked} title={locked ? OFFLINE_TITLE : undefined}
+          aria-label={`Without ${nameOf(id)}, put it back`} onClick={() => setLeaveOut((l) => l.filter((x) => x !== id))}>
+          Without {nameOf(id)} <span aria-hidden="true">×</span>
+        </button>
+      ))}
+      {(buildAround ? 1 : 0) + leaveOut.length > 1 && (
+        <button className="btn btn-link" disabled={locked} onClick={() => { setBuildAround(null); setLeaveOut([]); }}>Clear all</button>
+      )}
+    </div>
+  );
+
+  /** Try again, once for everything Today waits for: the closet's list, the plans and the outfits. */
+  const retryAll = () => {
+    if (itemsRead.error) void itemsRead.refetch();
+    if (plansRead.error) void plansRead.refetch();
+    ask();
   };
 
   const main = (
@@ -741,20 +804,19 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
         </Sheet>
       )}
 
-      <div className="today-choices chips-scroll">
+      {!tripDay && <div className="today-choices chips-scroll">
         <ChoiceGroup title="Occasion" options={OCCASIONS} value={occasion} labelOf={occasionLabel} locked={locked}
           onChange={(o) => choose({ ...choice, occasion: o })} />
         <span className="today-choices-sep" aria-hidden="true" />
         <ChoiceGroup title="Mood" options={MOODS} value={choice.mood} labelOf={moodLabel} locked={locked}
           onChange={(mood) => choose({ ...choice, mood })} />
-      </div>
+      </div>}
 
-      {ctx?.source === 'mild' && !ahead && (
+      {ctx?.source === 'mild' && !ahead && !locked && (
+        // today's temperatures are typed behind Change, on the weather line above
         <p className="today-no-weather" role="status" data-testid="no-weather">
           <WarnIcon className="inline-icon" /> No forecast.{' '}
-          <button className="btn btn-link today-inline-action" disabled={locked || asking} title={locked ? OFFLINE_TITLE : undefined} onClick={ask}>Try again</button>
-          <span aria-hidden="true"> · </span>
-          <button className="btn btn-link today-inline-action" disabled={locked} title={locked ? OFFLINE_TITLE : undefined} onClick={() => setEditDay(true)}>Type temperatures</button>
+          <button className="btn btn-link today-inline-action" disabled={asking} onClick={ask}>Try again</button>
         </p>
       )}
 
@@ -773,7 +835,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
         </p>
       )}
 
-      {plansFailed && !tripDay && <Failed query={plansRead} what="your plans" />}
+      {plansFailed && !tripDay && phase.kind !== 'error' && <Failed query={plansRead} what="your plans" />}
       {!plansFailed && (ahead || planned || undoPlan || (otherOutfits && !ahead)) && !tripDay && (
         <PlanLine ahead={ahead} today={today} planned={otherOutfits ? null : planned} planNow={planNow} undo={undoPlan} other={otherOutfits}
           busy={busy} locked={locked}
@@ -781,7 +843,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
       )}
 
       {again && (
-        <div className="chips today-changes" role="group" aria-label="Wearing again">
+        <div className="chips today-changes today-again" role="group" aria-label="Wearing again">
           <button className="chip chip-change" disabled={locked} title={locked ? OFFLINE_TITLE : undefined} onClick={() => setAgain(null)}>
             {phase.kind === 'ready' && phase.answer.context.again && phase.answer.context.again.worn_on === null ? 'Starting from an outfit you kept'
               : `Starting from an outfit you wore${phase.kind === 'ready' && phase.answer.context.again?.worn_on ? ` ${wornDay({ worn_on: phase.answer.context.again.worn_on })}` : ''}`} <span aria-hidden="true">×</span>
@@ -789,36 +851,6 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
           {phase.kind === 'ready' && (phase.answer.context.again?.unavailable.length ?? 0) > 0 && (
             <span className="muted">{againGone(phase.answer.context.again!, nameOf)}</span>
           )}
-        </div>
-      )}
-
-      {(buildAround || leaveOut.length > 0) && (
-        <div className="chips today-changes" role="group" aria-label="Your changes">
-          {buildAround && (
-            <button className="chip chip-change" disabled={locked} title={locked ? OFFLINE_TITLE : undefined}
-              aria-label={`Stop building around ${nameOf(buildAround)}`} onClick={() => setBuildAround(null)}>
-              Built around {nameOf(buildAround)} <span aria-hidden="true">×</span>
-            </button>
-          )}
-          {leaveOut.map((id) => (
-            <button key={id} className="chip chip-change" disabled={locked} title={locked ? OFFLINE_TITLE : undefined}
-              aria-label={`Without ${nameOf(id)}, put it back`} onClick={() => setLeaveOut((l) => l.filter((x) => x !== id))}>
-              Without {nameOf(id)} <span aria-hidden="true">×</span>
-            </button>
-          ))}
-          {(buildAround ? 1 : 0) + leaveOut.length > 1 && (
-            <button className="btn btn-link" disabled={locked} onClick={() => { setBuildAround(null); setLeaveOut([]); }}>Clear all</button>
-          )}
-        </div>
-      )}
-
-      {worn && phase.kind === 'ready' && !phase.answer.outfits.some((o) => sameOutfit(outfitIds(o.pieces), worn.ids)) && (
-        <div className="notice today-worn-note" role="status">
-          <CheckIcon />
-          <div>
-            <p><strong>You're wearing this today:</strong> {joinWords(worn.ids.map(nameOf))}.</p>
-            <button className="btn btn-small" disabled={busy || (locked && !worn.kept)} title={locked && !worn.kept ? OFFLINE_TITLE : undefined} onClick={() => void undo()}>Undo</button>
-          </div>
         </div>
       )}
 
@@ -842,12 +874,18 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
         actions={pieceActions} items={items} onWear={wear} onUndo={undo} offline={offline} canKeep={canKeep}
         changed={!!buildAround || leaveOut.length > 0}
         onClear={() => { setBuildAround(null); setLeaveOut([]); }}
-        onRetry={ask}
+        onRetry={retryAll} failure={failed} failedWhat={ahead ? `the outfits for ${sayDay(ahead, today)}` : "today's outfits"} changes={changes || null}
+        countsOn={countsOn}
         talk={{ turns: talk, answering, onSay: say, onSettle: (id, at, save) => settle(id, at, { save }), onUndo: (id, at) => settle(id, at, { undo: true }) }}
         ahead={ahead} today={today} plan={planNow} planNote={planNote} onUnplan={() => ahead && void unplan(ahead)} onKeep={(o) => void keepIt(o)}
         isKept={(ids) => !!keptWith(keptOutfits, ids)} />}
 
-      {soon.length > 0 && (
+      {soon.length === 1 && (
+        <p className="today-soon" data-testid="plans-soon">
+          <Link to={`/today/day/${soon[0].day}`}>{dayName(soon[0].day, today)} is planned.</Link>
+        </p>
+      )}
+      {soon.length > 1 && (
         <p className="today-soon" data-testid="plans-soon">
           {soon.map((p, i) => (
             <span key={p.day}>
@@ -855,14 +893,14 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
               <Link to={`/today/day/${p.day}`}>{dayName(p.day, today)}</Link>
             </span>
           ))}
-          {soon.length === 1 ? ' is planned.' : ' are planned.'}
+          {' are planned.'}
         </p>
       )}
 
       {!ahead && coming && !onTrip && (
         <Link to={`/trips/${encodeURIComponent(coming.trip.id)}`} className="today-trip" data-testid="today-trip">
           <SuitcaseIcon />
-          <span><strong>Packing for a trip?</strong> <span className="muted">{coming.words}</span></span>
+          <span>{coming.words}</span>
           <ChevronIcon className="today-trip-chevron" />
         </Link>
       )}
@@ -888,7 +926,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
         </RecentOutfits>
       )}
 
-      {!ahead && <p className="today-more">Going away? <Link to="/trips">Trips</Link> says what to pack.</p>}
+      {!ahead && !coming && !onTrip && <p className="today-more"><Link to="/trips">Going away? Trips says what to pack.</Link></p>}
     </div>
   );
 
@@ -918,11 +956,18 @@ function DayLine({ phase, editing, locked, changeRef, onEdit, asking = false, on
   return (
     <section className="today-day" aria-label="The day">
       <p className="today-day-line" data-testid="day-line" title={c?.place ?? undefined}>
+        {/* the dot goes before each part, and the one before a part that starts a line is outside the line (Today.css) */}
         <span className="today-day-parts">
-          {c ? dayParts(c).map((part, i) => <span key={i}>{part}</span>)
-            : <span className="muted">{phase.kind === 'loading' ? 'Looking up the weather…' : 'The weather'}</span>}
+          <span className="today-day-parts-in">
+            {c ? dayParts(c).map((part, i) => <span key={i}>{part}</span>)
+              : <span className="muted">{phase.kind === 'loading' ? 'Looking up the weather…' : "The weather isn't known yet."}</span>}
+          </span>
         </span>
-        {phase.kind !== 'needs-day' && (
+        {phase.kind === 'ready' && phase.savedAt ? (
+          // offline, the outfits saved earlier today: when, in a few words where Change is (it waits for Nines; the
+          // banner says offline, once)
+          <span className="today-day-change today-saved-at" data-testid="saved-at">{timeOf(phase.savedAt) ? `saved at ${timeOf(phase.savedAt)}` : 'saved earlier today'}</span>
+        ) : phase.kind !== 'needs-day' && (
           <span className="today-day-change">
             <button ref={changeRef} className="btn btn-link" aria-haspopup="dialog" aria-expanded={editing} disabled={locked}
               title={locked ? OFFLINE_TITLE : undefined} onClick={onEdit}>
@@ -1137,7 +1182,15 @@ interface BodyProps {
   /** While Nines cannot be reached, wearing (and taking back an outfit worn here) is kept on this phone. */
   canKeep: boolean;
   onClear(): void;
+  /** Try again after a failed read: asks again for everything Today waits for. */
   onRetry(): void;
+  /** What could not be read, for the failed state: "today's outfits", "the outfits for tomorrow"; and the error. */
+  failedWhat: string;
+  failure: unknown;
+  /** What was changed (built around, left out), said under the outfits with the way to undo it; null for nothing. */
+  changes: ReactNode;
+  /** The line under an outfit's button when it counts on a piece being back by then, or null. */
+  countsOn(o: Outfit): string | null;
   /** Claude choosing, as shown (null: nothing about Claude is shown). */
   stylist: StylistState | null;
   /** Claude is still choosing: the waiting card stands in for the outfits. */
@@ -1156,16 +1209,16 @@ interface BodyProps {
   /** The plan of the day ahead shown, if any: its outfit says so, with a way to take the plan away. */
   plan: Plan | null;
   onUnplan(): void;
-  /** Under the first outfit's button, when it starts from the day's plan: the piece swapped and where it is, and the
-   * pieces it counts on being back by then. */
-  planNote?: { swapped: string | null; countsOn: string | null; heldOffered: string | null };
+  /** Under the first outfit's button, when it starts from the day's plan: the piece swapped and where it is, and a
+   * planned piece it uses. */
+  planNote?: { swapped: string | null; heldOffered: string | null };
   /** "Keep this outfit", and whether an outfit is kept already. */
   onKeep(o: Outfit): void;
   isKept(ids: string[]): boolean;
 }
 
 function Body(props: BodyProps) {
-  const { phase, asking, items, offline, changed, onClear, onRetry, stylist, waiting, meanwhile, onMeanwhile, onAskAgain } = props;
+  const { phase, asking, items, offline, changed, onClear, onRetry, stylist, waiting, meanwhile, onMeanwhile, onAskAgain, failedWhat } = props;
   // What is under the outfits (Claude's line and the conversation) goes while Claude chooses again; its space is kept
   // until it is back, so Recent outfits below it does not jump up and then down again.
   const after = useRef<HTMLDivElement>(null);
@@ -1179,30 +1232,40 @@ function Body(props: BodyProps) {
   }, [waiting, phase.kind]);
   if (phase.kind === 'loading') {
     return (
+      // the waiting shape is as tall as an outfit with its reasons and "Changing an outfit" under it, so what is under it
+      // is already where it will be when the outfits arrive
       <div className="today-loading" role="status">
         <p className="muted"><span className="spinner" aria-hidden="true" /> {props.ahead ? `Choosing outfits for ${sayDay(props.ahead, props.today)}…` : "Choosing today's outfits…"}</p>
-        <Card className="today-card" aria-hidden="true">
-          <div className="today-pieces">{Array.from({ length: 5 }, (_, i) => <div key={i} className="tile-skeleton" />)}</div>
-          <div className="tile-skeleton today-wear-skeleton" />
-        </Card>
+        <div className="today-slide">
+          <Card className="today-card" aria-hidden="true">
+            <div className="today-card-pieces">
+              <div className="today-pieces">{Array.from({ length: 5 }, (_, i) => <div key={i} className="tile-skeleton" />)}</div>
+            </div>
+            <div className="today-wear">
+              <div className="tile-skeleton today-wear-skeleton" />
+              <div className="today-more-skeleton" />
+            </div>
+            <div className="today-card-why today-why-skeleton" />
+          </Card>
+        </div>
+        <div className="today-how-skeleton" />
       </div>
     );
   }
   if (phase.kind === 'needs-day') return null;
+  if (phase.kind === 'error' && phase.offline) {
+    return <div className="notice" role="alert"><p>{phase.message}</p></div>;
+  }
   if (phase.kind === 'error') {
+    // the shared words for a failed read, once, with one Try again for everything Today waits for
     return (
-      <div className={phase.offline ? 'notice' : 'form-error today-error'} role="alert">
-        <p>{phase.offline ? phase.message : `Couldn't choose today's outfits: ${phase.message}`}</p>
-        {!phase.offline && (
-          <div className="row">
-            <button className="btn btn-small" onClick={onRetry}>Try again</button>
-            {changed && <button className="btn btn-small" onClick={onClear}>Clear your changes</button>}
-          </div>
-        )}
-      </div>
+      <>
+        <Failed query={{ error: props.failure, refetch: onRetry, isFetching: asking }} what={failedWhat} />
+        {changed && <div className="row today-error-clear"><Button small onClick={onClear}>Clear your changes</Button></div>}
+      </>
     );
   }
-  const { answer, savedAt } = phase;
+  const { answer } = phase;
   if (answer.outfits.length === 0) {
     const toAdd = whatToAddFirst(items);
     return (
@@ -1226,14 +1289,10 @@ function Body(props: BodyProps) {
   }
   return (
     <>
-      {savedAt && (
-        <Notice as="p" tone="warning" className="today-saved" role="status" icon={<WarnIcon />}>
-          <span>Saved earlier today{timeOf(savedAt) ? `, at ${timeOf(savedAt)}` : ''}. You're offline, so these can't be changed until Nines on your computer can be reached.</span>
-        </Notice>
-      )}
       {/* while Claude chooses, the outfits on the page stay where they are, dimmed under the waiting card, so nothing
           below them moves; "Show Nines' own picks meanwhile" lets them be used, and the card moves under them */}
       <Carousel {...props} outfits={props.before ?? answer.outfits} />
+      {props.changes}
       <HowItWorks title="Changing an outfit" className="today-how" testId="today-how">
         <p>Tap a piece to see it. Its <MoreIcon className="inline-icon" aria-label="more" /> button leaves it out, or builds every outfit around it.</p>
         <p>As worn draws the outfit from the pieces' own drawings; choose Pieces to change one.</p>
@@ -1291,6 +1350,7 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
   const { waiting, meanwhile, stylist, onMeanwhile, actions, byId } = rest;
   // Claude is choosing: the outfits stay on the page, dimmed and out of reach, under the waiting card
   const covered = waiting && !meanwhile;
+  const planShown = !!rest.ahead && !!rest.plan && !!outfits[current] && sameOutfit(outfitIds(rest.plan.pieces), outfitIds(outfits[current].pieces));
 
   // Show the remembered outfit straight away (coming back from an item), without animating there.
   useLayoutEffect(() => {
@@ -1336,11 +1396,27 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
   return (
     <section className={`today-outfits${asking || covered ? ' is-asking' : ''}`} aria-label="Today's outfits" aria-roledescription="carousel">
       <div className="today-outfits-head">
-        <h2 aria-live="polite">
-          {/* a day ahead: "Best for Wed", no longer than "Best for today", so the words stay whole down to 320 */}
-          {current === 0 ? `Best for ${rest.ahead ? dayAndDate(rest.ahead).weekday : 'today'}` : `Another idea`}
-          <span className="count"><span className="today-count-dot"> · </span>{count === 1 ? 'the only outfit' : `${current + 1} of ${count}`}</span>
-        </h2>
+        <div className="today-outfits-title">
+          <h2 aria-live="polite">
+            {/* a day ahead: "Best for Wed", no longer than "Best for today", so the words stay whole down to 320; a planned
+                day's outfit is the plan ("Your plan for Wed"), the other outfits one tap away over it */}
+            {current === 0 ? `${planShown ? 'Your plan' : 'Best'} for ${rest.ahead ? dayAndDate(rest.ahead).weekday : 'today'}` : `Another idea`}
+            {/* the dots say which outfit is in front; a screen reader hears it with the heading */}
+            {count > 1 && <span className="visually-hidden">, {current + 1} of {count}</span>}
+          </h2>
+          {/* the way to the other outfits, a swipe or a dot for each: in the heading, so it holds still whatever the
+              height of the outfit in front */}
+          {count > 1 && (
+            <div className="today-nav" role="group" aria-label="Choose an outfit" inert={covered}>
+              {outfits.map((_, i) => (
+                <button key={i} className={`today-thumb${i === current ? ' is-on' : ''}`} aria-label={`Outfit ${i + 1}`}
+                  aria-pressed={i === current} onClick={() => go(i)}>
+                  <span className="today-dot" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <SegmentedControl label="Show the outfit" small className="today-view" value={view}
           options={VIEW_OPTIONS} onChange={setView} />
       </div>
@@ -1352,30 +1428,19 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
             <article key={outfitIds(o.pieces).join(',')} className="today-slide" aria-roledescription="slide"
               aria-label={`Outfit ${i + 1} of ${count}`} aria-hidden={i !== current} inert={i !== current}
               data-testid={i === current ? 'current-outfit' : undefined}>
-              <OutfitCard outfit={o} view={view} {...rest} planNote={i === 0 ? rest.planNote : undefined} by={chosenBy(o, stylist)}
+              <OutfitCard outfit={o} view={view} {...rest} planNote={i === 0 ? rest.planNote : undefined} countsOn={rest.countsOn(o)} by={chosenBy(o, stylist)}
                 read={readFor(o, stylist)} menuFor={menuFor}
                 onMore={(id, el) => {
                   anchor.current = el;
                   setMenuFor(menuFor === id ? null : id);
                 }}
-                next={count > 1 ? { label: i < count - 1 ? 'See another idea' : 'Back to the best one', go: () => go(i < count - 1 ? i + 1 : 0) } : undefined} />
+                next={count > 1 ? { label: i < count - 1 ? 'See another idea' : 'The best one', go: () => go(i < count - 1 ? i + 1 : 0) } : undefined} />
             </article>
           ))}
         </div>
         {covered ? <StylistWaiting key={stylist?.id ?? ''} meanwhile={false} onMeanwhile={onMeanwhile} />
           : asking && <p className="today-asking" role="status"><span className="spinner" aria-hidden="true" /> Asking again…</p>}
       </div>
-
-      {count > 1 && (
-        <div className="today-nav" role="group" aria-label="Choose an outfit" inert={covered}>
-          {outfits.map((_, i) => (
-            <button key={i} className={`today-thumb${i === current ? ' is-on' : ''}`} aria-label={`Outfit ${i + 1}`}
-              aria-pressed={i === current} onClick={() => go(i)}>
-              <span className="today-dot" aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-      )}
 
       {menuFor && view === 'pieces' && (
         <Sheet title={itemName(byId.get(menuFor))} anchor={anchor} onClose={() => setMenuFor(null)} className="today-piece-sheet" testId="piece-sheet">
@@ -1395,8 +1460,13 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
   );
 }
 
-function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, canKeep, next, by, read, menuFor, onMore, ahead, today, plan, onUnplan, onKeep, isKept, planNote }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
+function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, canKeep, next, by, read, menuFor, onMore, ahead, today, plan, onUnplan, onKeep, isKept, planNote, countsOn, still = false }: Pick<BodyProps,
+  'byId' | 'worn' | 'busy' | 'actions' | 'onWear' | 'onUndo' | 'canKeep' | 'ahead' | 'today' | 'plan' | 'onUnplan' | 'onKeep' | 'isKept' | 'planNote'> & {
   outfit: Outfit; view: TodayView;
+  /** The line under its button when it counts on a piece being back by then, or null. */
+  countsOn: string | null;
+  /** Shown as kept on this device (offline): its pieces open, nothing else to choose on them. */
+  still?: boolean;
   /** The piece whose choices are open (the sheet itself is the carousel's), and how they are opened. */
   menuFor: string | null;
   onMore(id: string, button: HTMLElement): void;
@@ -1426,7 +1496,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, c
           {wornOrder(outfit.pieces).map((p) => (
             <li key={p.id}>
               <Piece id={p.id} place={p.place} item={byId.get(p.id)} isBase={actions.buildAround === p.id}
-                open={menuFor === p.id} onMore={(el) => onMore(p.id, el)} />
+                open={menuFor === p.id} onMore={still ? null : (el) => onMore(p.id, el)} />
             </li>
           ))}
         </ul>
@@ -1435,7 +1505,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, c
       <div className="today-wear">
         {isWorn ? (
           <>
-            <p className="today-worn" data-testid="worn-today"><CheckIcon /> You're wearing this today</p>
+            <p className="today-worn" data-testid="worn-today"><CheckIcon />You're wearing this today</p>
             <button className="btn" disabled={busy || wearOff} title={wearTitle} onClick={() => onUndo()}>Undo</button>
           </>
         ) : isPlanned && ahead ? (
@@ -1456,7 +1526,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, c
           {next && <button className="btn btn-link today-next" onClick={next.go}>{next.label} <ChevronIcon /></button>}
         </div>
         {planNote?.swapped && <p className="today-plan-note" data-testid="plan-swapped">{planNote.swapped}</p>}
-        {planNote?.countsOn && <p className="today-plan-note" data-testid="counts-on">{planNote.countsOn}</p>}
+        {countsOn && <p className="today-plan-note" data-testid="counts-on">{countsOn}</p>}
         {planNote?.heldOffered && <p className="today-plan-note" data-testid="held-offered">{planNote.heldOffered}</p>}
         {/* Give it an outing: one sentence, under the button where the day's other lines about an outfit go */}
         {outfit.outing && (
@@ -1464,7 +1534,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, c
         )}
       </div>
 
-      <div className="today-card-why">
+      {(by || read || outfit.warnings.length > 0 || outfit.reasons.length > 0) && <div className="today-card-why">
         {by && <p className="today-by muted" data-testid="outfit-by">{by}</p>}
         {read && <p className="today-read" data-testid="outfit-read">{read}</p>}
         {outfit.warnings.length > 0 && (
@@ -1477,13 +1547,13 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, c
         <ul className="today-reasons" aria-label="Why this works">
           {outfit.reasons.map((r) => <li key={r}><CheckIcon /><span>{r}</span></li>)}
         </ul>
-      </div>
+      </div>}
     </Card>
   );
 }
 
 function Piece({ id, place, item, isBase, open, onMore }: {
-  id: string; place: Place; item: ItemSummary | undefined; isBase: boolean; open: boolean; onMore(button: HTMLElement): void;
+  id: string; place: Place; item: ItemSummary | undefined; isBase: boolean; open: boolean; onMore: ((button: HTMLElement) => void) | null;
 }) {
   const name = itemName(item);
   return (
@@ -1493,10 +1563,12 @@ function Piece({ id, place, item, isBase, open, onMore }: {
         <span className="today-piece-place">{isBase ? 'Built around' : placeLabel(place)}</span>
         <span className="today-piece-name">{name}</span>
       </Link>
-      <button className="today-piece-more" aria-label={`Choices for ${name}`} aria-haspopup="dialog" aria-expanded={open}
-        onClick={(e) => onMore(e.currentTarget)}>
-        <MoreIcon />
-      </button>
+      {onMore && (
+        <button className="today-piece-more" aria-label={`Choices for ${name}`} aria-haspopup="dialog" aria-expanded={open}
+          onClick={(e) => onMore(e.currentTarget)}>
+          <MoreIcon />
+        </button>
+      )}
     </div>
   );
 }
@@ -1548,25 +1620,22 @@ function PlanLine({ ahead, today, planned, planNow, undo, other, busy, locked, o
   return <p className={ahead ? 'today-plan today-plan-ahead' : 'today-plan'} role="status" data-testid="plan-line">{body}</p>;
 }
 
-/** Offline, a day ahead with a plan: the planned outfit as this device kept it, which cannot be changed until Nines is
- * reachable again. */
+/** Offline, a day ahead with a plan: the planned outfit as this device kept it, laid out as the same day online (the
+ * outfit's own card, "Planned" with Remove the plan, off until Nines can be reached; the banner says offline). */
 function PlannedOffline({ plan, byId, day, today }: { plan: Plan; byId: Map<string, ItemSummary>; day: string; today: string }) {
+  const outfit: Outfit = { pieces: plan.pieces, score: 0, reasons: [], warnings: [] };
+  const nothing = () => undefined;
   return (
-    <Card className="today-card" data-testid="planned-offline">
-      <ul className="today-pieces" aria-label="Pieces, in the order they are put on">
-        {wornOrder(plan.pieces).map((p) => (
-          <li key={p.id}>
-            <div className="today-piece">
-              <ItemThumb className="today-piece-card" picture={<Pic item={byId.get(p.id)} />} />
-              <span className="today-piece-place">{placeLabel(p.place)}</span>
-              <span className="today-piece-name">{itemName(byId.get(p.id))}</span>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <Notice as="p" tone="warning" className="today-saved" icon={<WarnIcon />}>
-        <span>{plannedFor(day, today)}. You're offline, so the plan can't be changed until Nines on your computer can be reached.</span>
-      </Notice>
-    </Card>
+    <section className="today-outfits" aria-label="Today's outfits">
+      <div className="today-outfits-head">
+        <div className="today-outfits-title"><h2>Your plan for {dayAndDate(day).weekday}</h2></div>
+      </div>
+      <div className="today-slide" data-testid="planned-offline">
+        <OutfitCard outfit={outfit} view="pieces" byId={byId} worn={null} busy={false} canKeep={false} still
+          actions={{ locked: true, buildAround: null, held: {}, onTrip: false, today, leaveOut: nothing, startFrom: nothing }}
+          onWear={nothing} onUndo={nothing} by={null} read={null} menuFor={null} onMore={nothing} ahead={day} today={today}
+          plan={plan} onUnplan={nothing} onKeep={nothing} isKept={() => false} countsOn={null} />
+      </div>
+    </section>
   );
 }

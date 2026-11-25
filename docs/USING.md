@@ -65,33 +65,44 @@ losing the connection shows the offline banner as before.
 ## Today
 
 `/today`. The day's weather for the place saved in Settings, an occasion and a mood to
-choose, and outfits to swipe through (or reach by the dots under them), each drawn as worn (or
-laid out as pieces, four to a row on a phone) with "I'm wearing this" under it, then "Why this
-works", which starts with who chose it and, for Claude's, its reading of the day, and, when
-there is something to watch for, "Be aware". On the smallest iPhone the first screen holds an
-outfit of five pieces and its button. As worn, a jacket or coat that opens is drawn open, and what you wear
+choose, and outfits to swipe through (or reach by the dots under their heading, "Best for today"
+or "Another idea", which say which one is in front), each drawn as worn (or laid out as pieces,
+four to a row on a phone) with "I'm wearing this" under it, then, for an outfit Claude chose,
+"Chosen by Claude" and its reading of the day, a warning in a coloured box when there is something
+to watch for, and the reasons under "Why this works". On the smallest iPhone the first screen holds
+an outfit of five pieces and its button. With too few clothes to dress you, Today says in one
+headline what is still to add ("Add something for your legs and a pair of shoes, and Today can
+dress you") with **Add clothes**, and offers no other day. As worn, a jacket or coat that opens is drawn open, and what you wear
 under it that buttons or zips (a cardigan, a zip hoodie, a knit vest, a blazer) is drawn
 fastened, its front showing between the coat's; a shirt worn open over a tee stays open inside
 the coat's fronts. The rules choose outfits at once; when Claude may choose,
 the outfits on the page stay there, dimmed, under a card saying Claude is choosing, until its
 outfits replace them ("Show Nines' own picks meanwhile" lets you use the rules' outfits). "I'm
-wearing this" records the outfit and its wears, and ends building around a piece. When Nines on your
+wearing this" records the outfit and its wears, and ends building around a piece: the card you tapped
+stays where it is and says "You're wearing this today", with Undo where the button was, and the other
+outfits stay behind the dots with "Wear this instead"; nothing is put in above them. Coming back later
+that day, the outfit you wear is on the first card. When Nines on your
 computer can't be reached, "I'm wearing this" still works: the outfit shows as worn at once, is kept on
 this phone for the day you tapped, and is sent when Nines answers (the offline banner says so); Undo
 before then simply forgets it. Wearing another outfit instead of one Nines already has waits until it
 can be reached. A piece's ⋯
 opens a sheet with "Not this piece", which swaps it out, and "Build around this piece"; both
-are kept for the rest of the day, and how is said once, under the outfits, behind "Changing an
-outfit". Now and then the last outfit is an outing: built around a piece you love or like and have not
+are kept for the rest of the day and said under the outfits, beside "Changing an outfit" (which
+says how, folded), as "Built around …" and "Without …", each with its × to undo it, and **Clear
+all** for two or more; the outfit and its button do not move. Now and then the last outfit is an outing: built around a piece you love or like and have not
 worn in four weeks or so, with one sentence under its button saying so ("An outing for your tweed jacket:
 you love it and have not worn it since 2 Oct."); at most once every five days, never on a day ahead, a trip
 or when you build around a piece yourself, and "Not this piece" on it gives an ordinary outfit back for the
-day. When the weather cannot be fetched, one line says "No forecast.", with Try again
-and Type temperatures. Change, beside the weather, opens a sheet, Where you are, with today's
+day. When the weather cannot be fetched, one line says "No forecast." with Try again (not while
+offline). Change, beside the weather, opens a sheet, Where you are, with today's
 temperatures and "Somewhere else, or out all day?" folded under them: a note about the day
 ("In Lisbon until Friday") changes what is dressed for. Under the outfits you can write to
 Claude about them; it answers, may change the outfits, and may offer something to remember,
-which is kept only when you tap it, with Undo beside it once kept.
+which is kept only when you tap it, with Undo beside it once kept. When Today's outfits (or its
+plans with them) can't be read, one message says so in the words every screen uses, with one **Try
+again** that asks again for all of it, and the weather line says "The weather isn't known yet."
+Offline, the outfits saved on this phone earlier today show, with when in a few words where Change
+is ("saved at 08:12"); the offline banner says the rest, once.
 
 **Another day**, beside the heading, opens a sheet with tomorrow and the next days by name (a day
 you planned says Planned, a day of a saved trip names the trip) and a date of your choice, up to
@@ -100,18 +111,22 @@ you planned says Planned, a day of a saved trip names the trip) and a date of yo
 (the forecast where it reaches, else "usually, on these dates", or a mild day with one short line,
 "No forecast for that day.", and Try again when the weather service could not be reached), one line
 of fixed height about the plan ("Nothing planned yet.", or **See other outfits** when the outfit shown
-is the plan), and outfits by Nines' own rules under "Best for Sat" (the count on its own small line),
+is the plan), and outfits by Nines' own rules under "Best for Sat" (the planned outfit under "Your plan for Sat"),
 with **Wear this on Saturday**. On the
 smallest phone an outfit of five pieces and its button are on the first screen. That keeps the
 outfit for the day: a plan, not a wear (nothing worn, nothing in the laundry). The planned outfit
 says "Planned" with **Remove the plan** beside it, at once (the day opens on its plan); taking a plan
 away, or replacing it, leaves Undo in the line. A piece away is offered for a day ahead only when you
-expect it back before that day, and an outfit that counts on one says so under its button ("This
+expect it back before that day, and any outfit that counts on one says so under its button ("This
 counts on your navy blazer being back by then."). When your plans can't be read, the line says so
-with Try again, as every screen does.
+with Try again, as every screen does; when the day's outfits can't be read, one message names the day
+("Couldn't load the outfits for tomorrow.") with one Try again. A day more than 60 days ahead (an
+address kept from before) says "Nines dresses days up to 60 days ahead." with **Back to Today**, and
+the sheet says the same under its date box when the date typed is too far.
 Change on that day opens a word about the day ("Dinner at eight"), read by Claude like today's note,
 with the same sentence saying what is sent. A day inside a saved trip says the trip has its outfit,
-with **See the trip**. Offline, a plan made earlier shows from what the device kept. On the
+with **See the trip**, and has no occasion or mood to choose. Offline, a plan made earlier shows from what
+the device kept, laid out as online, with Remove the plan off until Nines can be reached. On the
 morning of a planned day Today opens on the plan with one line saying so (and the word about the
 day) and offers **See other outfits**; a piece swapped because it cannot be worn by then is named under
 the outfit's button, where it moves nothing (a piece away with where it is: "Your navy blazer is at the
@@ -120,7 +135,8 @@ the days before, a planned piece that wearing would leave in the wash on its day
 choices say why if it is in an outfit anyway, with **Build around it anyway**. When holding it back would
 leave no outfit at all, Today offers the outfit anyway and says once, under its button, "This outfit uses your
 white tee, which you planned for Saturday." The plans of the
-coming week are one line on Today ("Saturday and Monday are planned."), each day a link. **Keep this
+coming week are one line on Today ("Saturday and Monday are planned."), each day a link (with one day,
+the whole line). **Keep this
 outfit**, under each outfit's button, keeps it under Worn without wearing it.
 
 **A trip covers today.** On a day inside a trip saved in Trips, Today dresses for where the trip is
@@ -143,13 +159,14 @@ that packed nothing dresses you from your whole closet, and when even that has n
 (everything in the laundry, say). What you wear on the trip goes in your suitcase: the laundry day at home leaves
 it in the laundry until the first laundry day after the trip.
 
-Below that, when a trip starts within two weeks (or is under way, and is not today's), a "Packing for a trip?"
-row opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
+Below that, when a trip starts within two weeks (or is under way, and is not today's), a row with its place,
+when it starts and how much is packed ("Lisbon, in 12 days · 4 of 15 packed") opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
 outfit went, with every piece of it under the question; then the last outfits you wore (three
 on a phone, a week's worth on a computer), each with its pieces and how it went, rated in place,
 saying "Saving…" and "Saved" as it saves; the reasons offered follow the rating. Offline, a rating is
 kept on this phone and sent when Nines answers, as "I'm wearing this" is. "See all" opens
-Worn. The page ends with a link to Trips. Tapping a
+Worn. When no trip is coming within two weeks and none is under way, the page ends with a line leading to
+Trips. Tapping a
 piece opens it (`/today/item/<id>`), and **Build an outfit around it** there comes back to Today built around it.
 
 Temperatures can be typed when the forecast cannot be fetched. The demo closet's outfits are

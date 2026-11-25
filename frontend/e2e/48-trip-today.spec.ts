@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { axeViolations } from './a11y';
-import { expect, goToCloset, test, useProfile } from './fixtures';
+import { danglingDots, expect, goToCloset, hitArea, test, useProfile } from './fixtures';
 
 // A trip covers today, on a phone: a saved trip whose days hold today moves Today to its place by itself. The line
 // over the outfits names the day of the trip and leads to it, the trip's own outfit is first, a piece's choices come
@@ -176,3 +176,17 @@ for (const width of [375, 320]) {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 }
+
+
+test('findings 14, 18 and 25: on a trip day the foot line is gone, the trip line takes 44px, and the weather line leaves no dot at a line\'s end', async ({ page }) => {
+  await onATrip(page);
+  await page.goto('/today');
+  await expect(tripLine(page)).toHaveText('Day 1 of 4 of your trip to Lisbon.');
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  await expect(page.getByTestId('recent-outfits')).toBeVisible();
+  await expect(page.locator('.today-more')).toHaveCount(0);
+  expect((await hitArea(tripLine(page).getByRole('link'))).height).toBeGreaterThanOrEqual(44);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  expect(await danglingDots(page)).toEqual([]);
+  await page.screenshot({ path: test.info().outputPath('trip-day.png') });
+});

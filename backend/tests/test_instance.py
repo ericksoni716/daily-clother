@@ -239,6 +239,55 @@ def test_simultaneous_launches_share_one_startup(cfg):
                 proc.communicate(timeout=30)
 
 
+LOCK_WRITTEN_SLOWLY = textwrap.dedent("""
+    import sys
+    from closet import cli, instance
+    write = instance.write_lock
+    def slow_write(cfg, port, background=False):
+        print("writing the lock", flush=True)
+        sys.stdin.readline()
+        write(cfg, port, background)
+    instance.write_lock = slow_write
+    raise SystemExit(cli.main(["--no-browser", "--no-tray"]))
+""")
+
+
+def test_a_copy_does_not_answer_before_its_lock_is_its_own(cfg):
+    """A copy that was killed leaves its lock behind. The copy started after it, on the same port, must not answer while
+    that lock is still on disk: `running_info` would describe the new copy with the dead one's process id and token,
+    and `stop_running` would then end whatever process has that id now. (CI's Windows runner met it on #337: the
+    scheduled task's second copy was read as having the first one's process id.)"""
+    gone = subprocess.Popen([sys.executable, "-c", "pass"])
+    gone.wait(timeout=30)
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    cfg.lock_path.write_text(json.dumps({"pid": gone.pid, "port": port, "token": "the-dead-copy's"}))
+    env = dict(os.environ, CLOSET_DATA_DIR=str(cfg.data_dir), CLOSET_NO_AUTO_DOWNLOAD="1", CLOSET_PORT=str(port))
+    proc = subprocess.Popen([sys.executable, "-c", LOCK_WRITTEN_SLOWLY], env=env,
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        assert proc.stdout.readline().strip() == "writing the lock"
+        # held just before its lock is written: nothing may answer for this closet yet
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            assert instance.running_info(cfg) is None, "the new copy answered while the lock on disk was the dead copy's"
+            time.sleep(0.1)
+        proc.stdin.write("\n")
+        proc.stdin.flush()
+        deadline = time.monotonic() + 30
+        info = None
+        while info is None and time.monotonic() < deadline:
+            info = instance.running_info(cfg)
+            time.sleep(0.05)
+        assert info and info["pid"] == proc.pid and info["token"] != "the-dead-copy's"
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+        proc.communicate(timeout=30)
+
+
 def test_startup_lock_is_released_when_its_process_dies(cfg):
     hold = textwrap.dedent("""
         import sys

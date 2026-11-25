@@ -301,6 +301,15 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- **A change made just as a screen opens is no longer shown undone.** A screen that was still
+  reading when you changed something (a wish opened from a link and removed at once, say) could
+  take the answer it had asked for before the change as the new one: the Wardrobe went on saying
+  "On your wishlist" about a wish you had just removed, for up to a minute. A read still on its
+  way when a change is made is now dropped and asked again.
+- **A copy of Nines that has just started is not taken for the one before it.** After Nines was
+  ended without a goodbye (the computer lost power, Windows ended it) and started again, there was
+  a moment in which opening Nines could read the new copy as the old one and fail to reach it. A
+  copy now says it is running only once the note it keeps about itself is its own.
 - **Removing a wish can be undone.** "Remove from the list" on a wish's page takes you back to the
   wishlist, where the wish's place says "You removed …" with **Undo**, which puts it back as it was:
   its finds with their prices and codes, the most you'd pay and its note. It stays until you leave

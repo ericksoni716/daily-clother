@@ -14,6 +14,11 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **A read on its way when an edit lands** (24 November; DECISIONS, "A read on its way when an edit lands is
+  dropped"). `touch` drops it and asks again. The fifteen or so places that mark one key stale by hand
+  (`qc.invalidateQueries` in `store.tsx`, `Shop.tsx`, `Wardrobe.tsx` after a check, `Review.tsx`, `Add.tsx`,
+  `Several.tsx`, Settings) still keep a first read that is on its way; none is known to show a fault. A helper
+  beside `touch` for one key would close them.
 - **The second logic review's fixes** (24 November; DECISIONS, the rows dated 24 November). Left for the
   owner: whether the laundry day should wash what was left in the basket at home while a trip is under way
   (it still does; only the suitcase waits). Left undone: the count of wears behind a wash

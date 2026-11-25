@@ -179,9 +179,24 @@ export function dropItem(qc: QueryClient, id: string): void {
   qc.removeQueries({ queryKey: queryKeys.item(id), exact: true });
 }
 
-/** Marks every key an edit of this kind touches as stale (less `written`): the ones on screen are asked again. */
+/**
+ * Marks every key an edit of this kind touches as stale (less `written`): the ones on screen are asked again.
+ *
+ * A read still on its way was asked for before the edit, so its answer may be from before it, and taking it would
+ * mark that old answer fresh. The library drops such a read only for a screen that is showing and already holds an
+ * earlier answer. The others are seen to here: a first read for a screen that is showing is dropped (quietly, since
+ * it is asked again in the same breath, so the screen never stops saying it is reading); a read for a screen that is
+ * not showing is let land, so whoever asked for it gets an answer, and marked stale once it has.
+ */
 export function touch(qc: QueryClient, kind: EditKind, written: readonly KeyName[] = []): Promise<void> {
-  return Promise.all(touched(kind, written).map((name) => qc.invalidateQueries({ queryKey: [name] }))).then(() => undefined);
+  const names = touched(kind, written);
+  for (const name of names) {
+    for (const q of qc.getQueryCache().findAll({ queryKey: [name], fetchStatus: 'fetching' })) {
+      if (!q.isActive()) void q.fetch().then(() => q.invalidate(), () => undefined);
+      else if (q.state.data === undefined) void q.cancel({ silent: true });
+    }
+  }
+  return Promise.all(names.map((name) => qc.invalidateQueries({ queryKey: [name] }))).then(() => undefined);
 }
 
 /** After a save that answered with the item: written where it shows, and the rest of what it touches made stale. */

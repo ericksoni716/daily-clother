@@ -166,6 +166,38 @@ test("\"I'll look for this\" puts a gap on the wishlist; the note is kept; it ca
   await expect(page.getByTestId('wish-removed')).toHaveCount(0);
 });
 
+test("a wish removed while the Wardrobe's first answer is still on its way: the gap is offered again, not left marked", async ({ page }) => {
+  await openMissing(page);
+  const [name] = await gapNames(page);
+  await (await openGap(page, name)).getByRole('button', { name: "I'll look for this" }).click();
+  await expect(gap(page, name)).toContainText('On your wishlist');
+  await openWishlist(page);
+  await openWish(page, name);
+
+  // the wish's page opened afresh (a link, a reload) asks for what is worth buying too, and that answer is slow: it
+  // was worked out while the wish was still on the list, and arrives after Remove
+  let asked = 0;
+  let letGo: () => void = () => {};
+  const held = new Promise<void>((done) => { letGo = done; });
+  await page.route('**/api/gaps', async (route) => {
+    if (route.request().method() !== 'GET' || asked++ > 0) return route.fallback();
+    const answer = await route.fetch();
+    await held;
+    await route.fulfill({ response: answer });
+  });
+  await page.reload();
+  const removed = page.waitForResponse((r) => r.request().method() === 'DELETE' && /\/api\/wishlist\//.test(r.url()));
+  await page.getByTestId('wish').getByRole('button', { name: 'Remove' }).click();
+  await removed;
+  letGo();
+
+  await expect(page.getByTestId('wish-removed')).toContainText(`You removed “${name}”.`);
+  await page.locator('.page-back').click();   // "‹ Wardrobe"
+  await expect(page).toHaveURL(/\/wardrobe$/);
+  await expect(gap(page, name)).not.toContainText('On your wishlist');
+  await expect((await openGap(page, name)).getByRole('button', { name: "I'll look for this" })).toBeVisible();
+});
+
 test('"Not for me" hides a gap with a reason, and it can be brought back', async ({ page }) => {
   await openMissing(page);
   const names = await gapNames(page);

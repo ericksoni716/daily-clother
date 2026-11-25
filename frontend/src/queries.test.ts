@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
 import { dropItem, itemSaved, pickSummary, touch, upsertSummary, writeItem } from './queries';
 import { AWAY_MS, makeQueryClient, refetchOnReturn, STALE_MS } from './queryClient';
@@ -79,6 +79,61 @@ describe('writing into the cache', () => {
     expect(qc.getQueryState(queryKeys.trips())?.isInvalidated).toBe(true);
     expect(qc.getQueryState(queryKeys.settings())?.isInvalidated).toBe(false);
     expect(qc.getQueryState(queryKeys.items('active'))?.isInvalidated).toBe(false);
+  });
+
+  /** A read whose answers the test gives by hand, in the order they were asked for. */
+  const slowRead = () => {
+    const give: Array<(answer: string) => void> = [];
+    return { give, queryFn: () => new Promise<string>((done) => { give.push(done); }) };
+  };
+
+  it('a first read still on its way when an edit lands is asked again: its answer, from before the edit, is never taken as the new one', async () => {
+    const qc = makeQueryClient();
+    const read = slowRead();
+    const seen: string[] = [];
+    const observer = new QueryObserver(qc, { queryKey: queryKeys.gaps(), queryFn: read.queryFn });
+    const stop = observer.subscribe((r) => { seen.push(`${r.status}/${r.fetchStatus}`); });
+    expect(read.give).toHaveLength(1);
+    const done = touch(qc, 'wish');
+    // asked again at once, and the screen never stops saying it is reading
+    expect(read.give).toHaveLength(2);
+    expect(qc.getQueryState(queryKeys.gaps())?.fetchStatus).toBe('fetching');
+    read.give[0]('from before the edit');
+    await Promise.resolve();
+    expect(qc.getQueryData(queryKeys.gaps())).toBeUndefined();
+    read.give[1]('from after it');
+    await done;
+    expect(qc.getQueryData(queryKeys.gaps())).toBe('from after it');
+    expect(qc.getQueryState(queryKeys.gaps())?.isInvalidated).toBe(false);
+    expect(seen).not.toContain('pending/idle');
+    stop();
+  });
+
+  it('a read on its way for a screen that is not showing lands, so whoever asked gets an answer, and is marked stale once it has', async () => {
+    const qc = makeQueryClient();
+    const read = slowRead();
+    // as Worn asks for its next page before it shows it
+    const asked = qc.fetchQuery({ queryKey: queryKeys.worn('next'), queryFn: read.queryFn });
+    expect(read.give).toHaveLength(1);
+    await touch(qc, 'outfit');
+    read.give[0]('from before the edit');
+    await expect(asked).resolves.toBe('from before the edit');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(qc.getQueryState(queryKeys.worn('next'))?.isInvalidated).toBe(true);
+    expect(read.give).toHaveLength(1);
+  });
+
+  it('the same for a read again of what a screen that is not showing already held: the answer from before the edit is marked stale', async () => {
+    const qc = makeQueryClient();
+    const read = slowRead();
+    qc.setQueryData(queryKeys.gaps(), 'what it had');
+    void qc.fetchQuery({ queryKey: queryKeys.gaps(), queryFn: read.queryFn, staleTime: 0 });
+    expect(read.give).toHaveLength(1);
+    await touch(qc, 'wish');
+    read.give[0]('from before the edit');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(qc.getQueryData(queryKeys.gaps())).toBe('from before the edit');
+    expect(qc.getQueryState(queryKeys.gaps())?.isInvalidated).toBe(true);
   });
 
   it('after an item save, the lists it wrote stay fresh and the rest it touches goes stale', () => {

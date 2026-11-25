@@ -460,6 +460,23 @@ def save(conn: sqlite3.Connection, pick_id: str) -> str:
     return wish_id
 
 
+def unsave(conn: sqlite3.Connection, pick_id: str) -> None:
+    """Undo Save: the wish made from the pick goes (with its find), and the pick is shown again, to save once more. A
+    pick that is not saved is left as it is."""
+    p = get_pick(conn, pick_id)
+    if p["state"] != "saved":
+        return
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if p["wish_id"]:
+            conn.execute("DELETE FROM wishes WHERE id = ?", (p["wish_id"],))   # its find and prices go with it
+        conn.execute("UPDATE picks SET state = 'shown', state_at = NULL, wish_id = NULL WHERE id = ?", (pick_id,))
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
 def refuse(conn: sqlite3.Connection, pick_id: str) -> None:
     """Not for me: the pick is hidden for good (until Undo) and told to the next look; a line for Your style may be
     offered (`offer_now`)."""
@@ -850,6 +867,11 @@ def router(picker: Picker, state, conn_dep: Callable) -> APIRouter:
     def save_pick(pick_id: str, conn=Depends(conn_dep)):
         wish_id = save(conn, pick_id)
         return {**answer(conn), "wish_id": wish_id}
+
+    @r.delete("/api/picks/{pick_id}/save")
+    def unsave_pick(pick_id: str, conn=Depends(conn_dep)):
+        unsave(conn, pick_id)
+        return answer(conn)
 
     @r.post("/api/picks/{pick_id}/refuse")
     def refuse_pick(pick_id: str, conn=Depends(conn_dep)):

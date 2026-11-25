@@ -4,8 +4,8 @@
 .find-code-line { position: relative; }
 .find-code { margin: 0 0 2px; font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--accent); overflow-wrap: anywhere; }
 .find-code-from { overflow-wrap: anywhere; }
-/* "Add a code" sits in a small line: its invisible hit area keeps it 44px to tap (DESIGN, "Motion and touch") */
-.find-code-from .wish-inline-button::after { inset: calc((var(--tap) - 100%) / -2) 0; }
+/* "Add a code" ends a small line of its own: 44px high, so it is 44px to tap (DESIGN, "Motion and touch") */
+.find-code-from .btn.wish-inline-button { min-height: var(--tap); }
 .find-code-sheet .hint { margin: 0 0 var(--space-3); }
 .find-code-sheet .find-code-kind { margin: 0 0 var(--space-3); }
 .find-code-sheet .form-error { margin: 0 0 var(--space-2); }

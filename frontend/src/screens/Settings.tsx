@@ -399,7 +399,7 @@ export function SettingsScreen({ version }: { version: string }) {
     return (
       <div className="settings">
         <PageHeader title="Settings" />
-        {offline ? <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>
+        {offline ? <Notice as="p">Your settings were not saved on this device.</Notice>
           : read.error ? <Failed query={read} what="your settings" /> : <p className="hint" aria-busy="true">Opening your settings…</p>}
         {offline && (
           <div className="settings-groups">
@@ -440,7 +440,7 @@ export function SettingsScreen({ version }: { version: string }) {
   return (
     <div className="settings">
       <PageHeader title="Settings" />
-      {offline && <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>}
+      {/* offline is said once, by the banner over the page */}
       {!offline && <Failed query={read} what="your settings" />}
       <div className="settings-groups">
         {mainGroups(phoneShows, device === 'phone' && keepPhoneLine(settings.background) !== null).map((g) => group[g])}

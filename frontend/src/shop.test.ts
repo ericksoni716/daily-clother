@@ -7,7 +7,7 @@ import {
   addedByHand, atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, withStopped, googleShoppingLink,
   historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
   runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, watchWords,
-  webLink, wishlistAgain, wishlistWords, withinWords,
+  webLink, wishlistAgain, wishlistWords, withinWords, isTheWish, wishTitle,
 } from './shop';
 import { timeOf } from './today';
 
@@ -131,8 +131,10 @@ describe('a product sent as a link', () => {
   it('says who is reading while it runs, and what came of it', () => {
     expect(runWords({ kind: 'link', step: 'page' })).toBe('Nines is reading the page…');
     expect(runWords({ kind: 'link', step: 'claude' })).toBe("The page doesn't show its price to Nines, so Claude is reading it…");
-    expect(runWords({ kind: 'prices', step: 'page' })).toBe('Nines is reading the pages you sent…');
-    expect(runWords({ kind: 'prices', step: null })).toBe('Claude is checking the prices…');
+    // a price check is said in place of "Last checked …", under the sentence that already says Nines checks the price,
+    // so it names nobody (the review of 24 November, 40)
+    expect(runWords({ kind: 'prices', step: 'page' })).toBe('Checking the price…');
+    expect(runWords({ kind: 'prices', step: null })).toBe('Checking the price…');
     expect(runWords({ kind: 'find' })).toBe('Claude is searching shops. This can take a few minutes…');
     expect(runWords({ kind: 'link', step: 'describe' })).toBe('Claude is describing it…');
     expect(runWords({ kind: 'prices', step: 'describe' })).toBe('Claude is describing the pages you sent…');
@@ -185,6 +187,14 @@ describe('the wish page and price news', () => {
   it('puts the pages you sent before Claude’s finds', () => {
     const f = (id: string, link: boolean) => ({ id, link });
     expect(findsInOrder([f('a', false), f('b', true), f('c', false), f('d', true)]).map((x) => x.id)).toEqual(['b', 'd', 'a', 'c']);
+  });
+
+  it('lists what a later search finds after the finds already there, so what you read stays where it was (the review of 24 November, 41)', () => {
+    const f = (id: string, link: boolean, found_at: string) => ({ id, link, found_at });
+    // as the server lists them: the newest first, each search's in the order they were kept
+    const listed = [f('new-a', false, '2026-11-24T10:00:00Z'), f('new-b', false, '2026-11-24T10:00:00Z'),
+      f('link-new', true, '2026-11-24T09:00:00Z'), f('old-a', false, '2026-11-23T09:00:00Z'), f('link-old', true, '2026-11-22T09:00:00Z')];
+    expect(findsInOrder(listed).map((x) => x.id)).toEqual(['link-old', 'link-new', 'old-a', 'new-a', 'new-b']);
   });
 
   it('keeps a find you stopped watching in its place until you leave, so Undo is where it was (A8)', () => {
@@ -361,5 +371,21 @@ describe('seeing a find with your clothes', () => {
   });
   it('is offered for a find judged before outfits were counted', () => {
     expect(canSeeWorn({ piece, verdict: 'have_it', outfits: undefined })).toBe(true);
+  });
+});
+
+describe('a wish made from one product names it once (the review of 24 November, 38)', () => {
+  const whole = 'Water-repellent cotton gabardine single-breasted trench coat with a removable warm lining';
+  const cut = 'Water-repellent cotton gabardine single-breasted trench…';   // as the server cuts a wish's name
+  it('heads the page with the whole name when the wish has its find\'s name cut short', () => {
+    expect(wishTitle({ name: cut }, [{ name: 'Navy pique polo' }, { name: whole }])).toBe(whole);
+    expect(wishTitle({ name: cut }, null)).toBe(cut);
+    expect(wishTitle({ name: 'A tan rain coat' }, [{ name: 'Tan gabardine rain coat' }])).toBe('A tan rain coat');
+  });
+  it('names the find by its shop and price alone when it is the wish itself', () => {
+    expect(isTheWish({ name: whole }, { name: cut })).toBe(true);
+    expect(isTheWish({ name: 'A plain shirt' }, { name: 'A plain shirt' })).toBe(true);
+    expect(isTheWish({ name: 'Tan gabardine rain coat' }, { name: 'A tan rain coat' })).toBe(false);
+    expect(isTheWish({ name: 'Water-repellent' }, { name: cut })).toBe(false);
   });
 });

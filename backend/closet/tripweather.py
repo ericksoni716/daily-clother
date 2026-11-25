@@ -239,7 +239,9 @@ def lookup(state: State, place: dict, first: date, last: date, today: date) -> d
     message = None
     if any(d["source"] == "unknown" for d in out):
         why = problems[-1] if problems else "The weather service has nothing for some of these dates."
-        message = f"{why} Days without weather are left out of the plan until it can be looked up."
+        # with some days known the plan leaves the others out, and says so; with none known there is no plan to speak of
+        message = why if all(d["source"] == "unknown" for d in out) else \
+            f"{why} Days without weather are left out of the plan until it can be looked up."
     return {"days": out, "message": message}
 
 

@@ -598,15 +598,19 @@ def _serve(args, cfg: config.Config, release_startup, launch=None) -> int:
             Path(sys.executable).resolve() == kept_running.installed_exe().resolve()
         if services.updater.through_task:
             kept_running.note_version(__version__)   # so an older program the owner opens knows it is older
+    # The lock is this copy's own before the server answers, never after: a copy that was killed leaves its lock
+    # behind, and a server answering on its port while that lock is on disk would be read (instance.running_info) as
+    # the dead copy, with its process id and token. Nobody else is starting: the startup lock is held until below.
+    instance.write_lock(cfg, port, background=background)
     thread = threading.Thread(target=server.run, name="server", daemon=True)
     thread.start()
     deadline = time.time() + 30
     while not server.started and thread.is_alive() and time.time() < deadline:
         time.sleep(0.05)
     if not server.started:
+        instance.clear_lock(cfg)
         say(f"{APP_NAME} could not start on port {port}. Is another program using it?")
         return 3
-    instance.write_lock(cfg, port, background=background)
     services.start()
     release_startup()
     log.info("%s %s serving on %s (data folder: %s)", APP_NAME, __version__, url, cfg.data_dir)

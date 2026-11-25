@@ -48,6 +48,8 @@
 
 /* simple bars, drawn with CSS */
 .insights-windows { margin-bottom: 12px; max-width: 100%; overflow-x: auto; }
+/* the periods of Your nines and the counts are 44px high to tap, not the small control's 34 */
+.insights-windows.segmented-small > * { min-height: var(--tap); }
 .insights-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .insights-bar-row {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px;

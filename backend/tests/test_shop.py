@@ -341,6 +341,30 @@ def test_stop_watching_can_be_undone_with_the_find_and_its_price_history(client)
     assert client.post(f"/api/wishlist/{wid}/finds/{again[0]['id']}/restore").status_code == 404
 
 
+def test_a_removed_wish_can_be_put_back_whole_with_undo(client):
+    # the review of 24 November (finding 5): "Remove from the list" took the wish, its finds, the most you'd pay and its
+    # note away at once, with no way back
+    wid = wish(client, note="Size 40, not too long")
+    assert client.patch(f"/api/wishlist/{wid}", json={"price_max": 150, "price_currency": "USD"}).status_code == 200
+    find_some(client, wid)
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    finds = settle(client, wid)["finds"]
+    assert client.put(f"/api/wishlist/{wid}/finds/{finds[0]['id']}/code", json={"code": "TEST20", "percent": 20}).status_code == 200
+    listed = client.get("/api/wishlist").json()["wishes"]
+    before = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert before[0]["code"] and before[0]["history"]
+    assert client.delete(f"/api/wishlist/{wid}").status_code == 204
+    assert wid not in [w["id"] for w in client.get("/api/wishlist").json()["wishes"]]
+    r = client.post(f"/api/wishlist/{wid}/restore")
+    assert r.status_code == 200, r.text
+    assert r.json() == next(w for w in listed if w["id"] == wid)
+    assert client.get("/api/wishlist").json()["wishes"] == listed   # in its place, with its note and price
+    assert client.get(f"/api/wishlist/{wid}/finds").json()["finds"] == before   # its finds, prices and code
+    # once only, and only a wish that was removed
+    assert client.post(f"/api/wishlist/{wid}/restore").status_code == 404
+    assert client.post("/api/wishlist/nope/restore").status_code == 404
+
+
 def test_removing_a_find_during_a_price_check_keeps_the_other_prices(client, fake_shop, monkeypatch):
     wid = wish(client)
     first, second = find_some(client, wid)["finds"]

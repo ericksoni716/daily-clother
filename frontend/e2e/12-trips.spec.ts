@@ -1,4 +1,4 @@
-import { expect, goToCloset, test, useProfile } from './fixtures';
+import { expect, goToCloset, openFold, test, useProfile } from './fixtures';
 
 
 const PLACE = { name: 'Lisbon, Portugal', latitude: 38.7167, longitude: -9.1333, timezone: 'Europe/Lisbon' };
@@ -123,6 +123,30 @@ test('a trip on a phone leads with what to pack, says a forecast it could not ge
     // "Why this works" on a day is a whole tap high
     expect((await day.locator('.trip-day-why summary').boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
+    // the review of 24 November. One count: the heading counts what the bar counts, the pieces and the basics (47)
+    const heading = (await pack.innerText()).replace(/\s+/g, ' ');
+    const [pieces, basics] = (heading.match(/(\d+) pieces? and (\d+) basics?/) ?? []).slice(1).map(Number);
+    expect(pieces + basics).toBe(mild.lines.length);
+    await expect(page.getByTestId('trip-progress')).toContainText(`0 of ${mild.lines.length} packed`);
+    // Day by day on a phone: the pictures alone, no cut names; a tap opens the piece's sheet, which names it (48)
+    await expect(day.locator('.trip-day-name').first()).toBeHidden();
+    const piece = day.locator('.trip-day-pieces > li').first().getByRole('button');
+    const named = (await piece.getAttribute('aria-label'))!;
+    await piece.click();
+    await expect(page.getByRole('dialog', { name: named.replace(/^[^:]+: /, '') })).toBeVisible();
+    await page.keyboard.press('Escape');
+    // the word tally: each day's temperature is in the strip at the top, not again in Day by day; "Why these counts"
+    // is closed
+    await expect(page.getByTestId('trip-day').first()).not.toContainText('14–20°C');
+    await expect(page.locator('.trip-weather')).toContainText('14–20°C');
+    await expect(page.locator('details.trip-why')).not.toHaveAttribute('open', '');
+    // the list names the days with a warning in the trip's own words (49)
+    if (mild.plan.warnings.length) {
+      await page.goto('/trips');
+      await expect(page.getByTestId('trip-card').first()).toContainText(/days? ha(s|ve) something to watch for/);
+      await expect(page.locator('main')).not.toContainText('dressed with');
+    }
+
     // the weather service out of reach (as in the tests): the days are not dressed, and that is said once
     const unknown = await (await page.request.post('/api/trips', { data: { place: PLACE, first_day: futureDay(3), last_day: futureDay(6) } })).json();
     ids.push(unknown.id);
@@ -155,6 +179,8 @@ test('laundry on the trip and the explained counts', async ({ page }) => {
     await expect(page.getByLabel('Laundry day')).toHaveValue('4');
     await page.getByRole('button', { name: 'Work out what to pack' }).click();
 
+    // why these counts are what they are is one closed thing to open (the review's word tally of 24 November)
+    await openFold(page, 'Why these counts');
     const counts = page.getByRole('list', { name: 'Why these counts' });
     // "one a day", or "each worn once" when some days wear two tops (a tee under a shirt): what is in the demo's
     // laundry today is packed for a trip a week away, which gives the planner more tops to layer
@@ -175,6 +201,7 @@ test('laundry on the trip and the explained counts', async ({ page }) => {
     await page.getByRole('group', { name: 'Laundry on the trip' }).getByRole('button', { name: 'Every few days' }).click();
     await patch;
     await expect(page.locator('.trip-header')).toContainText('Laundry every 3 days');
+    await openFold(page, 'Why these counts');
     await expect(page.getByRole('list', { name: 'Why these counts' })).toContainText('laundry every 3 days');
     await expect(page.getByLabel('How often')).toHaveValue('3');
   } finally {
@@ -352,6 +379,7 @@ test('swimming or the beach: on by itself for a hot trip, kept off when turned o
     await expect(page.getByRole('list', { name: 'For swimming' })).toContainText(shorts.name);
     await expect(page.getByTestId('swim-missing')).toHaveCount(0);
     await expect(page.getByTestId('trip-day').filter({ hasText: shorts.name })).toHaveCount(0);
+    await openFold(page, 'Why these counts');
     await expect(page.getByRole('list', { name: 'Why these counts' })).toContainText('1 pair of swim trunks: one for a trip of up to a week');
     await page.getByRole('list', { name: 'For swimming' }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: test.info().outputPath('trip-swim-packed.png') });
@@ -415,5 +443,52 @@ test('swimming or the beach: on by itself for a hot trip, kept off when turned o
     await page.request.delete(`/api/trips/${trip.id}`);
     if (shorts.category === 'shorts') await page.request.put(`/api/items/${shorts.id}/kind`, { data: { kind: 'shorts' } });
     else await page.request.patch(`/api/items/${shorts.id}`, { data: { category: shorts.category } });   // drops the kind
+  }
+});
+
+test('a new trip whose weather cannot be looked up says so once, with Try again and a way to type the temperatures', async ({ page }) => {
+  // the review of 24 November, 51: it said so four ways, offered a packing list of nothing, and Save
+  await page.setViewportSize({ width: 375, height: 667 });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  await page.route('**/api/places?*', (route) => route.fulfill({ json: { places: [PLACE] } }));
+  let tripId: string | null = null;
+  try {
+    await page.goto('/trips/new');
+    // what is sent to look up the weather is one closed thing to open, after the search (it was 30 words in the
+    // form: the review of 24 November, 50)
+    await expect(page.getByLabel('Where are you going?')).toBeVisible();
+    await expect(page.getByText(/Nines sends Open-Meteo/)).toBeHidden();
+    await expect(page.locator('details.where-sent summary')).toHaveText('What is sent to look up the weather');
+    await page.getByLabel('Where are you going?').fill('Lisbon');
+    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: PLACE.name }).click();
+    await page.getByLabel('First day').fill(futureDay(3));
+    await page.getByLabel('Last day').fill(futureDay(5));
+    await page.getByRole('button', { name: 'Work out what to pack' }).click();   // the test backend reaches no weather
+    const none = page.getByTestId('trip-no-weather');
+    await expect(none).toContainText("Couldn't reach the weather service");
+    await expect(none.getByRole('button', { name: 'Try again' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /What to pack/ })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Day by day' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Save this trip' })).toHaveCount(0);
+    await expect(page.locator('main')).not.toContainText('Not known yet');
+    await expect(page.locator('main')).not.toContainText('left out of the plan');
+
+    // the temperatures typed for each day: the plan is worked out with them, and can be saved
+    await none.getByRole('button', { name: 'Type the temperatures' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Type the temperatures' });
+    for (const low of await sheet.getByLabel('Low').all()) await low.fill('12');
+    for (const high of await sheet.getByLabel('High').all()) await high.fill('19');
+    await sheet.getByRole('button', { name: 'Work out what to pack' }).click();
+    await expect(page.getByRole('heading', { name: /What to pack/ })).toBeVisible();
+    await expect(page.locator('.trip-weather')).toContainText('Your temperatures');
+    await expect(page.locator('.trip-weather')).toContainText('12–19°C');
+    await page.getByRole('button', { name: 'Save this trip' }).click();
+    await expect(page.getByRole('heading', { name: 'Lisbon' })).toBeVisible();
+    tripId = page.url().split('/').pop() ?? null;
+    await expect(page.locator('.trip-weather')).toContainText('Your temperatures');
+  } finally {
+    if (tripId) await page.request.delete(`/api/trips/${tripId}`);
   }
 });

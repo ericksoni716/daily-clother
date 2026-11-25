@@ -1,8 +1,9 @@
 import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { OutfitFigure } from '../components/OutfitFigure';
+import { WeatherSent } from '../components/WhereYouAre';
 import { Toggle } from '../components/Toggle';
 import { BackLink, Button, buttonClass, Card, EmptyState, Failed, Fold, PageHeader, SegmentedControl, Sheet } from '../components/ui';
 import { useShowDrawings, type GridView } from '../drawing';
@@ -19,7 +20,7 @@ import {
   addDays, basicLine, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, itemLine, laundryDays,
   laundryEvery, laundryMode, laundryWords, progress, shortDay, sourceRuns, startLaundry, SWIM_LABEL, swimHint, swimOn, tripDays,
   toggleSport, TRIP_SPORTS, type TripSport,
-  loadSavedTrips, saveTrips, tripProblems, tripTitle, upcomingFirst, wornWords, type LaundryMode, type PlannedTrip, type SwimPlan, type Trip,
+  loadSavedTrips, packWords, saveTrips, tripProblems, watchCount, tripTitle, upcomingFirst, wornWords, type LaundryMode, type PlannedTrip, type SwimPlan, type Trip,
   type TripDay, type TripLaundry, type TripPatch, type TripRequest, type TripSummary, type WeatherCheck,
 } from '../trips';
 import type { ItemSummary, Place } from '../types';
@@ -133,7 +134,7 @@ function TripList() {
   const query = useQuery(tripsQuery(profile));
   const trips = query.data ?? kept;
   const error = !query.error ? null : (query.error as ApiError).status === 0
-    ? "You're offline, and the list of trips was not saved on this device. It shows here once Nines on your computer can be reached."
+    ? 'The list of trips was not saved on this device.'
     : null;
 
   const planButton = offline
@@ -175,7 +176,7 @@ function TripCards({ title, trips }: { title: string; trips: TripSummary[] }) {
                   <span className="muted">
                     {occasionLabel(t.occasion)} · {done ? `All ${t.lines} packed` : `${t.packed} of ${t.lines} packed`}
                     {t.uncovered > 0 && <> · <span className="trip-card-warn">{t.uncovered === 1 ? '1 day without an outfit' : `${t.uncovered} days without an outfit`}</span></>}
-                    {t.warnings > 0 && <> · <span className="trip-card-warn">{t.warnings === 1 ? '1 day dressed with a warning' : `${t.warnings} days dressed with warnings`}</span></>}
+                    {t.warnings > 0 && <> · <span className="trip-card-warn">{watchCount(t.warnings)}</span></>}
                   </span>
                 </span>
               </Link>
@@ -200,7 +201,11 @@ interface Draft {
   swim: boolean | null;
   /** Tennis or golf on the trip: their shoes are packed. */
   sport: TripSport[];
+  /** The temperatures typed for each day, when the weather could not be looked up; null to look it up. */
+  weather: GivenDay[] | null;
 }
+
+type GivenDay = { date: string; low_c: number; high_c: number; rain: boolean };
 
 function requestOf(d: Draft, leaveOut: string[], pin: string[]): TripRequest | null {
   if (!d.place) return null;
@@ -208,7 +213,7 @@ function requestOf(d: Draft, leaveOut: string[], pin: string[]): TripRequest | n
   const differ = Object.fromEntries(Object.entries(d.differ).filter(([day, occ]) => days.has(day) && occ !== d.occasion));
   return { place: d.place, first_day: d.first, last_day: d.last, occasion: d.occasion, day_occasions: differ,
     laundry: fitLaundry(d.laundry, dayCount(d.first, d.last)),
-    leave_out: leaveOut, pin, swim: d.swim, sport: d.sport };
+    leave_out: leaveOut, pin, swim: d.swim, sport: d.sport, ...(d.weather ? { weather: d.weather } : {}) };
 }
 
 function PlanTrip() {
@@ -217,13 +222,15 @@ function PlanTrip() {
   const saveEdit = useEdit('trip');
   const byId = useActiveItems();
   const today = localDay();
-  const [draft, setDraft] = useState<Draft>({ place: null, first: addDays(today, 7), last: addDays(today, 11), occasion: 'casual', differ: {}, laundry: null, swim: null, sport: [] });
+  const [draft, setDraft] = useState<Draft>({ place: null, first: addDays(today, 7), last: addDays(today, 11), occasion: 'casual', differ: {}, laundry: null, swim: null, sport: [], weather: null });
   const [leaveOut, setLeaveOut] = useState<string[]>([]);
   const [pin, setPin] = useState<string[]>([]);
   const [planned, setPlanned] = useState<PlannedTrip | null>(null);
   const [asking, setAsking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [typing, setTyping] = useState(false);
+  const typeButton = useRef<HTMLButtonElement>(null);
   const ctrl = useRef<AbortController | null>(null);
 
   const ask = useCallback(async (d: Draft, out: string[], take: string[]) => {
@@ -269,6 +276,7 @@ function PlanTrip() {
     }
   }
 
+  const noWeather = !!planned && planned.weather.length > 0 && planned.weather.every((d) => d.source === 'unknown');
   const changes: Changes = {
     locked: offline || asking,
     leaveOut, pin,
@@ -281,11 +289,39 @@ function PlanTrip() {
   return (
     <div className="trips trip-planning" aria-busy={asking}>
       <PageHeader title="Plan a trip" titleId="trips-title" back={TRIPS_BACK} />
-      {offline && <p className="notice" role="status">You're offline. Planning a trip needs Nines on your computer to be reachable.</p>}
-      <TripForm draft={draft} setDraft={(d) => { setDraft(d); setPlanned(null); }} today={today} locked={offline} asking={asking}
-        swimPlan={planned?.plan.swim} onSubmit={submit} />
+      <TripForm draft={draft} today={today} locked={offline} asking={asking} swimPlan={planned?.plan.swim} onSubmit={submit}
+        setDraft={(d) => {
+          // temperatures typed are for these days of this place: another place or other dates looks the weather up again
+          const same = d.place === draft.place && d.first === draft.first && d.last === draft.last;
+          setDraft(same ? d : { ...d, weather: null });
+          setPlanned(null);
+        }} />
       {error && <p className="form-error" role="alert">{error}</p>}
-      {planned && (
+      {planned && noWeather && (
+        // no day's weather could be had: one sentence, Try again and a way to type the temperatures; no packing list of
+        // nothing and no Save
+        <div className="notice notice-warn trip-no-weather" role="status" data-testid="trip-no-weather">
+          <WarnIcon />
+          <div>
+            <p>{planned.weather_message ?? 'The weather for these dates is not known yet.'}</p>
+            <div className="row">
+              <Button small disabled={offline || asking} onClick={() => void ask(draft, leaveOut, pin)}>Try again</Button>
+              <button ref={typeButton} type="button" className={buttonClass({ small: true, variant: 'ghost' })} disabled={offline || asking}
+                aria-haspopup="dialog" aria-expanded={typing} onClick={() => setTyping(!typing)}>Type the temperatures</button>
+            </div>
+          </div>
+          {typing && (
+            <TypeTemperatures days={tripDays(draft.first, draft.last)} keep={typeButton} onClose={() => setTyping(false)}
+              onDone={(weather) => {
+                setTyping(false);
+                const next = { ...draft, weather };
+                setDraft(next);
+                void ask(next, leaveOut, pin);
+              }} />
+          )}
+        </div>
+      )}
+      {planned && !noWeather && (
         <>
           <PlanView trip={planned} byId={byId} changes={changes} asking={asking} />
           <div className="trip-save">
@@ -365,6 +401,57 @@ function TripForm({ draft, setDraft, today, locked, asking, swimPlan, onSubmit }
   );
 }
 
+/** The temperatures for each day of a new trip, typed when the weather could not be looked up (a saved trip keeps
+ * them as "Your temperatures"). */
+function TypeTemperatures({ days, keep, onClose, onDone }: {
+  days: string[]; keep: RefObject<HTMLButtonElement | null>; onClose(): void; onDone(weather: GivenDay[]): void;
+}) {
+  const [rows, setRows] = useState(() => days.map((date) => ({ date, low: '', high: '', rain: false })));
+  const [problem, setProblem] = useState<string | null>(null);
+  const set = (i: number, part: Partial<(typeof rows)[number]>) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...part } : x)));
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    const out: GivenDay[] = [];
+    for (const r of rows) {
+      const low = Number(r.low.replace(',', '.')), high = Number(r.high.replace(',', '.'));
+      if (r.low.trim() === '' || r.high.trim() === '' || !Number.isFinite(low) || !Number.isFinite(high)) {
+        return setProblem(`Type a low and a high in °C for ${longDate(r.date)}.`);
+      }
+      if (low > high) return setProblem(`On ${longDate(r.date)} the low is above the high.`);
+      out.push({ date: r.date, low_c: low, high_c: high, rain: r.rain });
+    }
+    setProblem(null);
+    onDone(out);
+  }
+  return (
+    <Sheet title="Type the temperatures" popover keep={keep} closeLabel="Cancel" className="trip-temps-sheet" testId="trip-temps" onClose={onClose}>
+      <form onSubmit={submit} noValidate aria-label="Type the temperatures">
+        <p className="hint">In °C, for each day of the trip.</p>
+        <ul className="trip-temps">
+          {rows.map((r, i) => (
+            <li key={r.date}>
+              <span className="trip-temps-day">{longDate(r.date)}</span>
+              <label className="field">
+                <span>Low</span>
+                <input inputMode="decimal" value={r.low} aria-label={`Low on ${longDate(r.date)}`} onChange={(e) => set(i, { low: e.target.value })} />
+              </label>
+              <label className="field">
+                <span>High</span>
+                <input inputMode="decimal" value={r.high} aria-label={`High on ${longDate(r.date)}`} onChange={(e) => set(i, { high: e.target.value })} />
+              </label>
+              <label className="trip-temps-rain">
+                <input type="checkbox" checked={r.rain} onChange={(e) => set(i, { rain: e.target.checked })} /> Rain
+              </label>
+            </li>
+          ))}
+        </ul>
+        {problem && <p className="form-error" role="alert">{problem}</p>}
+        <Button variant="primary" block type="submit">Work out what to pack</Button>
+      </form>
+    </Sheet>
+  );
+}
+
 function PlacePicker({ place, locked, onChoose }: { place: Place | null; locked: boolean; onChoose(p: Place | null): void }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Place[] | null>(null);
@@ -406,7 +493,6 @@ function PlacePicker({ place, locked, onChoose }: { place: Place | null; locked:
         </label>
         <button className="btn" type="submit" disabled={locked || busy || !query.trim()}>{busy ? 'Searching…' : 'Search'}</button>
       </form>
-      <p className="hint">To look up the weather there, Nines sends Open-Meteo (open-meteo.com) only the place name you search for, then its location and the dates; nothing about your clothes.</p>
       {error && <p className="form-error" role="alert">{error}</p>}
       {results && results.length === 0 && <p className="hint">No places found for “{searched}”. Try the name of a nearby town or city.</p>}
       {results && results.length > 0 && (
@@ -418,6 +504,10 @@ function PlacePicker({ place, locked, onChoose }: { place: Place | null; locked:
           ))}
         </ul>
       )}
+      {/* the controls first; what is sent is one tap away, as under where you are */}
+      <WeatherSent>
+        <p className="hint">To look up the weather there, Nines sends Open-Meteo (open-meteo.com) only the place name you search for, then its location and the dates; nothing about your clothes.</p>
+      </WeatherSent>
     </div>
   );
 }
@@ -449,7 +539,7 @@ function SavedTrip({ id }: { id: string }) {
     if (pending.current === 0) setTicked(null);   // the trip as saved has arrived
   }, [query.data]);
   const error = !query.error ? null : (query.error as ApiError).status === 0
-    ? "You're offline, and this trip was not saved on this device. It shows here once Nines on your computer can be reached."
+    ? 'This trip was not saved on this device.'
     : null;
   const [busy, setBusy] = useState(false);
   // Its days may have come into the forecast since it was planned: say so, but never change the plan by itself.
@@ -558,12 +648,8 @@ function SavedTrip({ id }: { id: string }) {
       <PageHeader className="trip-header" title={shortPlace(trip.place.name)} titleId="trips-title" back={TRIPS_BACK}
         subtitle={<>{dateRange(trip.first_day, trip.last_day)} · {occasionLabel(trip.occasion)}{trip.laundry ? ` · ${laundryWords(trip.laundry)}` : ''}</>} />
 
-      {locked && (
-        <p className="notice notice-warn" role="status">
-          <WarnIcon />
-          <span>You're offline: this is the copy saved on this device. You can tick what you pack; changing the trip waits until Nines on your computer can be reached.</span>
-        </p>
-      )}
+      {/* offline is said once, by the banner over the page; the trip says only what is its own */}
+      {locked && <p className="hint trip-offline" role="status">You can still tick what you pack.</p>}
       <Failed query={{ ...query, data: trip }} what="this trip" />
       {newWeather && !locked && (
         <div className="notice notice-warn trip-new-weather" role="status">
@@ -754,7 +840,7 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
 
       <div className="trip-columns">
         <section className="trip-pack" aria-labelledby="pack-title">
-          <h2 id="pack-title">What to pack <span className="count">· {plan.packed.length === 1 ? '1 piece' : `${plan.packed.length} pieces`}</span></h2>
+          <h2 id="pack-title">What to pack <span className="count">· {packWords(plan.packed.length, plan.basics.length)}</span></h2>
           {plan.packed.length === 0 && <p className="muted">Nothing from the closet: no day could be dressed.</p>}
           {groupPacked(plan.packed).map((g) => (
             <div key={g.group} className="trip-group">
@@ -832,8 +918,7 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
           </div>
           {plan.notes.length > 0 && <ul className="hint trip-notes">{plan.notes.map((n) => <li key={n}>{n}</li>)}</ul>}
           {((plan.counts?.length ?? 0) > 0 || (plan.washes?.length ?? 0) > 0) && (
-            <section className="trip-why" aria-labelledby="why-title">
-              <h3 id="why-title" className="chip-group-title">Why these counts</h3>
+            <Fold title="Why these counts" className="trip-why" testId="trip-why">
               {(plan.counts?.length ?? 0) > 0 && (
                 <ul className="trip-why-list" aria-label="Why these counts">{plan.counts!.map((c) => <li key={c.kind}>{c.words}</li>)}</ul>
               )}
@@ -841,7 +926,7 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
                 <ul className="trip-why-list" aria-label="Laundry">{plan.washes!.map((w) => <li key={w.day}>{w.words}</li>)}</ul>
               )}
               <p className="hint">How often each kind is worn before washing is set in <Link to="/settings">Settings</Link>.</p>
-            </section>
+            </Fold>
           )}
         </section>
 
@@ -935,6 +1020,10 @@ function DayCard({ day, tripOccasion, byId, view, shown, problemSaid, isToday = 
   isToday?: boolean;
 }) {
   const o: Outfit | null = day.outfit;
+  const [opened, setOpened] = useState<string | null>(null);
+  const anchor = useRef<HTMLElement | null>(null);
+  const openedPiece = opened ? o?.pieces && wornOrder(o.pieces).find((p) => p.id === opened) : undefined;
+  const openedItem = opened ? byId.get(opened) : undefined;
   // up to five pieces in one row; more wrap into rows of the same length, so none is left alone on a row
   const n = o ? outfitIds(o.pieces).length : 0;
   const cols = n <= 5 ? 5 : Math.ceil(n / 2);
@@ -944,7 +1033,6 @@ function DayCard({ day, tripOccasion, byId, view, shown, problemSaid, isToday = 
       <div className="trip-day-head">
         <strong>{longDate(day.date)}</strong>
         {isToday && <span className="trip-day-occasion" data-testid="trip-today">Today</span>}
-        <span className="muted">{dayTemps(day.weather)}{day.weather.rain ? ' · Rain' : ''}</span>
         {day.occasion !== tripOccasion && <span className="trip-day-occasion">{occasionLabel(day.occasion)}</span>}
         {day.laundry && <span className="trip-day-occasion trip-day-laundry">Laundry day</span>}
       </div>
@@ -957,19 +1045,36 @@ function DayCard({ day, tripOccasion, byId, view, shown, problemSaid, isToday = 
               alt={`What to wear on ${longDate(day.date)}, as worn: ${joinWords(wornOrder(o.pieces).map((p) => itemName(byId.get(p.id))))}`}
               version={figureVersion(outfitIds(o.pieces), byId)} />
           ) : (
+            // on a phone the pictures alone (a name cut to a few letters says nothing): a tap opens the piece's sheet,
+            // which names it; with room, the names whole under them
             <ul className="trip-day-pieces" data-cols={cols} aria-label={`What to wear on ${longDate(day.date)}`}>
               {wornOrder(o.pieces).map((p) => {
                 const item = byId.get(p.id);
                 return (
-                  <li key={p.id} title={`${placeLabel(p.place)}: ${itemName(item)}`}>
-                    <span className="trip-day-pic">{item ? <TilePicture item={item} view={view} /> : <span className="pic-placeholder"><HangerIcon /></span>}</span>
-                    <span className="trip-day-name">
-                      {itemName(item)}{item?.status === 'archived' ? ' · Archived' : !item ? ' · No longer in your closet' : ''}
-                    </span>
+                  <li key={p.id}>
+                    <button type="button" className="trip-day-piece" aria-label={`${placeLabel(p.place)}: ${itemName(item)}`}
+                      aria-haspopup="dialog" aria-expanded={opened === p.id}
+                      onClick={(e) => { anchor.current = e.currentTarget; setOpened(opened === p.id ? null : p.id); }}>
+                      <span className="trip-day-pic">{item ? <TilePicture item={item} view={view} /> : <span className="pic-placeholder"><HangerIcon /></span>}</span>
+                      <span className="trip-day-name">
+                        {itemName(item)}{item?.status === 'archived' ? ' · Archived' : !item ? ' · No longer in your closet' : ''}
+                      </span>
+                    </button>
                   </li>
                 );
               })}
             </ul>
+          )}
+          {openedPiece && (
+            <Sheet title={itemName(openedItem)} anchor={anchor} onClose={() => setOpened(null)} className="trip-menu-sheet" testId="trip-day-piece">
+              <div className="trip-menu-list">
+                <p className="hint">
+                  Worn on {longDate(day.date)}
+                  {openedItem?.status === 'archived' ? '. It is archived.' : !openedItem ? '. It is no longer in your closet.' : '.'}
+                </p>
+                {openedItem && <Link className={buttonClass({ block: true })} to={`/item/${encodeURIComponent(openedPiece.id)}`}>See it</Link>}
+              </div>
+            </Sheet>
           )}
           {o.warnings.length > 0 && <ul className="trip-day-warnings">{o.warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
           {o.reasons.length > 0 && (

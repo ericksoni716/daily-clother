@@ -32,7 +32,17 @@ test.describe('shopping for a wish', () => {
     await expect(search).toHaveAttribute('target', '_blank');
     await page.goto(backend.url + '/wardrobe/wishlist');
     const wishlist = page.getByTestId('wishlist');
+    // the form opens in a sheet over the list (it was put in above the list, and Escape did nothing: the review of 24
+    // November, 42); the list under it does not move
+    const listTop = async () => wishlist.locator('.wish-list, [data-testid="wishlist-empty"]').first().evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+    const listAt = await listTop();
     await wishlist.getByRole('button', { name: 'Add by hand' }).click({ timeout: 30_000 });
+    const hand = page.getByTestId('hand-sheet');
+    await expect(hand.getByRole('heading', { name: 'Add by hand' })).toBeVisible();
+    expect(await listTop()).toBe(listAt);
+    await page.keyboard.press('Escape');
+    await expect(hand).toHaveCount(0);
+    await wishlist.getByRole('button', { name: 'Add by hand' }).click();
     await wishlist.getByLabel('What are you looking for?').fill('A tan rain coat');
     await wishlist.getByRole('button', { name: 'Add to the list' }).click();
     // shopping is one level down, on the wish's own page
@@ -99,8 +109,16 @@ test.describe('shopping for a wish', () => {
     await expect(wish).not.toContainText('Nothing is ever bought for you');
     await expect(wish.getByRole('button', { name: 'Would it go with my clothes?' })).toHaveAttribute('title', /against your closet/);
 
-    // Check now sees every price lower: the drop is shown
+    // Check now sees every price lower: the drop is shown. While it checks, "Checking the price…" takes the place of
+    // "Last checked …" and nothing under it moves (a line put in under it moved Find more 48px, and named Claude: the
+    // review of 24 November, 40)
+    const findMore = wish.getByTestId('find-some');
+    const top = async () => findMore.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+    const before = await top();
     await wish.getByRole('button', { name: 'Check now' }).click();
+    await expect(wish.getByTestId('prices-checked')).toContainText('Checking the price…');
+    expect(await top()).toBe(before);
+    await expect(wish).not.toContainText('is checking the prices');
     await expect(coat.getByTestId('find-drop')).toHaveText('Was $180.00, now $144.00 (20% less)', { timeout: 30_000 });
     await expect(coat).toContainText('Example Shop · $144.00');
     await expect(wish.getByTestId('prices-checked')).toContainText('Last checked today at');
@@ -319,5 +337,58 @@ test.describe('shopping for a wish', () => {
     expect(await axeViolations(page)).toEqual([]);
     await sheet.getByRole('button', { name: 'Done' }).click();
     await expect(sheet).toHaveCount(0);
+  });
+
+  // The review of 24 November on a wish, on a phone: its name said once and whole (38), everything on it 44px to tap
+  // (46), and "Remove from the list" with Undo on the wishlist it goes back to, putting it back whole (5).
+  test('on a phone, a wish names its find once, is 44px to tap, and Remove from the list offers Undo', async ({ page }) => {
+    test.setTimeout(120_000);
+    expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
+    const made = await page.request.post(backend.url + '/api/wishlist/link', { data: { url: 'https://shop.example/long-name' } });
+    expect(made.ok()).toBe(true);
+    const { id } = await made.json();
+    expect((await page.request.patch(`${backend.url}/api/wishlist/${id}`, { data: { note: 'Size 40', price_max: 300, price_currency: 'USD' } })).ok()).toBe(true);
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto(backend.url + `/wardrobe/wish/${encodeURIComponent(id)}`);
+    const wish = page.getByTestId('wish');
+    const find = wish.getByTestId('find');
+    await expect(find.getByTestId('find-verdict')).not.toBeEmpty({ timeout: 60_000 });
+
+    // its name once: the heading whole (the wish's own name is cut at 60 letters), the find by its shop and price
+    const name = (await find.getAttribute('aria-label'))!;
+    expect(name.length).toBeGreaterThan(60);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
+    await expect(find.getByRole('heading')).toHaveCount(0);
+    await expect(find).toContainText(/^Example Shop · /);
+
+    // 44px to tap: a find's links and the wish's buttons (they were 20 to 37px high)
+    for (const button of [find.getByRole('button', { name: 'See it with your clothes' }), find.getByRole('button', { name: /^(Add a code|Change the code)$/ }),
+      wish.getByTestId('find-some'), wish.getByRole('button', { name: 'Would it go with my clothes?' }),
+      wish.getByRole('button', { name: 'I bought it' }), wish.getByRole('button', { name: 'Remove from the list' })]) {
+      const box = await button.evaluate((el) => el.getBoundingClientRect().toJSON() as DOMRect);
+      expect(box.height, await button.innerText()).toBeGreaterThanOrEqual(44);
+    }
+
+    // Remove from the list: the wishlist, with the wish's place saying so and offering Undo (no question, no loss)
+    const rows = page.getByTestId('wishlist').getByTestId('wish-row');
+    const order = async () => (await page.request.get(backend.url + '/api/wishlist')).json().then((r) => r.wishes.map((w: { id: string }) => w.id));
+    const before: string[] = await order();
+    await wish.getByRole('button', { name: 'Remove from the list' }).click();
+    await expect(page).toHaveURL(/\/wardrobe\/wishlist$/);
+    const gone = page.getByTestId('wish-removed');
+    await expect(gone).toContainText('You removed “');
+    await expect(rows).toHaveCount(before.length - 1);
+    // in the place it had
+    const items = page.getByTestId('wishlist').locator('.wish-list > li');
+    expect(await items.nth(before.indexOf(id)).getByTestId('wish-removed').count()).toBe(1);
+    await gone.getByRole('button', { name: /^Undo/ }).click();
+    await expect(gone).toHaveCount(0);
+    await expect(rows).toHaveCount(before.length);
+    expect(await order()).toEqual(before);
+    // back whole: its find, its note and the most you'd pay
+    await page.goto(backend.url + `/wardrobe/wish/${encodeURIComponent(id)}`);
+    await expect(find).toHaveCount(1, { timeout: 30_000 });
+    await expect(wish.getByLabel('Note')).toHaveValue('Size 40');
+    await expect(wish.getByTestId('wish-price')).toContainText('$300.00');
   });
 });

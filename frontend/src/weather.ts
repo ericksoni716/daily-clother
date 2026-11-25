@@ -7,3 +7,9 @@ export function weatherLine(w: Weather): string {
   const chance = w.rain_chance === null ? '' : ` (${w.rain_chance}% chance of rain)`;
   return `${temps}, ${w.summary}${chance}`;
 }
+
+/** The weather service's sentence where there is no box to type temperatures in (Settings): without the clause that
+ * offers it. */
+export function withoutTyping(message: string): string {
+  return message.replace(/, or give today's temperatures yourself\./, '.');
+}

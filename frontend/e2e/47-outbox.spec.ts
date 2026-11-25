@@ -250,7 +250,9 @@ test("a packing tick while Nines can't be reached: ticked at once, still after a
     await context.setOffline(true);
     await page.reload();
     await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
-    await expect(page.getByText('You can tick what you pack; changing the trip waits')).toBeVisible();
+    // the trip says only what is its own; the banner says it is offline (the review of 24 November, 30)
+    await expect(page.getByText('You can still tick what you pack.', { exact: true })).toBeVisible();
+    await expect(page.locator('main')).not.toContainText("You're offline");
     const plan = page.getByRole('region', { name: 'Change the trip' }).getByRole('button', { name: 'Plan again' });
     await expect(plan).toBeDisabled();
     await expect(plan).toHaveAttribute('title', /needs Nines on your computer/i);

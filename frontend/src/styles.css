@@ -376,8 +376,13 @@ button, input, textarea, select { font: inherit; color: inherit; }
   box-shadow: inset 0 -1px 0 var(--line);
 }
 .ribbon strong { color: var(--ink); }
-.ribbon .btn { min-height: 32px; flex: none; padding: 0 var(--space-1); }
-.ribbon .btn::after { inset: -6px 0; }
+/* Leave is 44px to tap, its own box and not only a hit area: the strip is at the screen's top edge, so nothing can
+   reach above it. The strip stays one slim line: the 12px below it reach over the page's own top padding (16px),
+   with the word kept in the strip's line. */
+.ribbon .btn {
+  min-height: var(--tap); min-width: var(--tap); flex: none; align-self: flex-start; position: relative; z-index: 1;
+  padding: 0 var(--space-1) 12px; margin-bottom: -12px;
+}
 .ribbon-sep { color: var(--ink-3); }
 @media (max-width: 559px) { .ribbon-more { display: none; } }
 @media (min-width: 560px) { .ribbon { justify-content: space-between; gap: var(--space-3); } .ribbon-sep { display: none; } }

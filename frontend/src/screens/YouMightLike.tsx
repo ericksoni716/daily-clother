@@ -7,11 +7,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api';
-import { CloseIcon, HangerIcon } from '../components/Icons';
+import { CheckIcon, CloseIcon, HangerIcon } from '../components/Icons';
 import { Toggle } from '../components/Toggle';
 import { Button, Failed, Fold, Notice, Section, SegmentedControl, ShowMore, buttonClass } from '../components/ui';
 import {
-  cardState, DEMO, LOOK_SENDS, LOOKING, lookCostWords, NEVER_LOOKED, NOTHING, offerWords, pickName, picksOf, picksPoll,
+  cardState, DEMO, LOOK_SENDS, LOOKING, lookCostWords, NEVER_LOOKED, NOTHING, offerWords, pickName, PICK_NAME_BARE_MAX, PICK_NAME_MAX, picksOf, picksPoll,
   PICKS_SHOWN, REFUSED, runKind, SALE_NEVER, SALE_NOTHING, saleNote, salePriceLine, savedPicks, savedView, savePicks,
   saveView, SHOPS_OFFER, shopLine, THIN, verdictLine, VIEW_OPTIONS, WEEKLY_LABEL, withRefused,
   type PickKind, type ShopPick, type PicksAnswer,
@@ -96,7 +96,7 @@ export function YouMightLike({ locked }: { locked: boolean }) {
   const cost = lookCostWords(data.estimate);   // beside Look now; in the fold once there are picks
 
   return (
-    <Section id="picks-title" title="You might like" className="picks" action={state === 'list' && lookNow('link')}
+    <Section id="picks-title" title="You might like" className="picks" action={(state === 'list' || looking) && lookNow('link')}
       hint={state === 'list' && run?.state === 'done' && run.added === 0 ? nothing : undefined}>
       {state !== 'demo' && (
         <SegmentedControl label="Which things to show" small className="picks-view" value={view} options={VIEW_OPTIONS}
@@ -115,6 +115,7 @@ export function YouMightLike({ locked }: { locked: boolean }) {
           )}
         </div>
       )}
+      <div className={looking ? 'picks-room is-looking' : 'picks-room'}>
       {list.length > 0 && (
         <ShowMore key={view} items={list} first={PICKS_SHOWN} wide={PICKS_SHOWN} keyOf={(p) => p.id} moreLabel="See earlier ones"
           className="pick-list" label={sale ? 'Things on sale you might like' : 'Things you might like'} testId="picks"
@@ -126,7 +127,8 @@ export function YouMightLike({ locked }: { locked: boolean }) {
             </div>
           ) : (
             <PickRow pick={p} off={off} busy={busy !== null} title={title}
-              onSave={() => void act(p.id, () => api.savePick(p.id), 'On your wishlist')}
+              onSave={() => void act(p.id, () => api.savePick(p.id))}
+              onUnsave={() => void act(p.id, () => api.unsavePick(p.id))}
               onMore={() => void act(`more-${p.id}`, () => api.moreLikePick(p.id))}
               onRefuse={() => {
                 const index = list.findIndex((x) => x.id === p.id);
@@ -137,6 +139,7 @@ export function YouMightLike({ locked }: { locked: boolean }) {
       {looking && (
         <Notice as="p" role="status" className="picks-notice" icon={<span className="spinner" aria-hidden="true" />}>{LOOKING}</Notice>
       )}
+      </div>
       {said && <Notice as="p" tone="error" role="status" className="picks-notice">{said}</Notice>}
       {data.offer && <Offer offer={data.offer} off={off} busy={busy !== null} title={title}
         onAnswer={(answer) => void act('offer', () => api.answerPickOffer(data.offer!.id, answer))} />}
@@ -154,8 +157,8 @@ export function YouMightLike({ locked }: { locked: boolean }) {
   );
 }
 
-function PickRow({ pick, off, busy, title, onSave, onMore, onRefuse }: {
-  pick: ShopPick; off: boolean; busy: boolean; title?: string; onSave(): void; onMore(): void; onRefuse(): void;
+function PickRow({ pick, off, busy, title, onSave, onUnsave, onMore, onRefuse }: {
+  pick: ShopPick; off: boolean; busy: boolean; title?: string; onSave(): void; onUnsave(): void; onMore(): void; onRefuse(): void;
 }) {
   const link = webLink(pick.url);
   const image = webLink(pick.image_url);
@@ -163,6 +166,10 @@ function PickRow({ pick, off, busy, title, onSave, onMore, onRefuse }: {
   const why = verdictLine(pick);
   const prices = salePriceLine(pick);
   const note = saleNote(pick);
+  // beside a hanger (no picture), the name has a third line, so the kind of piece is not cut off
+  const bare = !image || broken;
+  const name = pickName(pick.name, bare ? PICK_NAME_BARE_MAX : PICK_NAME_MAX);
+  const nameClass = bare ? 'pick-name is-bare' : 'pick-name';
   return (
     <article className="pick" data-testid="pick">
       <div className="pick-pic" aria-hidden="true">
@@ -172,8 +179,8 @@ function PickRow({ pick, off, busy, title, onSave, onMore, onRefuse }: {
       </div>
       <div className="pick-body">
         {link
-          ? <a className="pick-name" href={link} target="_blank" rel="noopener noreferrer" title={pick.name}>{pickName(pick.name)}</a>
-          : <span className="pick-name" title={pick.name}>{pickName(pick.name)}</span>}
+          ? <a className={nameClass} href={link} target="_blank" rel="noopener noreferrer" title={pick.name}>{name}</a>
+          : <span className={nameClass} title={pick.name}>{name}</span>}
         <p className="pick-shop">{shopLine(pick)}</p>
         {prices && <p className="pick-price" data-testid="pick-price">{prices}</p>}
         {why && <p className="pick-why">{why}</p>}
@@ -181,12 +188,21 @@ function PickRow({ pick, off, busy, title, onSave, onMore, onRefuse }: {
       </div>
       <button type="button" className="pick-refuse" aria-label={`Not for me: ${pick.name}`} title="Not for me"
         disabled={off || busy} onClick={onRefuse}><CloseIcon /></button>
-      <div className="pick-actions">
-        {pick.state === 'saved' && pick.wish_id
-          ? <Link to={wishPath(pick.wish_id)} className={buttonClass({ variant: 'ghost', small: true })}>On your wishlist</Link>
-          : <Button small disabled={off || busy} title={title} onClick={onSave}>Save</Button>}
-        <Button small variant="ghost" disabled={off || busy} title={title} onClick={onMore}>More like this</Button>
-      </div>
+      {pick.state === 'saved' && pick.wish_id ? (
+        // saved: one line, as a gap's card says it, with Undo in place of the two buttons (nothing grows)
+        <div className="pick-actions pick-saved" role="status">
+          <Link to={wishPath(pick.wish_id)} className={buttonClass({ variant: 'ghost', small: true, className: 'pick-wished' })}>
+            <CheckIcon /> On your wishlist
+          </Link>
+          <Button small variant="ghost" disabled={off || busy} title={title} aria-label={`Undo: take ${pick.name} off your wishlist`}
+            onClick={onUnsave}>Undo</Button>
+        </div>
+      ) : (
+        <div className="pick-actions">
+          <Button small disabled={off || busy} title={title} onClick={onSave}>Save</Button>
+          <Button small variant="ghost" disabled={off || busy} title={title} onClick={onMore}>More like this</Button>
+        </div>
+      )}
     </article>
   );
 }

@@ -358,6 +358,9 @@ The page reads through TanStack Query. Why, and the numbers: [DECISIONS.md](DECI
   uses `useItemEdit()` (or `itemSaved(qc, item)` when the call is already made): the item is written into the
   lists and its own entry, and the rest is made stale. Put an answer you already have in with
   `qc.setQueryData(queryKeys.x(), answer)` rather than asking again. The screen still says "Saved" or the error.
+  A read still on its way when the save lands was asked before it, so `touch` drops it and asks again (or, for a
+  screen that is not showing, marks it stale once it lands); go through `touch` (or `useEdit`) rather than
+  `qc.invalidateQueries`, which keeps a first read and takes its old answer as new.
 - **Polling while work runs.** Decide how often as a pure function of the data, in `src/<feature>.ts` with a test
   (as `src/work.ts` does). When only one screen watches the query, give it
   `refetchInterval: (q) => (running(q.state.data) ? 2000 : false)`. When several screens show the same data, poll

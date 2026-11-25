@@ -16,7 +16,7 @@ import { placeLabel, wornOrder } from '../today';
 import { localDay } from '../wears';
 import type { ItemSummary, Vocab } from '../types';
 import {
-  CANDIDATE_ID, type Check, checkKey, checkKinds, checkPoll, drawnFromWords, fillNote, fillWords, isDone, nextCheck, noteFor, pieceFromWish, pieceLine,
+  CANDIDATE_ID, type Check, repeatsShown, checkKey, checkKinds, checkPoll, drawnFromWords, fillNote, fillWords, isDone, nextCheck, noteFor, pieceFromWish, pieceLine,
   keptCheck, pieceToSend, stillToChoose, untoldWords, verdictTone, waitingWords, WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
 } from '../wouldwork';
 import './WouldWork.css';
@@ -446,6 +446,7 @@ function Answer({ check, answer, byId, afterVerdict }: {
   const tone = verdictTone(answer.verdict);
   const [view, setView] = useTodayView();
   const counted = answer.fills.filter((f) => f.found_by.some((w) => w !== 'worn_most'));
+  const repeated = repeatsShown(answer);
   return (
     <div className="wouldwork-answer" data-testid="would-work-answer" data-verdict={answer.verdict} data-piece={check.piece_words ?? undefined}>
       <div className={`wouldwork-verdict is-${tone}`}>
@@ -526,13 +527,13 @@ function Answer({ check, answer, byId, afterVerdict }: {
           {answer.repeats.items.length > 0 && (
             <section className="wouldwork-part" aria-label="What it repeats">
               <h4 className="gap-label">What it repeats</h4>
-              <p>{answer.repeats.text}</p>
+              {repeated.text && <p>{repeated.text}</p>}
               <ul className="gap-thumbs" aria-label="Pieces you have like it">
                 {answer.repeats.items.map((r) => (
                   <li key={r.id} className="wouldwork-repeat">
                     <ItemThumb item={byId.get(r.id)} to={`/wardrobe/item/${encodeURIComponent(r.id)}`} className="gap-thumb"
                       title={`${itemName(byId.get(r.id))}: ${wornWords(r.worn).toLowerCase()}`} />
-                    <span className={r.hardly_worn ? 'wouldwork-worn is-hardly' : 'wouldwork-worn'}>{wornWords(r.worn)}</span>
+                    {repeated.worn && <span className={r.hardly_worn ? 'wouldwork-worn is-hardly' : 'wouldwork-worn'}>{wornWords(r.worn)}</span>}
                   </li>
                 ))}
               </ul>

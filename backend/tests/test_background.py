@@ -607,7 +607,11 @@ def test_a_real_task_starts_the_background_copy_and_starts_it_again_after_it_is_
         assert instance.running_info(cfg) is None
         assert run()
         second = background.wait_for(cfg, timeout=120, poll=1)
-        assert second and second["pid"] != first["pid"], "the task did not start the copy again"
+        # a new copy is known by its token, written afresh at each start; not by its process id, which Windows may
+        # hand to a new process as soon as the old one has gone (and which, before the lock was written ahead of the
+        # server's first answer, could be read from the killed copy's lock: test_instance,
+        # test_a_copy_does_not_answer_before_its_lock_is_its_own)
+        assert second and second["token"] and second["token"] != first["token"], "the task did not start the copy again"
     finally:
         info = instance.running_info(cfg)
         if info:

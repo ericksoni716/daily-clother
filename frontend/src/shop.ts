@@ -239,14 +239,16 @@ export function canSeeWorn(f: Pick<Find, 'piece' | 'verdict' | 'outfits'>): bool
   return f.verdict !== 'too_small';
 }
 
-/** What is said while a search, a price check or the reading of a link runs. */
+/** What is said while a search, a price check or the reading of a link runs (a price check's, in place of "Last
+ * checked …"). */
 export function runWords(run: Pick<ShopRun, 'kind' | 'step'>): string {
   if (run.kind === 'find') return 'Claude is searching shops. This can take a few minutes…';
   if (run.step === 'describe') return run.kind === 'link' ? 'Claude is describing it…' : 'Claude is describing the pages you sent…';
   if (run.kind === 'link') {
     return run.step === 'claude' ? "The page doesn't show its price to Nines, so Claude is reading it…" : 'Nines is reading the page…';
   }
-  return run.step === 'page' ? 'Nines is reading the pages you sent…' : 'Claude is checking the prices…';
+  // said in place of "Last checked …", under the sentence that says Nines checks the price: nobody named again
+  return 'Checking the price…';
 }
 
 /** What a toast says once a search, a price check or the reading of a link is over. */
@@ -324,9 +326,15 @@ export function checkedWords(at: string | null, today: string = localDay()): str
   return `Last checked ${when}${time ? ` at ${time}` : ''}.`;
 }
 
-/** The finds in the order the wish's page shows them: the pages you sent first, then Claude's, each as kept. */
-export function findsInOrder<T extends Pick<Find, 'link'>>(finds: T[]): T[] {
-  return [...finds.filter((f) => f.link), ...finds.filter((f) => !f.link)];
+/** The finds in the order the wish's page shows them: the pages you sent first, then Claude's, each the oldest first
+ * (the server lists the newest first), so what a later search finds comes after the finds you have already read and
+ * nothing you were reading moves down. */
+export function findsInOrder<T extends Pick<Find, 'link'> & { found_at?: string }>(finds: T[]): T[] {
+  const oldest = (group: T[]) => {
+    const at = (f: T) => (f.found_at ? new Date(f.found_at).getTime() || 0 : 0);
+    return group.map((f, i) => ({ f, i })).sort((a, b) => at(a.f) - at(b.f) || a.i - b.i).map((x) => x.f);
+  };
+  return [...oldest(finds.filter((f) => f.link)), ...oldest(finds.filter((f) => !f.link))];
 }
 
 /** The finds to show: the wish's, with each find you stopped watching on this visit back in the place it had (`at`),
@@ -338,6 +346,25 @@ export function withStopped<T extends { id: string }>(finds: T[], stopped: { fin
     if (!out.some((f) => f.id === s.find.id)) out.splice(Math.min(s.at, out.length), 0, s.find);
   }
   return out;
+}
+
+/** Whether a find is the wish itself: the wish was made from it (a link sent, a pick saved) and carries its name, or
+ * that name cut short as the server cuts a wish's name ("…"). */
+export function isTheWish(find: Pick<Find, 'name'>, wish: Pick<Wish, 'name'>): boolean {
+  const name = find.name.trim();
+  const own = wish.name.trim();
+  if (name === own) return true;
+  if (!own.endsWith('…')) return false;
+  const start = own.slice(0, -1).trimEnd();
+  // cut at a word: what follows the cut in the find's name starts a new word (or punctuation the cut dropped)
+  return start.length > 0 && name.startsWith(start) && name.length > start.length && /^[\s,;:-]/.test(name.slice(start.length));
+}
+
+/** The wish's page heading: its name, or the whole name of the find it was made from when its own is that name cut
+ * short. */
+export function wishTitle(wish: Pick<Wish, 'name'>, finds: Pick<Find, 'name'>[] | null | undefined): string {
+  if (!wish.name.trim().endsWith('…')) return wish.name;
+  return (finds ?? []).find((f) => isTheWish(f, wish))?.name ?? wish.name;
 }
 
 /** Whether a wish's page says "Added by hand": it came from no gap and no page was sent for it. The server knows a

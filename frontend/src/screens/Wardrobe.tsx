@@ -25,14 +25,16 @@ import { INSIGHTS_OFFLINE, savedInsights, Usage } from './Insights';
 import {
   LifeAbout, LifeBasis, OFFLINE_TITLE, savedLists, savedWishes, Thinking, WishCard, Wishlist, WorthBuying, type Actions, type Lists,
 } from './Missing';
-import { sharedLink } from '../shop';
+import { sharedLink, wishTitle } from '../shop';
 import { LinkForm } from './Shop';
 import { WouldWork } from './WouldWork';
 import { YouMightLike } from './YouMightLike';
+import { offersPicks } from '../picks';
 import './Missing.css';
 
-const OFFLINE_EMPTY = "You're offline, and nothing was saved on this device yet. Your wardrobe shows here once Nines on your computer can be reached.";
-const OFFLINE_WISHES = "You're offline, and your wishlist was not saved on this device. It shows here once Nines on your computer can be reached.";
+// offline is said once, by the banner over the page; the Wardrobe says only what is its own (the review of 24 November)
+const OFFLINE_EMPTY = 'Your wardrobe was not saved on this device yet.';
+const OFFLINE_WISHES = 'Your wishlist was not saved on this device.';
 
 /** Wish edits that cannot change any wish's finds (a new wish's finds are read when its card shows). */
 const NOT_FINDS = ['finds'] as const;
@@ -54,6 +56,12 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
   const [busy, setBusy] = useState<string | null>(null);
   const [lifeOpen, setLifeOpen] = useState(false);
   const [situation, setSituation] = useState<SituationId | 'all'>('all');
+  // a wish removed from its own page: the wishlist it goes back to keeps a line with Undo in its place, until you leave
+  // the wishlist (as "Stop watching" and the outfits you keep)
+  const [removed, setRemoved] = useState<{ wish: Wish; at: number } | null>(null);
+  useEffect(() => {
+    if (!wishlist && wish === null) setRemoved(null);
+  }, [wishlist, wish]);
 
   // The three answers are read through the cache, each kept on this device for when Nines cannot be reached.
   // Coming back shows them at once; coming back online asks again for all of them (ClosetProvider).
@@ -81,6 +89,9 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
       return answer;
     },
   });
+  // a wish's finds, as its page has read them (never asked for here): its heading names the find it was made from in
+  // full when its own name is that name cut short
+  const wishFinds = useQuery({ queryKey: queryKeys.finds(wish ?? ''), queryFn: () => api.finds(wish ?? ''), enabled: false }).data;
   const lists = useMemo<Lists | undefined>(
     () => (gapsQ.data && wishesQ.data ? { gaps: gapsQ.data, wishes: wishesQ.data } : undefined), [gapsQ.data, wishesQ.data]);
   const failed = gapsQ.error ?? wishesQ.error;
@@ -159,7 +170,17 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
     bought: async (w) => {
       if (await wishChange(w.id, () => api.wishBought(w.id), `Taken off the list. Add a photo of your new ${w.name.replace(/^(A|An) /, '').toLowerCase()}.`)) navigate('/add');
     },
-    remove: (w) => wishChange(w.id, () => api.removeWish(w.id), 'Removed from the list'),
+    // the wishlist says it in the wish's place, with Undo, so no toast says it again
+    remove: async (w) => {
+      const at = Math.max(0, (wishesQ.data ?? []).findIndex((x) => x.id === w.id));
+      const gone = await change(w.id, 'wish', () => api.removeWish(w.id), undefined, NOT_FINDS);
+      if (gone) setRemoved({ wish: w, at });
+      return gone;
+    },
+    // put back whole (its finds, price, code and note), so its finds are read again too
+    restore: async (w) => {
+      if (await change(w.id, 'wish', () => api.restoreWish(w.id))) setRemoved(null);
+    },
   };
   /** A wish's note, saved as the box is left: said beside the box (SaveStatus), so it throws when it did not save. */
   const saveNote = async (w: Wish, note: string) => {
@@ -199,7 +220,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
       <section className="wish-page" aria-labelledby="wishlist-title" aria-busy={wishesQ.isFetching}>
         <PageHeader title="Wishlist" titleId="wishlist-title" back={{ to: '/wardrobe', label: 'Wardrobe' }} />
         {wishShown.kind === 'ready' && wishShown.savedAt && <SavedEarlier at={wishShown.savedAt} />}
-        {wishShown.kind === 'ready' ? <Wishlist wishes={wishShown.data} actions={actions} />
+        {wishShown.kind === 'ready' ? <Wishlist wishes={wishShown.data} actions={actions} removed={removed} />
           : wishShown.kind === 'loading' ? <div className="missing-skeleton" aria-hidden="true" />
             : wishShown.offline ? <p className="notice" role="alert">{wishShown.message}</p>
               : <Failed query={wishesQ} what="your wishlist" />}
@@ -212,7 +233,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
     const shown = wishById(wishShown.kind === 'ready' ? wishShown.data : null, wish);
     return (
       <section className="wish-page" aria-labelledby="wish-title">
-        <PageHeader title={shown?.name ?? 'A wish'} titleId="wish-title" back={{ to: WISHLIST_PATH, label: 'Wishlist' }} />
+        <PageHeader title={shown ? wishTitle(shown, wishFinds?.finds) : 'A wish'} titleId="wish-title" back={{ to: WISHLIST_PATH, label: 'Wishlist' }} />
         {wishShown.kind === 'ready' && wishShown.savedAt && <SavedEarlier at={wishShown.savedAt} />}
         {shown ? <WishCard key={shown.id} wish={shown} actions={actions} onNote={saveNote} onRemoved={() => goBack(WISHLIST_PATH)} />
           : wishShown.kind === 'loading' ? <div className="missing-skeleton" aria-hidden="true" />
@@ -263,7 +284,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
             about={phase.data.gaps.context && <LifeAbout context={phase.data.gaps.context} />}
             demo={profile === 'demo'} onSaved={async () => { setSituation('all'); await touch(qc, 'settings'); toast('Your answers are saved'); }}
             onClose={() => setLifeOpen(false)} />}
-          <YouMightLike locked={locked} />
+          {offersPicks(phase.data.gaps) && <YouMightLike locked={locked} />}
           {!wide && thinking}
           {usage.kind === 'ready' && <Usage answer={usage.data} byId={byId} locked={offline || usage.savedAt !== null} />}
           {usage.kind === 'error' && (usage.offline ? <p className="notice" role="alert">{usage.message}</p>
@@ -295,7 +316,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wish
 function SavedEarlier({ at }: { at: string }) {
   return (
     <Notice as="p" tone="warning" className="missing-saved" role="status" icon={<WarnIcon />}>
-      <span>Saved earlier{savedWhen(at)}. You're offline, so nothing here can be changed until Nines on your computer can be reached.</span>
+      <span>Saved earlier{savedWhen(at)}.</span>
     </Notice>
   );
 }

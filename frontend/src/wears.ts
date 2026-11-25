@@ -49,6 +49,16 @@ export function dayMonth(day: string, today: string = localDay()): string {
   return `${d} ${MONTHS[m - 1]}${y === parts(today)[0] ? '' : ` ${y}`}`;
 }
 
+/** "1–5 Dec", "28 Nov – 3 Dec", "28 Dec 2026 – 3 Jan 2027", or one day ("Tuesday 1 Dec"): a trip's days. */
+export function dayRange(first: string, last: string): string {
+  if (first === last) return longDate(first);
+  const [y1, m1, d1] = parts(first);
+  const [y2, m2, d2] = parts(last);
+  if (y1 !== y2) return `${fullDate(first)} – ${fullDate(last)}`;
+  if (m1 !== m2) return `${d1} ${MONTHS[m1 - 1]} – ${d2} ${MONTHS[m2 - 1]}`;
+  return `${d1}–${d2} ${MONTHS[m1 - 1]}`;
+}
+
 /** "November 2026" from "2026-11". */
 export function monthYear(month: string): string {
   const [y, m] = month.split('-').map(Number);

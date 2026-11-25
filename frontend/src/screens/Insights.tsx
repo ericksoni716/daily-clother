@@ -27,7 +27,7 @@ import './Insights.css';
 
 const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
 
-export const INSIGHTS_OFFLINE = "You're offline, and how your clothes are used was not saved on this device yet. It shows here once Nines on your computer can be reached.";
+export const INSIGHTS_OFFLINE = 'How your clothes are used was not saved on this device yet.';
 
 /** This closet's own copy kept on this device, never another closet's. */
 export function savedInsights(profile: string): { data: Insights; savedAt: string } | null {

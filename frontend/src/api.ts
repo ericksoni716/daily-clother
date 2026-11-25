@@ -446,6 +446,9 @@ export const api = {
     request<Wish>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
   wishBought: (id: string) => request<Wish>(`/api/wishlist/${encodeURIComponent(id)}/bought`, { method: 'POST' }),
   removeWish: (id: string) => request<void>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  /** Undo "Remove from the list": the wish back as it was, with its finds, price, code and note, while Nines has kept
+   * running. */
+  restoreWish: (id: string) => request<Wish>(`/api/wishlist/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
   finds: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds`),
   findSome: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/find`, { method: 'POST' }),
   checkPrices: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/prices`, { method: 'POST' }),
@@ -479,6 +482,8 @@ export const api = {
   moreLikePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/more`, { method: 'POST' }),
   /** A wish made from the pick, with the product as its first find; answers with its id as `wish_id`. */
   savePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/save`, { method: 'POST' }),
+  /** Undo Save: the wish made from the pick goes, and the pick offers Save again. */
+  unsavePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/save`, { method: 'DELETE' }),
   refusePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/refuse`, { method: 'POST' }),
   unrefusePick: (id: string) => request<PicksAnswer>(`/api/picks/${encodeURIComponent(id)}/refuse`, { method: 'DELETE' }),
   setPicksWeekly: (weekly: boolean) => request<PicksAnswer>('/api/picks/weekly', { method: 'PUT', body: { weekly } }),

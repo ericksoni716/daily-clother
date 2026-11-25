@@ -16,6 +16,9 @@ test('settings show how much space the demo closet takes, on the Advanced screen
   await expect(page.locator('.settings-groups > section').last()).toHaveAttribute('aria-labelledby', 's-demo');
   await expect(page.getByRole('button', { name: 'Leave the demo closet' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Backups' })).toBeVisible();
+  // "a synced folder" was a word the app does not use (the review of 24 November, 58)
+  await expect(page.getByRole('region', { name: 'Backups' }))
+    .toContainText('A copy every day to a folder you choose, such as a folder your computer copies to the cloud, or a USB drive.');
   const section = page.getByRole('region', { name: 'Storage' });
   await expect(section.getByTestId('storage-line')).toHaveText(/^Nines uses [\d.]+ (KB|MB|GB) for 49 items · .+ free on this disk\.$/);
   await expect(section.getByTestId('storage-line')).not.toHaveText(/^Nines uses 0 /);

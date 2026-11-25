@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { LookFor, Wish } from './gaps';
 import {
   type Check, checkKinds, checkPoll, drawnFromWords, outfitStep, wornError, POLL_MS, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceFromWish, PIECE_NAME_MAX, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
-  wishFrom, wornWords, nextCheck, pieceLine, untoldWords, keptCheck, type KeptCheck,
+  wishFrom, wornWords, nextCheck, repeatsShown, pieceLine, untoldWords, keptCheck, type KeptCheck,
 } from './wouldwork';
 import { forgetSaved } from './today';
 
@@ -235,5 +235,24 @@ describe('a piece drawn with your clothes', () => {
   it('says Nines is out of reach when it is, and the server\'s own sentence otherwise', () => {
     expect(wornError({ status: 0, message: 'x' })).toBe('Showing it with your clothes needs Nines running on the computer.');
     expect(wornError({ status: 409, message: 'Not yet.' })).toBe('Not yet.');
+  });
+});
+
+describe('what it repeats is said once (the review of 24 November, finding 39)', () => {
+  const repeats = (text: string, n = 1) => ({
+    items: Array.from({ length: n }, (_, i) => ({ id: `p${i}`, worn: 3, hardly_worn: false })), text, disliked: [], disliked_text: null,
+  });
+  it('leaves the sentence and the count under the picture out when a reason already says it', () => {
+    const text = 'You have one like it (your blue oxford shirt), worn three times.';
+    expect(repeatsShown({ repeats: repeats(text), reasons: [text, 'It makes a good outfit on most kinds of day.'] }))
+      .toEqual({ text: null, worn: false });
+  });
+  it('says it under its heading when no reason does', () => {
+    const text = 'You have two like it (your blue oxford shirt and your white oxford shirt), and all of them are worn.';
+    expect(repeatsShown({ repeats: repeats(text, 2), reasons: ['It would fill “A rain coat”.'] })).toEqual({ text, worn: true });
+  });
+  it('keeps the count under each picture when several are like it, so you can tell which is hardly worn', () => {
+    const text = 'You have two like it (your dark jeans and your black jeans), and one of them is hardly worn.';
+    expect(repeatsShown({ repeats: repeats(text, 2), reasons: [text] })).toEqual({ text: null, worn: true });
   });
 });

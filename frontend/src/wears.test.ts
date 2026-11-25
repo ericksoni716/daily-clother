@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { clock, dayAndTime, fullDate, localDay, longDate, monthYear, shortDate, sinceWash, wearDay, wearSummary, whenAt, whenWorn } from './wears';
+import { clock, dayAndTime, dayRange, fullDate, localDay, longDate, monthYear, shortDate, sinceWash, wearDay, wearSummary, whenAt, whenWorn } from './wears';
 
 // Thursday 12 November 2026
 const TODAY = '2026-11-12';
@@ -81,5 +81,14 @@ describe('one way to write a date', () => {
     });
     // the hour of day the morning question is asked at is a number, not words for the owner (worn.ts)
     expect(found.filter((f) => f !== 'worn.ts: .getHours()')).toEqual([]);
+  });
+});
+
+describe('a range of days, in the family (BACKLOG, the review of the shared parts: a trip wrote its own)', () => {
+  it('writes the month once when it is the same, and the years only across a new year', () => {
+    expect(dayRange('2026-12-01', '2026-12-05')).toBe('1–5 Dec');
+    expect(dayRange('2026-11-28', '2026-12-03')).toBe('28 Nov – 3 Dec');
+    expect(dayRange('2026-12-28', '2027-01-03')).toBe('28 Dec 2026 – 3 Jan 2027');
+    expect(dayRange('2026-12-01', '2026-12-01')).toBe('Tuesday 1 Dec');
   });
 });

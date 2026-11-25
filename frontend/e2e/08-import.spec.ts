@@ -54,9 +54,13 @@ test('importing several photos: each goes in once, and a photo already in the cl
 
   const three = ['plaid-flannel.jpg', 'plaid-madras.jpg', 'sneakers-pair.jpg'];
   await page.getByTestId('library-input').setInputFiles(three.map((f) => `${PHOTOS}${f}`));
-  await expect(page.getByTestId('import-note')).toHaveText('3 photos are going into your closet.');
   const rows = page.getByTestId('queue-row');
   await expect(rows).toHaveCount(3);
+  // the list's heading and its count say it: no line above it says "going into your closet" again (the review of 24
+  // November, 53)
+  await expect(page.getByRole('heading', { name: 'Going into your closet' })).toBeVisible();
+  await expect(page.getByTestId('import-note')).toHaveCount(0);
+  await expect(page.locator('main')).not.toContainText('photos are going into your closet');
   for (const f of three) {
     await expect(rows.filter({ hasText: f }).getByTestId('queue-item')).toBeVisible({ timeout: 30_000 });
   }
@@ -208,11 +212,15 @@ test.describe('the import list shows what each photo became', () => {
       await page.waitForLoadState('networkidle');
       await context.setOffline(true);
       await page.reload();
-      await expect(page.getByTestId('import-offline')).toBeVisible();
+      // offline is said once, by the banner; with nothing still to go, Add says nothing more (the review of 24
+      // November, 30: it said it again in three sentences)
+      await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
       await expect(rows).toHaveCount(5);
+      await expect(page.getByTestId('import-offline')).toHaveCount(0);
+      await expect(page.locator('main')).not.toContainText("can't be reached");
       for (const name of names) await expect(rows.filter({ hasText: name }).getByTestId('queue-title')).toHaveText('Navy polo');
       await context.setOffline(false);
-      await expect(page.getByTestId('import-offline')).toBeHidden({ timeout: 15_000 });
+      await expect(page.getByText('Offline: showing your saved closet')).toBeHidden({ timeout: 15_000 });
 
       // For the picture: the names Claude would give these made-up clothes (the stand-in calls everything "Navy polo"),
       // and two rows as they look while Claude works through a batch, one being described and one waiting its turn

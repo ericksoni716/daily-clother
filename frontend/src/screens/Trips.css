@@ -146,17 +146,31 @@
 }
 .trip-day-pieces[data-cols='3'] { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 228px; }
 .trip-day-pieces[data-cols='4'] { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 304px; }
-.trip-day-pieces li { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.trip-day-pieces li { min-width: 0; }
+/* each piece a button: a tap opens its sheet, which names it */
+.trip-day-piece {
+  display: flex; flex-direction: column; gap: 3px; width: 100%; min-height: var(--tap); padding: 0; border: 0; background: none;
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
 .trip-day-pic {
   position: relative; display: block; width: 100%; aspect-ratio: 64 / 74; border-radius: var(--radius-sm); overflow: hidden; background: var(--card);
   box-shadow: inset 0 0 0 1px var(--card-edge);
 }
 .trip-day-pic > img, .trip-day-pic > .pic-placeholder, .trip-day-pic > div { position: absolute; inset: 0; width: 100%; height: 100%; }
-.trip-day-name {
-  font-size: var(--text-xs); line-height: 1.2; color: var(--ink-3); overflow: hidden;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-clamp: 2;
-}
+/* the names whole where there is room; on a phone the pictures alone (the sheet names the piece) */
+.trip-day-name { font-size: var(--text-xs); line-height: 1.2; color: var(--ink-3); overflow-wrap: anywhere; }
+@media (max-width: 699px) { .trip-day-name { display: none; } }
 .trip-day-warnings { margin: 8px 0 0; padding-left: 1.2em; color: var(--warn); font-size: var(--text-sm); }
 .trip-day-why { margin-top: 4px; }
 .trip-day-why summary { font-size: var(--text-sm); }
 .trip-day-why ul { margin: 0; padding-left: 1.2em; font-size: var(--text-sm); display: grid; gap: 4px; }
+
+/* a new trip whose weather could not be looked up: one sentence, Try again and the temperatures to type (a sheet) */
+.trip-no-weather { position: relative; }
+.trip-no-weather p { margin: 0 0 var(--space-2); }
+.trip-temps { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: grid; gap: var(--space-3); }
+.trip-temps li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-1) var(--space-2); align-items: end; }
+.trip-temps-day { grid-column: 1 / -1; font-weight: var(--weight-label); }
+.trip-temps .field { margin: 0; }
+.trip-temps-rain { display: flex; align-items: center; gap: var(--space-1); min-height: var(--tap); }
+.trip-offline { margin: 0 0 var(--space-3); }

@@ -244,3 +244,13 @@ def test_given_weather_is_checked():
         tripweather.given(first, last, days[:1])
     with pytest.raises(ValueError, match="above the high"):
         tripweather.given(first, last, [days[0], {**days[1], "low_c": 9}])
+
+
+def test_no_weather_at_all_is_said_once_without_the_plan_it_does_not_have(fake, state):
+    # "Days without weather are left out of the plan" when there is no plan: one of four ways the page said it (the
+    # review of 24 November, finding 51)
+    fake.forecast_down = fake.archive_down = True
+    found = tripweather.lookup(state, LISBON, TODAY + timedelta(days=1), TODAY + timedelta(days=3), TODAY)
+    assert {d["source"] for d in found["days"]} == {"unknown"}
+    assert found["message"].startswith("Couldn't reach the weather service")
+    assert "left out of the plan" not in found["message"]

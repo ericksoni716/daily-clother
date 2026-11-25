@@ -14,6 +14,11 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The Windows job does not hold a merge** (25 November; DECISIONS, "A starting copy writes its lock before its
+  server answers"). A pull request merges once "Lint and tests (Linux)" is green, a minute or two before "Backend
+  tests (Windows)" ends, so a failure there is seen by nobody: #337 merged with it red, and earlier ones may have.
+  Making it required is a setting of the repository (the owner's), or a change to the `ci` workflow's last job so that
+  it waits for the Windows job too. Until then the nightly run is where a Windows failure shows.
 - **A read on its way when an edit lands** (24 November; DECISIONS, "A read on its way when an edit lands is
   dropped"). `touch` drops it and asks again. The fifteen or so places that mark one key stale by hand
   (`qc.invalidateQueries` in `store.tsx`, `Shop.tsx`, `Wardrobe.tsx` after a check, `Review.tsx`, `Add.tsx`,

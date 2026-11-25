@@ -10,6 +10,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+## 0.16.0
+
 ### Added
 
 - **Wearing while the computer is off.** When your phone can't reach Nines (the computer is asleep

@@ -41,6 +41,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   already on the wish. For a wish you made from a link, it looks for the same product at other shops
   first, then for pieces much like it. A wish still called by the shop's address asks for a name first
   instead of searching for the address.
+- **A brand keeps its capital in a sentence.** A piece whose name starts with its brand (as you saved it on
+  the piece's page) is now written as you wrote it after "your" or "the", so a find's card says "your
+  Northfield sneaker", not "your northfield sneaker".
 
 ## 0.16.0
 

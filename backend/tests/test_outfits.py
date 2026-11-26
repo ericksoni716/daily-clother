@@ -218,6 +218,40 @@ def test_weight_comes_from_the_weight_class_then_material_then_name_then_categor
     assert outfits._piece(item("a", "tee", season="warm", name="Tee")).weight == 0
 
 
+def test_a_name_that_starts_with_its_brand_keeps_the_brand_s_capital_in_a_sentence():
+    """A find's card read "most often with your new Balance sneaker": a name is lowered for use after "your" or "the"
+    unless its second letter is a capital, and a brand lost its capital. The owner's screenshot, 26 November."""
+    def label(name, **kw):
+        return outfits._piece(item("a", "sneakers", name=name, **kw)).label
+    assert label("Northfield sneaker", brand="Northfield") == "Northfield sneaker"
+    assert label("Northfield sneaker", brand="NORTHFIELD") == "Northfield sneaker"   # compared without case
+    assert label("A.Example sweater", brand="A.Example") == "A.Example sweater"
+    assert gaps._your(outfits._piece(item("a", "sneakers", name="Northfield sneaker", brand="Northfield"))) == \
+        "your Northfield sneaker"
+    # a name that does not start with its brand, or a piece with no brand, as before
+    assert label("Navy coat", brand="Northfield") == "navy coat"
+    assert label("Northfield sneaker") == "northfield sneaker"
+    assert label("Northfield sneaker", brand="") == "northfield sneaker"
+    assert label("Northfield sneaker", brand="North") == "northfield sneaker"   # the brand is a whole word of it
+    assert label("USB charger", brand="Northfield") == "USB charger"
+
+
+def test_the_closet_s_rows_carry_the_brand_to_the_name_in_a_sentence(client, cfg):
+    from closet import db, today
+
+    from .conftest import upload
+    made = upload(client).json()
+    r = client.patch(f"/api/items/{made['id']}", json={"name": "Northfield sneaker", "brand": "Northfield",
+                                                           "category": "sneakers"})
+    assert r.status_code == 200, r.text
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        row = next(r for r in today.closet_rows(conn) if r["id"] == made["id"])
+    finally:
+        conn.close()
+    assert outfits._piece(row).label == "Northfield sneaker"
+
+
 def test_same_inputs_give_the_same_outfits_in_the_same_order():
     items = demo_items()
     for ctx in DAYS:

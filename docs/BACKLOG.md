@@ -541,7 +541,7 @@ The owner asked this session to work by itself: bring the discovery steps in, re
 
 **First, what is already there made right**
 - [x] **The review's findings** (`docs/assessment/review-23-november.md` is the short report of the two reviews of 23 November, the screens and the rules, with what was done about each finding; the fixes went in as #316 to #319, #322, #324 and #326. Left: a few words under P3 in that report).
-- [x] **The second reviews' findings** (`docs/assessment/review-24-november.md` is the short report of the two reviews of 24 November, the rules and the screens, with what was done about each finding; the fixes went in as #335, #336, #337 and #339. Left for the owner: whether to fold "Why this works", and the laundry day at home while a trip is under way).
+- [x] **The second reviews' findings** (`docs/assessment/review-24-november.md` is the short report of the two reviews of 24 November, the rules and the screens, with what was done about each finding; the fixes went in as #335, #336, #337 and #339. Left for the owner: whether to fold "Why this works" (held off, 26 November). The laundry day at home while a trip is under way was answered on 26 November: a laundry day on a day of a saved trip washes nothing, the basket at home included, and the first laundry day after the trip washes both (DECISIONS, "The owner's decisions of 26 November").)
 - [x] **Words and dates**: one date format everywhere, no "engine" in the owner's text, no raw dates in Worth buying.
 - [x] **Today's first screen**: "I'm wearing this" in view with five pieces; the weather notice as one line with Try again.
 - [x] **What you wear at home is not a reason to buy**: loungewear, sleepwear, swim trunks and sport shoes never make a "another like your…" suggestion.

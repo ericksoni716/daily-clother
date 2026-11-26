@@ -51,6 +51,11 @@ export interface Find {
   link: boolean;
   /** When Nines last read the page itself (a link only), whatever it found. */
   read_at: string | null;
+  /** When the latest check of its page, by Nines or by Claude, got no price from it (turned away, gone, or Claude
+   * could not read it); null once a check reads a price. The price shown is then the last one read. */
+  unread_at?: string | null;
+  /** False while a link is still called by its site's address: neither its page, Claude nor you have named it. */
+  named?: boolean;
   /** How the latest price was read: from the page's own data, or by Claude. */
   read_by: 'page' | 'claude' | null;
   /** Its description in the closet's words; null for a link Claude has not described. */
@@ -219,6 +224,38 @@ export function notJudgedWords(f: Pick<Find, 'not_judged'>, demo: boolean): stri
       : 'Nines checks it against your closet once Claude can describe it.';
     default: return null;
   }
+}
+
+/** The quiet line under a find's price when its page could not be read at its last check: "Nines couldn't read the
+ * page on Monday. This is the last price it read."; with no price ever read, only that the page could not be read.
+ * Null when the last check read it. Nothing is wrong with the wish, so it is said as a fact, not as a fault. */
+export function unreadWords(f: Pick<Find, 'unread_at' | 'price'>, today: string = localDay()): string | null {
+  if (!f.unread_at || Number.isNaN(new Date(f.unread_at).getTime())) return null;
+  const said = `Nines couldn't read the page ${whenWorn(localDay(new Date(f.unread_at)), today)}.`;
+  return f.price == null ? said : `${said} This is the last price it read.`;
+}
+
+/** Why a search cannot start for a wish still called by its link's site's address: the server's own sentence
+ * (`shop.UNNAMED`, the 409 of `POST /api/wishlist/{id}/find`), said under Find more while the button is off. */
+export const NOT_NAMED = "Nines doesn't know what this one is called yet, so it can't look for more. Give it a name first.";
+
+/** Whether a wish is still called by the site's address of a link nobody could name (`named` false), the find it was
+ * made from: it cannot be searched for until it is named (the server refuses with `NOT_NAMED`). */
+export function wishUnnamed(wish: Pick<Wish, 'name' | 'gap_id'>, finds: Pick<Find, 'name' | 'link' | 'named'>[]): boolean {
+  return !wish.gap_id && finds.some((f) => f.link && f.named === false && isTheWish(f, wish));
+}
+
+/** What a check or a link's reading said, less what each card now says for itself (`unreadWords`): that pages could
+ * not be read and their last prices stand (`shop.kept_last`), or that a page you sent gave no price to Nines or Claude
+ * (`shop.NO_PRICE_AT_ALL`). The rest (why Claude could not be asked, that not every page gives its price) is still
+ * said under Check now; null when nothing is left. A search's words are kept whole. */
+export function runLeft(run: Pick<ShopRun, 'kind' | 'message'>): string | null {
+  if (!run.message || run.kind === 'find') return run.message;
+  const left = run.message
+    .replace(/^Nines could not read \d+ of the pages today\. (Its last price is|Their last prices are) shown\.\s*/, '')
+    .replace(/^The page doesn't give its price in a way Nines can read, and Claude found no price on it either\.\s*/, '')
+    .trim();
+  return left || null;
 }
 
 /** A find worn with your own clothes (`GET /api/wishlist/{id}/finds/{findId}/outfits`): its piece, and the example

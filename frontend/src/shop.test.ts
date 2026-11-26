@@ -7,7 +7,8 @@ import {
   addedByHand, atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, withStopped, googleShoppingLink,
   historyWords, lastChecked, linkIn, linkLine, linkWords, mostWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
   runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, watchWords,
-  webLink, wishlistAgain, wishlistWords, withinWords, isTheWish, wishIsAFind, wishTitle, titleLength,
+  webLink, wishlistAgain, wishlistWords, withinWords, isTheWish, wishIsAFind, wishTitle, titleLength, unreadWords, wishUnnamed,
+  runLeft, NOT_NAMED,
 } from './shop';
 import { timeOf } from './today';
 
@@ -416,5 +417,42 @@ describe('a wish made from one product names it once (the review of 24 November,
     expect(wishIsAFind({ name: 'A tan rain coat', link: null }, [{ name: 'Tan gabardine rain coat' }])).toBe(false);
     expect(wishIsAFind({ name: 'A tan rain coat' }, [])).toBe(false);
     expect(wishIsAFind({ name: 'A tan rain coat', link: { name: 'Tan gabardine rain coat' } }, undefined)).toBe(false);
+  });
+
+  it("says when a find's page could not be read, quietly, with the day as the page writes days", () => {
+    const today = '2026-11-26';
+    const on = (day: number) => new Date(2026, 10, day, 9, 5).toISOString();
+    expect(unreadWords({ unread_at: null, price: 68 }, today)).toBeNull();
+    expect(unreadWords({ price: 68 }, today)).toBeNull();   // a find from before the field
+    expect(unreadWords({ unread_at: on(26), price: 68 }, today)).toBe("Nines couldn't read the page today. This is the last price it read.");
+    expect(unreadWords({ unread_at: on(23), price: 68 }, today)).toBe("Nines couldn't read the page on Monday. This is the last price it read.");
+    expect(unreadWords({ unread_at: on(25), price: null }, today)).toBe("Nines couldn't read the page yesterday.");
+  });
+
+  it('knows a wish still called by the address of the link it was made from, which cannot be searched for yet', () => {
+    const unnamed = { name: 'shop.example', link: true, named: false };
+    expect(wishUnnamed({ name: 'shop.example', gap_id: null }, [unnamed])).toBe(true);
+    // named since (the find has its name, the wish may not have been read again yet)
+    expect(wishUnnamed({ name: 'shop.example', gap_id: null }, [{ ...unnamed, name: 'Grey wool overshirt', named: true }])).toBe(false);
+    // another wish with a link nobody could read added to it: the wish has a name of its own
+    expect(wishUnnamed({ name: 'A tan rain coat', gap_id: null }, [unnamed])).toBe(false);
+    expect(wishUnnamed({ name: 'shop.example', gap_id: 'outer-rain' }, [unnamed])).toBe(false);
+    // finds from before the field are named
+    expect(wishUnnamed({ name: 'shop.example', gap_id: null }, [{ name: 'shop.example', link: true }])).toBe(false);
+    expect(NOT_NAMED).toBe("Nines doesn't know what this one is called yet, so it can't look for more. Give it a name first.");
+  });
+
+  it("leaves out of what a check said what each card says for itself", () => {
+    const kept = 'Nines could not read 1 of the pages today. Its last price is shown.';
+    expect(runLeft({ kind: 'prices', message: null })).toBeNull();
+    expect(runLeft({ kind: 'prices', message: kept })).toBeNull();
+    expect(runLeft({ kind: 'prices', message: 'Nines could not read 2 of the pages today. Their last prices are shown.' })).toBeNull();
+    // why Claude could not be asked is still said
+    expect(runLeft({ kind: 'prices', message: `${kept} Claude can't be reached right now.` })).toBe("Claude can't be reached right now.");
+    expect(runLeft({ kind: 'link', message: "The page doesn't give its price in a way Nines can read, and Claude found no price on it either." })).toBeNull();
+    expect(runLeft({ kind: 'link', message: "The page doesn't give its price in a way Nines can read. Claude can't be reached right now." }))
+      .toBe("The page doesn't give its price in a way Nines can read. Claude can't be reached right now.");
+    expect(runLeft({ kind: 'prices', message: 'Not every page gives its price in a way Nines can read.' })).toBe('Not every page gives its price in a way Nines can read.');
+    expect(runLeft({ kind: 'find', message: kept })).toBe(kept);
   });
 });

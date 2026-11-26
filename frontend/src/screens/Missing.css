@@ -240,7 +240,7 @@
 /* A find's card, in the order it is read: what it is and what it costs; whether it works; what you can do; the rest in
    one closed fold (Shop.tsx, FindCard) */
 .find-list { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: var(--space-3); }
-.find-card { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: var(--space-3); padding: var(--space-4) var(--space-4) var(--space-1); }
+.find-card { display: grid; align-content: start; grid-template-columns: minmax(0, 1fr); column-gap: var(--space-3); padding: var(--space-4) var(--space-4) var(--space-1); }
 /* the picture beside what it is and what it costs; on a phone the rest takes the card's whole width under both, on a
    computer it stays beside the picture */
 .find-card.has-image { grid-template-columns: auto minmax(0, 1fr); }
@@ -282,3 +282,11 @@
 .find-more > .fold-body { padding: 0 0 var(--space-1); font-size: var(--text-sm); line-height: 1.45; color: var(--ink-2); }
 .find-more > .fold-body > p { margin: 0 0 var(--space-1); overflow-wrap: anywhere; }
 .find-more-actions { margin-top: var(--space-2); gap: var(--space-2); }
+/* a page that could not be read at its last check: a quiet fact under the price, not a fault */
+.find-unread { margin: 2px 0 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-3); }
+/* a find nobody could read: a sentence, its name's box and Save, in the verdict's place */
+.find-naming > p { margin: 0 0 var(--space-2); font-size: var(--text-sm); line-height: 1.45; color: var(--ink-2); }
+.find-naming-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2); }
+.find-naming-row .field { flex: 1 1 12rem; min-width: 0; margin: 0; }
+.find-naming-row .btn { min-height: var(--tap); }
+.find-naming .form-error { margin: var(--space-2) 0 0; }

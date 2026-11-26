@@ -9,7 +9,7 @@ import type { Wish } from '../gaps';
 import { stale, touch, useItems } from '../queries';
 import {
   addedByHand, canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, withStopped, googleShoppingLink,
-  historyWords, isTheWish, lastChecked, LINK_PROBLEM, linkIn, linkLine, mostWords, notJudgedWords, priceWords, runDoneWords, runWords, shopPoll,
+  historyWords, isTheWish, lastChecked, runLeft, NOT_NAMED, unreadWords, wishUnnamed, LINK_PROBLEM, linkIn, linkLine, mostWords, notJudgedWords, priceWords, runDoneWords, runWords, shopPoll,
   type ShopRun, typedCode, watchWords, webLink, wishlistAgain,
 } from '../shop';
 import { SEARCH_SENDS } from '../shop';
@@ -155,10 +155,20 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   // what a run says goes under what started it: a price check (and a link being read) under Check now, a search under
   // Find some; a refusal, under the button that was refused
   const checking = finds.length > 0 && (begin.error ? begin.variables === 'prices' : run !== null && run.kind !== 'find');
-  // a price check running is said in place of "Last checked …", so nothing under it moves (DESIGN, "The page holds
-  // still")
-  const pricing = finds.length > 0 && run?.state === 'running' && run.kind === 'prices';
-  const said = <RunSaid run={pricing ? null : run} error={begin.error?.message ?? null} />;
+  // a price check, or a link being read or described, is said in place of "Last checked …" while it runs, so nothing
+  // under it moves (DESIGN, "The page holds still"); once done, what it said less what each card says for itself (a
+  // page that could not be read: `runLeft`), which the toast said as it ended
+  const inLine = finds.length > 0 && run?.state === 'running' && run.kind !== 'find';
+  const said = <RunSaid run={inLine || !run ? null : { ...run, message: runLeft(run) }} error={begin.error?.message ?? null} />;
+  // a wish still called by the address of the link nobody could read: not searched for until it is named
+  const unnamed = wishUnnamed(wish, listed);
+  async function nameFind(f: Find, name: string) {
+    const now = await api.nameFind(wish.id, f.id, name);
+    // the wish takes the name too: read again before the card changes, so the find's name never shows on its card
+    // only to go again when the heading has it
+    await stale(qc, queryKeys.wishlist());
+    qc.setQueryData(key, now);
+  }
   // the currency the most you'd pay starts in when none is set: the newest find's
   const currency = answer?.finds[0]?.currency;
   // above what is watched, and decided with it, so that stopping a link's find on this visit, or the wishlist read again
@@ -183,15 +193,16 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
           <ul className="find-list" aria-label="Found in shops">
             {finds.map((f, i) => (
               <li key={f.id}>
-                <FindCard find={f} demo={demo} locked={locked} byId={byId} stopped={isStopped(f)} own={isTheWish(f, wish)}
-                  onStop={() => void stop(f, i)} onUndo={() => void undoStop(f)} />
+                <FindCard find={f} demo={demo} locked={locked} busy={starting || running} byId={byId} stopped={isStopped(f)}
+                  own={isTheWish(f, wish)} onStop={() => void stop(f, i)} onUndo={() => void undoStop(f)}
+                  onName={(name) => nameFind(f, name)} />
               </li>
             ))}
           </ul>
           {/* one quiet line: when it was last checked, or that it is being checked now, in the same place */}
           <div className="wish-line">
-            <p className="muted" data-testid="prices-checked">
-              {pricing ? runWords(run!) : checkedWords(lastChecked({ ...answer!, finds: listed }))}
+            <p className="muted" data-testid="prices-checked" role="status">
+              {inLine ? runWords(run!) : checkedWords(lastChecked({ ...answer!, finds: listed }))}
             </p>
             <Button small data-testid="check-prices" disabled={pricesOff} title={pricesOff ? title : undefined}
               onClick={() => begin.mutate('prices')}>Check now</Button>
@@ -203,7 +214,8 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
       <section className="wish-shop" aria-label={`Looking for more for ${wish.name}`}>
         {finds.length === 0 && <PriceLine wish={wish} currency={currency} locked={locked} onPrice={onPrice} />}
         <div className="row wish-shop-actions">
-          <Button small data-testid="find-some" disabled={disabled} title={title} onClick={() => begin.mutate('find')}>
+          <Button small data-testid="find-some" disabled={disabled || unnamed} title={unnamed ? NOT_NAMED : title}
+            onClick={() => begin.mutate('find')}>
             <SearchIcon /> {finds.length ? 'Find more' : 'Find some'}
           </Button>
           {!linking && (
@@ -211,8 +223,11 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
               <LinkIcon /> Add a link
             </Button>
           )}
-          <a className={buttonClass({ small: true })} data-testid="google-shopping" href={googleShoppingLink(wish)}
-            target="_blank" rel="noopener noreferrer">Search Google Shopping</a>
+          {/* searched for by the site's address, it would find the shop, not the piece */}
+          {!unnamed && (
+            <a className={buttonClass({ small: true })} data-testid="google-shopping" href={googleShoppingLink(wish)}
+              target="_blank" rel="noopener noreferrer">Search Google Shopping</a>
+          )}
         </div>
         {linking && (
           <LinkForm submit="Add to this wish" busy={starting || running} locked={locked} onCancel={() => setLinking(false)}
@@ -227,6 +242,7 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
             }} />
         )}
         {!checking && said}
+        {unnamed && !begin.error && <p className="muted wish-shop-line" data-testid="find-off">{NOT_NAMED}</p>}
         {/* what is true every day, behind one closed line (DESIGN, "Reading load is a budget") */}
         <HowItWorks className="wish-how" testId="shop-how">
           <p>{watchWords(wish)}</p>
@@ -268,42 +284,61 @@ function RunSaid({ run, error }: { run: ShopRun | null; error: string | null }) 
  * two things to do with it, and one closed fold for everything else (the price so far, who read it, what Claude saw,
  * who saw the code, and the two occasional actions: the code and Stop watching).
  */
-function FindCard({ find, demo, locked, byId, stopped, own = false, onStop, onUndo }: {
+function FindCard({ find, demo, locked, busy = false, byId, stopped, own = false, onStop, onUndo, onName }: {
   find: Find; demo: boolean; locked: boolean; byId: Map<string, ItemSummary>;
+  /** something runs for the wish (a search, a check, a page being read): a name cannot be saved meanwhile */
+  busy?: boolean;
   /** the wish itself (made from it, with its name): the page's heading names it, so the card starts at its shop */
   own?: boolean;
   /** you stopped watching it on this visit: it stays, saying so, with Undo where its two small buttons were */
   stopped: boolean;
   onStop(): void;
   onUndo(): void;
+  /** Names a find nobody could read (`named` false); throws with the sentence to show when it could not. */
+  onName(name: string): Promise<void>;
 }) {
   const link = webLink(find.url);
+  const naming = find.named === false;
+  // the card's height as its name is saved, kept while the answer comes in the box's place (and the line saying its
+  // page could not be read, under the price), so nothing under the card moves
+  const answerRef = useRef<HTMLDivElement>(null);
+  const [kept, setKept] = useState<number | null>(null);
+  const unread = naming ? null : unreadWords(find);
   const image = webLink(find.image_url);
   const tone = find.verdict ? verdictTone(find.verdict) : 'plain';
   const sent = linkLine(find);
   const went = historyWords(find.history);
-  const unjudged = notJudgedWords(find, demo);
+  const unjudged = naming ? null : notJudgedWords(find, demo);
   const code = codeWords(find);
   const from = codeFromWords(find.code);
   return (
     // a grid: the picture beside what it is and what it costs; on a phone the rest runs under both, the card's whole
     // width, and on a computer beside the picture
     <Card as="article" className={image ? 'find-card has-image' : 'find-card'} data-testid="find" aria-label={find.name}
-      data-verdict={find.verdict ?? ''}>
+      data-verdict={find.verdict ?? ''} style={kept ? { minHeight: kept } : undefined}>
       {image && <img className="find-image" src={image} alt="" loading="lazy" referrerPolicy="no-referrer" />}
       {/* what it is and what it costs */}
       <div className="find-what">
-        {!own && <h2 className="find-name">{find.name}</h2>}
+        {/* a find nobody could read is still called by its site's address, which the shop already says */}
+        {!own && !naming && <h2 className="find-name">{find.name}</h2>}
         <p className="find-shop">
           <span className="find-shop-name">{find.shop}</span> · <strong className={find.price == null ? 'find-price is-none' : 'find-price'}>{priceWords(find.price, find.currency)}</strong>
           {!find.available && <span className="find-sold"> · Sold out</span>}
         </p>
+        {unread && <p className="find-unread" data-testid="find-unread">{unread}</p>}
         {code && <p className="find-code" data-testid="find-code">{code}</p>}
         {find.drop && <p className="find-drop" data-testid="find-drop">{dropWords(find.drop)}</p>}
       </div>
       {/* whether it works: the verdict and its reasons, or why it is not judged, in the same place */}
-      {(find.verdict_words || find.reasons.length > 0 || unjudged) && (
-        <div className="find-answer">
+      {(find.verdict_words || find.reasons.length > 0 || unjudged || naming) && (
+        <div className="find-answer" ref={answerRef}>
+          {naming && (
+            <NameForm locked={locked || busy} onName={(name) => {
+              const h = answerRef.current?.closest('article')?.getBoundingClientRect().height;
+              if (h) setKept(h);
+              return onName(name);
+            }} />
+          )}
           {find.verdict_words && <p className={`find-verdict is-${tone}`} data-testid="find-verdict">{find.verdict_words}</p>}
           {find.reasons.length > 0 && (
             <ul className="find-reasons" aria-label="Why">
@@ -340,6 +375,42 @@ function FindCard({ find, demo, locked, byId, stopped, own = false, onStop, onUn
         )}
       </Fold>
     </Card>
+  );
+}
+
+/** In a find's verdict's place when nobody could read what it is (`named` false): one sentence, a box for its name
+ * and Save. What could not be saved is said under the box, and what was typed stays. */
+function NameForm({ locked, onName }: { locked: boolean; onName(name: string): Promise<void> }) {
+  const [name, setName] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const hint = useId();
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    const typed = name.trim();
+    if (!typed) return setProblem('Type what it is called, as you would say it.');
+    setProblem(null);
+    setSaving(true);
+    try {
+      await onName(typed);
+    } catch (err) {
+      setProblem((err as Error).message);
+      setSaving(false);
+    }
+  }
+  return (
+    <form className="find-naming" data-testid="find-naming" onSubmit={save} noValidate aria-describedby={hint}>
+      <p id={hint}>Nines and Claude couldn't read what this is from its page. Give it a name and Nines checks it against your closet.</p>
+      <div className="find-naming-row">
+        <label className="field">
+          <span>What it is called</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={240} placeholder="e.g. Grey wool chore coat"
+            autoComplete="off" />
+        </label>
+        <Button variant="primary" small type="submit" disabled={saving || locked}>Save</Button>
+      </div>
+      {problem && <p className="form-error" role="alert">{problem}</p>}
+    </form>
   );
 }
 

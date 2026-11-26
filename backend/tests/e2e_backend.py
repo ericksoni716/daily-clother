@@ -35,7 +35,10 @@ shop.example is the only name that can be found, and its made-up pages are a lin
 its price ($68.00 the first time it is read, then 20% lower each time it is read again), a shirt with a very long
 name and a shirt whose banner shows a checkout code, 40% off (the same prices), a shirt whose page takes three seconds
 to answer (the same prices, so a test can see a wish named after the product while the page that showed it waits for
-the run to end), and a page with no price, which goes to Claude's stand-in (a price check, $80.00). Once a page has given a name, Claude's stand-in describes it after a
+the run to end), and a page with no price, which goes to Claude's stand-in (a price check, $80.00). Three pages
+turn Nines away (`TURNED_AWAY`): one Claude cannot read either, so its find stays called by its site's address until
+the owner names it; a grey wool chore coat Claude reads whole ($210.00); and a linen shirt whose page lets Nines in
+the first time only, so a check after that keeps its last price and notes the page as not read. Once a page has given a name, Claude's stand-in describes it after a
 second: a white casual linen shirt, whatever the page.
 
 Finding the pieces in a photo of several is a stand-in too: after a second it gives the boxes of
@@ -264,8 +267,12 @@ class FakeShop:
 
     def prices(self, finds, routes):
         time.sleep(1)
-        return PriceAnswer(prices=[PriceSeen(url=f["url"], price=round((f["price"] or 100) * 0.8, 2),
-                                             currency=f["currency"], available=True) for f in finds])
+        # the pages that turn Nines away (`TURNED_AWAY`) Claude cannot read either
+        return PriceAnswer(prices=[
+            PriceSeen(url=f["url"], price=None, currency=f["currency"], available=True, read=False)
+            if f["url"] in TURNED_AWAY else
+            PriceSeen(url=f["url"], price=round((f["price"] or 100) * 0.8, 2), currency=f["currency"], available=True)
+            for f in finds])
 
     def __init__(self):
         self.looks = 0
@@ -324,8 +331,14 @@ class FakeShop:
                     color="green", pattern="plaid")])
 
     def read(self, find, routes):
-        """A link's page read whole: Claude could not open it either (no page here turns Nines away)."""
+        """A link's page read whole: the chore coat's page Claude reads (`READ_WHOLE`); any other it could not open
+        either."""
         time.sleep(1)
+        if find["url"] == READ_WHOLE:
+            return LinkRead(read=True, name="Grey wool chore coat", shop="Example Shop", image_url="", price=210.0,
+                            currency="USD", available=True, clothing=True, category="jacket", color="grey",
+                            formality="casual", season="cool", pattern="solid", weight_class="heavyweight",
+                            rain_proof=False, material="wool")
         return LinkRead(read=False, name="", shop="", image_url="", price=None, currency="USD", available=True,
                         clothing=False, category="shirt", color="white", formality="casual", season="all",
                         pattern="solid", weight_class="unknown", rain_proof=False, material="")
@@ -343,6 +356,13 @@ SHOP_PAGE_NAMES = {
     "https://shop.example/code-shirt": "Linen shirt with a code",
     "https://shop.example/slow-shirt": "Slowly read linen shirt",
 }
+# pages that turn Nines away: one Claude cannot read either (so it stays called by its site's address), one Claude
+# reads whole, and one that lets Nines in the first time only (so a check after that keeps its last price)
+NOBODY_READS = "https://shop.example/turned-away"
+READ_WHOLE = "https://shop.example/chore-coat"
+ONCE_READ = "https://shop.example/once-shirt"
+TURNED_AWAY = {NOBODY_READS, READ_WHOLE, ONCE_READ}
+SHOP_PAGE_NAMES[ONCE_READ] = "Linen shirt read once"
 # pages that take a while to answer, so the page that sent the link has asked for the wishlist before they are read
 SLOW_SHOP_PAGES = {"https://shop.example/slow-shirt"}
 # what a page's text shows besides its structured data: a banner with a checkout code (made-up codes)
@@ -397,6 +417,8 @@ class ShopPages:
             text = "<html><head><title>A plain shirt</title></head><body></body></html>"
         elif slug in SALE_PAGES:
             text = sale_page(slug)
+        elif url in TURNED_AWAY and (url != ONCE_READ or self.reads.get(url, 0) > 0):
+            return productpage.Answer(403, {"content-type": "text/html"}, b"")
         elif url in SHOP_PAGE_NAMES:
             if url in SLOW_SHOP_PAGES:
                 time.sleep(3)

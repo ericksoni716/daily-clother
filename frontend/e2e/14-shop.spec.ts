@@ -327,6 +327,115 @@ test.describe('shopping for a wish', () => {
     await expect(page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'A plain shirt' })).toBeVisible();
   });
 
+  // A link nobody could read (tests/e2e_backend.py: the shop turns Nines away and Claude cannot read the page either):
+  // it asks for a name in the verdict's place, cannot be searched for until it has one, and once named is described and
+  // judged as any link is. The page holds still throughout.
+  test('a link nobody could read asks for a name, then is described and judged, and the page holds still', async ({ page }) => {
+    test.setTimeout(120_000);
+    expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
+    const made = await page.request.post(backend.url + '/api/wishlist/link', { data: { url: 'https://shop.example/turned-away' } });
+    const { id } = await made.json();
+    await expect.poll(async () => (await (await page.request.get(`${backend.url}/api/wishlist/${id}/finds`)).json()).run?.state,
+      { timeout: 30_000 }).toBe('done');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(backend.url + `/wardrobe/wish/${encodeURIComponent(id)}`);
+    const wish = page.getByTestId('wish');
+    const find = wish.getByTestId('find');
+    const naming = find.getByTestId('find-naming');
+    await expect(naming).toContainText("Nines and Claude couldn't read what this is from its page.", { timeout: 30_000 });
+    // the address once, as its shop; no verdict, and no second sentence about the page
+    await expect(find.getByText('shop.example', { exact: true })).toHaveCount(1);
+    await expect(find.getByTestId('find-not-judged')).toHaveCount(0);
+    await expect(find.getByTestId('find-unread')).toHaveCount(0);
+    const field = naming.getByLabel('What it is called');
+    await expect(field).toHaveAttribute('placeholder', /Grey wool chore coat/);
+    // not searched for until it has a name: no Google Shopping, Find some off with the server's own reason
+    const refused = await page.request.post(`${backend.url}/api/wishlist/${id}/find`);
+    expect(refused.status()).toBe(409);
+    const reason = (await refused.json()).detail as string;
+    await expect(wish.getByTestId('google-shopping')).toHaveCount(0);
+    await expect(wish.getByTestId('find-some')).toBeDisabled();
+    await expect(wish.getByTestId('find-off')).toHaveText(reason);
+    expect(await axeViolations(page)).toEqual([]);
+
+    // named: the name comes at once, then the waiting sentence where the field was, then the verdict; the buttons under
+    // the card do not move
+    const at = async () => Promise.all([wish.getByTestId('check-prices'), wish.getByTestId('find-some')].map(
+      (b) => b.evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY))));
+    const before = await at();
+    await field.fill('Grey wool overshirt');
+    await naming.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('heading', { name: 'Grey wool overshirt', level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expect(find.getByTestId('find-naming')).toHaveCount(0);
+    await expect(find.getByTestId('find-not-judged')).toHaveText('Nines checks it against your closet once Claude can describe it.');
+    expect(await at()).toEqual(before);
+    await expect(find.getByTestId('find-verdict')).not.toBeEmpty({ timeout: 30_000 });
+    expect(await at()).toEqual(before);
+    await expect(find.getByRole('heading')).toHaveCount(0);   // its name is the page's heading, said once
+    await expect(wish.getByTestId('find-off')).toHaveCount(0);
+    await expect(wish.getByTestId('find-some')).toBeEnabled();
+    await expect(wish.getByTestId('google-shopping')).toBeVisible();
+  });
+
+  test('a name that is refused is said under the field, and what was typed stays', async ({ page }) => {
+    test.setTimeout(90_000);
+    expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
+    const made = await page.request.post(backend.url + '/api/wishlist/link', { data: { url: 'https://shop.example/turned-away?colour=grey' } });
+    const { id } = await made.json();
+    await expect.poll(async () => (await (await page.request.get(`${backend.url}/api/wishlist/${id}/finds`)).json()).run?.state,
+      { timeout: 30_000 }).toBe('done');
+    await page.setViewportSize({ width: 375, height: 760 });
+    await page.goto(backend.url + `/wardrobe/wish/${encodeURIComponent(id)}`);
+    const naming = page.getByTestId('wish').getByTestId('find-naming');
+    const long = 'x'.repeat(201);
+    await naming.getByLabel('What it is called').fill(long);
+    await naming.getByRole('button', { name: 'Save' }).click();
+    await expect(naming.getByRole('alert')).not.toBeEmpty();
+    await expect(naming.getByLabel('What it is called')).toHaveValue(long);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  });
+
+  // A page that let Nines in once and then turned it away (and Claude cannot read it): it keeps its last price, says so
+  // quietly under the price, and the check says it in its own line; nothing moves while it checks.
+  test('a page that could not be read keeps its last price, saying so once on its card', async ({ page }) => {
+    test.setTimeout(120_000);
+    expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
+    const made = await page.request.post(backend.url + '/api/wishlist/link', { data: { url: 'https://shop.example/once-shirt' } });
+    const { id } = await made.json();
+    const state = async () => (await (await page.request.get(`${backend.url}/api/wishlist/${id}/finds`)).json()).run?.state;
+    await expect.poll(state, { timeout: 30_000 }).toBe('done');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(backend.url + `/wardrobe/wish/${encodeURIComponent(id)}`);
+    const wish = page.getByTestId('wish');
+    const find = wish.getByTestId('find');
+    await expect(find).toContainText('Example Shop · $68.00', { timeout: 30_000 });
+    await expect(find.getByTestId('find-unread')).toHaveCount(0);
+    await wish.getByTestId('check-prices').click();
+    await expect(wish.getByTestId('prices-checked')).toContainText('Last checked today at', { timeout: 30_000 });
+    await expect(find.getByTestId('find-unread')).toHaveText("Nines couldn't read the page today. This is the last price it read.");
+    await expect(find).toContainText('Example Shop · $68.00');
+    await expect(find).not.toContainText('Sold out');
+    // the check said so as it ended; the page says it once, on the card, not again under Check now
+    await expect(page.getByText('Nines could not read 1 of the pages today. Its last price is shown.')).toBeVisible();   // the toast
+    await expect(wish.getByText(/could not read/)).toHaveCount(0);
+    // checked again, still turned away: nothing under the finger moves, while it checks or after
+    const findMore = wish.getByTestId('find-some');
+    const top = async () => Promise.all([wish.getByTestId('check-prices'), findMore].map(
+      (b) => b.evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY))));
+    const before = await top();
+    await wish.getByTestId('check-prices').click();
+    await expect(wish.getByTestId('prices-checked')).toHaveText('Checking the price…');
+    expect(await top()).toEqual(before);
+    await expect(wish.getByTestId('prices-checked')).toContainText('Last checked today at', { timeout: 30_000 });
+    await expect(find.getByTestId('find-unread')).toBeVisible();
+    expect(await top()).toEqual(before);
+    // the card says it plainly, not as a fault
+    expect(await find.getByTestId('find-unread').evaluate((el) => el.closest('[role="alert"], .notice, .form-error'))).toBeNull();
+    // read again after a reload: the card still says it
+    await page.reload();
+    await expect(find.getByTestId('find-unread')).toBeVisible({ timeout: 30_000 });
+  });
+
   // A judged find worn with your own clothes: the outfits Would this work? makes with it, drawn as worn on this computer
   // (nothing asks Claude), in a sheet over the wish's page, with the shop's picture beside the drawing.
   test('see a judged find with your clothes, step through its outfits and close the sheet', async ({ page }) => {

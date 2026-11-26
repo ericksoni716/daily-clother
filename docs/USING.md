@@ -464,9 +464,9 @@ everyday sneakers, nor lounge pants for trousers. **You might like**: three thin
 not from a gap, each with the shop's picture (a hanger until there is one, and then its name has three lines), its
 name (which opens the shop's page in your browser), the shop and price, one line from the closet ("Goes
 with 6 of your pieces."), **Save** (onto the wishlist, with the product as its first find, so
-its price is checked once a day; the pick then says "On your wishlist", which opens the wish, with
-**Undo** on the same line), **More like this** (a look for more like it, which joins
-the card, offered on a pick you saved too; on a phone it has a line of its own, so saving moves nothing) and **×**, Not for me (gone for good, with Undo in its place; after three alike,
+its price is checked once a day; Save then reads **✓ Saved**, in the same place, and pressing it takes the
+pick off the wishlist again), **More like this** (a look for more like it, which joins
+the card, on a pick you saved too; the two are on one line and do not move when you save) and **×**, Not for me (gone for good, with Undo in its place; after three alike,
 such as three bright colours, it may offer a line for Your style, kept only when you tap Save
 to Your style, with Undo). The newest three show, older ones behind "See earlier ones". Before
 the first look it says what it does, with **Look now** (and what a look costs through the API

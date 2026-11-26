@@ -18,12 +18,15 @@ import {
 } from '../picks';
 import { touch } from '../queries';
 import { queryKeys } from '../queryKeys';
-import { Link, wishPath } from '../router';
+import { Link } from '../router';
 import { shownWithCopy } from '../savedCopy';
 import { webLink } from '../shop';
 import { useApp } from '../store';
 import { OFFLINE_TITLE } from './Missing';
 import './YouMightLike.css';
+
+/** On a saved pick's "✓ Saved": what it says and what pressing it does. */
+const SAVED_TITLE = 'On your wishlist. Press to take it off.';
 
 export function YouMightLike({ locked }: { locked: boolean }) {
   const { profile, toast } = useApp();
@@ -170,11 +173,7 @@ function PickRow({ pick, off, busy, title, onSave, onUnsave, onMore, onRefuse }:
   const bare = !image || broken;
   const name = pickName(pick.name, bare ? PICK_NAME_BARE_MAX : PICK_NAME_MAX);
   const nameClass = bare ? 'pick-name is-bare' : 'pick-name';
-  const moreLike = (
-    <span className="pick-more">
-      <Button small variant="ghost" disabled={off || busy} title={title} onClick={onMore}>More like this</Button>
-    </span>
-  );
+  const saved = pick.state === 'saved' && !!pick.wish_id;
   return (
     <article className="pick" data-testid="pick">
       <div className="pick-pic" aria-hidden="true">
@@ -193,25 +192,18 @@ function PickRow({ pick, off, busy, title, onSave, onUnsave, onMore, onRefuse }:
       </div>
       <button type="button" className="pick-refuse" aria-label={`Not for me: ${pick.name}`} title="Not for me"
         disabled={off || busy} onClick={onRefuse}><CloseIcon /></button>
-      {pick.state === 'saved' && pick.wish_id ? (
-        // saved: "On your wishlist" and Undo, as a gap's card says it, in place of Save; More like this as on any pick.
-        // On a phone, More like this has a line of its own in both states, so saving moves nothing
-        <div className="pick-actions pick-saved">
-          <div className="pick-saved-line" role="status">
-            <Link to={wishPath(pick.wish_id)} className={buttonClass({ variant: 'ghost', small: true, className: 'pick-wished' })}>
-              <CheckIcon /> On your wishlist
-            </Link>
-            <Button small variant="ghost" disabled={off || busy} title={title} aria-label={`Undo: take ${pick.name} off your wishlist`}
-              onClick={onUnsave}>Undo</Button>
-          </div>
-          {moreLike}
-        </div>
-      ) : (
-        <div className="pick-actions">
-          <Button small disabled={off || busy} title={title} onClick={onSave}>Save</Button>
-          {moreLike}
-        </div>
-      )}
+      <div className="pick-actions">
+        {saved ? (
+          // saved: Save becomes "✓ Saved" in its place and at its width; pressing it takes the pick off the wishlist
+          <Button small className="pick-save pick-wished" disabled={off || busy} title={title ?? SAVED_TITLE}
+            aria-label={`Saved: take ${pick.name} off your wishlist`} onClick={onUnsave}><CheckIcon /> Saved</Button>
+        ) : (
+          <Button small className="pick-save" disabled={off || busy} title={title} onClick={onSave}>Save</Button>
+        )}
+        <Button small variant="ghost" disabled={off || busy} title={title} onClick={onMore}>More like this</Button>
+        {/* said when it changes, as the saved line was */}
+        <span className="visually-hidden" role="status">{saved ? 'On your wishlist.' : ''}</span>
+      </div>
     </article>
   );
 }

@@ -46,25 +46,38 @@ test.describe('you might like', () => {
       await expect(picks).toHaveCount(3, { timeout: 30_000 });
       const first = picks.first();
       const below = async () => picks.nth(1).evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
-      const before = await below();
+      const row = first.locator('.pick-actions');
+      const again = first.getByRole('button', { name: 'More like this' });
+      // where everything is: the row's height, More like this's place, and the next pick's
+      const where = async () => ({ row: (await row.boundingBox())!.height, more: await again.boundingBox(), below: await below() });
+      const fits = async () => {
+        const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(overflow).toBeLessThanOrEqual(0);
+        for (const el of await row.locator('.btn').all()) {
+          expect(await el.evaluate((b) => b.scrollWidth <= b.clientWidth + 1)).toBe(true);   // no word cut inside a button
+          expect((await hitArea(el)).height).toBeGreaterThanOrEqual(44);
+        }
+        const tops = await row.locator('.btn').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+        expect(new Set(tops).size).toBe(1);   // one line
+      };
       await first.scrollIntoViewIfNeeded();
+      const before = await where();
+      await fits();
       await page.screenshot({ path: test.info().outputPath(`pick-${width}-${theme}.png`) });
       await first.getByRole('button', { name: 'Save' }).click();
-      await expect(first.getByRole('link', { name: 'On your wishlist' })).toBeVisible();
-      await expect(first.getByRole('button', { name: /^Undo/ })).toBeVisible();
-      const again = first.getByRole('button', { name: 'More like this' });
-      await expect(again).toBeVisible();
-      expect(await below()).toBe(before);   // saving moved nothing under it
-      for (const target of [again, first.getByRole('link', { name: 'On your wishlist' }), first.getByRole('button', { name: /^Undo/ })]) {
-        expect((await hitArea(target)).height).toBeGreaterThanOrEqual(44);
-      }
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-      expect(overflow).toBeLessThanOrEqual(0);
-      for (const el of await first.locator('.pick-actions .btn').all()) {
-        expect(await el.evaluate((b) => b.scrollWidth <= b.clientWidth + 1)).toBe(true);   // no word cut inside a button
-      }
-      await first.scrollIntoViewIfNeeded();
+      // Save becomes "✓ Saved" in its place; pressing it takes the pick off the wishlist, as Undo did
+      const saved = first.getByRole('button', { name: `Saved: take Example field jacket in waxed cotton off your wishlist` });
+      await expect(saved).toHaveText('Saved');
+      await expect(saved).toHaveAttribute('title', 'On your wishlist. Press to take it off.');
+      await expect(first.getByRole('status')).toHaveText('On your wishlist.');
+      expect(await where()).toEqual(before);   // nothing moved: the row, More like this, the next pick
+      await fits();
       await page.screenshot({ path: test.info().outputPath(`saved-pick-${width}-${theme}.png`) });
+      await saved.click();
+      await expect(first.getByRole('button', { name: 'Save' })).toBeVisible();
+      expect(await where()).toEqual(before);
+      await first.getByRole('button', { name: 'Save' }).click();
+      await expect(saved).toBeVisible();
       await again.click();
       await expect.poll(() => more.length).toBe(1);
       expect(more[0]).toBe('p1');
@@ -117,23 +130,22 @@ test.describe('you might like', () => {
     const actions = coat.locator('.pick-actions');
     const unsavedHeight = await actions.evaluate((el) => el.getBoundingClientRect().height);
     await coat.getByRole('button', { name: 'Save' }).click();
-    await expect(coat.getByRole('link', { name: 'On your wishlist' })).toBeVisible();
+    const savedButton = coat.getByRole('button', { name: /^Saved: take/ });
+    await expect(savedButton).toHaveText('Saved');
     const wishes = (await (await page.request.get(backend.url + '/api/wishlist')).json()).wishes;
     const made = wishes.find((w: { name: string }) => w.name.startsWith('Water-repellent cotton gabardine'));
     expect(made).toBeTruthy();
     const finds = (await (await page.request.get(`${backend.url}/api/wishlist/${made.id}/finds`)).json()).finds;
     expect(finds.map((f: { price: number }) => f.price)).toEqual([320]);
-    // saved: "On your wishlist" and Undo on one line, as a gap's card (the buttons stacked, with no Undo: 43), and
-    // More like this as before (26 November): on a phone on a line of its own in both states, so the row is as tall
-    const wished = (await actions.getByRole('link', { name: 'On your wishlist' }).boundingBox())!;
-    expect((await actions.getByRole('button', { name: /^Undo/ }).boundingBox())!.y).toBe(wished.y);
+    // saved (26 November): Save becomes "✓ Saved" in its place, with More like this beside it as before, on the same one
+    // line, so the row is as tall; pressing "✓ Saved" takes it off the wishlist, as Undo did
     await expect(actions.getByRole('button', { name: 'More like this' })).toBeVisible();
     expect(await actions.evaluate((el) => el.getBoundingClientRect().height)).toBe(unsavedHeight);
-    await actions.getByRole('button', { name: /^Undo/ }).click();
+    await savedButton.click();
     await expect(coat.getByRole('button', { name: 'Save' })).toBeVisible();
     expect((await (await page.request.get(backend.url + '/api/wishlist')).json()).wishes.map((w: { id: string }) => w.id)).not.toContain(made.id);
     await coat.getByRole('button', { name: 'Save' }).click();
-    await expect(coat.getByRole('link', { name: 'On your wishlist' })).toBeVisible();
+    await expect(savedButton).toBeVisible();
 
     // Not for me: gone, with Undo in its place
     const jacket = picks.filter({ hasText: 'Garment-dyed' });

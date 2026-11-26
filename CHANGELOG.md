@@ -18,8 +18,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - **A laundry day while you are away.** A laundry day that falls on a day of a trip you saved now washes
   nothing: what you left in the laundry at home waits, like your suitcase, for the first laundry day after
   the trip. If you did the laundry on another day, **All clean** in the closet's laundry view says so.
-- **More like this on a pick you saved.** In You might like, a pick you saved offers More like this again,
-  beside "On your wishlist" and Undo. On a phone it has a line of its own, so saving a pick moves nothing.
+- **More like this on a pick you saved.** In You might like, Save on a pick now turns into **✓ Saved** in
+  the same place, and More like this stays beside it. Press ✓ Saved to take the pick off your wishlist again.
+  Both buttons are on one line on every phone, and nothing moves when you save.
 
 ### Fixed
 

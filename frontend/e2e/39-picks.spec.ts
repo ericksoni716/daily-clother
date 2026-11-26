@@ -34,12 +34,12 @@ test.describe('you might like', () => {
     await page.unroute('**/api/picks');
   });
 
-  for (const theme of ['light', 'dark'] as const) {
-    test(`a saved pick offers More like this again, at 320 wide (${theme}): one tap, nothing too wide, nothing below moves`, async ({ page }) => {
+  for (const [width, theme] of [[320, 'light'], [320, 'dark'], [375, 'light'], [375, 'dark']] as const) {
+    test(`a saved pick offers More like this again, at ${width} wide (${theme}): one tap, nothing too wide, nothing below moves`, async ({ page }) => {
       // the owner's choice of 26 November: More like this comes back on a pick you saved. The card's answers are stood in
       // for (a made-up shop and products), so no look is needed
       await page.emulateMedia({ colorScheme: theme });
-      await page.setViewportSize({ width: 320, height: 700 });
+      await page.setViewportSize({ width, height: 700 });
       const more = await standInPicks(page);
       await page.goto(backend.url + '/wardrobe');
       const picks = page.locator('section.picks').getByTestId('pick');
@@ -47,6 +47,8 @@ test.describe('you might like', () => {
       const first = picks.first();
       const below = async () => picks.nth(1).evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
       const before = await below();
+      await first.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: test.info().outputPath(`pick-${width}-${theme}.png`) });
       await first.getByRole('button', { name: 'Save' }).click();
       await expect(first.getByRole('link', { name: 'On your wishlist' })).toBeVisible();
       await expect(first.getByRole('button', { name: /^Undo/ })).toBeVisible();
@@ -62,7 +64,7 @@ test.describe('you might like', () => {
         expect(await el.evaluate((b) => b.scrollWidth <= b.clientWidth + 1)).toBe(true);   // no word cut inside a button
       }
       await first.scrollIntoViewIfNeeded();
-      await page.screenshot({ path: test.info().outputPath(`saved-pick-320-${theme}.png`) });
+      await page.screenshot({ path: test.info().outputPath(`saved-pick-${width}-${theme}.png`) });
       await again.click();
       await expect.poll(() => more.length).toBe(1);
       expect(more[0]).toBe('p1');

@@ -359,16 +359,27 @@ def _phrases() -> list[tuple[str, str]]:
 PHRASES = _phrases()
 
 
+# the outer categories, close enough that a name may say a kind of the other one: a "chore coat" Claude called a coat
+# is a jacket's kind, an "overcoat" it called a jacket a coat's
+OUTER = ("coat", "jacket")
+# what a coat or a jacket of no known kind is drawn as: one a person wears open over what is under it, never the
+# plainest top of its category (a closed tunic); the drawing's choice only, never said as its kind
+PLAIN_OUTER = {"coat": "overcoat", "jacket": "harrington"}
+
+
 def from_words(text, category) -> str | None:
     """The kind a product's name says it is, when it names one of the kinds of `category` in so many words ("Brown
-    suede chelsea boots" is a chelsea boot, "Olive cotton chinos" chinos); the longest name wins. None when it names
-    none, or only kinds of another category: a found piece is then drawn as the plainest of its category."""
+    suede chelsea boots" is a chelsea boot, "Olive cotton chinos" chinos), or, for a coat or a jacket, a kind of the
+    other of the two ("Felted wool chore coat" called a coat is a chore coat); the longest name wins. None when it
+    names none, or only kinds of another category: a found piece is then drawn as the plainest of its category."""
     if not isinstance(text, str) or not text.strip():
         return None
     said = _say(text)
     for phrase, kind in PHRASES:
-        if f" {phrase} " in said and category_for(kind, category) == category:
-            return kind
+        if f" {phrase} " in said:
+            follows = category_for(kind, category)
+            if follows == category or (category in OUTER and follows in OUTER):
+                return kind
     return None
 
 

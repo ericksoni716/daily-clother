@@ -70,7 +70,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from . import aboutyou, db, gaps, productpage, spend, wishlist, wouldwork
+from . import aboutyou, db, gaps, kinds, productpage, spend, wishlist, wouldwork
 from .config import Config
 from .items import ItemError
 from .state import State
@@ -258,17 +258,29 @@ def clean_sale(raw: object) -> dict | None:
             "size_in_stock": stock if isinstance(stock, bool) else None}
 
 
+def kind_and_category(garment: object, category: object) -> tuple[str | None, object]:
+    """The kind Claude named and the category that follows from it, as for the owner's own items
+    (`kinds.category_for`: a chore coat is a jacket whatever Claude wrote under category); a value that is not a kind,
+    or a kind that cannot be tried in an outfit (a tie), is dropped alone and the category stays as Claude said it."""
+    if not isinstance(garment, str) or garment not in kinds.KINDS:
+        return None, category
+    follows = kinds.category_for(garment, category if isinstance(category, str) else None)
+    return (garment, follows) if follows in wouldwork.CATEGORIES else (None, category)
+
+
 def _piece_of(raw: dict, name: str) -> dict | None:
-    """A product's description in the listed values, as the closet's words (`wouldwork.parse_piece`), or None when it
-    does not fit."""
+    """A product's description in the listed values, as the closet's words (`wouldwork.parse_piece`), with its kind
+    when Claude named one (`kind_and_category`), or None when it does not fit."""
     weight = raw.get("weight_class")
     material = _words(raw.get("material"), wouldwork.MATERIAL_MAX)
+    kind, category = kind_and_category(raw.get("garment"), raw.get("category"))
     try:
         return wouldwork.parse_piece({
-            "category": raw.get("category"), "color": raw.get("color"), "formality": raw.get("formality"),
+            "category": category, "color": raw.get("color"), "formality": raw.get("formality"),
             "season": raw.get("season"), "pattern": raw.get("pattern"),
             "weight_class": None if weight in (None, "", "unknown") else weight,
-            "rain_proof": raw.get("rain_proof") is True, "name": name[:wouldwork.NAME_MAX], "material": material})
+            "rain_proof": raw.get("rain_proof") is True, "name": name[:wouldwork.NAME_MAX], "material": material,
+            "kind": kind})
     except wouldwork.PieceError:
         return None
 
@@ -922,8 +934,26 @@ def save_whole(conn: sqlite3.Connection, wish_id: str, find: dict, answer: objec
 def save_piece(conn: sqlite3.Connection, wish_id: str, find_id: str, piece: dict, verdict: dict | None) -> bool:
     """Keep Claude's description of a link (and its verdict, when it was judged at once). False when the find is no
     longer kept, or was described meanwhile."""
-    return bool(conn.execute("UPDATE finds SET piece = ?, verdict = ? WHERE id = ? AND wish_id = ? AND piece = 'null'",
-                             (json.dumps(piece), json.dumps(verdict) if verdict else None, find_id, wish_id)).rowcount)
+    return bool(conn.execute("UPDATE finds SET piece = ?, verdict = ?, kind_asked_at = ? WHERE id = ? AND wish_id = ? "
+                             "AND piece = 'null'", (json.dumps(piece), json.dumps(verdict) if verdict else None,
+                                                    db.now(), find_id, wish_id)).rowcount)
+
+
+def described_before_kinds(row: Mapping) -> bool:
+    """Whether a link was described before Claude was asked for its kind (its piece has none, and it was never asked
+    again since): it is described once more at its next reading."""
+    piece = json.loads(row["piece"] or "null")
+    return bool(piece) and bool(row["link"]) and "kind" not in piece and not row["kind_asked_at"]
+
+
+def save_kind(conn: sqlite3.Connection, wish_id: str, find_id: str, piece: dict | None) -> None:
+    """A link described once more for its kind: the new piece when the answer could be used (its verdict is worked
+    out again with the rest), and either way that it was asked, so it is never asked again."""
+    if piece is None:
+        conn.execute("UPDATE finds SET kind_asked_at = ? WHERE id = ? AND wish_id = ?", (db.now(), find_id, wish_id))
+    else:
+        conn.execute("UPDATE finds SET piece = ?, kind_asked_at = ? WHERE id = ? AND wish_id = ?",
+                     (json.dumps(piece), db.now(), find_id, wish_id))
 
 
 def mark_unclear(conn: sqlite3.Connection, wish_id: str, find_id: str, asked: str) -> None:
@@ -1527,24 +1557,27 @@ class Shopper:
                        routes: tuple[str, ...] | None = None, judge_now: bool = True) -> bool:
         """Ask Claude once to describe a link from what its page says (`page_words`), or, when the page gave nothing
         this time, from the name and shop kept (`kept_words`); keep the piece and, with `judge_now`, its verdict. Not
-        asked: in the demo closet, for a link with no name yet, for a find already
-        described, for the same page whose answer could not be used before, or when Claude cannot be asked (`routes`,
+        asked: in the demo closet, for a link with no name yet, for a find already described (but once more for a link
+        described before its kind was asked for, `described_before_kinds`), for the same page whose answer could not be used before, or when Claude cannot be asked (`routes`,
         else worked out here); the link then waits for a later reading. True when a piece was kept."""
         if profile == "demo":
             return False
         conn = db.connect(self.cfg.db_path(profile))
         try:
-            row = conn.execute("SELECT name, shop, url, link, piece, verdict FROM finds WHERE id = ? AND wish_id = ?",
-                               (find_id, wish_id)).fetchone()
+            row = conn.execute("SELECT name, shop, url, link, piece, verdict, kind_asked_at FROM finds "
+                               "WHERE id = ? AND wish_id = ?", (find_id, wish_id)).fetchone()
         finally:
             conn.close()
-        if row is None or json.loads(row["piece"] or "null"):
+        if row is None:
+            return False
+        again = described_before_kinds(row)
+        if json.loads(row["piece"] or "null") and not again:
             return False
         product = kept_words(read, row)
         if product is None:
             return False
         asked = fingerprint(shopping.describe_prompt(product))
-        if unclear(row["verdict"]) == asked:
+        if not again and unclear(row["verdict"]) == asked:
             return False
         if routes is None:
             try:
@@ -1564,6 +1597,13 @@ class Shopper:
             log.error("a link could not be described: %s", type(e).__name__)
             return False
         piece = clean_described(answer, product["name"]) if answer is not None else None
+        if again:   # once, whatever the answer; judged again with the rest (`prices`)
+            conn = db.connect(self.cfg.db_path(profile))
+            try:
+                save_kind(conn, wish_id, find_id, piece)
+            finally:
+                conn.close()
+            return piece is not None
         verdict = None
         if piece is not None and judge_now:
             rows, worn = self.closet(profile)

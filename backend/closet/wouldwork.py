@@ -32,7 +32,7 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Iterable, Mapping
 
-from . import gaps, life, outfits, vocab
+from . import gaps, kinds, life, outfits, vocab
 
 CANDIDATE_ID = "~candidate"  # the piece's id while it is tried in the closet; never an item id (those are hex)
 
@@ -87,7 +87,7 @@ DENIM_COLORS = ("blue", "light_blue", "navy", "black", "grey")
 # ------------------------------------------------------------------ the description
 CATEGORIES = tuple(c for c in vocab.CATEGORY if c in outfits.CATEGORY_FORMALITY)  # "other" cannot be tried in an outfit
 FIELDS = ("category", "color", "formality", "formality_also", "season", "pattern", "weight_class", "rain_proof", "name",
-          "material", "silhouette")
+          "material", "silhouette", "kind")
 NAME_MAX = 120
 MATERIAL_MAX = 200
 RAIN_WORD = "waterproof"     # added to the material of a piece said to keep the rain off; the engine reads it
@@ -124,7 +124,9 @@ def parse_piece(data: object) -> dict:
 
     Kind and colour are needed; formality defaults to the engine's usual one for the kind, the season to all year,
     the pattern to plain. `weight_class` is one of the engine's weight classes, `rain_proof` true when it keeps the
-    rain off; `silhouette` uses the item vocabulary.
+    rain off; `silhouette` uses the item vocabulary. `kind`, a kind of the owner's taxonomy (`kinds.KINDS`: a chore
+    coat, a henley), is kept only when it agrees with the category (`kinds.category_for`); a piece described by hand
+    has none.
     """
     if not isinstance(data, Mapping):
         raise PieceError("Describe the piece as an object, for example {\"category\": \"coat\", \"color\": \"navy\"}.")
@@ -156,18 +158,33 @@ def parse_piece(data: object) -> dict:
     for k, v in sil.items():
         if k not in vocab.SILHOUETTE or (v is not None and v not in vocab.SILHOUETTE[k]):
             raise PieceError(f"'{k}: {v}' is not part of a shape this app knows.")
+    kind = data.get("kind")
+    if kind not in (None, ""):
+        if not isinstance(kind, str) or kind not in kinds.KINDS:
+            raise PieceError(f"'{kind}' is not a kind of piece this app knows.")
+        if kinds.category_for(kind, category) != category:
+            raise PieceError(f"A {kinds.word(kind)} is not a {category.replace('_', ' ')}.")
     return {"category": category, "color": color, "formality": formality, **({"formality_also": also} if also else {}),
             "season": season, "pattern": pattern,
             "weight_class": weight, "rain_proof": rain, "name": _text(data, "name", NAME_MAX, "name"),
             "material": _text(data, "material", MATERIAL_MAX, "material"),
-            "silhouette": {k: v for k, v in sorted(sil.items()) if v is not None}}
+            "silhouette": {k: v for k, v in sorted(sil.items()) if v is not None},
+            **({"kind": kind} if kind not in (None, "") else {})}
+
+
+def kind_words(piece: Mapping) -> str:
+    """Its colour and kind in words: "grey chore coat" when its kind is known (in the words `kinds` has for it), else
+    its category ("grey coat")."""
+    kind = piece.get("kind")
+    what = kinds.word(kind) if isinstance(kind, str) and kind in kinds.KINDS else piece.get("category")
+    return " ".join(str(w).replace("_", " ") for w in (piece.get("color"), what) if w)
 
 
 def piece_name(piece: Mapping) -> str:
-    """The piece in a few words, for sentences and the wishlist: its name, else "Navy coat"."""
+    """The piece in a few words, for sentences and the wishlist: its name, else "Navy coat" ("Grey chore coat")."""
     if piece.get("name"):
         return str(piece["name"])
-    words = " ".join(str(w).replace("_", " ") for w in (piece.get("color"), piece.get("category")) if w)
+    words = kind_words(piece)
     return (words[:1].upper() + words[1:]) or "Piece"
 
 
@@ -179,7 +196,7 @@ def describe(piece: Mapping) -> str:
     the rain off"."""
     words = [piece_name(piece)]
     if piece.get("name"):
-        words.append(" ".join(str(w).replace("_", " ") for w in (piece.get("color"), piece.get("category")) if w))
+        words.append(kind_words(piece))
     if piece.get("pattern") not in (None, "solid"):
         words.append(str(piece["pattern"]))
     words += [vocab.formality_words(piece.get("formality"), piece.get("formality_also")),

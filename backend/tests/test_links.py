@@ -33,6 +33,7 @@ from .test_shop import (  # noqa: F401  (fixtures used by name)
     find_row,
     link_read,
     pages,
+    product,
     services,
     settle,
     shirt_page,
@@ -375,3 +376,106 @@ def test_find_more_on_a_wish_still_called_by_an_address_asks_for_a_name_first(cl
     client.put(f"/api/wishlist/{wid}/finds/{fid}/name", json={"name": "Felted wool chore coat"})
     settle(client, wid)
     assert client.post(f"/api/wishlist/{wid}/find").status_code == 202
+
+
+# ------------------------------------------------------------------ 4. Claude says what kind of garment it is
+def test_claude_is_asked_for_the_kind_from_the_list_the_tagger_uses():
+    from closet import kinds
+    for model in (shopping.Found, shopping.Described, shopping.LinkRead):
+        listed = model.model_json_schema()["properties"]["garment"]["enum"]
+        assert listed == ["none", *kinds.KINDS], model
+    assert shopping.Found(name="A coat", shop="Example Shop", url="https://shop.example/c", image_url="", price=None,
+                          currency="USD", category="coat", color="grey", formality="casual", season="all",
+                          pattern="solid", weight_class="unknown", rain_proof=False, material="").garment == "none"
+    for prompt in (shopping.find_prompt({"name": "A coat"}), shopping.describe_prompt({"name": "A coat"}),
+                   shopping.read_prompt({"url": GONE}), shopping.picks_prompt({}), shopping.sale_prompt({})):
+        assert "what kind of garment it is" in prompt and "none when no listed kind fits" in prompt
+
+
+def test_a_known_kind_decides_the_category_and_is_kept_with_the_piece():
+    chore = shop.clean_find(product(name="Felted wool chore coat", category="coat", garment="chore_coat"))["piece"]
+    assert chore["category"] == "jacket" and chore["kind"] == "chore_coat"
+    assert shop.clean_described(described(category="coat", garment="chore_coat"), "A coat")["kind"] == "chore_coat"
+    sale = shop.clean_sale({**product(category="coat", garment="chore_coat").model_dump(), "price_before": 300.0})
+    assert sale["piece"]["kind"] == "chore_coat"   # "You might like" and "On sale now" keep it too
+    plain = shop.clean_find(product(category="coat"))["piece"]
+    assert plain["category"] == "coat" and "kind" not in plain
+    for wrong in ("cape", "tie"):   # not a kind; a kind that cannot be tried in an outfit: dropped alone
+        piece = shop.clean_find(product(category="coat", garment=wrong))["piece"]
+        assert piece["category"] == "coat" and "kind" not in piece
+
+
+def test_a_piece_keeps_a_kind_only_when_it_agrees_with_the_category():
+    from closet import wouldwork
+    assert wouldwork.parse_piece({"category": "jacket", "color": "grey", "kind": "chore_coat"})["kind"] == "chore_coat"
+    assert "kind" not in wouldwork.parse_piece({"category": "jacket", "color": "grey"})
+    for kind in ("overcoat", "cape", 3):
+        try:
+            wouldwork.parse_piece({"category": "jacket", "color": "grey", "kind": kind})
+        except wouldwork.PieceError:
+            continue
+        raise AssertionError(kind)
+
+
+def test_claude_saw_says_the_kinds_own_word():
+    from closet import wouldwork
+    piece = wouldwork.parse_piece({"category": "jacket", "color": "grey", "kind": "chore_coat", "season": "cool",
+                                   "formality": "casual", "weight_class": "heavyweight",
+                                   "name": "Heather Felted Wool Chore Coat"})
+    assert wouldwork.describe(piece).startswith("Heather Felted Wool Chore Coat, grey chore coat, casual")
+    assert wouldwork.piece_name({**piece, "name": None}) == "Grey chore coat"
+    assert wouldwork.describe({**piece, "kind": "t_shirt", "category": "tee", "name": None}).startswith("Grey T-shirt")
+
+
+def worn_outer(piece: dict):
+    from closet import illustrations, wouldwork
+    from closet.drawing.figure import plan
+    p = lambda **kw: illustrations.new_piece(wouldwork.parse_piece(kw))  # noqa: E731
+    pieces = {"base": p(category="tee", color="white"), "mid": p(category="sweater", color="navy"),
+              "bottom": p(category="jeans", color="blue"), "shoes": p(category="sneakers", color="white"),
+              "outer": illustrations.new_piece(wouldwork.parse_piece(piece))}
+    return pieces["outer"], plan(pieces).get("outer")
+
+
+def test_the_drawing_follows_the_kind_the_piece_carries_or_its_name_says():
+    for piece, kind in (({"category": "jacket", "color": "grey", "kind": "chore_coat", "name": "Grey wool coat"},
+                         "chore_coat"),
+                        ({"category": "coat", "color": "grey", "name": "Heather Felted Wool Chore Coat"}, "chore_coat"),
+                        ({"category": "jacket", "color": "grey", "name": "Grey wool overcoat"}, "overcoat")):
+        drawn, placed = worn_outer(piece)
+        assert drawn.answer["details"]["garment"] == kind, piece
+        assert placed.open, piece   # worn open over the sweater and the tee
+
+
+def test_a_plain_coat_or_jacket_is_drawn_as_one_worn_open_not_a_closed_tunic():
+    for category in ("coat", "jacket"):
+        drawn, placed = worn_outer({"category": category, "color": "grey", "name": f"Grey wool {category}"})
+        assert drawn.answer is not None and placed.open, category
+        assert "kind" not in shop.clean_find(product(category=category))["piece"]
+    from closet import wouldwork
+    # the kind chosen to draw it is the drawing's alone: the "Claude saw" line still says "coat"
+    assert "grey coat" in wouldwork.describe(wouldwork.parse_piece({"category": "coat", "color": "grey", "name": "X"}))
+
+
+def test_a_link_described_before_kinds_is_described_once_more_and_judged_again(client, fake_shop, pages, cfg):
+    fake_shop.description = described(category="coat", color="grey")
+    wid = add_link(client, SHIRT)
+    conn = db.connect(cfg.db_path("main"))
+    try:   # as kept before this change: a piece with no kind, never asked for one
+        piece = json.loads(conn.execute("SELECT piece FROM finds").fetchone()[0])
+        piece.pop("kind", None)
+        conn.execute("UPDATE finds SET piece = ?, kind_asked_at = NULL", (json.dumps(piece),))
+        conn.commit()
+    finally:
+        conn.close()
+    asked = len(fake_shop.described)
+    fake_shop.description = described(category="coat", color="grey", garment="chore_coat")
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    find, = settle(client, wid)["finds"]
+    assert len(fake_shop.described) == asked + 1
+    assert find["piece"]["kind"] == "chore_coat" and find["piece"]["category"] == "jacket" and find["verdict"]
+    assert "grey chore coat" in find["piece_words"]
+    # once, never again for that find, even when the answer gave no kind
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    settle(client, wid)
+    assert len(fake_shop.described) == asked + 1

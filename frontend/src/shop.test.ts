@@ -141,6 +141,8 @@ describe('a product sent as a link', () => {
     expect(runWords({ kind: 'prices', step: 'describe' })).toBe('Claude is describing the pages you sent…');
     const run = (r: Partial<ShopRun>): ShopRun => ({ kind: 'link', state: 'done', message: null, added: 1, started_at: '', finished_at: '', ...r });
     expect(runDoneWords(run({}), 'A shirt')).toBe('Nines read its price, and checks it again once a day.');
+    // a link named by you and described, no price read on the way: nothing to tell (the card shows what came of it)
+    expect(runDoneWords(run({ added: 0 }), 'A shirt')).toBeNull();
     expect(runDoneWords(run({ message: 'The page doesn’t give its price.', added: 0 }), 'A shirt')).toBe('The page doesn’t give its price.');
     expect(runDoneWords(run({ kind: 'find', added: 2 }), 'A coat')).toBe('Found 2 new for “A coat”');
     expect(runDoneWords(run({ kind: 'prices' }), 'A coat')).toBe('Prices checked');

@@ -539,10 +539,21 @@ first, so what a later search finds comes after what you have read). Each find i
 - **What it is and what it costs.** The shop's picture (when there is one), its name (left out when it is the wish
   itself), the shop, and the price, the strongest thing on the card after the name, with "Sold out" beside it when
   it is. A code at checkout puts the price after it directly under ("$106.20 with code TEST40 at checkout (40%
-  off)"), and a price that came down the drop under that ("Was $120.00, now $96.00 (20% less)").
+  off)"), and a price that came down the drop under that ("Was $120.00, now $96.00 (20% less)"). When its page
+  could not be read at the last check (the shop turned Nines away, and Claude could not read it either), one quiet
+  line under the price says so with the day and that the price shown is the last one read ("Nines couldn't read the
+  page on Monday. This is the last price it read."; with no price ever read, only that the page could not be
+  read).
 - **Whether it works.** The verdict as a heading in its colour, and its reasons as plain sentences under it, for a
   page you sent too once Claude has described it from the page's words; until then one sentence in the same place
-  says why it is not checked, such as "Nines checks it against your closet once Claude can describe it."
+  says why it is not checked, such as "Nines checks it against your closet once Claude can describe it." A page
+  you sent that neither Nines nor Claude could read what it is (still called by its site's address, said once, as
+  its shop) asks for a name in that place: "Nines and Claude couldn't read what this is from its page. Give it a
+  name and Nines checks it against your closet.", a box ("What it is called") and **Save**. The wish takes the name
+  too when it was still called by the address; the card keeps its height while Claude describes the piece from that
+  name, then shows the verdict. What could not be saved is said under the box, and what you typed stays. Until the
+  wish has a name, **Find more** is off, saying "Nines doesn't know what this one is called yet, so it can't look
+  for more. Give it a name first." under it, and **Search Google Shopping** is not offered.
 - **Two buttons.** "See it with your clothes", on a judged find that an outfit can be made with (a sheet over the
   page with up to three outfits of your own pieces and the find, each drawn as worn, to step or swipe through; the
   shop's picture beside the drawing; the names of your pieces, each opening the piece; and one line saying the find
@@ -564,8 +575,9 @@ one quiet line says when the prices were last checked, with a small **Check now*
 Nines, the rest by Claude, and a page you sent that is not described yet described by Claude, from its name and
 shop when the shop turns Nines away); a page neither Nines nor Claude could read keeps its last price and whether
 it could be bought, never "Sold out" for a page nobody could open, and the check ends saying so ("Nines could not
-read 1 of the pages today. Its last price is shown."); while it checks, "Checking the price…" stands in its place,
-so nothing moves. Then **Set the most you'd pay** (once set, "The most
+read 1 of the pages today. Its last price is shown." as it ends; each such card then carries its own line, so it
+is not said again under Check now); while it checks, or a page you sent is read or described, "Checking the
+price…" (or "Nines is reading the page…", "Claude is describing it…") stands in its place, so nothing moves. Then **Set the most you'd pay** (once set, "The most
 you'd pay is $150.00." and **Change**), which opens a sheet: one amount and its currency, with Save, Clear and
 Cancel; Nines tells you when a price goes down to it or less, and Claude's searches stay under it. A wish that
 still has a lowest price from before says so until it is changed. With nothing watched yet, only that button

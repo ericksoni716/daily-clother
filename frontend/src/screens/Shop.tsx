@@ -111,7 +111,8 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
       void stale(qc, queryKeys.wishlist());
     }
     if (lastRun.current?.state === 'running' && run && run.state !== 'running') {
-      toast(runDoneWords(run, wish.name), run.state === 'failed' ? 'error' : undefined);
+      const done = runDoneWords(run, wish.name);
+      if (done) toast(done, run.state === 'failed' ? 'error' : undefined);
       if (watching) seen([wish.id]).catch(() => undefined);
     }
     answered.current = true;

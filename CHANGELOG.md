@@ -28,6 +28,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   and the most you'd pay are small buttons, Find more, Add a link and Search Google Shopping are one row of
   buttons, and what is true every day (the daily price check, what a search sends) is behind one closed "How
   this works".
+- **Name a link nobody could read.** When neither Nines nor Claude can read what a page you sent is, its card asks
+  for a name where the verdict goes; once you save one, Claude describes it from that name and it is checked against
+  your closet. Until then Find more says why it is off, and Search Google Shopping is not offered.
+- **A page that could not be read says so on its card.** One quiet line under the price says the page could not be
+  read that day and that the price shown is the last one read.
 - **Check one I found.** On a wish from a gap or added by hand, the button that opens Would this work? is now
   called Check one I found, and the line at the top of Would this work? says what to do: photograph one you
   found, or describe it. A wish made from a link no longer shows it, since its card already says whether it goes
@@ -57,8 +62,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   the piece's page) is now written as you wrote it after "your" or "the", so a find's card and Today's
   lines say "your Northfield sneaker", not "your northfield sneaker".
 - On a computer, More about it and Change what it is on Would this work? opened below the window; they now
-  open beside their button, whole on the screen, and so does any small window that would not fit.
+  open beside their button, whole on the screen, and so does any small window that would not fit (the closet's
+  Filter at 1,024 by 700 had its Done cut off).
 - Would this work? opened afresh from a wish (after a reload) now starts from what the wish asks for.
+- Saving a name for a link no longer brings a message saying Nines read its price.
 
 ## 0.16.0
 

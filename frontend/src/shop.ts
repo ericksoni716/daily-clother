@@ -288,11 +288,12 @@ export function runWords(run: Pick<ShopRun, 'kind' | 'step'>): string {
   return 'Checking the price…';
 }
 
-/** What a toast says once a search, a price check or the reading of a link is over. */
-export function runDoneWords(run: ShopRun, wishName: string): string {
+/** What a toast says once a search, a price check or the reading of a link is over; null when a link's reading read
+ * no price and has nothing to say (a link you named, described from that name: the card shows what came of it). */
+export function runDoneWords(run: ShopRun, wishName: string): string | null {
   if (run.state === 'failed') return run.message ?? 'Something went wrong while looking.';
   if (run.kind === 'find') return run.added ? `Found ${run.added} new for “${wishName}”` : (run.message ?? 'Nothing new found');
-  if (run.kind === 'link') return run.message ?? 'Nines read its price, and checks it again once a day.';
+  if (run.kind === 'link') return run.message ?? (run.added === 0 ? null : 'Nines read its price, and checks it again once a day.');
   return run.message ?? 'Prices checked';
 }
 

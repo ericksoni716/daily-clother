@@ -225,6 +225,12 @@
 .wish-line > p { margin: 0; }
 /* the most you'd pay, as a popover under its button on a computer */
 .wish-price-line { position: relative; }
+/* a link-style button in a sentence (a gap's card: Search Google Shopping): the line's own height and no padding, so
+   the lines keep their spacing and it lines up when it wraps; still 44px to tap (DESIGN, "Motion and touch") */
+.btn.wish-inline-button { min-height: 0; padding: 0; }
+/* no edge when it is off either (a disabled button gets a dashed one, which made the line 2px taller) */
+.btn.wish-inline-button:disabled { border: 0; }
+.btn.wish-inline-button::after { inset: -12px 0; }
 .wish-price-sheet .hint { margin: 0 0 var(--space-3); }
 .wish-price-fields { display: grid; grid-template-columns: minmax(0, 1fr) 6rem; gap: var(--space-2); }
 .wish-price-sheet .form-error { margin: 0 0 var(--space-2); }

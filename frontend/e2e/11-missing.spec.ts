@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, hitArea, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 /** Takes back whatever a test decided, so the demo closet's suggestions start the same in every test. */
 async function undoDecisions(page: Page) {
@@ -124,6 +124,18 @@ test('a reason given for several kinds of day is said once, with the days listed
   const why = rain.getByRole('list', { name: 'Why' });
   await expect(why.getByText(sentence, { exact: true })).toHaveCount(1);
   await expect(why.getByRole('list', { name: 'For' }).getByRole('listitem').locator('strong')).toHaveText(['Work', 'Everyday', 'Going out', 'Vacation']);
+});
+
+// A gap's "Search Google Shopping" is a link in the card's text: one line high, so the card keeps its spacing, and still
+// 44px to tap through its hit area. It lost its style once when the wish page stopped using the class (26 November),
+// and became a padded 36px box in every gap's card.
+test("a gap's Search Google Shopping is one line of text, and 44px to tap", async ({ page }) => {
+  await openMissing(page);
+  const rain = await openGap(page, 'A rain-proof outer layer');
+  const link = rain.getByRole('link', { name: 'Search Google Shopping' });
+  const shape = await link.evaluate((el) => ({ height: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(el).lineHeight) }));
+  expect(shape.height).toBeLessThanOrEqual(shape.line + 1);
+  expect((await hitArea(link)).height).toBeGreaterThanOrEqual(44);
 });
 
 test("\"I'll look for this\" puts a gap on the wishlist; the note is kept; it can be removed", async ({ page }) => {

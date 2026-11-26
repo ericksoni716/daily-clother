@@ -308,6 +308,18 @@ describe('Give it an outing', () => {
       .toBe('An outing for your navy coat: you love it and have not worn it since 20 Dec 2025.');
     expect(midName('MA-1 bomber')).toBe('MA-1 bomber');
   });
+
+  it('keeps a brand\'s capital when the name starts with the piece\'s own brand, as the server does', () => {
+    expect(midName('Northfield sneaker', 'Northfield')).toBe('Northfield sneaker');
+    expect(midName('Northfield sneaker', 'NORTHFIELD')).toBe('Northfield sneaker');   // compared without case
+    expect(midName('A.Example sweater', 'A.Example')).toBe('A.Example sweater');
+    expect(midName('Navy coat', 'Northfield')).toBe('navy coat');
+    expect(midName('Northfield sneaker', 'North')).toBe('northfield sneaker');   // the brand is a whole word of it
+    expect(midName('Northfield sneaker')).toBe('northfield sneaker');   // no brand: as before
+    expect(midName('Northfield sneaker', null)).toBe('northfield sneaker');
+    expect(outingLine(outing, 'Northfield sneaker', '2026-11-23', 'Northfield'))
+      .toBe('An outing for your Northfield sneaker: you love it and have not worn it since 2 Oct.');
+  });
 });
 
 describe('building around a piece from its page', () => {

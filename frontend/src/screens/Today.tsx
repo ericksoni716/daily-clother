@@ -399,6 +399,8 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const byId = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);
   const allById = useAllItems();
   const nameOf = (id: string) => pieceName(allById.get(id), false, (c) => label('category', c));
+  // a piece named in a sentence, with its brand, so a name that starts with it keeps the brand's capital
+  const named = (id: string) => ({ name: nameOf(id), brand: allById.get(id)?.brand ?? null });
   const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
   /** Puts an answer written here (a message's, a thing kept) in place of the one kept, as the same answer. */
@@ -745,15 +747,15 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const expected = phase.kind === 'ready' ? phase.answer.context.expected ?? [] : [];
   const firstIds = phase.kind === 'ready' && phase.answer.outfits[0] ? outfitIds(phase.answer.outfits[0].pieces) : [];
   // a piece the day counts on being back is said under the button of each outfit it is in, not only the first's
-  const countsOn = (o: Outfit) => countsOnLine(expected.filter((id) => outfitIds(o.pieces).includes(id)).map(nameOf));
+  const countsOn = (o: Outfit) => countsOnLine(expected.filter((id) => outfitIds(o.pieces).includes(id)).map(named));
   const tripPlanned = onTrip && !onTrip.aside ? onTrip.planned : null;
   const planNote = {
-    swapped: ctxPlan ? swapLine(ctxPlan.unavailable.map((id) => ({ name: nameOf(id), away: ctxPlan.away?.[id] })), ctxPlan.day, today)
-      : tripPlanned ? swapLine(tripPlanned.unavailable.map((id) => ({ name: nameOf(id), away: tripPlanned.away?.[id] })), today, today) ?? TRIP_OUTFIT_LINE
+    swapped: ctxPlan ? swapLine(ctxPlan.unavailable.map((id) => ({ ...named(id), away: ctxPlan.away?.[id] })), ctxPlan.day, today)
+      : tripPlanned ? swapLine(tripPlanned.unavailable.map((id) => ({ ...named(id), away: tripPlanned.away?.[id] })), today, today) ?? TRIP_OUTFIT_LINE
         : null,
     heldOffered: phase.kind === 'ready'
       ? heldOfferedLine((phase.answer.context.held_offered ?? []).filter((id) => firstIds.includes(id))
-        .map((id) => ({ name: nameOf(id), day: phase.answer.context.held?.[id] ?? '' })), today)
+        .map((id) => ({ ...named(id), day: phase.answer.context.held?.[id] ?? '' })), today)
       : null,
   };
 
@@ -1541,7 +1543,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, c
         {planNote?.heldOffered && <p className="today-plan-note" data-testid="held-offered">{planNote.heldOffered}</p>}
         {/* Give it an outing: one sentence, under the button where the day's other lines about an outfit go */}
         {outfit.outing && (
-          <p className="today-plan-note" data-testid="outing-line">{outingLine(outfit.outing, itemName(byId.get(outfit.outing.item_id)), today)}</p>
+          <p className="today-plan-note" data-testid="outing-line">{outingLine(outfit.outing, itemName(byId.get(outfit.outing.item_id)), today, byId.get(outfit.outing.item_id)?.brand)}</p>
         )}
       </div>
 

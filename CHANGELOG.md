@@ -42,8 +42,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   first, then for pieces much like it. A wish still called by the shop's address asks for a name first
   instead of searching for the address.
 - **A brand keeps its capital in a sentence.** A piece whose name starts with its brand (as you saved it on
-  the piece's page) is now written as you wrote it after "your" or "the", so a find's card says "your
-  Northfield sneaker", not "your northfield sneaker".
+  the piece's page) is now written as you wrote it after "your" or "the", so a find's card and Today's
+  lines say "your Northfield sneaker", not "your northfield sneaker".
 
 ## 0.16.0
 

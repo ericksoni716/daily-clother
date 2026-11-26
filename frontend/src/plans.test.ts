@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canChoose, choiceNote, dayChoices, heldLine, heldOfferedLine, loadSavedPlans, planFor, planLine, plannedFor, plannedToast, plansSoon, savePlans,
+  canChoose, choiceNote, countsOnLine, dayChoices, heldLine, heldOfferedLine, loadSavedPlans, planFor, planLine, plannedFor, plannedToast, plansSoon, savePlans,
   swapLine, tripLine, tripOn, wearOn, type Plan,
 } from './plans';
 import type { TripSummary } from './trips';
@@ -69,6 +69,14 @@ describe('the words of a plan', () => {
     expect(heldOfferedLine([{ name: 'White tee', day: '2026-11-28' }, { name: 'Blue jeans', day: '2026-11-30' }], TODAY))
       .toBe('This outfit uses your white tee and your blue jeans, which you planned for days ahead.');
     expect(heldOfferedLine([], TODAY)).toBeNull();
+    // a name that starts with its brand keeps the brand's capital; with no brand, as before
+    expect(swapLine([{ name: 'Northfield sneaker', brand: 'Northfield' }], TODAY, TODAY)).toContain('The Northfield sneaker');
+    expect(swapLine([{ name: 'Northfield sneaker', brand: 'Northfield', away: 'is lent out' }], TODAY, TODAY))
+      .toBe('Your Northfield sneaker is lent out, so another piece takes its place.');
+    expect(heldOfferedLine([{ name: 'Northfield sneaker', brand: 'Northfield', day: '2026-11-28' }], TODAY))
+      .toBe('This outfit uses your Northfield sneaker, which you planned for Saturday.');
+    expect(countsOnLine([{ name: 'Northfield sneaker', brand: 'Northfield' }, 'Navy blazer']))
+      .toBe('This counts on your Northfield sneaker and your navy blazer being back by then.');
     expect(tripLine('Lisbon, Portugal')).toBe('This day is part of your trip to Lisbon, which has its outfit already.');
   });
 

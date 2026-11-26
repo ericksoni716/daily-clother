@@ -363,17 +363,26 @@ export { clock as timeOf, longDate, shortDate } from './wears';
 // days ahead (Dress for another day): written by the family too
 export { addDays, dayName, daysAhead, onDay, weekdayOf } from './wears';
 
-/** A piece's name inside a sentence: its first letter small, unless the name starts with a short form ("TV jacket"). */
-export function midName(n: string): string {
-  return n.length > 1 && n[1] === n[1].toLowerCase() ? n[0].toLowerCase() + n.slice(1) : n;
+/** A piece's name inside a sentence: its first letter small, unless the name starts with a short form ("TV jacket") or
+ * with the piece's own brand, compared without case and as a whole word ("Northfield sneaker" with the brand
+ * Northfield), as the server's sentences say it (`outfits._label`). With no brand, by the first rule alone. */
+export function midName(n: string, brand?: string | null): string {
+  return n.length > 1 && n[1] === n[1].toLowerCase() && !startsWithBrand(n, brand) ? n[0].toLowerCase() + n.slice(1) : n;
+}
+
+function startsWithBrand(n: string, brand: string | null | undefined): boolean {
+  const b = (brand ?? '').trim();
+  if (!b || n.slice(0, b.length).toLowerCase() !== b.toLowerCase()) return false;
+  const next = n.charAt(b.length);
+  return !next || !/[\p{L}\p{N}]/u.test(next);
 }
 
 /** The one sentence under an outing's button: "An outing for your tweed jacket: you love it and have not worn it since
  * 2 Oct." (or "since you added it on 2 Oct" for a piece never worn). */
-export function outingLine(o: Outing, name: string, today: string): string {
+export function outingLine(o: Outing, name: string, today: string, brand?: string | null): string {
   const it = o.plural ? 'them' : 'it';
   const when = sinceDay(o.since, today);
-  return `An outing for your ${midName(name)}: you ${o.rating} ${it} and have not worn ${it} `
+  return `An outing for your ${midName(name, brand)}: you ${o.rating} ${it} and have not worn ${it} `
     + `${o.never_worn ? `since you added ${it} on ${when}` : `since ${when}`}.`;
 }
 

@@ -27,10 +27,6 @@ only here); take a line out when it is done.
   piece's name as the closet writes it ("Without Chambray shirt"), capital and all. The server's away sentences still
   write "Friday 27 November" while the reasons now write "Saturday 14 Nov". After Undo on an outfit worn on another
   visit (the first card), the card goes and the next outfit takes its place.
-- **A brand keeps its capital** (26 November; DECISIONS, "The owner's decisions of 26 November"). Fixed in the
-  server's sentences (`outfits._label`). The page's own `midName` (`frontend/src/today.ts`: the outing's line on
-  Today and the plan lines in `src/plans.ts`) still lowers a name that starts with a brand; it is given only the
-  name, and the item summaries do carry `brand`, so the fix is to pass it through.
 - **The second logic review's fixes** (24 November; DECISIONS, the rows dated 24 November). Left undone: "Not on this trip today" lapses with its day
   (decided), so a trip planned again on a later day still takes that day's wear at home as the trip's
   outfit for it; remembering past set-aside days would change that decision.

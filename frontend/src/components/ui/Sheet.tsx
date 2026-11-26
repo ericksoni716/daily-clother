@@ -121,8 +121,9 @@ export function Sheet({ title, onClose, popover, keep, anchor, closeLabel = 'Don
 /**
  * A popover in the page (no `anchor`) opens where its own styles put it: under what holds it. When that would leave
  * part of it off the screen (what holds it is far from the button that opened it, or the button is near the bottom of
- * the window), it is moved beside that button (`keep`): under it, or over it when it fits only there, kept on screen
- * and no taller than the room there is, so what opens is seen whole without scrolling the page.
+ * the window), it is moved beside that button (`keep`): under it, or over it when it fits only there; when it fits on
+ * neither side, as tall as the window lets it be, as near under the button as that allows. It is kept on screen, so
+ * what opens is seen whole without scrolling the page.
  */
 function useKeptInView(on: boolean, sheet: RefObject<HTMLDivElement | null>, keep: RefObject<HTMLElement | null> | undefined) {
   useLayoutEffect(() => {
@@ -153,17 +154,18 @@ function useKeptInView(on: boolean, sheet: RefObject<HTMLDivElement | null>, kee
         const above = k.top - gap - edge;
         if (full <= below) top = k.bottom + gap;
         else if (full <= above) top = k.top - gap - full;
-        else if (below >= above) {
-          top = k.bottom + gap;
-          tallest = Math.max(below, 120);
-        } else {
-          tallest = Math.max(above, 120);
-          top = k.top - gap - Math.min(full, tallest);
+        else {
+          // it fits on neither side: as tall as the window lets it be, as near under the button as that allows, over
+          // the button if need be (it closes with its button, Escape or a tap outside)
+          const h = Math.min(full, vh - 2 * edge);
+          top = Math.max(edge, Math.min(k.bottom + gap, vh - edge - h));
+          tallest = h;
         }
       } else {
         top = Math.max(edge, Math.min(r.top, vh - edge - full));
       }
-      const from = k ? k.left : r.left;
+      // its left edge under the button's, or its right edge under the button's right when that does not fit
+      const from = k ? (k.left + w <= vw - edge ? k.left : k.right - w) : r.left;
       const left = Math.max(edge, Math.min(from, vw - w - edge));
       s.style.top = `${s.offsetTop + (top - r.top)}px`;
       s.style.left = `${s.offsetLeft + (left - r.left)}px`;

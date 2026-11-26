@@ -23,6 +23,14 @@ as text, with no web search and no picture, through the same two routes
 web addresses, the description must use the closet's words, a code its form and discount)
 and drops what does not fit; nothing is bought or opened here.
 
+A link whose name Nines could not read is read by Claude whole (`read_link`):
+only its address is sent, with the price check's web tools, and the answer gives
+whether the page could be read, its name, shop, picture, price, code and
+description in one. Every description names the kind of garment from the
+taxonomy's own list (`GARMENT_KINDS`), and a search's product says whether it is
+sold for men (`for_men`, FOR_MEN). A search is told the pages already kept with
+the wish, and for a wish made from a link what "more" means.
+
 "You might like" asks the same way, with the same answer (`picks`): no wish, but
 what the closet says about the owner as a whole, what they already have plenty
 of and what they said "Not for me" to, so nothing is offered that only repeats

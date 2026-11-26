@@ -15,9 +15,14 @@ The owner can also send a product's page as a link (migration 0042): a new wish
 made from it, or a find added to a wish. Nines reads the page itself first, from
 this computer (`productpage.py`: the address checked, the page fetched with
 care, its structured data read), and asks Claude to read that one page, as a
-price check, only when the page gives no price. Once the page has given a name,
-Claude is asked once to describe the product in the closet's words from what the
-page says (`tagger/shopping.py`'s `describe`, recorded with the purpose
+price check, only when the page gives no price. When it gives no name (a shop
+that turns programs away) and the find is still called by its site's address,
+Claude is asked once to read the page whole instead (`shopping.read_link`: the
+name, shop, picture, price and description in one answer, migration 0055's
+`read_asked` remembering an answer with no name); a find nobody could name waits
+for the owner to name it (`name_find`). Once the find has a name, Claude is asked
+once to describe the product in the closet's words from what the page says, or
+from its kept name and shop when the page turns Nines away (`tagger/shopping.py`'s `describe`, recorded with the purpose
 `spend.PURPOSE_DESCRIBE_LINK`, held against the same limit); the piece is kept
 on the find and judged as a search's finds are. When Claude cannot be asked
 (out of reach, the limit, the demo closet) the link waits, and is described at
@@ -27,7 +32,10 @@ same page is not asked about again until it changes.
 
 A wish's finds can have their prices looked up again on demand and, while the
 program runs, at most once a day (`PriceScheduler`): a link's page read by Nines
-first, Claude asked about the rest. Every price seen is kept, and a find whose
+first, Claude asked about the rest. A check that reads no price from a page (by
+Nines or by Claude) changes nothing and is noted (`unread_at`, migration 0055):
+the last price stands, never "sold out" for a page nobody could open. Every price
+seen is kept, and a find whose
 latest price is below the highest seen before shows a drop, on the wish and on
 its row in the wishlist. A price that came down since the owner last looked at
 the wish (migration 0045), to no more than the most they would pay when they

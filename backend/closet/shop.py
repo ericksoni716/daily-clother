@@ -1592,7 +1592,7 @@ class Shopper:
         """Ask Claude once to describe a link from what its page says (`page_words`), or, when the page gave nothing
         this time, from the name and shop kept (`kept_words`); keep the piece and, with `judge_now`, its verdict. Not
         asked: in the demo closet, for a link with no name yet, for a find already described (but once more for a link
-        described before its kind was asked for, `described_before_kinds`), for the same page whose answer could not be used before, or when Claude cannot be asked (`routes`,
+        described before its kind was asked for, `described_before_kinds`, on a visit that read its page's words), for the same page whose answer could not be used before, or when Claude cannot be asked (`routes`,
         else worked out here); the link then waits for a later reading. True when a piece was kept."""
         if profile == "demo":
             return False
@@ -1604,7 +1604,9 @@ class Shopper:
             conn.close()
         if row is None:
             return False
-        again = described_before_kinds(row)
+        # once more for its kind only from a visit that read the page's words: a piece described from them is never
+        # replaced by one described from a name alone (a visit turned away asks nothing, and a later one asks)
+        again = described_before_kinds(row) and bool(read and read.get("name"))
         if json.loads(row["piece"] or "null") and not again:
             return False
         product = kept_words(read, row)

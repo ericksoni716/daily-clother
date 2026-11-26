@@ -533,3 +533,34 @@ def test_find_more_on_a_wish_made_from_a_link_looks_for_it_elsewhere_then_for_it
     assert client.post(f"/api/wishlist/{other}/find").status_code == 202
     settle(client, other)
     assert fake_shop.calls[-1][1].get("from_link") is None
+
+
+def test_a_link_turned_away_today_is_not_described_again_for_its_kind_until_its_page_is_read(client, fake_shop, pages,
+                                                                                            cfg):
+    """Review fault 1: the once-more description for the kind is made only from a visit that read the page's words;
+    a visit turned away asks nothing and leaves `kind_asked_at` unset."""
+    fake_shop.description = described(category="coat", color="grey")
+    wid = add_link(client, SHIRT)
+    conn = db.connect(cfg.db_path("main"))
+    try:   # as kept before kinds were asked for
+        piece = json.loads(conn.execute("SELECT piece FROM finds").fetchone()[0])
+        conn.execute("UPDATE finds SET piece = ?, kind_asked_at = NULL", (json.dumps(piece),))
+        conn.commit()
+    finally:
+        conn.close()
+    asked = len(fake_shop.described)
+    fake_shop.description = described(category="coat", color="grey", garment="chore_coat")
+    page = pages.pages.pop(SHIRT)   # turned away today
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    find, = settle(client, wid)["finds"]
+    assert len(fake_shop.described) == asked and find["piece"] == piece
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        assert conn.execute("SELECT kind_asked_at FROM finds").fetchone()[0] is None
+    finally:
+        conn.close()
+    pages.pages[SHIRT] = page   # read again: asked once, from the page's words
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    find, = settle(client, wid)["finds"]
+    assert len(fake_shop.described) == asked + 1 and fake_shop.described[-1][0]["name"] == "Linen camp-collar shirt"
+    assert find["piece"]["kind"] == "chore_coat"

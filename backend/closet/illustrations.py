@@ -137,13 +137,18 @@ def new_piece(piece) -> Piece:
     """A piece not in the closet (a find, a piece checked with "Would this work?"), drawn from its described values
     as a new item with them would be: its category, colour word and shape, in its colour word's colour. A striped or
     plaid piece is drawn with a plain, typical pattern of that word (`wordpattern.fill_for`; a measured pattern
-    would come from a photo, which it has none of). When its name says one of its category's kinds in so many words
-    (`kinds.from_words`: "Brown suede chelsea boots"), it is drawn as that kind, as the kind picker draws one.
-    `piece` is a description as `wouldwork.parse_piece` gives it."""
+    would come from a photo, which it has none of). It is drawn as the kind it carries (`kind`, Claude's word for it);
+    without one, as the kind its name says in so many words (`kinds.from_words`: "Brown suede chelsea boots", or a
+    "chore coat" called a coat), as the kind picker draws one. A coat or a jacket of no kind at all is drawn as one a
+    person wears open over what is under it (`kinds.PLAIN_OUTER`), never as a closed tunic. `piece` is a description
+    as `wouldwork.parse_piece` gives it."""
     category, color = piece["category"], piece["color"]
     silhouette = dict(piece.get("silhouette") or {})
-    kind = kinds.from_words(piece.get("name"), category)
+    kind = piece.get("kind") if piece.get("kind") in kinds.KINDS else kinds.from_words(piece.get("name"), category)
+    if kind is not None and category in kinds.OUTER:   # a coat's kind called a jacket is drawn as that coat
+        category = kinds.category_for(kind, category)
     fill = wordpattern.fill_for(category, color, piece.get("pattern"), piece.get("name"), kind)
+    kind = kind or kinds.PLAIN_OUTER.get(category)
     if kind is None:
         return Piece(category, None, None, color, None, silhouette, fill=fill)
     found = Details.plain().model_dump(mode="json")

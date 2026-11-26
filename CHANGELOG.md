@@ -10,6 +10,27 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+### Fixed
+
+- **A page that could not be read is no longer "Sold out".** When a shop turns Nines away and Claude
+  cannot read the page either, the wish keeps the last price it read and says whether it could be
+  bought then; "Check now" ends saying how many pages could not be read and that their last prices are
+  shown. A price is only marked sold out when the page itself says so.
+- **A link from a shop that turns programs away is read all the same.** When Nines cannot read a
+  product's name, Claude is asked once to read the whole page: its name, shop, picture, price and
+  description, so the wish is named after the product and checked against your closet. A link whose
+  name Nines read before is described from that name when the shop later turns Nines away.
+- **Coats and jackets look like coats and jackets.** Claude now says what kind of garment a product is
+  (a chore coat, an overcoat, a field jacket), and "See it with your clothes" draws that kind, worn
+  open over your sweater and shirt. A coat or jacket of no known kind is drawn as one worn open, not as
+  a closed tunic. The "Claude saw" line says "grey chore coat" rather than "grey coat". A link you sent
+  before this is described once more, at its next price check, to learn its kind.
+- **Find more finds menswear, and not what you already watch.** A search leaves out women's and
+  children's products (the same coat's page in a shop's women's section among them), and the pages
+  already on the wish. For a wish you made from a link, it looks for the same product at other shops
+  first, then for pieces much like it. A wish still called by the shop's address asks for a name first
+  instead of searching for the address.
+
 ## 0.16.0
 
 ### Added

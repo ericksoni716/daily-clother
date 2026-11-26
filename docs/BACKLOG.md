@@ -14,6 +14,12 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **A link read, described and drawn properly** (26 November; DECISIONS, the section of that name). Left: the wish's
+  page does not show yet the box to name a find (`PUT …/finds/{find_id}/name`), `named`, `unread_at` or `piece.kind`
+  (another piece of work lays the page out). On the API-key way of reaching Claude a page is read through web search
+  alone: giving it a tool that opens the page itself was left because it could not be tried against the real service
+  from where this work was done. A link is still described from words alone, never from the shop's picture. The
+  chore coat's drawing stands its collar up behind the neck like a hood.
 - **Today and a day ahead, the second review of the screens** (24 November; DECISIONS, the section of that name).
   Left: the waiting shape while the outfits are chosen is as tall as the demo closet's first outfit, so a closet whose
   reasons are much shorter or longer still moves what is under it a little; when Claude's outfits replace the rules'

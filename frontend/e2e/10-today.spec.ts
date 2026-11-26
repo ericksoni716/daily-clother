@@ -265,16 +265,32 @@ for (const weather of ['a forecast', 'no forecast']) {
   });
 }
 
+// The page writes a month as `MONTHS` in src/wears.ts does.
+const MONTH_WORDS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** The first Wednesday from today on (today included) whose date has two digits, at 10 in the morning. Never a day
+ *  gone by: the server and the demo closet live on the real day, and a day behind it has outfits worn on it in the
+ *  demo closet, so the page would offer "Wear this instead" there. At most 13 days ahead. */
+function comingWednesday(): Date {
+  const day = new Date();
+  day.setHours(10, 0, 0, 0);
+  while (day.getDay() !== 3 || day.getDate() < 10) day.setDate(day.getDate() + 1);
+  return day;
+}
+
 test('today on a phone on a Wednesday: the longest day name still fits on one line, so the outfit is not pushed down', async ({ page }) => {
   // found on Wednesday 18 November: "Wednesday 18 Nov" wrapped beside Worn and Trips and pushed "I'm wearing this"
-  // under the tab bar. The page's clock is set to a Wednesday so this is checked on every day of the week.
-  await page.clock.setFixedTime(new Date(2026, 10, 25, 10, 0, 0));
+  // under the tab bar. The page's clock is set to a Wednesday so this is checked on every day of the week; a date of
+  // two digits, so it is as wide as it gets.
+  const wednesday = comingWednesday();
+  const dayMonth = `${wednesday.getDate()} ${MONTH_WORDS[wednesday.getMonth()]}`;
+  await page.clock.setFixedTime(wednesday);
   await page.setViewportSize({ width: 390, height: 844 });
   await fakeWeather(page);
   await openToday(page);
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
   const date = page.locator('.today-header .count');
-  await expect(date).toContainText('Wed 25 Nov');
+  await expect(date).toContainText(`Wed ${dayMonth}`);
   const lines = await date.evaluate((el) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
   expect(lines).toBeLessThan(1.5);
   const wear = (await current(page).getByRole('button', { name: "I'm wearing this" }).boundingBox())!;
@@ -282,7 +298,7 @@ test('today on a phone on a Wednesday: the longest day name still fits on one li
   // a computer has the room for the whole name
   await page.setViewportSize({ width: 1280, height: 800 });
   await expect(page.locator('.today-header .count .date-long')).toBeVisible();
-  await expect(page.locator('.today-header .count .date-long')).toHaveText('Wednesday 25 Nov');
+  await expect(page.locator('.today-header .count .date-long')).toHaveText(`Wednesday ${dayMonth}`);
 });
 
 test('today refreshes suggestions when a piece is put in the laundry', async ({ page }) => {

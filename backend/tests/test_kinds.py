@@ -312,7 +312,9 @@ def test_an_accessorys_kind(client, services, claude, cfg):
     ("Tan gabardine trench coat", "coat", "trench_coat"),
     ("Olive cotton chinos", "trousers", "chinos"),
     ("Navy pique polo", "polo", "polo"),
-    ("Wool overcoat", "jacket", None),        # a kind of another category is not taken
+    ("Wool overcoat", "jacket", "overcoat"),  # a kind of the other outer category is taken (the owner, 26 November)
+    ("Felted wool chore coat", "coat", "chore_coat"),
+    ("Navy pique polo", "shirt", None),       # a kind of another category is not taken
     ("Grey wool trousers", "trousers", None),  # names no kind: drawn as the plainest of its category
     (None, "shirt", None),
 ])

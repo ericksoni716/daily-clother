@@ -534,8 +534,9 @@ it."), with "See it with your clothes" on a judged find that an outfit can be ma
 page with up to three outfits of your own pieces and the find, each drawn as worn, to step or swipe through; the
 shop's picture beside the drawing; the names of your pieces, each opening the piece; and one line saying the find is
 drawn from the shop's description, so it shows roughly its shape and colour, not how it really looks, or its shape,
-colour and pattern when it is striped or plaid, which is drawn as a plain, typical stripe or plaid; nothing is sent
-to Claude), "Open in shop", "Stop watching" (it goes, and with it its daily check; the find stays in its place
+colour and pattern when it is striped or plaid, which is drawn as a plain, typical stripe or plaid; it is drawn as the
+kind of garment Claude said it is (a chore coat, an overcoat), and a coat or jacket of no known kind as one worn open
+over your layers; nothing is sent to Claude; the "Claude saw" line says the kind's own word, "grey chore coat"), "Open in shop", "Stop watching" (it goes, and with it its daily check; the find stays in its place
 saying so, with **Undo**, which puts it back with its price history, until you leave the page) and, when its
 price changed from one day to another, "The price was … on 3 Nov and … yesterday.". A find with a
 code at checkout says the price after it under its price ("$106.20 with code TEST40 at checkout (40%
@@ -547,13 +548,21 @@ when the page stops showing it, and one you typed stays until you remove it. Und
 sentence, "Nines checks the price once a day while it's running and tells you when it goes down."
 (with a price, "…when it goes down to $150.00 or less."), with "Set the most you'd pay" or
 "Change", then when it was last checked and "Check now" (the pages you sent read by Nines, the rest
-by Claude, and a page you sent that is not described yet described by Claude); while it checks,
+by Claude, and a page you sent that is not described yet described by Claude, from its name and shop
+when the shop turns Nines away); a page neither Nines nor Claude could read keeps its last price and
+whether it could be bought, never "Sold out" for a page nobody could open, and the check ends saying so
+("Nines could not read 1 of the pages today. Its last price is shown."); while it checks,
 "Checking the price…" stands in place of when it was last checked, so nothing moves. Then looking for
-more: "Find some" or "Find more" (Claude searches shops; under them, "A search sends Claude the
+more: "Find some" or "Find more" (Claude searches shops for menswear only, leaving out the pages
+already on the wish; for a wish made from a link, the same product at other shops first, then pieces
+much like it; a wish still called by its link's site's address asks for a name first instead of
+searching; under them, "A search sends Claude the
 wish, your style, what you tend to wear, the brands you own and your size, never a photo or a
 note.", except in the demo closet) and "Add a link" (a product's page added as
 a find: Nines reads its name and price from the page, asks Claude only when the page gives no price,
-then asks Claude once to describe it from what the page says), and "Search Google Shopping" (as on
+then asks Claude once to describe it from what the page says; when Nines cannot read its name, the shop
+turning it away, Claude is asked once to read the whole page instead: name, shop, picture, price and
+description), and "Search Google Shopping" (as on
 Worth buying, from what to look for, or the wish's name when it has none); with nothing watched yet, the price is offered here
 ("Claude looks at any price." or "Claude looks for ones up to $150.00."). Then the note (saved when
 you leave the box or tap Save note, saying "Saving…", "Saved" or "Didn't save" with Try again), and

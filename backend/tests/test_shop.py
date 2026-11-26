@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from closet import app as app_module
 from closet import db, demo, gaps, life, productpage, shop, spend
 from closet.tagger import correcting, shopping
-from closet.tagger.shopping import Described, Found, PriceAnswer, PriceSeen, SaleAnswer, ShopAnswer
+from closet.tagger.shopping import Described, Found, LinkRead, PriceAnswer, PriceSeen, SaleAnswer, ShopAnswer
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError, Unreachable
 
 from .conftest import fake_cutter
@@ -41,11 +41,20 @@ def described(**changes) -> Described:
     return Described(**{**base, **changes})
 
 
+def link_read(**changes) -> LinkRead:
+    """A link's page as Claude would read it whole: by default, a page it could not open."""
+    base = dict(read=False, name="", shop="", image_url="", price=None, currency="USD", available=True, clothing=False,
+                category="shirt", color="white", formality="casual", season="all", pattern="solid", weight_class="unknown",
+                rain_proof=False, material="")
+    return LinkRead(**{**base, **changes})
+
+
 class FakeShop:
     """Stands in for Claude searching shops, looking up prices and describing a page sent as a link. `prices_seen`:
     what the next price check answers (by default every price 20% lower); `error`: raised by the next calls instead.
     `described`: what each description was asked about (kept apart from `calls`, the searches and price checks);
-    `description`: its answer (by default a white linen shirt), or an exception to raise."""
+    `description`: its answer (by default a white linen shirt), or an exception to raise. `whole`: what reading a
+    link's page whole answers (by default, that it could not be opened), or an exception to raise."""
 
     def __init__(self):
         self.finds = [product(), product(name="Navy wool coat", url="https://other.example/p/2", color="navy",
@@ -56,6 +65,7 @@ class FakeShop:
         self.described: list[tuple] = []
         self.description: Described | Exception = described()
         self.sale_finds: list = []   # what the next "On sale now" look answers (test_sale.py gives it products)
+        self.whole: LinkRead | Exception = link_read()
 
     def find(self, wish, routes):
         self.calls.append(("find", wish, routes))
@@ -77,6 +87,12 @@ class FakeShop:
         if self.error:
             raise self.error
         return SaleAnswer(finds=self.sale_finds, note="")
+
+    def read(self, find, routes):
+        self.calls.append(("read", find["url"], routes))
+        if isinstance(self.whole, Exception):
+            raise self.whole
+        return self.whole
 
     def describe(self, product, routes):
         self.described.append((product, routes))
@@ -546,7 +562,8 @@ def test_a_price_check_records_the_prices_and_shows_a_drop(client, fake_shop):
     # it is asked only about its own finds, by their pages
     assert fake_shop.calls[-1] == ("prices", ["https://shop.example/coat", "https://other.example/p/2"], ("plan",))
 
-    # what does not fit is not kept: another page, a price that is not one; a find sold out is marked so
+    # what does not fit is not kept: another page, a price that is not one; a find sold out is marked so, at its last
+    # price (the owner's report of 26 November: a price is never taken away by a check that shows none)
     fake_shop.prices_seen = [PriceSeen(url="https://elsewhere.example", price=1.0, currency="USD", available=True),
                              PriceSeen(url="https://shop.example/coat", price=-3.0, currency="USD", available=True),
                              PriceSeen(url="https://other.example/p/2", price=None, currency="USD", available=False)]
@@ -555,8 +572,8 @@ def test_a_price_check_records_the_prices_and_shows_a_drop(client, fake_shop):
     coat = next(f for f in body["finds"] if f["url"] == "https://shop.example/coat")
     navy = next(f for f in body["finds"] if f["url"] == "https://other.example/p/2")
     assert coat["price"] == 96.0 and len(coat["history"]) == 2 and coat["available"] is True
-    assert navy["available"] is False and navy["price"] is None and navy["drop"] is None
-    assert [h["price"] for h in navy["history"]] == [240.0, 192.0, None]
+    assert navy["available"] is False and navy["price"] == 192.0 and navy["drop"]["to"] == 192.0
+    assert [(h["price"], h["available"]) for h in navy["history"]] == [(240.0, True), (192.0, True), (192.0, False)]
 
 
 def test_a_price_check_needs_finds(client):
@@ -1028,11 +1045,14 @@ def test_claude_out_of_reach_while_describing_leaves_the_link_for_later(client, 
 
 
 def test_a_page_that_gives_no_name_is_not_described(client, fake_shop, pages):
+    # Nines reads no name on it, so Claude is asked to read it whole (test_links.py), not for its price alone; when
+    # Claude cannot read it either, it waits for a name and nothing is described (the owner's report of 26 November)
     gone = "https://shop.example/p/gone"
     fake_shop.prices_seen = [PriceSeen(url=gone, price=50.0, currency="USD", available=True)]
     wid = add_link(client, gone)
     find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
-    assert find["price"] == 50.0 and find["not_judged"] == "no_name" and fake_shop.described == []
+    assert find["price"] is None and find["not_judged"] == "no_name" and fake_shop.described == []
+    assert fake_shop.calls == [("read", gone, ("plan",))]
 
 
 def test_the_demo_closet_never_sends_a_link_to_claude_to_describe(client, fake_shop, pages):

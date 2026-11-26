@@ -170,7 +170,9 @@ Pick the lowest layer that can show the behaviour, and test it once.
    (vitest).
 4. **The browser** (Playwright, `frontend/e2e/`): one test for each thing the owner does on a
    screen, or each state they can see, asserting what they see. Never a backend rule again.
-   No fixed sleeps. A screenshot goes to `testInfo.outputPath()`, never into `docs/`.
+   No fixed sleeps. A screenshot goes to `testInfo.outputPath()`, never into `docs/`. A test
+   that sets the page's clock sets it from today, never to a fixed day: the server and the demo
+   closet live on the real day, so a fixed day goes stale.
 5. **A bug fix**: a test at the lowest layer that reproduces the bug, written first.
 6. **Anything over a second**: make the input smaller, or mark it `slow` and say so in the
    pull request. An image test uses the smallest image that shows the case. See *Slow

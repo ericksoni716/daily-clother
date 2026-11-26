@@ -27,11 +27,6 @@ only here); take a line out when it is done.
   piece's name as the closet writes it ("Without Chambray shirt"), capital and all. The server's away sentences still
   write "Friday 27 November" while the reasons now write "Saturday 14 Nov". After Undo on an outfit worn on another
   visit (the first card), the card goes and the next outfit takes its place.
-- **The Windows job does not hold a merge** (25 November; DECISIONS, "A starting copy writes its lock before its
-  server answers"). A pull request merges once "Lint and tests (Linux)" is green, a minute or two before "Backend
-  tests (Windows)" ends, so a failure there is seen by nobody: #337 merged with it red (the ten runs before it were green).
-  Making it required is a setting of the repository (the owner's), or a change to the `ci` workflow's last job so that
-  it waits for the Windows job too. Until then the nightly run is where a Windows failure shows.
 - **The second logic review's fixes** (24 November; DECISIONS, the rows dated 24 November). Left for the
   owner: whether the laundry day should wash what was left in the basket at home while a trip is under way
   (it still does; only the suitcase waits). Left undone: "Not on this trip today" lapses with its day

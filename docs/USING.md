@@ -156,8 +156,16 @@ is": it changes home, not the trip. From a piece's page, **Build an outfit aroun
 bag; a packed piece counts as clean and with you, whatever the laundry or the cleaner's at home says, and its
 page says so. When nothing you packed makes an outfit, Today says so and points to Not on this trip today; a trip
 that packed nothing dresses you from your whole closet, and when even that has no outfit Today gives the reason
-(everything in the laundry, say). What you wear on the trip goes in your suitcase: the laundry day at home leaves
-it in the laundry until the first laundry day after the trip.
+(everything in the laundry, say). What you wear on the trip goes in your suitcase, and nobody is home to do the
+laundry: a laundry day that falls on a day of a saved trip washes nothing, neither what is in the suitcase nor
+what you left in the laundry at home. Both stay in the laundry until the first laundry day after the trip. If you
+did the laundry on another day, **All clean** in the closet's laundry view says so.
+
+**The day before a trip.** What you ticked as packed for a trip that starts tomorrow is in your suitcase, so
+Today leaves it out of the outfits and says so once, in one line over them: "Packed for Lisbon, so left out
+today.", which opens the trip (the trip's row further down is not shown then). Building an outfit around a
+packed piece still works: it is your choice, and the rest of the outfit comes from what is not packed. To have
+a piece back today, untick it in the trip.
 
 Below that, when a trip starts within two weeks (or is under way, and is not today's), a row with its place,
 when it starts and how much is packed ("Lisbon, in 12 days · 4 of 15 packed") opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
@@ -241,7 +249,8 @@ trip's choices wait. Once the trip has begun, the days already gone keep
 their outfits and their weather, the days to come are dressed only from what you packed, and the
 trip says the forecast changed only when it changed for the days still to come. A day on which you recorded
 another outfit than the plan's counts what you wore, once the trip is planned again. Today's day is marked
-**Today**, and Today itself dresses from the trip on that day (see Today).
+**Today**, and Today itself dresses from the trip on that day (see Today). On the day before the trip, what you
+have ticked is left out of Today's outfits; untick a piece to have it back.
 
 ## Closet
 
@@ -455,9 +464,9 @@ everyday sneakers, nor lounge pants for trousers. **You might like**: three thin
 not from a gap, each with the shop's picture (a hanger until there is one, and then its name has three lines), its
 name (which opens the shop's page in your browser), the shop and price, one line from the closet ("Goes
 with 6 of your pieces."), **Save** (onto the wishlist, with the product as its first find, so
-its price is checked once a day; the pick then says "On your wishlist", which opens the wish, with
-**Undo** on the same line), **More like this** (a look for more like it, which joins
-the card) and **×**, Not for me (gone for good, with Undo in its place; after three alike,
+its price is checked once a day; Save then reads **✓ Saved**, in the same place, and pressing it takes the
+pick off the wishlist again), **More like this** (a look for more like it, which joins
+the card, on a pick you saved too; the two are on one line and do not move when you save) and **×**, Not for me (gone for good, with Undo in its place; after three alike,
 such as three bright colours, it may offer a line for Your style, kept only when you tap Save
 to Your style, with Undo). The newest three show, older ones behind "See earlier ones". Before
 the first look it says what it does, with **Look now** (and what a look costs through the API

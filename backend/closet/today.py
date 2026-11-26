@@ -408,9 +408,20 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         if not planned["unavailable"]:   # every piece can be worn: the outfit as planned, with no place filled in
             others = sorted({r["id"] for r in rows} - set(plans.ids_of(plan["pieces"])) - set(ctx.leave_out))
             ctx = dataclasses.replace(ctx, leave_out=(*ctx.leave_out, *others))
-    # planned pieces kept out of the laundry's way: not offered when wearing them now leaves them in the laundry then
-    held = plans.held(rows, upcoming, on_day, wears.policy())
     asked = {ctx.build_around, *ctx.keep}
+    # the day before a trip, what you ticked as packed for it is in the suitcase (`savedtrips.packed_before`): not
+    # offered today, unless you asked for it (built around it, or kept it from an outfit you start from)
+    packed_for = None
+    if other is None:
+        from . import savedtrips  # here, not at the top: savedtrips reads the closet's rows from this module
+        found_packed = savedtrips.packed_before(conn, today_)
+        in_closet = {r["id"] for r in rows}
+        packed = [i for i in found_packed["ids"] if i in in_closet and i not in asked] if found_packed else []
+        if packed:
+            packed_for = {**found_packed["trip"], "ids": packed}
+            ctx = dataclasses.replace(ctx, leave_out=(*ctx.leave_out, *(i for i in packed if i not in ctx.leave_out)))
+    # planned pieces kept out of the laundry's way: not offered when wearing them now leaves them in the laundry then
+    held = plans.held(rows, upcoming, on_day, wears.policy(), wears.away_on(conn))
     unheld = None   # the request without the hold, for when holding the planned pieces back leaves no outfit
     if set(held) - asked:
         unheld = ctx
@@ -439,6 +450,8 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         context["plan"] = planned
     if held:
         context["held"] = held
+    if packed_for is not None:   # said once over the outfits, naming the trip (the way out is to untick it there)
+        context["packed_for"] = packed_for
     if other is not None:
         context["ahead"] = True
         if mild:

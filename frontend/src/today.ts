@@ -117,6 +117,9 @@ export interface DayContext {
   /** Today inside a saved trip (the server's `closet/tripday.py`): dressed at its place from what is in the bag, or set
    * aside for the day ("Not on this trip today"). Absent when no trip holds today, or your own words win over it. */
   on_trip?: OnTrip | null;
+  /** The day before a saved trip: the trip and the pieces ticked as packed for it that the outfits leave out (the
+   * server's `savedtrips.packed_before`; a piece you build around is not among them). Absent when none are. */
+  packed_for?: PackedFor | null;
   /** The hours dressed for, read from the forecast hour by hour; null when it has no hours or the day was typed. */
   detail?: DayDetail | null;
   /** The occasion the outfits were chosen for (on a trip day, the trip's when the request sent the kept one). */
@@ -125,6 +128,14 @@ export interface DayContext {
   note?: DayNote | null;
   /** Claude choosing the outfits; absent or null when Claude does not choose here (the demo closet, switched off). */
   stylist?: StylistState | null;
+}
+
+/** The day before a saved trip: what you ticked as packed for it, left out of today's outfits. */
+export interface PackedFor {
+  id: string;
+  /** The trip's place, as the owner chose it; null when it has none. */
+  place: string | null;
+  ids: string[];
 }
 
 /** The saved trip that holds today, as Today dresses from it. */
@@ -352,17 +363,26 @@ export { clock as timeOf, longDate, shortDate } from './wears';
 // days ahead (Dress for another day): written by the family too
 export { addDays, dayName, daysAhead, onDay, weekdayOf } from './wears';
 
-/** A piece's name inside a sentence: its first letter small, unless the name starts with a short form ("TV jacket"). */
-export function midName(n: string): string {
-  return n.length > 1 && n[1] === n[1].toLowerCase() ? n[0].toLowerCase() + n.slice(1) : n;
+/** A piece's name inside a sentence: its first letter small, unless the name starts with a short form ("TV jacket") or
+ * with the piece's own brand, compared without case and as a whole word ("Northfield sneaker" with the brand
+ * Northfield), as the server's sentences say it (`outfits._label`). With no brand, by the first rule alone. */
+export function midName(n: string, brand?: string | null): string {
+  return n.length > 1 && n[1] === n[1].toLowerCase() && !startsWithBrand(n, brand) ? n[0].toLowerCase() + n.slice(1) : n;
+}
+
+function startsWithBrand(n: string, brand: string | null | undefined): boolean {
+  const b = (brand ?? '').trim();
+  if (!b || n.slice(0, b.length).toLowerCase() !== b.toLowerCase()) return false;
+  const next = n.charAt(b.length);
+  return !next || !/[\p{L}\p{N}]/u.test(next);
 }
 
 /** The one sentence under an outing's button: "An outing for your tweed jacket: you love it and have not worn it since
  * 2 Oct." (or "since you added it on 2 Oct" for a piece never worn). */
-export function outingLine(o: Outing, name: string, today: string): string {
+export function outingLine(o: Outing, name: string, today: string, brand?: string | null): string {
   const it = o.plural ? 'them' : 'it';
   const when = sinceDay(o.since, today);
-  return `An outing for your ${midName(name)}: you ${o.rating} ${it} and have not worn ${it} `
+  return `An outing for your ${midName(name, brand)}: you ${o.rating} ${it} and have not worn ${it} `
     + `${o.never_worn ? `since you added ${it} on ${when}` : `since ${when}`}.`;
 }
 
@@ -385,6 +405,13 @@ export function tripTodayLine(t: Pick<OnTrip, 'place' | 'day' | 'days' | 'aside'
 /** In Where you are, before "Not on this trip today": why Today looks as it does. */
 export function tripSheetLine(t: Pick<OnTrip, 'place'>): string {
   return `You're on ${yourTrip(t)}, so Today dresses you there from what you packed.`;
+}
+
+/** The day before a trip, the one line over the outfits: what you ticked as packed for it is in the suitcase, so
+ * Today leaves it out ("Packed for Lisbon, so left out today.": the trip first, so a cut line still names it).
+ * Unticking a piece in the trip puts it back. */
+export function packedForLine(t: Pick<PackedFor, 'place'>): string {
+  return `Packed for ${shortPlace(t.place) || 'your trip'}, so left out today.`;
 }
 
 /** The occasion the chips show: the one the answer was dressed for while the occasion sent is the one this device kept

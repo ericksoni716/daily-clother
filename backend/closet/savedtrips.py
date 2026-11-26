@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 from . import db, plans, trips, tripweather, wears, weather, worn
 from .state import State
@@ -95,12 +95,30 @@ def in_bag(trip: dict, under_way: bool) -> list[str]:
     return carried
 
 
-def in_bag_on(conn, day: date) -> set[str]:
-    """What is in the suitcase on `day`: the bag of every trip whose days hold it (under way by then, so all it packed).
-    The laundry day at home does not wash it (`wears.catch_up`)."""
+def away_on(conn, day: date) -> bool:
+    """Whether a saved trip holds `day` (its first day to its last): you are away, so a laundry day then washes nothing
+    at home, neither the suitcase nor the basket (`wears.catch_up`, `wears.washed_since`; the owner's choice, 26
+    November)."""
     iso = day.isoformat()
-    return {pid for r in conn.execute("SELECT * FROM trips WHERE first_day <= ? AND last_day >= ?", (iso, iso))
-            for pid in in_bag(_row(r), under_way=True)}
+    return conn.execute("SELECT 1 FROM trips WHERE first_day <= ? AND last_day >= ? LIMIT 1", (iso, iso)).fetchone() is not None
+
+
+def packed_before(conn, today: date) -> dict | None:
+    """What is in the suitcase the day before a trip: the pieces ticked as packed for a saved trip whose first day is
+    tomorrow (the owner's local day, as `wears.today`), which Today leaves out (the owner's choice, 26 November).
+    {trip: {id, place}, ids: sorted}, or None when nothing is ticked for such a trip. Of two trips starting tomorrow,
+    the one saved first is named and the pieces of both count. Unticking a piece in the trip puts it back."""
+    tomorrow = (today + timedelta(days=1)).isoformat()
+    found, ids = None, set()
+    for r in conn.execute("SELECT * FROM trips WHERE first_day = ? ORDER BY created_at, id", (tomorrow,)):
+        trip = _row(r)
+        ticked = in_bag(trip, under_way=False)
+        if ticked:
+            ids.update(ticked)
+            if found is None:
+                place = trip["place"] if isinstance(trip["place"], dict) else {}
+                found = {"id": trip["id"], "place": place.get("name")}
+    return {"trip": found, "ids": sorted(ids)} if found else None
 
 
 def kept_days(conn, trip: dict, today: date, aside: bool = False) -> dict[str, dict]:

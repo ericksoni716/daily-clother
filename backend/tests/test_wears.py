@@ -421,6 +421,50 @@ def test_a_wear_for_a_trip_day_sent_after_a_laundry_day_of_the_trip_is_counted(c
     assert [laundry(client, i) for i in tees] == ["clean"] * len(tees)
 
 
+def home_tee(client, worn_on):
+    """A tee that stays at home (made after the trip was planned, so not in its bag), worn on `worn_on`: in the laundry."""
+    tee = kind(client, "tee", "home")
+    assert client.post(f"/api/items/{tee}/wears", json={"worn_on": worn_on.isoformat()}).status_code == 201
+    return tee
+
+
+def test_a_laundry_day_while_you_are_away_leaves_the_basket_at_home_in_the_laundry(client, trip_clock):
+    """The owner's choice, 26 November ("laundry day shouldn't wash the basket at home?"). A trip runs Friday to
+    Tuesday; the laundry day is Sunday. A tee worn at home on Thursday is in the laundry when you leave. Nobody is
+    home on Sunday, so it is still in the laundry on Monday and on Wednesday, and the Sunday after the trip washes it."""
+    friday = TODAY + timedelta(days=1)
+    trip_closet(client)
+    make_trip(client, friday, friday + timedelta(days=4))
+    tee = home_tee(client, TODAY)
+    assert laundry(client, tee) == "laundry"
+    trip_clock["day"] = friday + timedelta(days=3)   # Monday: the trip is under way, and Sunday has gone by
+    assert laundry(client, tee) == "laundry", "the laundry day at home washed the basket while you were away"
+    trip_clock["day"] = friday + timedelta(days=5)   # Wednesday: home again, no laundry day since you came back
+    assert laundry(client, tee) == "laundry"
+    trip_clock["day"] = friday + timedelta(days=9)   # the Sunday after the trip washes it
+    assert laundry(client, tee) == "clean"
+
+
+def test_a_wear_at_home_sent_after_a_laundry_day_you_were_away_for_is_counted(client, trip_clock):
+    """The same trip. Thursday's tee is recorded on Monday: Sunday washed nothing, so the wear counts and the tee goes
+    in the laundry rather than being taken as worn before a wash."""
+    friday = TODAY + timedelta(days=1)
+    trip_closet(client)
+    make_trip(client, friday, friday + timedelta(days=4))
+    tee = kind(client, "tee", "home")
+    trip_clock["day"] = friday + timedelta(days=3)
+    assert client.post(f"/api/items/{tee}/wears", json={"worn_on": TODAY.isoformat()}).status_code == 201
+    assert laundry(client, tee) == "laundry"
+    assert client.get(f"/api/items/{tee}").json()["wears_since_wash"] == 1
+
+
+def test_with_no_trip_the_laundry_day_washes_the_basket_at_home_as_before(client, trip_clock):
+    tee = home_tee(client, TODAY)
+    assert laundry(client, tee) == "laundry"
+    trip_clock["day"] = TODAY + timedelta(days=4)   # Monday: Sunday washed it
+    assert laundry(client, tee) == "clean"
+
+
 def test_a_wear_before_a_trip_is_still_washed_by_a_laundry_day_at_home(client):
     """The other side of the rule above: a piece not in any trip's bag on the laundry day was in the basket at home,
     so a wear filled in for a day before that laundry day is behind its wash, as before."""

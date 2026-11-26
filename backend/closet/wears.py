@@ -107,8 +107,8 @@ def washed_since(conn, row, day: date) -> bool:
     laundry day: the piece goes in by itself, the first laundry day after `day` has come (a wash on the day itself is
     at its first minute, before the wear), and its wears in the week before that laundry day, this one included,
     reached its count, so it was in the basket. Wears carried over from earlier weeks are not followed. A laundry day
-    on which the piece was in the bag of a trip that holds that day did not wash it (it was in the suitcase, as
-    `catch_up` has it): the wash is the first laundry day it was not, and the wears counted run up to that one."""
+    on a day of a saved trip washed nothing (you were away, as `catch_up` has it): the wash is the first laundry day
+    after `day` that you were home for, and the wears counted run up to that one."""
     washed = None
     if row["washed_at"]:
         washed = min(_local_date(row["washed_at"]), today())   # a wash is never later than today
@@ -118,11 +118,8 @@ def washed_since(conn, row, day: date) -> bool:
     policy = _policy()
     if not cap or policy is None or policy.day is None:
         return False
-    wash = next_laundry_day(policy.day, day)
-    start = wash - timedelta(days=7)
-    from . import savedtrips  # it reads this module for the day
-    while wash <= today() and row["id"] in savedtrips.in_bag_on(conn, wash):
-        wash = next_laundry_day(policy.day, wash)
+    start = next_laundry_day(policy.day, day) - timedelta(days=7)
+    wash = next_wash(policy.day, day, away_on(conn), until=today())
     if wash > today():
         return False
     start = max(start, washed) if washed else start
@@ -206,13 +203,36 @@ def next_laundry_day(day: int, on: date) -> date:
     return on + timedelta(days=(day - on.weekday()) % 7 or 7)
 
 
+MAX_SKIPPED_WASHES = 60   # laundry days passed over for trips before giving up looking (a year of weeks away, more)
+
+
+def next_wash(day: int, on: date, away: Callable[[date], bool] | None = None, until: date | None = None) -> date:
+    """The first laundry day after `on` that the laundry is done at home: a laundry day on a day of a saved trip
+    (`away`, as `away_on` gives it) washes nothing, so the wash is the first one after the trip. `until`: stop looking
+    past that date (the answer is then after it)."""
+    wash = next_laundry_day(day, on)
+    for _ in range(MAX_SKIPPED_WASHES):
+        if away is None or (until is not None and wash > until) or not away(wash):
+            break
+        wash = next_laundry_day(day, wash)
+    return wash
+
+
+def away_on(conn) -> Callable[[date], bool]:
+    """Whether a saved trip holds a day, for `next_wash` (`savedtrips.away_on`)."""
+    from . import savedtrips  # it reads this module for the day
+    return lambda d: savedtrips.away_on(conn, d)
+
+
 _caught_up: dict[str, tuple] = {}   # database path -> (laundry day, its last date), once the washing is done for it
 
 
 def catch_up(conn, key: str = "") -> int:
     """Everything that went in the laundry before the last laundry day is clean (washed that day); a piece with no
-    date of going in (the demo closet's, made that way) waits for the owner, and so does one in the bag of a trip under
-    way on the laundry day (it is in the suitcase): it waits for the first laundry day after the trip. Returns how many
+    date of going in (the demo closet's, made that way) waits for the owner. A laundry day on a day of a saved trip
+    washes nothing, neither the suitcase nor the basket at home (you are away; the owner's choice, 26 November): the
+    first laundry day after the trip washes both, and **All clean** on the Closet is how you say you did the laundry
+    on another day. Returns how many
     pieces came out. Cheap to call often: once caught up for a laundry date, nothing is looked at until the next one
     (what goes in after it waits for the next laundry day)."""
     policy = _policy()
@@ -228,15 +248,15 @@ def catch_up(conn, key: str = "") -> int:
                     (before,)).fetchone() is None:
         _caught_up[key] = mark
         return 0
-    from . import savedtrips  # it reads this module for the day
-    packed = sorted(savedtrips.in_bag_on(conn, washed))
-    unless = f" AND id NOT IN ({', '.join('?' * len(packed))})" if packed else ""
+    if away_on(conn)(washed):   # nobody was home to do it
+        _caught_up[key] = mark
+        return 0
     try:
         conn.execute("BEGIN IMMEDIATE")
         t = db.now()
         n = conn.execute("UPDATE items SET laundry = 'clean', wears_since_wash = 0, washed_at = ?, laundry_at = NULL, "
-                         f"laundry_by = NULL, updated_at = ? WHERE laundry = 'laundry' AND laundry_at < ?{unless}",
-                         (t, t, before, *packed)).rowcount
+                         "laundry_by = NULL, updated_at = ? WHERE laundry = 'laundry' AND laundry_at < ?",
+                         (t, t, before)).rowcount
         conn.execute("COMMIT")
     except Exception:
         if conn.in_transaction:

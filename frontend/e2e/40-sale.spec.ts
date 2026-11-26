@@ -73,7 +73,7 @@ test.describe('on sale now', () => {
 
     // Save: onto the wishlist, its price before kept so the wish shows the drop
     await coat.getByRole('button', { name: 'Save' }).click();
-    await expect(coat.getByRole('link', { name: 'On your wishlist' })).toBeVisible();
+    await expect(coat.getByRole('button', { name: /^Saved: take/ })).toBeVisible();
     const wishes = (await (await page.request.get(backend.url + '/api/wishlist')).json()).wishes;
     const made = wishes.find((w: { name: string }) => w.name.startsWith('Double-faced wool'));
     const finds = (await (await page.request.get(`${backend.url}/api/wishlist/${made.id}/finds`)).json()).finds;

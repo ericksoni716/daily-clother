@@ -215,7 +215,8 @@ python -m pytest -q -n auto -m slow       # only the slow ones
 Where they run in CI:
 
 - **On every pull request and push to `main`**, the Linux and Windows backend jobs run
-  `-m "not slow"`.
+  `-m "not slow"`. The required check waits for both, so a pull request does not merge with
+  the Windows job red.
 - **When a pull request touches the code they cover** (`closet/patterns/`,
   `closet/drawing/trace.py`, `traced.py`, `drawn.py`, `drawnside.py`, `turned.py`,
   `closet/tagger/shoedrawing.py`, the made-up shoe photos in `tests/shoe_photos.py`, a file

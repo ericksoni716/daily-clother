@@ -28,9 +28,11 @@ env:
 # owner's Actions storage quota is exhausted.
 
 jobs:
-  # Four jobs side by side; the job named "Lint and tests (Linux)" at the end
-  # is the one branch protection requires, and it passes only if all four do.
-  # The Windows job runs beside them and is not part of that check (yet).
+  # Five jobs side by side; the job named "Lint and tests (Linux)" at the end
+  # is the one branch protection requires, and it passes only if all five do,
+  # the Windows job included (the owner's choice, 26 November). Its name stays
+  # "Lint and tests (Linux)" although it now waits for Windows too: branch
+  # protection names that check, and no agent can change the setting.
   # The backend tests marked `slow` are left out of the backend and Windows
   # jobs; the `slow` job runs them when their code changes, and nightly.yml
   # runs everything every night.
@@ -136,9 +138,10 @@ jobs:
         run: npm run e2e
 
   # The backend tests on Windows, where the owner's hub runs: the Windows-only code (Credential Manager, the
-  # start-at-login registry entry, the tray, starting `claude.exe`) is only exercised here. Not one of the
-  # required jobs yet, and no browser tests. PYTHONUTF8 is off, as in the packaged program, so text that is
-  # read or written without saying UTF-8 fails here the way it would on the owner's PC.
+  # start-at-login registry entry, the tray, starting `claude.exe`) is only exercised here. The required check
+  # below waits for it, so a pull request does not merge with it red. No browser tests. PYTHONUTF8 is off, as in
+  # the packaged program, so text that is read or written without saying UTF-8 fails here the way it would on the
+  # owner's PC.
   windows:
     name: Backend tests (Windows)
     runs-on: windows-latest
@@ -215,16 +218,16 @@ jobs:
   test:
     name: Lint and tests (Linux)
     if: always()
-    needs: [backend, web, browser, slow]
+    needs: [backend, web, browser, windows, slow]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: All the jobs passed
         env:
-          RESULTS: ${{ needs.backend.result }} ${{ needs.web.result }} ${{ needs.browser.result }}
+          RESULTS: ${{ needs.backend.result }} ${{ needs.web.result }} ${{ needs.browser.result }} ${{ needs.windows.result }}
           SLOW: ${{ needs.slow.result }}
         run: |
-          echo "backend, web, browser: $RESULTS; slow image tests: $SLOW"
+          echo "backend, web, browser, windows: $RESULTS; slow image tests: $SLOW"
           for r in $RESULTS; do [ "$r" = success ] || { echo "::error::a job did not pass ($r)"; exit 1; }; done
           # the slow job passes when it has nothing to test; were it ever skipped as a whole, that is not a failure
           case "$SLOW" in success|skipped) ;; *) echo "::error::the slow image tests did not pass ($SLOW)"; exit 1;; esac

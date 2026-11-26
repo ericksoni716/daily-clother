@@ -44,8 +44,12 @@ a.pick-name:hover { text-decoration: underline; }
 .pick-refuse:hover { color: var(--ink); background: var(--surface-2); }
 .pick-refuse:disabled { cursor: default; opacity: 0.5; }
 .pick-refuse svg { width: 18px; height: 18px; }
-.pick-actions { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* the card's whole width, under the picture too (the words beside it are already taller than it), so Save and More like
+   this are one line from 320 in CI's wider font */
+.pick-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .pick-actions .btn { min-height: var(--tap); }
+/* Save and "✓ Saved" take one width, so More like this holds still when it changes */
+.pick-actions .pick-save { min-width: 6.5rem; padding-inline: var(--space-3); }   /* "✓ Saved": 92px in Inter, 102 in CI's wider font */
 .pick-refused { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .pick-refused p { margin: 0; color: var(--ink-2); font-size: var(--text-sm); }
 .picks-offer { display: grid; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius-sm); background: var(--surface-2); }
@@ -57,9 +61,6 @@ a.pick-name:hover { text-decoration: underline; }
    font, so the room is the middle of that and what is below moves by a line at most, not by the card. */
 .picks-room { display: grid; gap: var(--space-3); }
 .picks-room.is-looking { min-height: calc(3 * 178px + 2 * var(--space-4)); align-content: start; }
-/* saved: "On your wishlist" and Undo on one line, as a gap's card has them */
-.pick-saved { grid-column: 1 / -1; flex-wrap: nowrap; align-items: center; justify-content: flex-end; }
-.pick-saved .btn { padding: 0 var(--space-3); }
 .pick-wished { color: var(--accent); }
 .pick-wished svg { width: 16px; height: 16px; }
 .picks-room:empty { display: none; }

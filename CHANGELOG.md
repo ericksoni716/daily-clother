@@ -10,6 +10,18 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+### Changed
+
+- **The day before a trip.** What you ticked as packed for a trip that starts tomorrow is left out of
+  Today's outfits, and one line over them says so and opens the trip. Building an outfit around a packed
+  piece still works. To have a piece back, untick it in the trip.
+- **A laundry day while you are away.** A laundry day that falls on a day of a trip you saved now washes
+  nothing: what you left in the laundry at home waits, like your suitcase, for the first laundry day after
+  the trip. If you did the laundry on another day, **All clean** in the closet's laundry view says so.
+- **More like this on a pick you saved.** In You might like, Save on a pick now turns into **✓ Saved** in
+  the same place, and More like this stays beside it. Press ✓ Saved to take the pick off your wishlist again.
+  Both buttons are on one line on every phone, and nothing moves when you save.
+
 ### Fixed
 
 - **A page that could not be read is no longer "Sold out".** When a shop turns Nines away and Claude
@@ -30,6 +42,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   already on the wish. For a wish you made from a link, it looks for the same product at other shops
   first, then for pieces much like it. A wish still called by the shop's address asks for a name first
   instead of searching for the address.
+- **A brand keeps its capital in a sentence.** A piece whose name starts with its brand (as you saved it on
+  the piece's page) is now written as you wrote it after "your" or "the", so a find's card and Today's
+  lines say "your Northfield sneaker", not "your northfield sneaker".
 
 ## 0.16.0
 

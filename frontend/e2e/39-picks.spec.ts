@@ -1,5 +1,6 @@
 import { axeViolations } from './a11y';
-import { expect, test } from './fixtures';
+import type { Page } from '@playwright/test';
+import { expect, hitArea, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // Its own backend: a look for things you might like is a stand-in (tests/e2e_backend.py, FakeShop.picks), so nothing
@@ -32,6 +33,56 @@ test.describe('you might like', () => {
     await expect(card.getByTestId('picks-look')).toBeVisible();
     await page.unroute('**/api/picks');
   });
+
+  for (const [width, theme] of [[320, 'light'], [320, 'dark'], [375, 'light'], [375, 'dark']] as const) {
+    test(`a saved pick offers More like this again, at ${width} wide (${theme}): one tap, nothing too wide, nothing below moves`, async ({ page }) => {
+      // the owner's choice of 26 November: More like this comes back on a pick you saved. The card's answers are stood in
+      // for (a made-up shop and products), so no look is needed
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize({ width, height: 700 });
+      const more = await standInPicks(page);
+      await page.goto(backend.url + '/wardrobe');
+      const picks = page.locator('section.picks').getByTestId('pick');
+      await expect(picks).toHaveCount(3, { timeout: 30_000 });
+      const first = picks.first();
+      const below = async () => picks.nth(1).evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+      const row = first.locator('.pick-actions');
+      const again = first.getByRole('button', { name: 'More like this' });
+      // where everything is: the row's height, More like this's place, and the next pick's
+      const where = async () => ({ row: (await row.boundingBox())!.height, more: await again.boundingBox(), below: await below() });
+      const fits = async () => {
+        const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(overflow).toBeLessThanOrEqual(0);
+        for (const el of await row.locator('.btn').all()) {
+          expect(await el.evaluate((b) => b.scrollWidth <= b.clientWidth + 1)).toBe(true);   // no word cut inside a button
+          expect((await hitArea(el)).height).toBeGreaterThanOrEqual(44);
+        }
+        const tops = await row.locator('.btn').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+        expect(new Set(tops).size).toBe(1);   // one line
+      };
+      await first.scrollIntoViewIfNeeded();
+      const before = await where();
+      await fits();
+      await page.screenshot({ path: test.info().outputPath(`pick-${width}-${theme}.png`) });
+      await first.getByRole('button', { name: 'Save' }).click();
+      // Save becomes "✓ Saved" in its place; pressing it takes the pick off the wishlist, as Undo did
+      const saved = first.getByRole('button', { name: `Saved: take Example field jacket in waxed cotton off your wishlist` });
+      await expect(saved).toHaveText('Saved');
+      await expect(saved).toHaveAttribute('title', 'On your wishlist. Press to take it off.');
+      await expect(first.getByRole('status')).toHaveText('On your wishlist.');
+      expect(await where()).toEqual(before);   // nothing moved: the row, More like this, the next pick
+      await fits();
+      await page.screenshot({ path: test.info().outputPath(`saved-pick-${width}-${theme}.png`) });
+      await saved.click();
+      await expect(first.getByRole('button', { name: 'Save' })).toBeVisible();
+      expect(await where()).toEqual(before);
+      await first.getByRole('button', { name: 'Save' }).click();
+      await expect(saved).toBeVisible();
+      await again.click();
+      await expect.poll(() => more.length).toBe(1);
+      expect(more[0]).toBe('p1');
+    });
+  }
 
   test('look now, save one onto the wishlist, and turn one down with Undo', async ({ page }) => {
     test.setTimeout(300_000);
@@ -76,21 +127,25 @@ test.describe('you might like', () => {
     expect(await axeViolations(page)).toEqual([]);
 
     // Save: onto the wishlist, with the product as its first find
+    const actions = coat.locator('.pick-actions');
+    const unsavedHeight = await actions.evaluate((el) => el.getBoundingClientRect().height);
     await coat.getByRole('button', { name: 'Save' }).click();
-    await expect(coat.getByRole('link', { name: 'On your wishlist' })).toBeVisible();
+    const savedButton = coat.getByRole('button', { name: /^Saved: take/ });
+    await expect(savedButton).toHaveText('Saved');
     const wishes = (await (await page.request.get(backend.url + '/api/wishlist')).json()).wishes;
     const made = wishes.find((w: { name: string }) => w.name.startsWith('Water-repellent cotton gabardine'));
     expect(made).toBeTruthy();
     const finds = (await (await page.request.get(`${backend.url}/api/wishlist/${made.id}/finds`)).json()).finds;
     expect(finds.map((f: { price: number }) => f.price)).toEqual([320]);
-    // saved: "On your wishlist" and Undo on one line, as a gap's card (the buttons stacked, with no Undo: 43)
-    const actions = coat.locator('.pick-actions');
-    expect(await actions.evaluate((el) => el.getBoundingClientRect().height)).toBeLessThanOrEqual(48);
-    await actions.getByRole('button', { name: /^Undo/ }).click();
+    // saved (26 November): Save becomes "✓ Saved" in its place, with More like this beside it as before, on the same one
+    // line, so the row is as tall; pressing "✓ Saved" takes it off the wishlist, as Undo did
+    await expect(actions.getByRole('button', { name: 'More like this' })).toBeVisible();
+    expect(await actions.evaluate((el) => el.getBoundingClientRect().height)).toBe(unsavedHeight);
+    await savedButton.click();
     await expect(coat.getByRole('button', { name: 'Save' })).toBeVisible();
     expect((await (await page.request.get(backend.url + '/api/wishlist')).json()).wishes.map((w: { id: string }) => w.id)).not.toContain(made.id);
     await coat.getByRole('button', { name: 'Save' }).click();
-    await expect(coat.getByRole('link', { name: 'On your wishlist' })).toBeVisible();
+    await expect(savedButton).toBeVisible();
 
     // Not for me: gone, with Undo in its place
     const jacket = picks.filter({ hasText: 'Garment-dyed' });
@@ -103,3 +158,30 @@ test.describe('you might like', () => {
     await expect(picks.nth(1)).toContainText('Garment-dyed');
   });
 });
+
+/** Three made-up picks, the first saved on Save, and the ids More like this was asked for. */
+async function standInPicks(page: Page): Promise<string[]> {
+  const pick = (id: string, name: string) => ({
+    id, kind: 'taste', source: 'look', name, shop: 'Example Shop', url: `https://shop.example/${id}`, image_url: null,
+    price: 120, price_before: null, currency: 'USD', piece: { category: 'jacket' }, verdict: 'gap',
+    verdict_words: 'Fills a gap in your closet.', pairs: 4, found_at: '2026-11-26T09:00:00Z', state: 'shown', wish_id: null,
+  });
+  const answer = (saved: boolean) => ({
+    picks: [{ ...pick('p1', 'Example field jacket in waxed cotton'), ...(saved ? { state: 'saved', wish_id: 'w1' } : {}) },
+      pick('p2', 'Example chore jacket in heavy canvas'), pick('p3', 'Example quilted liner jacket')],
+    run: null, last: { source: 'look', at: '2026-11-26T09:00:00Z', found: 3 }, looked: true, weekly: true, enough: true,
+    demo: false, estimate: { api: false, look_usd: 0 }, offer: null, shops: 1,
+  });
+  let saved = false;
+  const asked: string[] = [];
+  await page.route('**/api/picks', (route) => (route.request().method() === 'GET' ? route.fulfill({ json: answer(saved) }) : route.fallback()));
+  await page.route('**/api/picks/*/save', (route) => {
+    saved = route.request().method() === 'POST';
+    return route.fulfill({ json: { ...answer(saved), ...(saved ? { wish_id: 'w1' } : {}) } });
+  });
+  await page.route('**/api/picks/*/more', (route) => {
+    asked.push(decodeURIComponent(route.request().url().split('/').slice(-2)[0]));
+    return route.fulfill({ json: answer(saved) });
+  });
+  return asked;
+}

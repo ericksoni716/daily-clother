@@ -104,12 +104,17 @@ export function planLine(day: string, today: string, note: string | null): strin
  * GANT polo". */
 /** A piece that had to be swapped: its name, and where it is when it is away, with its verb, as the server says it
  * ("is at the cleaner's until Friday 27 November"). */
-export interface Swapped { name: string; away?: string | null }
+export interface Swapped { name: string; away?: string | null; brand?: string | null }
+
+/** A piece named in a sentence: its name, and its brand when the page has it (a name that starts with it keeps it). */
+export interface Named { name: string; brand?: string | null }
+
+const nameIn = (n: string | Named) => (typeof n === 'string' ? midName(n) : midName(n.name, n.brand));
 
 /** Where the away pieces are, as the start of a sentence: "Your navy blazer is at the cleaner's until Friday 27
  * November", "Your navy blazer is at the cleaner's and your jeans are lent out". */
 export function awayClause(pieces: Swapped[]): string {
-  const parts = pieces.filter((p) => p.away).map((p) => `your ${midName(p.name)} ${p.away}`);
+  const parts = pieces.filter((p) => p.away).map((p) => `your ${nameIn(p)} ${p.away}`);
   const said = joinWords(parts);
   return said ? said[0].toUpperCase() + said.slice(1) : '';
 }
@@ -121,7 +126,7 @@ export function swapLine(given: Swapped[], day: string, today: string): string |
   if (!given.length) return null;
   const takes = (n: number) => (n === 1 ? 'another piece takes its place' : 'other pieces take their places');
   const away = given.filter((p) => p.away);
-  const rest = given.filter((p) => !p.away).map((p) => midName(p.name));
+  const rest = given.filter((p) => !p.away).map(nameIn);
   const when = day === today ? 'today' : 'by then';
   const lines = [];
   if (away.length) lines.push(`${awayClause(away)}, so ${takes(away.length)}.`);
@@ -131,9 +136,9 @@ export function swapLine(given: Swapped[], day: string, today: string): string |
 
 /** A day ahead that counts on pieces away now being back (expected back before it, as a trip counts them): "This
  * counts on your navy blazer being back by then."; null when it counts on none. */
-export function countsOnLine(names: string[]): string | null {
+export function countsOnLine(names: (string | Named)[]): string | null {
   if (!names.length) return null;
-  return `This counts on ${joinWords(names.map((n) => `your ${midName(n)}`))} being back by then.`;
+  return `This counts on ${joinWords(names.map((n) => `your ${nameIn(n)}`))} being back by then.`;
 }
 
 /** In a planned piece's sheet: why Today does not offer it now. */
@@ -143,11 +148,11 @@ export function heldLine(day: string, today: string): string {
 
 /** Under Today's outfit, once, when holding planned pieces back would have left no outfit and it uses them: "This
  * outfit uses your white tee, which you planned for Saturday." */
-export function heldOfferedLine(pieces: { name: string; day: string }[], today: string): string | null {
+export function heldOfferedLine(pieces: (Named & { day: string })[], today: string): string | null {
   if (!pieces.length) return null;
   const days = new Set(pieces.map((p) => p.day));
   const when = days.size === 1 ? plannedFor(pieces[0].day, today).replace('Planned', 'which you planned') : 'which you planned for days ahead';
-  return `This outfit uses ${joinWords(pieces.map((p) => `your ${midName(p.name)}`))}, ${when}.`;
+  return `This outfit uses ${joinWords(pieces.map((p) => `your ${nameIn(p)}`))}, ${when}.`;
 }
 
 /** A day ahead inside a saved trip. */

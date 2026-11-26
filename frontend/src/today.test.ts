@@ -3,7 +3,7 @@ import {
   askedOf, buildAroundPiece, occasionShown,
   addDays, dayName, daysAhead, onDay, weekdayOf,
   addFirstTitle, canDress, closetKey, dayParts, midName, newestOn, outingLine, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
-  parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, tripSheetLine, tripTodayLine, whatToAddFirst, wornOrder,
+  parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, tripSheetLine, tripTodayLine, packedForLine, whatToAddFirst, wornOrder,
   type DayContext, type Outfit, type SavedOutfits, withWorn, wornNow, type WornToday, shortDate,
 } from './today';
 import type { ItemSummary } from './types';
@@ -308,6 +308,18 @@ describe('Give it an outing', () => {
       .toBe('An outing for your navy coat: you love it and have not worn it since 20 Dec 2025.');
     expect(midName('MA-1 bomber')).toBe('MA-1 bomber');
   });
+
+  it('keeps a brand\'s capital when the name starts with the piece\'s own brand, as the server does', () => {
+    expect(midName('Northfield sneaker', 'Northfield')).toBe('Northfield sneaker');
+    expect(midName('Northfield sneaker', 'NORTHFIELD')).toBe('Northfield sneaker');   // compared without case
+    expect(midName('A.Example sweater', 'A.Example')).toBe('A.Example sweater');
+    expect(midName('Navy coat', 'Northfield')).toBe('navy coat');
+    expect(midName('Northfield sneaker', 'North')).toBe('northfield sneaker');   // the brand is a whole word of it
+    expect(midName('Northfield sneaker')).toBe('northfield sneaker');   // no brand: as before
+    expect(midName('Northfield sneaker', null)).toBe('northfield sneaker');
+    expect(outingLine(outing, 'Northfield sneaker', '2026-11-23', 'Northfield'))
+      .toBe('An outing for your Northfield sneaker: you love it and have not worn it since 2 Oct.');
+  });
 });
 
 describe('building around a piece from its page', () => {
@@ -341,6 +353,14 @@ describe('a trip covers today', () => {
     for (const line of [tripTodayLine(trip), tripTodayLine({ ...trip, aside: true }), tripSheetLine(trip)]) {
       expect(line).not.toMatch(/engine|model|token|tag|feed|queue|sync|!/i);
     }
+  });
+});
+
+describe('the day before a trip', () => {
+  it('says once that what you packed is left out, naming the trip by its place', () => {
+    expect(packedForLine({ place: 'Lisbon, Portugal' })).toBe('Packed for Lisbon, so left out today.');
+    expect(packedForLine({ place: null })).toBe('Packed for your trip, so left out today.');
+    expect(packedForLine({ place: 'Lisbon' })).not.toMatch(/engine|model|token|tag|feed|queue|sync|!/i);
   });
 });
 

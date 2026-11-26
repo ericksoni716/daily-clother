@@ -443,13 +443,25 @@ def _words(text: object) -> tuple[str, ...]:
 
 
 def _label(item: dict) -> str:
+    """A piece's name as said after "your" or "the": its first letter lowered, unless its second is a capital ("USB
+    charger") or the name starts with the piece's own brand, compared without case ("Northfield sneaker" with the brand
+    Northfield: a brand keeps its capital). With no name, its colour and kind."""
     name = str(item.get("name") or "").strip()
     if not name:
         parts = [item.get("color"), item.get("category")]
         name = " ".join(str(p).replace("_", " ") for p in parts if p) or "item"
-    if len(name) > 1 and not name[1].isupper():
+    if len(name) > 1 and not name[1].isupper() and not _starts_with_brand(name, item.get("brand")):
         name = name[0].lower() + name[1:]
     return name
+
+
+def _starts_with_brand(name: str, brand: object) -> bool:
+    """Whether the name starts with the brand as a whole word or words, compared without case."""
+    brand = brand.strip() if isinstance(brand, str) else ""
+    if not brand or name[:len(brand)].casefold() != brand.casefold():
+        return False
+    rest = name[len(brand):]
+    return not rest or not rest[0].isalnum()
 
 
 def _rgb(hex_value: object) -> tuple[float, float, float] | None:

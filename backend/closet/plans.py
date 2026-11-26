@@ -179,11 +179,13 @@ def remove(conn, day_value: object, today: date | None = None) -> dict:
 
 
 # ------------------------------------------------------------------ kept out of the laundry's way
-def stays_in_laundry(row: Mapping, wear_day: date, plan_day: date, policy: wears.Policy | None) -> bool:
+def stays_in_laundry(row: Mapping, wear_day: date, plan_day: date, policy: wears.Policy | None,
+                     away: Callable[[date], bool] | None = None) -> bool:
     """Whether wearing the piece on `wear_day` would leave it in the laundry on `plan_day`, by the laundry's own rule:
     it goes in once its wears since the wash reach its kind's count, and comes out on the first laundry day after it
-    went in (what went in before the laundry day began is washed that day). Never with the laundry off, for a kind
-    that never goes in by itself (outer layers, shoes, accessories), or with wears to spare."""
+    went in that you are home for (what went in before the laundry day began is washed that day; a laundry day on a
+    day of a saved trip, `away`, washes nothing: `wears.next_wash`). Never with the laundry off, for a kind that never
+    goes in by itself (outer layers, shoes, accessories), or with wears to spare."""
     if policy is None:
         return False
     cap = policy.caps.get(row.get("category"))
@@ -193,13 +195,14 @@ def stays_in_laundry(row: Mapping, wear_day: date, plan_day: date, policy: wears
         return False
     if policy.day is None:
         return True   # nothing comes out by itself: it would wait for the owner
-    return wears.next_laundry_day(policy.day, wear_day) > plan_day
+    return wears.next_wash(policy.day, wear_day, away, until=plan_day) > plan_day
 
 
 def held(rows: Iterable[Mapping], plans: Iterable[Mapping], wear_day: date,
-         policy: wears.Policy | None) -> dict[str, str]:
+         policy: wears.Policy | None, away: Callable[[date], bool] | None = None) -> dict[str, str]:
     """The planned pieces not to offer on `wear_day`: item id -> the day it is planned for (the soonest, when it is in
-    more than one plan). Only plans for days after `wear_day` count."""
+    more than one plan). Only plans for days after `wear_day` count. `away`: whether a saved trip holds a day
+    (`wears.away_on`), when no laundry is done at home."""
     by_id = {r["id"]: r for r in rows}
     out: dict[str, str] = {}
     for plan in sorted(plans, key=lambda p: p["day"]):
@@ -208,7 +211,7 @@ def held(rows: Iterable[Mapping], plans: Iterable[Mapping], wear_day: date,
             continue
         for pid in ids_of(plan["pieces"]):
             row = by_id.get(pid)
-            if row is not None and pid not in out and stays_in_laundry(row, wear_day, day, policy):
+            if row is not None and pid not in out and stays_in_laundry(row, wear_day, day, policy, away):
                 out[pid] = plan["day"]
     return out
 

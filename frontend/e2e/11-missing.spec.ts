@@ -11,6 +11,13 @@ async function undoDecisions(page: Page) {
   for (const g of answer.gaps ?? []) if (g.state === 'hidden') await page.request.delete(`/api/gaps/${g.id}/hide`);
 }
 
+// before each test too, not only after: a test that fails starts a new worker with a fresh backend, whose demo closet
+// still has its own wishes, so a test after it must not count on the one before having cleared them
+test.beforeEach(async ({ page }) => {
+  await undoDecisions(page);
+  await page.request.post('/api/profile', { data: { profile: 'main' } });
+});
+
 test.afterEach(async ({ page, context }) => {
   await context.setOffline(false);
   await undoDecisions(page);

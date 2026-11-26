@@ -479,3 +479,57 @@ def test_a_link_described_before_kinds_is_described_once_more_and_judged_again(c
     assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
     settle(client, wid)
     assert len(fake_shop.described) == asked + 1
+
+
+# ------------------------------------------------------------------ 5. a search finds menswear, not what is watched
+def test_a_womens_or_childrens_product_is_dropped():
+    assert shop.clean_find(product(for_men=False)) is None
+    assert shop.clean_find(product(for_men=True)) is not None
+    raw = product().model_dump()
+    raw.pop("for_men")
+    assert shop.clean_find(raw) is not None   # absent counts as for men
+    assert shop.clean_sale({**product(for_men=False).model_dump(), "price_before": 200.0}) is None
+    for prompt in (shopping.find_prompt({"name": "A coat"}), shopping.picks_prompt({}), shopping.sale_prompt({})):
+        assert shopping.FOR_MEN in prompt
+    assert "women's section" in shopping.FOR_MEN and "Check the page" in shopping.FOR_MEN
+
+
+def test_the_search_is_told_the_pages_already_kept_and_never_given_them_again(client, fake_shop, pages):
+    from .test_shop import find_some, wish
+    wid = wish(client)
+    find_some(client, wid)
+    assert client.post(f"/api/wishlist/{wid}/link", json={"url": SHIRT}).status_code == 202
+    settle(client, wid)
+    fake_shop.finds = [product(name="Linen camp-collar shirt", url=SHIRT, price=1.0), product(url="https://shop.example/new")]
+    find_some(client, wid)
+    asked = fake_shop.calls[-1][1]
+    assert {k["url"] for k in asked["kept"]} == {SHIRT, "https://shop.example/coat", "https://other.example/p/2"}
+    prompt = shopping.find_prompt(asked)
+    assert "on their list, so never give them again" in prompt and f"- Linen camp-collar shirt at Example Shop: {SHIRT}" in prompt
+    linked = next(f for f in client.get(f"/api/wishlist/{wid}/finds").json()["finds"] if f["url"] == SHIRT)
+    assert linked["link"] is True and linked["price"] == 68.0   # a page watched as a link is not taken over
+    many = [{"name": f"Coat {n}", "shop": "Example Shop", "url": f"https://shop.example/{n}"} for n in range(20)]
+    assert shopping.find_prompt({"name": "A coat", "kept": many}).count("https://shop.example/") == shop.PRICE_FINDS_MAX
+
+
+def test_find_more_on_a_wish_made_from_a_link_looks_for_it_elsewhere_then_for_its_like(client, fake_shop):
+    fake_shop.whole = coat_read(garment="chore_coat")
+    wid = add_link(client, GONE)
+    fake_shop.finds = []
+    assert client.post(f"/api/wishlist/{wid}/find").status_code == 202
+    settle(client, wid)
+    asked = fake_shop.calls[-1][1]
+    assert asked["from_link"]["name"] == "Felted wool chore coat" and asked["from_link"]["piece"]["kind"] == "chore_coat"
+    prompt = shopping.find_prompt(asked)
+    assert "already found this product at Example Shop for 268 USD" in prompt
+    assert "other shops where it costs less or is in stock" in prompt and "much like it" in prompt
+    assert "- kind of garment: chore coat" in prompt and "- colour: grey" in prompt
+    assert "(nothing more than the name)" not in prompt
+    # a wish added by hand, with a link sent to it later, is still searched for by its own words
+    from .test_shop import wish
+    other = wish(client)
+    assert client.post(f"/api/wishlist/{other}/link", json={"url": SHIRT}).status_code == 202
+    settle(client, other)
+    assert client.post(f"/api/wishlist/{other}/find").status_code == 202
+    settle(client, other)
+    assert fake_shop.calls[-1][1].get("from_link") is None

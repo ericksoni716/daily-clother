@@ -102,6 +102,9 @@ class Found(BaseModel):
     material: str = Field(description="What it is made of, as the shop says it (for example '100% cotton'), or an "
                                       "empty string.")
     garment: str = _garment()
+    # with a default, so an answer (or a stand-in) without it is a men's product; the caller drops one that is not
+    for_men: bool = Field(default=True, description="True when the product's page sells it for men or as unisex; "
+                                                    "false for a women's or children's product.")
 
 
 class Described(BaseModel):
@@ -209,6 +212,31 @@ def _range(wish: dict) -> str:
     return ""
 
 
+KEPT_MAX = 12   # pages already kept with a wish listed to a search, the newest first (`shop.PRICE_FINDS_MAX`)
+FOR_MEN = ("- Only products sold for men, or as unisex: never a women's or children's product, nor the same product's "
+           "page in a shop's women's section. Check the page.")
+LINK_FIELDS = (("kind", "kind of garment"), ("category", "kind of piece"), ("color", "colour"), ("formality", "formality"),
+               ("season", "season"), ("weight_class", "weight of the cloth"), ("pattern", "pattern"),
+               ("material", "material"))
+
+
+def _from_link(link: dict) -> str:
+    """What "more" means for a wish made from a link: the product the owner found, at its shop and price, to look for
+    elsewhere first, then products like it (its described values, when it has them)."""
+    price = link.get("price")
+    at = f" for {price:g} {link.get('currency') or ''}".rstrip() if isinstance(price, (int, float)) else ""
+    piece = link.get("piece") or {}
+    like = "\n".join(f"- {label}: {_plain(piece[key])}" for key, label in LINK_FIELDS if piece.get(key))
+    return (f"The owner already found this product at {link.get('shop')}{at}: {link.get('name')}.\n"
+            "Look first for the same product at other shops where it costs less or is in stock, then for products "
+            "much like it" + (f":\n{like}" if like else "."))
+
+
+def _kept(kept: list) -> str:
+    lines = "\n".join(f"- {k.get('name')} at {k.get('shop')}: {k.get('url')}" for k in kept[:KEPT_MAX])
+    return f"The owner already has these pages on their list, so never give them again:\n{lines}"
+
+
 RANK = ("\n- Among the products that match the wish, put first those that suit what is said about the person this is "
         "for; it never replaces the wish or its price range.")
 
@@ -216,7 +244,10 @@ RANK = ("\n- Among the products that match the wish, put first those that suit w
 def find_prompt(wish: dict) -> str:
     """What Claude is asked for a wish: its name, what to look for (from the gap it came from), the owner's note and
     price range, then, as a block of its own, what is known about the owner (`wish["about"]`, made by
-    `closet/aboutyou.py`; none when it is empty). Values are the closet's own words with underscores taken out."""
+    `closet/aboutyou.py`; none when it is empty). Values are the closet's own words with underscores taken out. For a
+    wish made from a link (`from_link`: its product's name, shop, price and piece), what "more" means: the same product
+    elsewhere, then products like it. The pages already kept with the wish (`kept`, the newest KEPT_MAX) are listed as
+    ones never to give again, and only men's or unisex products are wanted (FOR_MEN)."""
     look = wish.get("look_for") or {}
     words = []
     for key, label in (("category", "kind"), ("formality", "formality"), ("season", "season"),
@@ -232,17 +263,22 @@ def find_prompt(wish: dict) -> str:
     price = _range(wish)
     if price:
         words.append(f"- price: {price}")
-    details = "\n".join(words) or "- (nothing more than the name)"
+    link = wish.get("from_link")
+    details = "\n".join(words) or ("" if link else "- (nothing more than the name)")
+    if link:
+        details = f"{details}\n{_from_link(link)}".strip()
     note = (wish.get("note") or "").strip()
     about = (wish.get("about") or "").strip()
+    kept = list(wish.get("kept") or [])
     return f"""Find menswear for sale now in online shops that matches this wish:
 
 Wish: {wish["name"]}
 {details}
 {f'The owner says: """{note}"""' if note else ""}
-{f"{chr(10)}{about}{chr(10)}" if about else ""}
+{f"{chr(10)}{about}{chr(10)}" if about else ""}{f"{chr(10)}{_kept(kept)}{chr(10)}" if kept else ""}
 Search the web and give up to {MAX_FINDS} different products that are on sale now and match, best match first.
 - Each must be a real product page at a shop (not a search page, a list or an article), with its price as the page shows it.
+{FOR_MEN}
 - Stay inside the price range when one is given.{RANK if about else ""}
 - Describe each product with the listed values only: what kind of piece, what kind of garment it is (one of the listed kinds, none when no listed kind fits), its main colour, formality, season, pattern, the weight of its cloth, whether it keeps the rain off, and its material as the shop says it.
 - Never make up a product, a link or a price. Fewer good finds are better than many doubtful ones; none is a fine answer."""
@@ -359,6 +395,7 @@ def picks_prompt(asked: dict) -> str:
     _person(asked, parts)
     parts.append(f"""Search the web and give up to {MAX_FINDS} different products that are on sale now, best first, of different kinds of piece where you can.
 {REAL_PAGE}, with its price as the page shows it.
+{FOR_MEN}
 {DESCRIBE_RULE}
 {NEVER_MADE_UP}""")
     return "\n\n".join(parts)
@@ -402,6 +439,7 @@ def sale_prompt(asked: dict) -> str:
     parts.append(f"""Search the web and give up to {MAX_FINDS} different products that are marked down now, best first, of different kinds of piece where you can.
 {REAL_PAGE}, with its price now and its price before the markdown as the page shows them (crossed out, "was" or "compare at"). Only products whose page shows a lower price now than before.
 - Say whether the page shows their size in stock for that kind of piece: true only when it does, false when their size is sold out, null when the page does not say or no size of theirs is known.
+{FOR_MEN}
 {DESCRIBE_RULE}
 {NEVER_MADE_UP}""")
     return "\n\n".join(parts)

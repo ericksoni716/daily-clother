@@ -235,6 +235,8 @@ def clean_find(raw: object) -> dict | None:
     price = raw.get("price")
     if price is not None and clean_price(price) is None:
         return None
+    if raw.get("for_men") is False:   # a women's or children's product (absent: for men)
+        return None
     piece = _piece_of(raw, name)
     if piece is None:
         return None
@@ -747,6 +749,25 @@ def to_price_check(conn: sqlite3.Connection, wish_id: str) -> list[dict]:
     return [dict(r) for r in conn.execute(
         "SELECT id, name, shop, url, price, currency, link, read_at, read_asked FROM finds WHERE wish_id = ? "
         "ORDER BY found_at DESC, rowid LIMIT ?", (wish_id, PRICE_FINDS_MAX))]
+
+
+def kept_pages(conn: sqlite3.Connection, wish_id: str) -> list[dict]:
+    """The pages already kept with a wish, the newest PRICE_FINDS_MAX, for a search to leave out: {name, shop, url}."""
+    return [dict(r) for r in conn.execute("SELECT name, shop, url FROM finds WHERE wish_id = ? "
+                                          "ORDER BY found_at DESC, rowid LIMIT ?", (wish_id, PRICE_FINDS_MAX))]
+
+
+def from_link(conn: sqlite3.Connection, wish: Mapping) -> dict | None:
+    """For a wish made from a link (no gap, nothing to look for, and the link kept when it was made), its product as a
+    search is told it: {name, shop, price, currency, piece}; None for any other wish."""
+    if wish["gap_id"] is not None or wish.get("look_for"):
+        return None
+    r = conn.execute("SELECT name, shop, price, currency, piece FROM finds WHERE wish_id = ? AND link = 1 "
+                     "AND found_at = ? ORDER BY rowid LIMIT 1", (wish["id"], wish["created_at"])).fetchone()
+    if r is None:
+        return None
+    return {"name": r["name"], "shop": r["shop"], "price": r["price"], "currency": r["currency"],
+            "piece": json.loads(r["piece"] or "null")}
 
 
 def new_link_wish(conn: sqlite3.Connection, url: str) -> tuple[str, str]:
@@ -1356,12 +1377,17 @@ class Shopper:
         rows, worn = self.closet(profile)
         conn = db.connect(self.cfg.db_path(profile))
         try:   # what the closet says about the owner goes with the wish, as a block of its own (aboutyou.py)
-            wish = {**wish, "about": aboutyou.for_search(conn, rows, worn, wish)}
+            link = from_link(conn, wish)
+            looked = wish if link is None or not link["piece"] else {**wish, "look_for": {
+                "category": link["piece"]["category"]}}
+            wish = {**wish, "about": aboutyou.for_search(conn, rows, worn, looked), "kept": kept_pages(conn, wish_id),
+                    "from_link": link}
+            watched = {r["url"] for r in conn.execute("SELECT url FROM finds WHERE wish_id = ? AND link = 1", (wish_id,))}
         finally:
             conn.close()
         answer = self.asker.find(wish, routes)
         raw = answer.finds if hasattr(answer, "finds") else []
-        found, urls = [], set()
+        found, urls = [], set(watched)   # a page watched as a link is read by Nines, never taken over by a search
         for r in raw[:shopping.MAX_FINDS]:
             f = clean_find(r)
             if f and f["url"] not in urls:

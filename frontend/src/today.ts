@@ -130,7 +130,6 @@ export interface DayContext {
   stylist?: StylistState | null;
 }
 
-/** The saved trip that holds today, as Today dresses from it. */
 /** The day before a saved trip: what you ticked as packed for it, left out of today's outfits. */
 export interface PackedFor {
   id: string;
@@ -139,6 +138,7 @@ export interface PackedFor {
   ids: string[];
 }
 
+/** The saved trip that holds today, as Today dresses from it. */
 export interface OnTrip {
   id: string;
   /** The trip's place, as the owner chose it ("Lisbon, Portugal"); null when it has none. */

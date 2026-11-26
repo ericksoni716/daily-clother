@@ -533,56 +533,61 @@ marked as saved earlier, and nothing can be added.
 `/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wishlist" goes back. A wish made from one
 product (a link sent, a pick saved) is headed by the product's whole name (a long name in smaller type, so it
 keeps to about four lines), and that find starts at its shop and price. Top to bottom: what to
-look for (or "Added by hand"); what is watched, the pages you sent first ("You sent this link", and
-"Claude read its price from the page" when it did), then what Claude found (the oldest first, so what a later search finds comes after what you have
-read), each checked against the
-closet (a page you sent too, once Claude has described it from the page's words: its verdict, what it
-goes with, what it repeats and what gap it would fill, with the shop's picture; until then one sentence
-says why it is not checked, such as "Nines checks it against your closet once Claude can describe
-it."), with "See it with your clothes" on a judged find that an outfit can be made with (a sheet over the
-page with up to three outfits of your own pieces and the find, each drawn as worn, to step or swipe through; the
-shop's picture beside the drawing; the names of your pieces, each opening the piece; and one line saying the find is
-drawn from the shop's description, so it shows roughly its shape and colour, not how it really looks, or its shape,
-colour and pattern when it is striped or plaid, which is drawn as a plain, typical stripe or plaid; it is drawn as the
-kind of garment Claude said it is (a chore coat, an overcoat), and a coat or jacket of no known kind as one worn open
-over your layers; nothing is sent to Claude; the "Claude saw" line says the kind's own word, "grey chore coat"), "Open in shop", "Stop watching" (it goes, and with it its daily check; the find stays in its place
-saying so, with **Undo**, which puts it back with its price history, until you leave the page) and, when its
-price changed from one day to another, "The price was … on 3 Nov and … yesterday.". A find with a
-code at checkout says the price after it under its price ("$106.20 with code TEST40 at checkout (40%
-off)") and who saw it ("Nines saw this code on the page." or "Claude saw this code on the page.";
-nothing when you typed it); **Add a code** (or "Change the code") opens a sheet with the code and
-either "% off" or an amount off, Save, "Remove the code" and Cancel. The price after the code is what
-the drop, the banner, the wishlist row and "within your price" count; a code read from the page goes
-when the page stops showing it, and one you typed stays until you remove it. Under the finds one
-sentence, "Nines checks the price once a day while it's running and tells you when it goes down."
-(with a price, "…when it goes down to $150.00 or less."), with "Set the most you'd pay" or
-"Change", then when it was last checked and "Check now" (the pages you sent read by Nines, the rest
-by Claude, and a page you sent that is not described yet described by Claude, from its name and shop
-when the shop turns Nines away); a page neither Nines nor Claude could read keeps its last price and
-whether it could be bought, never "Sold out" for a page nobody could open, and the check ends saying so
-("Nines could not read 1 of the pages today. Its last price is shown."); while it checks,
-"Checking the price…" stands in place of when it was last checked, so nothing moves. Then looking for
-more: "Find some" or "Find more" (Claude searches shops for menswear only, leaving out the pages
-already on the wish; for a wish made from a link, the same product at other shops first, then pieces
-much like it; a wish still called by its link's site's address asks for a name first instead of
-searching; under them, "A search sends Claude the
-wish, your style, what you tend to wear, the brands you own and your size, never a photo or a
-note.", except in the demo closet) and "Add a link" (a product's page added as
-a find: Nines reads its name and price from the page, asks Claude only when the page gives no price,
-then asks Claude once to describe it from what the page says; when Nines cannot read its name, the shop
-turning it away, Claude is asked once to read the whole page instead: name, shop, picture, price and
-description), and "Search Google Shopping" (as on
-Worth buying, from what to look for, or the wish's name when it has none); with nothing watched yet, the price is offered here
-("Claude looks at any price." or "Claude looks for ones up to $150.00."). Then the note (saved when
-you leave the box or tap Save note, saying "Saving…", "Saved" or "Didn't save" with Try again), and
-"Would it go with my clothes?" (Would this work? for this wish; for a page you sent it starts with
-the product's name), "I bought it" (it leaves the list and Add opens) and "Remove from the list"
-(back to the wishlist, where Undo puts it back). Everything on the page is 44 pixels high to tap. **The most you'd pay** opens in a sheet: one amount and its currency, with
-Save, Clear and Cancel; Nines tells you when a price goes down to it or less, and Claude's searches
-stay under it. A wish that still has a lowest price from
-before says so until it is changed. While a page is read the wish says who is reading it ("Claude
-is describing it…" while Claude describes a page you sent). Opening
-the page counts as seeing its price news. Like the wishlist, it waits only for the wishes.
+look for (or "Added by hand"); then what is watched, the pages you sent first, then what Claude found (the oldest
+first, so what a later search finds comes after what you have read). Each find is a card read top to bottom:
+
+- **What it is and what it costs.** The shop's picture (when there is one), its name (left out when it is the wish
+  itself), the shop, and the price, the strongest thing on the card after the name, with "Sold out" beside it when
+  it is. A code at checkout puts the price after it directly under ("$106.20 with code TEST40 at checkout (40%
+  off)"), and a price that came down the drop under that ("Was $120.00, now $96.00 (20% less)").
+- **Whether it works.** The verdict as a heading in its colour, and its reasons as plain sentences under it, for a
+  page you sent too once Claude has described it from the page's words; until then one sentence in the same place
+  says why it is not checked, such as "Nines checks it against your closet once Claude can describe it."
+- **Two buttons.** "See it with your clothes", on a judged find that an outfit can be made with (a sheet over the
+  page with up to three outfits of your own pieces and the find, each drawn as worn, to step or swipe through; the
+  shop's picture beside the drawing; the names of your pieces, each opening the piece; and one line saying the find
+  is drawn from the shop's description, so it shows roughly its shape and colour, not how it really looks, or its
+  shape, colour and pattern when it is striped or plaid, which is drawn as a plain, typical stripe or plaid; it is
+  drawn as the kind of garment Claude said it is (a chore coat, an overcoat), and a coat or jacket of no known kind
+  as one worn open over your layers; nothing is sent to Claude), and "Open in shop".
+- **About this find**, closed: the price so far when it changed from one day to another ("The price was … on 3 Nov
+  and … yesterday."), "You sent this link" (and "Claude read its price from the page" when it did), what Claude
+  saw (the kind's own word, "grey chore coat"), who saw the code ("Nines saw this code on the page." or "Claude saw this code on the page."; nothing when
+  you typed it), and two buttons. **Add a code** (or "Change the code") opens a sheet with the code and either "%
+  off" or an amount off, Save, "Remove the code" and Cancel. **Stop watching** takes the find away, and with it its
+  daily check; it stays in its place saying so, with **Undo**, which puts it back with its price history, until
+  you leave the page.
+
+The price after a code is what the drop, the banner, the wishlist row and "within your price" count; a code read
+from the page goes when the page stops showing it, and one you typed stays until you remove it. Under the finds,
+one quiet line says when the prices were last checked, with a small **Check now** (the pages you sent read by
+Nines, the rest by Claude, and a page you sent that is not described yet described by Claude, from its name and
+shop when the shop turns Nines away); a page neither Nines nor Claude could read keeps its last price and whether
+it could be bought, never "Sold out" for a page nobody could open, and the check ends saying so ("Nines could not
+read 1 of the pages today. Its last price is shown."); while it checks, "Checking the price…" stands in its place,
+so nothing moves. Then **Set the most you'd pay** (once set, "The most
+you'd pay is $150.00." and **Change**), which opens a sheet: one amount and its currency, with Save, Clear and
+Cancel; Nines tells you when a price goes down to it or less, and Claude's searches stay under it. A wish that
+still has a lowest price from before says so until it is changed. With nothing watched yet, only that button
+comes before looking for more. Looking for more is one row of buttons: **Find some** or **Find more** (Claude
+searches shops for menswear only, leaving out the pages already on the wish; for a wish made from a link, the same
+product at other shops first, then pieces much like it), **Add a link** (a product's page added as a find: Nines
+reads its name and price from the page, asks Claude only when the page gives no price, then asks Claude once to
+describe it from what the page says; when Nines cannot read its name, the shop turning it away, Claude is asked
+once to read the whole page instead: name, shop, picture, price and description) and
+**Search Google Shopping** (opens your browser, as on Worth buying, from what to look for, or the wish's name when
+it has none). What a search, a check or a page being read says shows under the button that started it ("Claude
+is describing it…" while Claude describes a page you sent). One closed **How this works** holds what is true
+every day: "Nines checks the price once a day while it's running and tells you when it goes down." (with a price,
+"…when it goes down to $150.00 or less."), "A search sends Claude the wish, your style, what you tend to wear, the
+brands you own and your size, never a photo or a note." (not in the demo closet, which says instead that it never
+searches shops), and, when your plan can't be used, what a search and a price check cost at most with the API
+key. Then the note (saved when you leave the box or tap Save note, saying "Saving…", "Saved" or "Didn't save"
+with Try again), and **Check one I found** (Would this work? for this wish, to photograph or describe one you
+found in a shop; not on a wish made from one of its finds, whose card already says whether it goes with your
+clothes), **I bought it** (it leaves the list and Add opens) and **Remove from the list** (back to the wishlist,
+where Undo puts it back). Everything on the page is 44 pixels high to tap. Opening the page counts as seeing its
+price news. Like the wishlist, it waits only for the wishes.
 
 ## Add a link
 
@@ -594,14 +599,17 @@ When what was shared holds no link, it says so and the box is empty.
 
 ## Would this work?
 
-`/wardrobe/check` (and `/wardrobe/check/wish/<id>` from a wish), from the Wardrobe;
-"‹ Wardrobe" goes back ("‹ Wish", to the wish's page, when it was opened from a wish). A piece you might buy, from a photo or described by hand, checked
+`/wardrobe/check` (and `/wardrobe/check/wish/<id>` from a wish's "Check one I found"), from the Wardrobe;
+"‹ Wardrobe" goes back ("‹ Wish", to the wish's page, when it was opened from a wish). From a wish, the line under
+the title says what to do: "Photograph one you found for **the wish**, or describe it, and Nines checks it against
+your closet.", and the description starts from what the wish asks for. A piece you might buy, from a photo or described by hand, checked
 against the closet by rule. By hand it asks two things first, what kind of piece it is and its main
 colour, and answers as soon as both are chosen, with no button to press. The piece is then one line
 ("Light blue shirt") and the verdict comes straight under it; under the verdict one line says what
 was taken as usual until you say more ("checked as a plain smart casual piece for any time of
 year"), with **Change what it is** and **More about it** (formality, season, how heavy, pattern,
-keeps the rain off, a name), each a sheet over the page. Closing one works the answer out again,
+keeps the rain off, a name), each a sheet over the page (on a computer a small window beside the button,
+whole on the screen). Closing one works the answer out again,
 the last answer staying in place, dimmed, until the new one is ready. What you
 described and the answer stay on this device for the rest of the day, after a reload too, until
 **Check another piece**.

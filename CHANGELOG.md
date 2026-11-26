@@ -21,6 +21,17 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - **More like this on a pick you saved.** In You might like, Save on a pick now turns into **✓ Saved** in
   the same place, and More like this stays beside it. Press ✓ Saved to take the pick off your wishlist again.
   Both buttons are on one line on every phone, and nothing moves when you save.
+- **A wish's page is easier to read.** Each find's card now leads with what it costs (the price in larger type,
+  with the price after a code and any drop under it) and whether it works (the verdict and its reasons in plain
+  sentences), then two buttons, See it with your clothes and Open in shop. The rest (the price so far, who read
+  it, what Claude saw, the code and Stop watching) is in a closed "About this find". Under the finds, Check now
+  and the most you'd pay are small buttons, Find more, Add a link and Search Google Shopping are one row of
+  buttons, and what is true every day (the daily price check, what a search sends) is behind one closed "How
+  this works".
+- **Check one I found.** On a wish from a gap or added by hand, the button that opens Would this work? is now
+  called Check one I found, and the line at the top of Would this work? says what to do: photograph one you
+  found, or describe it. A wish made from a link no longer shows it, since its card already says whether it goes
+  with your clothes.
 
 ### Fixed
 
@@ -45,6 +56,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - **A brand keeps its capital in a sentence.** A piece whose name starts with its brand (as you saved it on
   the piece's page) is now written as you wrote it after "your" or "the", so a find's card and Today's
   lines say "your Northfield sneaker", not "your northfield sneaker".
+- On a computer, More about it and Change what it is on Would this work? opened below the window; they now
+  open beside their button, whole on the screen, and so does any small window that would not fit.
+- Would this work? opened afresh from a wish (after a reload) now starts from what the wish asks for.
 
 ## 0.16.0
 

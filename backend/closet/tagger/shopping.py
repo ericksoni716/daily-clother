@@ -132,7 +132,11 @@ class PriceSeen(BaseModel):
     price: float | None = Field(description="Its current price as a plain number, before any code; null when no "
                                             "price is shown.")
     currency: str = Field(description="The price's currency as a three-letter code.")
-    available: bool = Field(description="False when the page is gone or the product is sold out in every size.")
+    available: bool = Field(description="False only when the page itself says the product is sold out in every size "
+                                        "or no longer sold; true when you cannot tell.")
+    # whether the page could be read at all (default true, so an answer without it is a page read)
+    read: bool = Field(default=True, description="False when you could not open the page, or it does not show this "
+                                                 "product; then the price, currency and availability are not used.")
     # optional: a checkout code the page shows (the caller checks it, and drops it alone when it does not fit)
     code: str | None = Field(default=None, description="A discount code this page shows for checkout, exactly as "
                                                        "written, when anyone can use it on this product; null when "
@@ -218,7 +222,9 @@ def price_prompt(finds: list[dict]) -> str:
 
 {lines}
 
-For each page give its address exactly as written above, the price shown now (before any code) and its currency, and whether it can still be bought (false when the page is gone or it is sold out in every size). Never guess a price: give null when the page shows none.
+For each page give its address exactly as written above, the price shown now (before any code) and its currency, and whether it can still be bought. Never guess a price: give null when the page shows none.
+- Say whether you could read the page: read false when you could not open the page (it turned you away, or would not load), or it does not show this product. Then give null for the price.
+- Give available false only when the page itself says the product is sold out in every size or is no longer sold. When you cannot tell, give true.
 
 When the page shows a code to enter at checkout with what it takes off (for example "40% off with code TEST40"), also give the code exactly as written and either its percent off or its amount off. Leave the code out when the page shows none, when the discount is "up to" an amount, and when it is only for some people: a first order, new customers, signing up, subscribing, a newsletter, the app or members. Never make up a code."""
 

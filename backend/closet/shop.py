@@ -373,6 +373,12 @@ def shortened(text: str, limit: int) -> str:
     return (cut.rsplit(" ", 1)[0] if " " in cut else cut).rstrip(" ,;:-") + "…"
 
 
+def kept_last(n: int) -> str:
+    """What a check says when it could not read `n` pages that had a price before: their last prices stand."""
+    return (f"Nines could not read {n} of the pages today. "
+            f"{'Its last price is' if n == 1 else 'Their last prices are'} shown.")
+
+
 def placeholder(url: str) -> str:
     """What a wish made from a link is called until its page is read: the shop's address, without "www."."""
     host = (urlsplit(url).hostname or "").removeprefix("www.")
@@ -488,6 +494,8 @@ def _find(conn: sqlite3.Connection, r: sqlite3.Row) -> dict:
     f["with_code"] = price_with(f["price"], code["percent"], code["amount"]) if code else None
     f["outfits"] = verdict.get("outfits") if verdict else None   # None: judged before outfits were counted
     f["not_judged"] = not_judged(f, marker)
+    for column in ("read_asked", "kind_asked_at"):   # what Claude was asked: kept for Nines, not shown
+        f.pop(column, None)
     history = _history(conn, f["id"])
     f["history"] = history[-HISTORY_MAX:]
     f["drop"] = drop(history)
@@ -759,8 +767,9 @@ def save_read(conn: sqlite3.Connection, wish_id: str, find_id: str, read: dict |
         if row is None:
             conn.execute("ROLLBACK")
             return False
-        conn.execute("UPDATE finds SET read_at = ? WHERE id = ?", (t, find_id))
         priced = bool(read and read["price"] is not None)
+        # a page that gave no price: the last price stands, and the check is noted until one reads a price
+        conn.execute("UPDATE finds SET read_at = ?, unread_at = ? WHERE id = ?", (t, None if priced else t, find_id))
         if read:
             for column in ("name", "shop", "image_url"):
                 if read[column]:
@@ -790,10 +799,14 @@ def read_since(find: dict, since: datetime) -> bool:
 def save_prices(conn: sqlite3.Connection, wish_id: str, finds: list[dict], seen: list[object]) -> int:
     """Keep the prices Claude saw for the finds it was asked about (matched by their page; anything else in the
     answer is ignored; each read by "claude"), with the checkout code it saw on the page (`_claude_code`), and note
-    that the wish's prices were looked at. Returns how many finds were updated."""
+    that the wish's prices were looked at. An answer that could not read the page (`read` false), or gives no price for
+    a find that has one, changes nothing about the find's price, currency, availability or code and adds no price: it
+    is noted as a check that read nothing (`unread_at`), which the next price read clears. The one exception: a page
+    read that says the product is sold out without showing a price marks it sold out at its last price. Returns how
+    many finds were updated."""
     by_url = {f["url"]: f for f in finds}
     t = db.now()
-    done = set()
+    done, seen_ids = set(), set()
     conn.execute("BEGIN IMMEDIATE")
     try:
         for raw in seen:
@@ -801,22 +814,36 @@ def save_prices(conn: sqlite3.Connection, wish_id: str, finds: list[dict], seen:
             if not isinstance(p, dict):
                 continue
             f = by_url.get(p.get("url").strip() if isinstance(p.get("url"), str) else None)
-            if f is None or f["id"] in done:
+            if f is None or f["id"] in seen_ids:
                 continue
-            row = conn.execute("SELECT code_by, code_removed FROM finds WHERE id = ? AND wish_id = ?",
+            seen_ids.add(f["id"])
+            row = conn.execute("SELECT code_by, code_removed, price, currency FROM finds WHERE id = ? AND wish_id = ?",
                                (f["id"], wish_id)).fetchone()
             if row is None:
                 continue
             price = clean_price(p.get("price")) if p.get("price") is not None else None
             if p.get("price") is not None and price is None:
                 continue   # a price that is not one: not kept
+            sold_out = p.get("available") is False
+            if p.get("read") is False or (price is None and row["price"] is not None and not sold_out):
+                # the page not read: the last price stands, never "sold out" for a page nobody could open
+                conn.execute("UPDATE finds SET unread_at = ? WHERE id = ?", (t, f["id"]))
+                continue
+            if price is None and row["price"] is not None:
+                # read, and the page itself says it is sold out without showing a price: the last price stands with it
+                conn.execute("UPDATE finds SET available = 0, read_by = 'claude', updated_at = ?, unread_at = NULL "
+                             "WHERE id = ?", (t, f["id"]))
+                _add_point(conn, f["id"], t, row["price"], row["currency"], False)
+                done.add(f["id"])
+                continue
             currency = clean_currency(p.get("currency")) or f["currency"]
             available = p.get("available") is not False
             # a code that does not fit is dropped alone: the price is kept
             code = clean_code(p.get("code"), p.get("code_percent"), p.get("code_amount"), price)
             _claude_code(conn, f["id"], row, code, t)
-            conn.execute("UPDATE finds SET price = ?, currency = ?, available = ?, read_by = 'claude', updated_at = ? "
-                         "WHERE id = ?", (price, currency, int(available), t, f["id"]))
+            conn.execute("UPDATE finds SET price = ?, currency = ?, available = ?, read_by = 'claude', updated_at = ?, "
+                         "unread_at = ? WHERE id = ?",
+                         (price, currency, int(available), t, t if price is None else None, f["id"]))
             _add_point(conn, f["id"], t, price, currency, available)
             done.add(f["id"])
         conn.execute("UPDATE wishes SET prices_checked_at = ? WHERE id = ?", (t, wish_id))
@@ -1258,12 +1285,14 @@ class Shopper:
             return 1, None
         if refused:
             return 0, refused
+        # the page gave no price: with a price from before, that one stands and the sentence says so
+        no_price = kept_last(1) if self._link_priced(profile, wish_id, find_id) else NO_PAGE_PRICE
         if profile == "demo":
-            return 0, f"{NO_PAGE_PRICE} {DEMO_ASKS_NOTHING}"
+            return 0, f"{no_price} {DEMO_ASKS_NOTHING}"
         try:
             routes = self._usable(1)
         except Refused as e:
-            return 0, f"{NO_PAGE_PRICE} {e}"
+            return 0, f"{no_price} {e}"
         find = self._link(profile, wish_id, find_id)   # with the name the page gave, if it gave one
         if find is None:
             return 0, None
@@ -1271,12 +1300,23 @@ class Shopper:
         answer = self.asker.prices([find], routes)
         conn = db.connect(self.cfg.db_path(profile))
         try:
-            save_prices(conn, wish_id, [find], getattr(answer, "prices", []) or [])
-            priced = conn.execute("SELECT price FROM finds WHERE id = ?", (find_id,)).fetchone()
+            got = save_prices(conn, wish_id, [find], getattr(answer, "prices", []) or []) > 0
+            priced = conn.execute("SELECT price, unread_at FROM finds WHERE id = ?", (find_id,)).fetchone()
         finally:
             conn.close()
-        got = bool(priced and priced["price"] is not None)
-        return int(got), None if got else NO_PRICE_AT_ALL
+        got = got and bool(priced and priced["price"] is not None and priced["unread_at"] is None)
+        if got:
+            return 1, None
+        return 0, kept_last(1) if priced and priced["price"] is not None else NO_PRICE_AT_ALL
+
+    def _link_priced(self, profile: str, wish_id: str, find_id: str) -> bool:
+        """Whether the find has a price from an earlier check (it stands while its page cannot be read)."""
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            r = conn.execute("SELECT price FROM finds WHERE id = ? AND wish_id = ?", (find_id, wish_id)).fetchone()
+            return bool(r and r["price"] is not None)
+        finally:
+            conn.close()
 
     def _describe_link(self, profile: str, wish_id: str, find_id: str, read: dict | None,
                        routes: tuple[str, ...] | None = None, judge_now: bool = True) -> bool:
@@ -1336,6 +1376,7 @@ class Shopper:
         described yet is described from it when `routes` allow; Claude is asked about the other finds and about the
         pages that gave no price, when `routes` allow (`why_not` says why they do not). A malformed answer still counts as a look, so the daily round does not ask again and again; a look
         that could not ask Claude about a find it found does not count, so it is tried again later."""
+        since = db.now()
         conn = db.connect(self.cfg.db_path(profile))
         try:
             finds = to_price_check(conn, wish_id)
@@ -1392,12 +1433,18 @@ class Shopper:
             elif not others:
                 mark_checked(conn, wish_id)   # every find a link: read for the day, whatever the pages gave
             set_verdicts(conn, judged, verdicts)
+            # the pages this check could not read that had a price: their last prices stand
+            stale = conn.execute("SELECT COUNT(*) FROM finds WHERE wish_id = ? AND price IS NOT NULL AND unread_at >= ?",
+                                 (wish_id, since)).fetchone()[0]
         finally:
             conn.close()
-        message = None
+        message = kept_last(stale) if stale else None
         if ask and answer is None:
             why = DEMO_ASKS_NOTHING if profile == "demo" else why_not or NO_ROUTE
-            message = f"{why} {LINKS_ONLY}" if others else f"{SOME_UNREAD} {why}"
+            if others:
+                message = " ".join(w for w in (message, why, LINKS_ONLY) if w)
+            else:   # said once: the pages it could not read, or that not every page gives its price
+                message = f"{message or SOME_UNREAD} {why}"
         self._end(profile, wish_id, "done", message, n)
         return n
 

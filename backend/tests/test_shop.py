@@ -546,7 +546,8 @@ def test_a_price_check_records_the_prices_and_shows_a_drop(client, fake_shop):
     # it is asked only about its own finds, by their pages
     assert fake_shop.calls[-1] == ("prices", ["https://shop.example/coat", "https://other.example/p/2"], ("plan",))
 
-    # what does not fit is not kept: another page, a price that is not one; a find sold out is marked so
+    # what does not fit is not kept: another page, a price that is not one; a find sold out is marked so, at its last
+    # price (the owner's report of 26 November: a price is never taken away by a check that shows none)
     fake_shop.prices_seen = [PriceSeen(url="https://elsewhere.example", price=1.0, currency="USD", available=True),
                              PriceSeen(url="https://shop.example/coat", price=-3.0, currency="USD", available=True),
                              PriceSeen(url="https://other.example/p/2", price=None, currency="USD", available=False)]
@@ -555,8 +556,8 @@ def test_a_price_check_records_the_prices_and_shows_a_drop(client, fake_shop):
     coat = next(f for f in body["finds"] if f["url"] == "https://shop.example/coat")
     navy = next(f for f in body["finds"] if f["url"] == "https://other.example/p/2")
     assert coat["price"] == 96.0 and len(coat["history"]) == 2 and coat["available"] is True
-    assert navy["available"] is False and navy["price"] is None and navy["drop"] is None
-    assert [h["price"] for h in navy["history"]] == [240.0, 192.0, None]
+    assert navy["available"] is False and navy["price"] == 192.0 and navy["drop"]["to"] == 192.0
+    assert [(h["price"], h["available"]) for h in navy["history"]] == [(240.0, True), (192.0, True), (192.0, False)]
 
 
 def test_a_price_check_needs_finds(client):

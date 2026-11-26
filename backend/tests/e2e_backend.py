@@ -100,7 +100,7 @@ from closet import apikey, app, cli, demo, productpage, tracejobs, weather
 from closet.tagger import routes as tagger_routes
 from closet.tagger import shoedrawing
 from closet.tagger.correcting import CorrectionResult
-from closet.tagger.shopping import Described, Found, PriceAnswer, PriceSeen, SaleAnswer, SaleFound, ShopAnswer
+from closet.tagger.shopping import Described, Found, LinkRead, PriceAnswer, PriceSeen, SaleAnswer, SaleFound, ShopAnswer
 from closet.tagger.tagging import TaggingError, TagResult, Unreachable
 
 from .conftest import (
@@ -322,6 +322,13 @@ class FakeShop:
                     category="trousers", color="tan"),
             on_sale("shirt", name="Brushed flannel work shirt", price=60.0, price_before=95.0, category="shirt",
                     color="green", pattern="plaid")])
+
+    def read(self, find, routes):
+        """A link's page read whole: Claude could not open it either (no page here turns Nines away)."""
+        time.sleep(1)
+        return LinkRead(read=False, name="", shop="", image_url="", price=None, currency="USD", available=True,
+                        clothing=False, category="shirt", color="white", formality="casual", season="all",
+                        pattern="solid", weight_class="unknown", rain_proof=False, material="")
 
     def describe(self, product, routes):
         time.sleep(1)   # long enough for the page to show Claude describing it

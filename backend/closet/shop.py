@@ -138,6 +138,8 @@ class Asker(Protocol):
 
     def describe(self, product: dict, routes: tuple[str, ...]) -> shopping.Described: ...
 
+    def read(self, find: dict, routes: tuple[str, ...]) -> shopping.LinkRead: ...
+
     def picks(self, asked: dict, routes: tuple[str, ...]) -> shopping.ShopAnswer: ...
 
     def sale(self, asked: dict, routes: tuple[str, ...]) -> shopping.SaleAnswer: ...
@@ -162,6 +164,10 @@ class ClaudeAsker:
 
     def describe(self, product: dict, routes: tuple[str, ...]) -> shopping.Described:
         return shopping.describe(product, routes, client=self.client, meter=self.describing)
+
+    def read(self, find: dict, routes: tuple[str, ...]) -> shopping.LinkRead:
+        # recorded as a price check: the same web tools and cost, and it takes the place of one
+        return shopping.read_link(find, routes, client=self.client, meter=self.pricing)
 
     def picks(self, asked: dict, routes: tuple[str, ...]) -> shopping.ShopAnswer:
         return shopping.picks(asked, routes, client=self.client, meter=self.picking)
@@ -360,6 +366,22 @@ def page_words(read: dict) -> dict:
     return {k: read.get(k) for k in ("name", "shop", "brand", "color", "material", "description")}
 
 
+def kept_words(read: dict | None, row: Mapping) -> dict | None:
+    """What Claude is given to describe a link: what its page said on this visit (`page_words`), its name and shop
+    from what is kept when the visit gave none (a page that turned Nines away); None while it has no name at all."""
+    words = page_words(read or {})
+    for k in ("name", "shop"):
+        if not words[k] and row[k] and not (k == "name" and unnamed(row)):
+            words[k] = row[k]
+    return words if words["name"] else None
+
+
+def unnamed(f: Mapping) -> bool:
+    """Whether a link is still called by its site's address: its page has given no name, nor has Claude or the
+    owner."""
+    return bool(f["link"]) and f["name"] == placeholder(f["url"])[:NAME_MAX]
+
+
 def fingerprint(text: str) -> str:
     """A short fingerprint of what was asked, to know the same page again without keeping its words."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
@@ -470,7 +492,7 @@ def not_judged(f: dict, marker: str | None) -> str | None:
         return "unread"
     if marker:
         return "unclear"
-    if f["name"] == placeholder(f["url"])[:NAME_MAX]:
+    if unnamed(f):
         return "no_name"
     return "waiting"
 
@@ -707,7 +729,7 @@ def to_price_check(conn: sqlite3.Connection, wish_id: str) -> list[dict]:
     """The finds whose prices are looked up: the newest PRICE_FINDS_MAX, those gone last time included (they may
     be back)."""
     return [dict(r) for r in conn.execute(
-        "SELECT id, name, shop, url, price, currency, link, read_at FROM finds WHERE wish_id = ? "
+        "SELECT id, name, shop, url, price, currency, link, read_at, read_asked FROM finds WHERE wish_id = ? "
         "ORDER BY found_at DESC, rowid LIMIT ?", (wish_id, PRICE_FINDS_MAX))]
 
 
@@ -852,6 +874,45 @@ def save_prices(conn: sqlite3.Connection, wish_id: str, finds: list[dict], seen:
         conn.execute("ROLLBACK")
         raise
     return len(done)
+
+
+def save_whole(conn: sqlite3.Connection, wish_id: str, find: dict, answer: object, asked: str) -> str | None:
+    """Keep what Claude read on a link's page whole (`shopping.LinkRead`), each value checked as everything from Claude
+    is and dropped alone when it does not fit: the find's name, shop and picture, the wish's name while it is still
+    the placeholder, and the price as a price check's (`save_prices`, read by "claude"). Gives back the name kept.
+    An answer that could not read the page, or gives no name, keeps nothing but `asked` (the question's fingerprint,
+    so the daily round does not ask it again) and the check as one that read nothing (`unread_at`): None."""
+    raw = answer.model_dump() if hasattr(answer, "model_dump") else answer
+    raw = raw if isinstance(raw, dict) else {}
+    name = _words(raw.get("name"), NAME_MAX) if raw.get("read") is True else None
+    t = db.now()
+    if not name or name == placeholder(find["url"])[:NAME_MAX]:
+        conn.execute("UPDATE finds SET read_asked = ?, unread_at = ? WHERE id = ? AND wish_id = ?",
+                     (asked, t, find["id"], wish_id))
+        return None
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if conn.execute("SELECT 1 FROM finds WHERE id = ? AND wish_id = ?", (find["id"], wish_id)).fetchone() is None:
+            conn.execute("ROLLBACK")
+            return None
+        conn.execute("UPDATE finds SET name = ?, read_asked = NULL WHERE id = ?", (name, find["id"]))
+        for column, value in (("shop", _words(raw.get("shop"), SHOP_MAX)), ("image_url", clean_url(raw.get("image_url")))):
+            if value:
+                conn.execute(f"UPDATE finds SET {column} = ? WHERE id = ?", (value, find["id"]))
+        wish = conn.execute("SELECT name, gap_id FROM wishes WHERE id = ?", (wish_id,)).fetchone()
+        if wish and wish["gap_id"] is None and wish["name"] == placeholder(find["url"]):
+            conn.execute("UPDATE wishes SET name = ?, updated_at = ? WHERE id = ?",
+                         (shortened(name, LINK_NAME_MAX), t, wish_id))
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    price = raw.get("price")
+    save_prices(conn, wish_id, [find], [{
+        "url": find["url"], "price": clean_price(price) if price is not None else None, "currency": raw.get("currency"),
+        "available": raw.get("available"), "code": raw.get("code"), "code_percent": raw.get("code_percent"),
+        "code_amount": raw.get("code_amount")}])
+    return name
 
 
 def save_piece(conn: sqlite3.Connection, wish_id: str, find_id: str, piece: dict, verdict: dict | None) -> bool:
@@ -1248,7 +1309,7 @@ class Shopper:
     def _link(self, profile: str, wish_id: str, find_id: str) -> dict | None:
         conn = db.connect(self.cfg.db_path(profile))
         try:
-            r = conn.execute("SELECT id, name, shop, url, price, currency, link, read_at FROM finds "
+            r = conn.execute("SELECT id, name, shop, url, price, currency, link, read_at, read_asked FROM finds "
                              "WHERE id = ? AND wish_id = ?", (find_id, wish_id)).fetchone()
             return dict(r) if r else None
         finally:
@@ -1271,11 +1332,78 @@ class Shopper:
             return 0
         self._step(profile, wish_id, "page")
         read, refused = self._read_page(row["url"])
-        got, message = self._link_price(profile, wish_id, find_id, read, refused)
+        if self._whole(profile, row, read, refused):
+            got, message = self._link_whole(profile, wish_id, find_id, read)
+        else:
+            got, message = self._link_price(profile, wish_id, find_id, read, refused)
         if not refused:
             self._describe_link(profile, wish_id, find_id, read)
         self._end(profile, wish_id, "done", message, got)
         return got
+
+    @staticmethod
+    def _whole(profile: str, find: Mapping, read: dict | None, refused: str | None) -> bool:
+        """Whether Claude is to read the link's page whole: Nines read no name on it, it is still called by its site's
+        address, and it may be sent to Claude (never in the demo closet, nor an address Nines would not open)."""
+        return profile != "demo" and not refused and not (read and read.get("name")) and unnamed(find)
+
+    def _link_whole(self, profile: str, wish_id: str, find_id: str, read: dict | None) -> tuple[int, str | None]:
+        """Keep what Nines read, then ask Claude to read the page whole when it may be asked: (1 when a price was read
+        on this visit, else 0; the sentence to show, or None)."""
+        priced = self._save_read(profile, wish_id, find_id, read)
+        try:
+            routes = self._usable(shopping.READ_SEARCHES)
+        except Refused as e:
+            return int(priced), None if priced else f"{NO_PAGE_PRICE} {e}"
+        self._read_whole(profile, wish_id, find_id, routes)
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            r = conn.execute("SELECT price, unread_at FROM finds WHERE id = ?", (find_id,)).fetchone()
+        finally:
+            conn.close()
+        if r is None or priced or (r["price"] is not None and r["unread_at"] is None):
+            return int(bool(r) and (priced or r["price"] is not None)), None
+        return 0, kept_last(1) if r["price"] is not None else NO_PRICE_AT_ALL
+
+    def _read_whole(self, profile: str, wish_id: str, find_id: str, routes: tuple[str, ...], daily: bool = False) -> bool:
+        """Ask Claude once to read a link's page whole (`shopping.read_link`), and keep what fits (`save_whole`), its
+        description as a piece judged against the closet. In the daily round, not when the same was asked before with
+        no name back (`read_asked`); out of reach, it waits for a later reading. True when a name was read."""
+        find = self._link(profile, wish_id, find_id)
+        if find is None or not unnamed(find):
+            return False
+        asked = fingerprint(shopping.read_prompt(find))
+        if daily and find["read_asked"] == asked:
+            return False
+        self._step(profile, wish_id, "claude")
+        try:
+            answer = self.asker.read(find, routes)
+        except (RouteUnavailable, Unreachable):   # not asked, or not reached: read at a later check
+            return False
+        except TaggingError:   # asked, with no usable answer
+            answer = None
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            name = save_whole(conn, wish_id, find, answer, asked)
+            row = conn.execute("SELECT name, shop, url, link, piece FROM finds WHERE id = ?", (find_id,)).fetchone()
+        finally:
+            conn.close()
+        if not name or row is None or json.loads(row["piece"] or "null"):
+            return bool(name)
+        piece = clean_described(answer, name)
+        verdict = None
+        if piece is not None:
+            rows, worn = self.closet(profile)
+            verdict = judge(rows, worn, [piece], self.listed(profile, (rows, worn)))[0]
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            if piece is None:   # not asked again from the same words (`_describe_link`)
+                mark_unclear(conn, wish_id, find_id, fingerprint(shopping.describe_prompt(kept_words(None, row))))
+            else:
+                save_piece(conn, wish_id, find_id, piece, verdict)
+        finally:
+            conn.close()
+        return True
 
     def _link_price(self, profile: str, wish_id: str, find_id: str, read: dict | None,
                     refused: str | None) -> tuple[int, str | None]:
@@ -1309,6 +1437,15 @@ class Shopper:
             return 1, None
         return 0, kept_last(1) if priced and priced["price"] is not None else NO_PRICE_AT_ALL
 
+    def _unread(self, profile: str, find_id: str) -> bool:
+        """Whether the find's last check read no price (`unread_at`)."""
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            r = conn.execute("SELECT unread_at FROM finds WHERE id = ?", (find_id,)).fetchone()
+            return bool(r and r["unread_at"])
+        finally:
+            conn.close()
+
     def _link_priced(self, profile: str, wish_id: str, find_id: str) -> bool:
         """Whether the find has a price from an earlier check (it stands while its page cannot be read)."""
         conn = db.connect(self.cfg.db_path(profile))
@@ -1320,21 +1457,24 @@ class Shopper:
 
     def _describe_link(self, profile: str, wish_id: str, find_id: str, read: dict | None,
                        routes: tuple[str, ...] | None = None, judge_now: bool = True) -> bool:
-        """Ask Claude once to describe a link from what its page says (`page_words`), keep the piece and, with
-        `judge_now`, its verdict. Not asked: in the demo closet, for a page that gave no name, for a find already
+        """Ask Claude once to describe a link from what its page says (`page_words`), or, when the page gave nothing
+        this time, from the name and shop kept (`kept_words`); keep the piece and, with `judge_now`, its verdict. Not
+        asked: in the demo closet, for a link with no name yet, for a find already
         described, for the same page whose answer could not be used before, or when Claude cannot be asked (`routes`,
         else worked out here); the link then waits for a later reading. True when a piece was kept."""
-        if profile == "demo" or not read or not read.get("name"):
+        if profile == "demo":
             return False
         conn = db.connect(self.cfg.db_path(profile))
         try:
-            row = conn.execute("SELECT piece, verdict FROM finds WHERE id = ? AND wish_id = ?",
+            row = conn.execute("SELECT name, shop, url, link, piece, verdict FROM finds WHERE id = ? AND wish_id = ?",
                                (find_id, wish_id)).fetchone()
         finally:
             conn.close()
         if row is None or json.loads(row["piece"] or "null"):
             return False
-        product = page_words(read)
+        product = kept_words(read, row)
+        if product is None:
+            return False
         asked = fingerprint(shopping.describe_prompt(product))
         if unclear(row["verdict"]) == asked:
             return False
@@ -1355,7 +1495,7 @@ class Shopper:
         except Exception as e:   # never the link in the log; the page's price is kept whatever happens here
             log.error("a link could not be described: %s", type(e).__name__)
             return False
-        piece = clean_described(answer, read["name"]) if answer is not None else None
+        piece = clean_described(answer, product["name"]) if answer is not None else None
         verdict = None
         if piece is not None and judge_now:
             rows, worn = self.closet(profile)
@@ -1390,11 +1530,19 @@ class Shopper:
         n, unread, pages = 0, [], []
         if links:
             self._step(profile, wish_id, "page")
+        claude = bool(routes) and profile != "demo"
         for f in links:
             read, refused = self._read_page(f["url"])
+            whole = self._whole(profile, f, read, refused)
             if self._save_read(profile, wish_id, f["id"], read):
                 n += 1
-            elif not refused:
+                if whole and claude:   # a price, but no name: Claude reads the rest
+                    self._read_whole(profile, wish_id, f["id"], routes, daily=daily)
+            elif whole and claude:
+                if self._read_whole(profile, wish_id, f["id"], routes, daily=daily) and self._link_priced(
+                        profile, wish_id, f["id"]) and not self._unread(profile, f["id"]):
+                    n += 1
+            elif not refused and not (whole and daily and f["read_asked"]):
                 unread.append(f)
             if not refused:
                 pages.append((f, read))

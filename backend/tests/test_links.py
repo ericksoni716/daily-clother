@@ -11,9 +11,14 @@ November; closet/shop.py, tagger/shopping.py, closet/wouldwork.py, closet/illust
 Claude and the shops are never reached: the stand-ins of test_shop.py are used.
 """
 # ruff: noqa: F811  (the fixtures of test_shop.py, imported by name)
-from closet import db, shop
-from closet.tagger import shopping
+import json
+from datetime import timedelta
+from types import SimpleNamespace
+
+from closet import db, shop, spend
+from closet.tagger import correcting, shopping
 from closet.tagger.shopping import PriceSeen
+from closet.tagger.tagging import TaggingError, Unreachable
 
 from .test_shop import (  # noqa: F401  (fixtures used by name)
     PLAIN,
@@ -23,8 +28,10 @@ from .test_shop import (  # noqa: F401  (fixtures used by name)
     client,
     clock,
     closet,
+    described,
     fake_shop,
     find_row,
+    link_read,
     pages,
     services,
     settle,
@@ -174,3 +181,136 @@ def test_the_sentence_says_unread_pages_once(client, fake_shop, pages, usable):
     assert body["run"]["message"] == f"{shop.kept_last(1)} {shop.NO_ROUTE}"
     assert shop.SOME_UNREAD not in body["run"]["message"]
     assert shop.kept_last(2) == "Nines could not read 2 of the pages today. Their last prices are shown."
+
+
+# ------------------------------------------------------------------ 2. a link Nines cannot read, read by Claude whole
+GONE = "https://shop.example/p/wool-chore-coat"   # a page that turns Nines away (no page stands in for it)
+
+
+def coat_read(**changes):
+    """The big shop's page as Claude reads it whole: a grey wool chore coat."""
+    return link_read(**{**dict(read=True, name="Felted wool chore coat", shop="Example Shop",
+                               image_url="https://shop.example/img/coat.jpg", price=268.0, currency="USD",
+                               available=True, clothing=True, category="coat", color="grey", formality="casual",
+                               season="cool", pattern="solid", weight_class="heavyweight", material="wool"),
+                        **changes})
+
+
+def test_a_link_nines_cannot_read_is_read_by_claude_whole_in_one_answer(client, fake_shop, pages):
+    fake_shop.whole = coat_read()
+    wid = add_link(client, GONE)
+    body = client.get(f"/api/wishlist/{wid}/finds").json()
+    find, = body["finds"]
+    assert fake_shop.calls == [("read", GONE, ("plan",))]   # one question: no price check, no description apart
+    assert fake_shop.described == []
+    assert (find["name"], find["shop"], find["image_url"]) == ("Felted wool chore coat", "Example Shop",
+                                                               "https://shop.example/img/coat.jpg")
+    assert find["price"] == 268.0 and find["read_by"] == "claude" and [h["price"] for h in find["history"]] == [268.0]
+    assert find["piece"]["category"] == "coat" and find["piece"]["name"] == "Felted wool chore coat"
+    assert find["verdict"] and find["not_judged"] is None and find["unread_at"] is None
+    assert body["run"]["message"] is None and body["run"]["added"] == 1
+    listed, = client.get("/api/wishlist").json()["wishes"]
+    assert listed["name"] == "Felted wool chore coat"
+    # nothing about the wish or the closet goes with the question
+    prompt = shopping.read_prompt({"url": GONE})
+    assert GONE in prompt and "read false" in prompt and "Never guess from the address alone" in prompt
+
+
+def test_a_value_from_a_whole_read_that_does_not_fit_is_dropped_alone(client, fake_shop):
+    fake_shop.whole = coat_read(image_url="javascript:alert(1)", price=-3.0, shop="", color="heather-ish",
+                                code="TEST40", code_percent=40.0)
+    wid = add_link(client, GONE)
+    find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert find["name"] == "Felted wool chore coat" and find["shop"] == "shop.example"   # its address, as before
+    assert find["image_url"] is None and find["price"] is None and find["code"]["code"] == "TEST40"
+    assert find["piece"] is None and find["not_judged"] == "unclear"   # a colour outside the closet's words
+    assert client.get("/api/wishlist").json()["wishes"][0]["name"] == "Felted wool chore coat"
+
+
+def test_a_page_claude_cannot_read_either_waits_for_a_name_and_is_not_asked_every_day(client, services, fake_shop,
+                                                                                     clock):
+    wid = add_link(client, GONE)   # Claude could not open it (the stand-in's default)
+    body = client.get(f"/api/wishlist/{wid}/finds").json()
+    find, = body["finds"]
+    assert find["name"] == "shop.example" and find["not_judged"] == "no_name" and find["price"] is None
+    assert body["run"]["message"] == shop.NO_PRICE_AT_ALL and fake_shop.calls == [("read", GONE, ("plan",))]
+    # the daily round does not ask the same again
+    clock[0] += timedelta(days=1, seconds=1)
+    assert services.shopper.tick() == 1 and len(fake_shop.calls) == 1
+    # a Check now by the owner does; a name that is only the address counts as none
+    fake_shop.whole = coat_read(name="shop.example")
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    assert settle(client, wid)["finds"][0]["not_judged"] == "no_name" and len(fake_shop.calls) == 2
+    fake_shop.whole = coat_read()
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    find, = settle(client, wid)["finds"]
+    assert find["name"] == "Felted wool chore coat" and find["verdict"] and len(fake_shop.calls) == 3
+    # read once it has a name: later checks ask for its price as any page's
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    settle(client, wid)
+    assert fake_shop.calls[-1][0] == "prices"
+
+
+def test_claude_out_of_reach_while_reading_whole_leaves_the_link_for_later(client, fake_shop):
+    for error in (Unreachable("no connection"), TaggingError("no valid answer")):
+        fake_shop.whole = error
+        wid = add_link(client, GONE)
+        assert client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["not_judged"] == "no_name"
+        fake_shop.whole = coat_read()
+        assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+        assert settle(client, wid)["finds"][0]["name"] == "Felted wool chore coat"
+        client.delete(f"/api/wishlist/{wid}")
+
+
+def test_the_demo_closet_never_reads_a_link_through_claude(client, fake_shop):
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    wid = add_link(client, GONE)
+    assert client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["not_judged"] == "no_name"
+    assert fake_shop.calls == []
+
+
+def test_a_link_whose_name_is_kept_is_described_when_nines_is_turned_away(client, fake_shop, pages, usable):
+    """The owner's small shop: the name and picture were read once, then every read is turned away; the link was
+    never described ("Nines checks it against your closet once Claude can describe it")."""
+    usable["routes"] = ()
+    wid = add_link(client, SHIRT)   # read by Nines: named, not described
+    del pages.pages[SHIRT]
+    usable["routes"] = ("plan",)
+    fake_shop.description = described(category="shirt", color="green", pattern="plaid")
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    find, = settle(client, wid)["finds"]
+    (asked, _), = fake_shop.described
+    assert asked == {"name": "Linen camp-collar shirt", "shop": "Example Shop", "brand": None, "color": None,
+                     "material": None, "description": None}
+    assert find["piece"]["category"] == "shirt" and find["verdict"] and find["not_judged"] is None
+    assert find["price"] == 54.4 and find["read_by"] == "claude"   # Claude read the price, as before
+    # asked once: the same question is not asked again
+    fake_shop.description = described(clothing=False)
+    other = add_link(client, PLAIN)
+    pages.pages.pop(PLAIN)
+    assert client.post(f"/api/wishlist/{other}/prices").status_code == 202
+    assert settle(client, other)["finds"][0]["not_judged"] == "unclear"
+    asked = len(fake_shop.described)
+    assert client.post(f"/api/wishlist/{other}/prices").status_code == 202
+    settle(client, other)
+    assert len(fake_shop.described) == asked
+
+
+def test_reading_a_link_whole_is_asked_with_the_web_tools_and_counted_as_a_price_check(services, cfg, monkeypatch):
+    seen = {}
+
+    def run(cmd, **kw):
+        seen["cmd"], seen["input"] = cmd, kw["stdin"].read().decode("utf-8")
+        return SimpleNamespace(returncode=0, stderr="", stdout=json.dumps(
+            {"structured_output": coat_read().model_dump(), "usage": {"input_tokens": 10, "output_tokens": 5}}))
+    monkeypatch.setattr(correcting.subprocess, "run", run)
+    monkeypatch.setattr(correcting.claude_cli, "find_claude", lambda: "claude")
+    answer = shop.ClaudeAsker(cfg, services.state).read({"url": GONE}, ("plan",))
+    assert answer.read is True and answer.name == "Felted wool chore coat"
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("--tools") + 1] == shopping.PLAN_TOOLS and GONE in seen["input"]
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        assert conn.execute("SELECT purpose FROM claude_calls").fetchone()[0] == spend.PURPOSE_PRICES
+    finally:
+        conn.close()

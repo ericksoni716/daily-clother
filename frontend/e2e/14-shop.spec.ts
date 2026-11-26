@@ -51,9 +51,9 @@ test.describe('shopping for a wish', () => {
     await expect(page.getByRole('heading', { name: 'A tan rain coat', level: 1 })).toBeVisible();
     await expect(wish).toBeVisible();
 
-    // nothing watched yet: the price is offered where Claude is asked to look
+    // nothing watched yet: the most you'd pay is one small button, above looking for more
     const price = wish.getByTestId('wish-price');
-    await expect(price).toContainText('Claude looks at any price.');
+    await expect(price).toHaveText("Set the most you'd pay");
     await expect(wish.getByRole('link', { name: 'Search Google Shopping' }))
       .toHaveAttribute('href', "https://www.google.com/search?tbm=shop&q=men's%20tan%20rain%20coat");
     // the most you'd pay, in a sheet over the page: one amount and its currency, and no lower limit
@@ -70,7 +70,7 @@ test.describe('shopping for a wish', () => {
     await sheet.getByLabel('Amount').fill('200,00');
     await sheet.getByRole('button', { name: 'Save' }).click();
     await expect(sheet).toHaveCount(0);
-    await expect(price).toContainText('Claude looks for ones up to $200.00.');
+    await expect(price).toHaveText("The most you'd pay is $200.00. Change");
     const saved = (await (await page.request.get(backend.url + '/api/wishlist')).json()).wishes
       .find((w: { name: string }) => w.name === 'A tan rain coat');
     expect([saved.price_min, saved.price_max, saved.price_currency]).toEqual([null, 200, 'USD']);
@@ -97,17 +97,32 @@ test.describe('shopping for a wish', () => {
     expect(page.context().pages()).toHaveLength(1);
     expect(await axeViolations(page)).toEqual([]);
 
-    // what is watched comes first, then one sentence about watching with the price, then looking for more, the note,
-    // and what to do with the wish
-    await expect(wish.getByTestId('wish-price')).toHaveText(
-      "Nines checks the price once a day while it's running and tells you when it goes down to $200.00 or less. Change");
+    // what is watched comes first, then when it was checked and the most you'd pay, then looking for more (Google
+    // Shopping a button beside Find more), the note, and what to do with the wish. What is true every day (the daily
+    // check, what a search sends) is behind one closed "How this works", not on the page (the owner, 26 November)
+    await expect(wish.getByTestId('wish-price')).toHaveText("The most you'd pay is $200.00. Change");
     const text = await wish.innerText();
-    const order = ['Tan gabardine rain coat', 'Nines checks the price once a day', 'Last checked today', 'Find more', 'Note',
-      'Would it go with my clothes?', 'I bought it', 'Remove from the list'].map((words) => text.indexOf(words));
+    const order = ['Tan gabardine rain coat', 'Last checked today', "The most you'd pay", 'Find more', 'Search Google Shopping',
+      'How this works', 'Note', 'Check one I found', 'I bought it', 'Remove from the list'].map((words) => text.indexOf(words));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(text).not.toContain('Nines checks the price once a day');
+    expect(text).not.toContain('A search sends Claude');
+    const how = wish.getByTestId('shop-how');
+    await expect(how).not.toHaveAttribute('open');
+    await expect(how).toContainText("Nines checks the price once a day while it's running and tells you when it goes down to $200.00 or less.");
+    await expect(how.getByTestId('search-sends')).toHaveText(/^A search sends Claude the wish/);
+    await expect(wish.getByTestId('google-shopping')).toHaveClass(/\bbtn\b/);
     await expect(wish).not.toContainText('Nothing is ever bought for you');
-    await expect(wish.getByRole('button', { name: 'Would it go with my clothes?' })).toHaveAttribute('title', /against your closet/);
+    // on a wish added by hand, the third button checks one you found in a shop
+    await expect(wish.getByRole('button', { name: 'Would it go with my clothes?' })).toHaveCount(0);
+    await expect(wish.getByRole('button', { name: 'Check one I found' })).toHaveAttribute('title', /photo or a description.*against your closet/);
+    // a find's card: the answer and two buttons on it, everything else in one closed fold
+    await expect(coat.getByRole('button', { name: 'See it with your clothes' })).toBeVisible();
+    await expect(coat.getByRole('button', { name: 'Stop watching' })).toBeHidden();
+    await expect(coat.getByRole('button', { name: 'Add a code' })).toBeHidden();
+    await expect(coat).toContainText('Claude saw:');
+    await expect(coat.getByText(/^Claude saw:/)).toBeHidden();
 
     // Check now sees every price lower: the drop is shown. While it checks, "Checking the price…" takes the place of
     // "Last checked …" and nothing under it moves (a line put in under it moved Find more 48px, and named Claude: the
@@ -127,10 +142,12 @@ test.describe('shopping for a wish', () => {
     await wish.getByTestId('wish-price').getByRole('button', { name: 'Change' }).click();
     await expect(sheet.getByLabel('Amount')).toHaveValue('200');
     await sheet.getByRole('button', { name: 'Clear' }).click();
-    await expect(wish.getByTestId('wish-price')).toContainText('tells you when it goes down. ');
+    await expect(wish.getByTestId('wish-price')).toHaveText("Set the most you'd pay");
+    await expect(how).toContainText('tells you when it goes down.');
 
     // watching a find can be stopped: it stays in its place, saying so with Undo, until you leave the page (A8: it
     // went at once), and then it is gone
+    await polo.getByTestId('find-more').locator('summary').click();   // in its fold, with the rest of the small print
     await polo.getByRole('button', { name: 'Stop watching' }).click();
     await expect(polo.getByTestId('find-stopped')).toContainText('You stopped watching it');
     await expect(finds).toHaveCount(2);
@@ -193,6 +210,7 @@ test.describe('shopping for a wish', () => {
 
     // Stop watching can be undone (the review of 23 November, A8): the find stays in its place saying so, Undo has the
     // focus, and Undo puts it back as it was, its price history and its drop with it
+    await find.getByTestId('find-more').locator('summary').click();   // in its fold, with the rest of the small print
     const top = (await find.boundingBox())!.y;
     await find.getByRole('button', { name: 'Stop watching' }).click();
     await expect(find.getByTestId('find-stopped')).toContainText('You stopped watching it');
@@ -219,9 +237,11 @@ test.describe('shopping for a wish', () => {
     await wish.getByLabel('Note').blur();
     await cleared;
 
-    // Would it go with my clothes? starts from the product's name on the page that was sent
-    await wish.getByRole('button', { name: 'Would it go with my clothes?' }).click();
-    await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
+    // the card already says whether it goes with your clothes, so the wish made from it does not offer to check one
+    // (the owner, 26 November); Would this work? opened for it still starts from the product's name on the page
+    await expect(wish.getByRole('button', { name: 'Check one I found' })).toHaveCount(0);
+    await expect(wish.getByRole('button', { name: 'Would it go with my clothes?' })).toHaveCount(0);
+    await page.goto(`${backend.url}/wardrobe/check/wish/${wishId}`);
     // (the name is among the rest, in "More about it")
     await page.getByTestId('would-work').getByRole('button', { name: 'More about it' }).click();
     await expect(page.getByRole('dialog', { name: 'More about it' }).getByLabel('Name (optional)')).toHaveValue('Linen camp-collar shirt');
@@ -307,6 +327,115 @@ test.describe('shopping for a wish', () => {
     await expect(page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'A plain shirt' })).toBeVisible();
   });
 
+  // A link nobody could read (tests/e2e_backend.py: the shop turns Nines away and Claude cannot read the page either):
+  // it asks for a name in the verdict's place, cannot be searched for until it has one, and once named is described and
+  // judged as any link is. The page holds still throughout.
+  test('a link nobody could read asks for a name, then is described and judged, and the page holds still', async ({ page }) => {
+    test.setTimeout(120_000);
+    expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
+    const made = await page.request.post(backend.url + '/api/wishlist/link', { data: { url: 'https://shop.example/turned-away' } });
+    const { id } = await made.json();
+    await expect.poll(async () => (await (await page.request.get(`${backend.url}/api/wishlist/${id}/finds`)).json()).run?.state,
+      { timeout: 30_000 }).toBe('done');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(backend.url + `/wardrobe/wish/${encodeURIComponent(id)}`);
+    const wish = page.getByTestId('wish');
+    const find = wish.getByTestId('find');
+    const naming = find.getByTestId('find-naming');
+    await expect(naming).toContainText("Nines and Claude couldn't read what this is from its page.", { timeout: 30_000 });
+    // the address once, as its shop; no verdict, and no second sentence about the page
+    await expect(find.getByText('shop.example', { exact: true })).toHaveCount(1);
+    await expect(find.getByTestId('find-not-judged')).toHaveCount(0);
+    await expect(find.getByTestId('find-unread')).toHaveCount(0);
+    const field = naming.getByLabel('What it is called');
+    await expect(field).toHaveAttribute('placeholder', /Grey wool chore coat/);
+    // not searched for until it has a name: no Google Shopping, Find some off with the server's own reason
+    const refused = await page.request.post(`${backend.url}/api/wishlist/${id}/find`);
+    expect(refused.status()).toBe(409);
+    const reason = (await refused.json()).detail as string;
+    await expect(wish.getByTestId('google-shopping')).toHaveCount(0);
+    await expect(wish.getByTestId('find-some')).toBeDisabled();
+    await expect(wish.getByTestId('find-off')).toHaveText(reason);
+    expect(await axeViolations(page)).toEqual([]);
+
+    // named: the name comes at once, then the waiting sentence where the field was, then the verdict; the buttons under
+    // the card do not move
+    const at = async () => Promise.all([wish.getByTestId('check-prices'), wish.getByTestId('find-some')].map(
+      (b) => b.evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY))));
+    const before = await at();
+    await field.fill('Grey wool overshirt');
+    await naming.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('heading', { name: 'Grey wool overshirt', level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expect(find.getByTestId('find-naming')).toHaveCount(0);
+    await expect(find.getByTestId('find-not-judged')).toHaveText('Nines checks it against your closet once Claude can describe it.');
+    expect(await at()).toEqual(before);
+    await expect(find.getByTestId('find-verdict')).not.toBeEmpty({ timeout: 30_000 });
+    expect(await at()).toEqual(before);
+    await expect(find.getByRole('heading')).toHaveCount(0);   // its name is the page's heading, said once
+    await expect(wish.getByTestId('find-off')).toHaveCount(0);
+    await expect(wish.getByTestId('find-some')).toBeEnabled();
+    await expect(wish.getByTestId('google-shopping')).toBeVisible();
+  });
+
+  test('a name that is refused is said under the field, and what was typed stays', async ({ page }) => {
+    test.setTimeout(90_000);
+    expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
+    const made = await page.request.post(backend.url + '/api/wishlist/link', { data: { url: 'https://shop.example/turned-away?colour=grey' } });
+    const { id } = await made.json();
+    await expect.poll(async () => (await (await page.request.get(`${backend.url}/api/wishlist/${id}/finds`)).json()).run?.state,
+      { timeout: 30_000 }).toBe('done');
+    await page.setViewportSize({ width: 375, height: 760 });
+    await page.goto(backend.url + `/wardrobe/wish/${encodeURIComponent(id)}`);
+    const naming = page.getByTestId('wish').getByTestId('find-naming');
+    const long = 'x'.repeat(201);
+    await naming.getByLabel('What it is called').fill(long);
+    await naming.getByRole('button', { name: 'Save' }).click();
+    await expect(naming.getByRole('alert')).not.toBeEmpty();
+    await expect(naming.getByLabel('What it is called')).toHaveValue(long);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  });
+
+  // A page that let Nines in once and then turned it away (and Claude cannot read it): it keeps its last price, says so
+  // quietly under the price, and the check says it in its own line; nothing moves while it checks.
+  test('a page that could not be read keeps its last price, saying so once on its card', async ({ page }) => {
+    test.setTimeout(120_000);
+    expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'main' } })).ok()).toBe(true);
+    const made = await page.request.post(backend.url + '/api/wishlist/link', { data: { url: 'https://shop.example/once-shirt' } });
+    const { id } = await made.json();
+    const state = async () => (await (await page.request.get(`${backend.url}/api/wishlist/${id}/finds`)).json()).run?.state;
+    await expect.poll(state, { timeout: 30_000 }).toBe('done');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(backend.url + `/wardrobe/wish/${encodeURIComponent(id)}`);
+    const wish = page.getByTestId('wish');
+    const find = wish.getByTestId('find');
+    await expect(find).toContainText('Example Shop · $68.00', { timeout: 30_000 });
+    await expect(find.getByTestId('find-unread')).toHaveCount(0);
+    await wish.getByTestId('check-prices').click();
+    await expect(wish.getByTestId('prices-checked')).toContainText('Last checked today at', { timeout: 30_000 });
+    await expect(find.getByTestId('find-unread')).toHaveText("Nines couldn't read the page today. This is the last price it read.");
+    await expect(find).toContainText('Example Shop · $68.00');
+    await expect(find).not.toContainText('Sold out');
+    // the check said so as it ended; the page says it once, on the card, not again under Check now
+    await expect(page.getByText('Nines could not read 1 of the pages today. Its last price is shown.')).toBeVisible();   // the toast
+    await expect(wish.getByText(/could not read/)).toHaveCount(0);
+    // checked again, still turned away: nothing under the finger moves, while it checks or after
+    const findMore = wish.getByTestId('find-some');
+    const top = async () => Promise.all([wish.getByTestId('check-prices'), findMore].map(
+      (b) => b.evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY))));
+    const before = await top();
+    await wish.getByTestId('check-prices').click();
+    await expect(wish.getByTestId('prices-checked')).toHaveText('Checking the price…');
+    expect(await top()).toEqual(before);
+    await expect(wish.getByTestId('prices-checked')).toContainText('Last checked today at', { timeout: 30_000 });
+    await expect(find.getByTestId('find-unread')).toBeVisible();
+    expect(await top()).toEqual(before);
+    // the card says it plainly, not as a fault
+    expect(await find.getByTestId('find-unread').evaluate((el) => el.closest('[role="alert"], .notice, .form-error'))).toBeNull();
+    // read again after a reload: the card still says it
+    await page.reload();
+    await expect(find.getByTestId('find-unread')).toBeVisible({ timeout: 30_000 });
+  });
+
   // A judged find worn with your own clothes: the outfits Would this work? makes with it, drawn as worn on this computer
   // (nothing asks Claude), in a sheet over the wish's page, with the shop's picture beside the drawing.
   test('see a judged find with your clothes, step through its outfits and close the sheet', async ({ page }) => {
@@ -386,9 +515,15 @@ test.describe('shopping for a wish', () => {
     await expect(find.getByRole('heading')).toHaveCount(0);
     await expect(find).toContainText(/^Example Shop · /);
 
-    // 44px to tap: a find's links and the wish's buttons (they were 20 to 37px high)
-    for (const button of [find.getByRole('button', { name: 'See it with your clothes' }), find.getByRole('button', { name: /^(Add a code|Change the code)$/ }),
-      wish.getByTestId('find-some'), wish.getByRole('button', { name: 'Would it go with my clothes?' }),
+    // a wish made from a link: its card answers whether it goes with your clothes, so no third button
+    await expect(wish.getByRole('button', { name: 'Check one I found' })).toHaveCount(0);
+
+    // 44px to tap: a find's buttons, its fold and what is in it, and the wish's buttons (they were 20 to 37px high)
+    await find.getByTestId('find-more').locator('summary').click();
+    for (const button of [find.getByRole('button', { name: 'See it with your clothes' }), find.getByRole('link', { name: 'Open in shop' }),
+      find.getByTestId('find-more').locator('summary'), find.getByRole('button', { name: /^(Add a code|Change the code)$/ }),
+      find.getByRole('button', { name: 'Stop watching' }), wish.getByTestId('check-prices'), wish.getByTestId('wish-price').getByRole('button'),
+      wish.getByTestId('find-some'), wish.getByTestId('add-link'), wish.getByTestId('google-shopping'), wish.getByTestId('shop-how').locator('summary'),
       wish.getByRole('button', { name: 'I bought it' }), wish.getByRole('button', { name: 'Remove from the list' })]) {
       const box = await button.evaluate((el) => el.getBoundingClientRect().toJSON() as DOMRect);
       expect(box.height, await button.innerText()).toBeGreaterThanOrEqual(44);

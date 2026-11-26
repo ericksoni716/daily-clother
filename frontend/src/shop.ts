@@ -51,6 +51,11 @@ export interface Find {
   link: boolean;
   /** When Nines last read the page itself (a link only), whatever it found. */
   read_at: string | null;
+  /** When the latest check of its page, by Nines or by Claude, got no price from it (turned away, gone, or Claude
+   * could not read it); null once a check reads a price. The price shown is then the last one read. */
+  unread_at?: string | null;
+  /** False while a link is still called by its site's address: neither its page, Claude nor you have named it. */
+  named?: boolean;
   /** How the latest price was read: from the page's own data, or by Claude. */
   read_by: 'page' | 'claude' | null;
   /** Its description in the closet's words; null for a link Claude has not described. */
@@ -221,6 +226,38 @@ export function notJudgedWords(f: Pick<Find, 'not_judged'>, demo: boolean): stri
   }
 }
 
+/** The quiet line under a find's price when its page could not be read at its last check: "Nines couldn't read the
+ * page on Monday. This is the last price it read."; with no price ever read, only that the page could not be read.
+ * Null when the last check read it. Nothing is wrong with the wish, so it is said as a fact, not as a fault. */
+export function unreadWords(f: Pick<Find, 'unread_at' | 'price'>, today: string = localDay()): string | null {
+  if (!f.unread_at || Number.isNaN(new Date(f.unread_at).getTime())) return null;
+  const said = `Nines couldn't read the page ${whenWorn(localDay(new Date(f.unread_at)), today)}.`;
+  return f.price == null ? said : `${said} This is the last price it read.`;
+}
+
+/** Why a search cannot start for a wish still called by its link's site's address: the server's own sentence
+ * (`shop.UNNAMED`, the 409 of `POST /api/wishlist/{id}/find`), said under Find more while the button is off. */
+export const NOT_NAMED = "Nines doesn't know what this one is called yet, so it can't look for more. Give it a name first.";
+
+/** Whether a wish is still called by the site's address of a link nobody could name (`named` false), the find it was
+ * made from: it cannot be searched for until it is named (the server refuses with `NOT_NAMED`). */
+export function wishUnnamed(wish: Pick<Wish, 'name' | 'gap_id'>, finds: Pick<Find, 'name' | 'link' | 'named'>[]): boolean {
+  return !wish.gap_id && finds.some((f) => f.link && f.named === false && isTheWish(f, wish));
+}
+
+/** What a check or a link's reading said, less what each card now says for itself (`unreadWords`): that pages could
+ * not be read and their last prices stand (`shop.kept_last`), or that a page you sent gave no price to Nines or Claude
+ * (`shop.NO_PRICE_AT_ALL`). The rest (why Claude could not be asked, that not every page gives its price) is still
+ * said under Check now; null when nothing is left. A search's words are kept whole. */
+export function runLeft(run: Pick<ShopRun, 'kind' | 'message'>): string | null {
+  if (!run.message || run.kind === 'find') return run.message;
+  const left = run.message
+    .replace(/^Nines could not read \d+ of the pages today\. (Its last price is|Their last prices are) shown\.\s*/, '')
+    .replace(/^The page doesn't give its price in a way Nines can read, and Claude found no price on it either\.\s*/, '')
+    .trim();
+  return left || null;
+}
+
 /** A find worn with your own clothes (`GET /api/wishlist/{id}/finds/{findId}/outfits`): its piece, and the example
  * outfits Would this work? makes with it, its place holding `CANDIDATE_ID`. */
 export interface FindOutfits {
@@ -251,11 +288,12 @@ export function runWords(run: Pick<ShopRun, 'kind' | 'step'>): string {
   return 'Checking the price…';
 }
 
-/** What a toast says once a search, a price check or the reading of a link is over. */
-export function runDoneWords(run: ShopRun, wishName: string): string {
+/** What a toast says once a search, a price check or the reading of a link is over; null when a link's reading read
+ * no price and has nothing to say (a link you named, described from that name: the card shows what came of it). */
+export function runDoneWords(run: ShopRun, wishName: string): string | null {
   if (run.state === 'failed') return run.message ?? 'Something went wrong while looking.';
   if (run.kind === 'find') return run.added ? `Found ${run.added} new for “${wishName}”` : (run.message ?? 'Nothing new found');
-  if (run.kind === 'link') return run.message ?? 'Nines read its price, and checks it again once a day.';
+  if (run.kind === 'link') return run.message ?? (run.added === 0 ? null : 'Nines read its price, and checks it again once a day.');
   return run.message ?? 'Prices checked';
 }
 
@@ -294,7 +332,7 @@ export function rangeWords(w: Pick<Wish, 'price_min' | 'price_max' | 'price_curr
 
 type PriceOf = Pick<Wish, 'price_min' | 'price_max' | 'price_currency'>;
 
-/** What Claude's searches keep to, said where the price is offered when nothing is watched yet: "Claude looks at any
+/** What Claude's searches keep to, said in the wish page's "How this works" when an older wish has a lower limit: "Claude looks at any
  * price.", "Claude looks for ones up to $150.00." (a lower limit, which older wishes may still have, as it is). */
 export function searchWords(w: PriceOf): string {
   const range = rangeWords(w);
@@ -303,7 +341,18 @@ export function searchWords(w: PriceOf): string {
   return `Claude looks for ones ${both ? 'from ' : ''}${range.charAt(0).toLowerCase()}${range.slice(1)}.`;
 }
 
-/** The one sentence about watching, under what is watched: the price checked once a day, and what Nines tells you. */
+/** The most you'd pay, in the one short line beside its button on a wish's page: "The most you'd pay is $150.00."
+ * (a lower limit, which older wishes may still have, as it is: "You'd pay from $50.00 to $150.00."). Null when none is
+ * set: the button alone says "Set the most you'd pay". */
+export function mostWords(w: PriceOf): string | null {
+  const cur = w.price_currency ?? 'USD';
+  if (w.price_min != null) {
+    return w.price_max != null ? `You'd pay from ${priceWords(w.price_min, cur)} to ${priceWords(w.price_max, cur)}.` : `You'd pay from ${priceWords(w.price_min, cur)}.`;
+  }
+  return w.price_max != null ? `The most you'd pay is ${priceWords(w.price_max, cur)}.` : null;
+}
+
+/** The one sentence about watching, in the wish page's "How this works": the price checked once a day, and what Nines tells you. */
 export function watchWords(w: PriceOf): string {
   const most = w.price_max != null ? ` to ${priceWords(w.price_max, w.price_currency ?? 'USD')} or less` : '';
   const told = `Nines checks the price once a day while it's running and tells you when it goes down${most}.`;
@@ -358,6 +407,15 @@ export function isTheWish(find: Pick<Find, 'name'>, wish: Pick<Wish, 'name'>): b
   const start = own.slice(0, -1).trimEnd();
   // cut at a word: what follows the cut in the find's name starts a new word (or punctuation the cut dropped)
   return start.length > 0 && name.startsWith(start) && name.length > start.length && /^[\s,;:-]/.test(name.slice(start.length));
+}
+
+/** Whether a wish is one of its finds (made from a link sent or a pick saved, and named after it): its card then says
+ * whether it goes with your clothes, so the wish's page does not offer to check one you found. From its finds, or,
+ * before they are read, from its newest link on the wishlist's row. */
+export function wishIsAFind(wish: Pick<Wish, 'name'> & { link?: Pick<WishLink, 'name'> | null },
+  finds: Pick<Find, 'name'>[] | null | undefined): boolean {
+  if ((finds ?? []).some((f) => isTheWish(f, wish))) return true;
+  return !!wish.link?.name && isTheWish({ name: wish.link.name }, wish);
 }
 
 /** The wish's page heading: its name, or the whole name of the find it was made from when its own is that name cut

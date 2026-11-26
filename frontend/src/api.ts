@@ -468,6 +468,10 @@ export const api = {
   /** A checkout code you typed for a find, with its percent or its amount off (it marks the wish's news seen). */
   setFindCode: (id: string, findId: string, code: { code: string; percent?: number; amount?: number }) =>
     request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}/code`, { method: 'PUT', body: code }),
+  /** Names a find you sent as a link that nobody could read: Claude then describes it from that name (the run, a
+   * link's reading, is running in the answer). */
+  nameFind: (id: string, findId: string, name: string) =>
+    request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}/name`, { method: 'PUT', body: { name } }),
   removeFindCode: (id: string, findId: string) =>
     request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}/code`, { method: 'DELETE' }),
   /** The prices that came down since you last looked at their wish; never in the demo closet. */

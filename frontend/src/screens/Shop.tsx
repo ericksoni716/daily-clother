@@ -4,12 +4,12 @@ import { api } from '../api';
 import { LinkIcon, SearchIcon } from '../components/Icons';
 import { useNewsSeen } from '../components/PriceNews';
 import { SeeItWorn } from '../components/WornWith';
-import { Button, buttonClass, Card, Failed, Notice, SegmentedControl, Sheet } from '../components/ui';
+import { Button, buttonClass, Card, Failed, Fold, HowItWorks, Notice, SegmentedControl, Sheet } from '../components/ui';
 import type { Wish } from '../gaps';
 import { stale, touch, useItems } from '../queries';
 import {
   addedByHand, canSeeWorn, checkedWords, codeFromWords, codeWords, dropWords, type Find, type FindsAnswer, findsInOrder, withStopped, googleShoppingLink,
-  historyWords, isTheWish, lastChecked, LINK_PROBLEM, linkIn, linkLine, notJudgedWords, priceWords, runDoneWords, runWords, searchWords, shopPoll,
+  historyWords, isTheWish, lastChecked, runLeft, NOT_NAMED, unreadWords, wishUnnamed, LINK_PROBLEM, linkIn, linkLine, mostWords, notJudgedWords, priceWords, runDoneWords, runWords, shopPoll,
   type ShopRun, typedCode, watchWords, webLink, wishlistAgain,
 } from '../shop';
 import { SEARCH_SENDS } from '../shop';
@@ -65,8 +65,9 @@ export function LinkForm({ initial = '', submit, busy, locked, lockedTitle, onSu
 
 /**
  * On a wish, below what to look for: "Added by hand" when it was, what is watched (the pages you sent, then Claude's
- * finds) with the one sentence about watching, the most you'd pay and Check now; then looking for more ("Find some",
- * "Add a link"). Opening the page tells the server you have seen the wish's price news.
+ * finds), one line for when it was last checked with Check now, and the most you'd pay; then looking for more in one row
+ * ("Find some", "Add a link", "Search Google Shopping") and one closed "How this works" for what is true every day.
+ * Opening the page tells the server you have seen the wish's price news.
  */
 export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolean; onPrice(w: Wish, changes: PriceChange): Promise<boolean> }) {
   const { profile, toast } = useApp();
@@ -110,7 +111,8 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
       void stale(qc, queryKeys.wishlist());
     }
     if (lastRun.current?.state === 'running' && run && run.state !== 'running') {
-      toast(runDoneWords(run, wish.name), run.state === 'failed' ? 'error' : undefined);
+      const done = runDoneWords(run, wish.name);
+      if (done) toast(done, run.state === 'failed' ? 'error' : undefined);
       if (watching) seen([wish.id]).catch(() => undefined);
     }
     answered.current = true;
@@ -154,10 +156,20 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   // what a run says goes under what started it: a price check (and a link being read) under Check now, a search under
   // Find some; a refusal, under the button that was refused
   const checking = finds.length > 0 && (begin.error ? begin.variables === 'prices' : run !== null && run.kind !== 'find');
-  // a price check running is said in place of "Last checked …", so nothing under it moves (DESIGN, "The page holds
-  // still")
-  const pricing = finds.length > 0 && run?.state === 'running' && run.kind === 'prices';
-  const said = <RunSaid run={pricing ? null : run} error={begin.error?.message ?? null} />;
+  // a price check, or a link being read or described, is said in place of "Last checked …" while it runs, so nothing
+  // under it moves (DESIGN, "The page holds still"); once done, what it said less what each card says for itself (a
+  // page that could not be read: `runLeft`), which the toast said as it ended
+  const inLine = finds.length > 0 && run?.state === 'running' && run.kind !== 'find';
+  const said = <RunSaid run={inLine || !run ? null : { ...run, message: runLeft(run) }} error={begin.error?.message ?? null} />;
+  // a wish still called by the address of the link nobody could read: not searched for until it is named
+  const unnamed = wishUnnamed(wish, listed);
+  async function nameFind(f: Find, name: string) {
+    const now = await api.nameFind(wish.id, f.id, name);
+    // the wish takes the name too: read again before the card changes, so the find's name never shows on its card
+    // only to go again when the heading has it
+    await stale(qc, queryKeys.wishlist());
+    qc.setQueryData(key, now);
+  }
   // the currency the most you'd pay starts in when none is set: the newest find's
   const currency = answer?.finds[0]?.currency;
   // above what is watched, and decided with it, so that stopping a link's find on this visit, or the wishlist read again
@@ -182,36 +194,42 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
           <ul className="find-list" aria-label="Found in shops">
             {finds.map((f, i) => (
               <li key={f.id}>
-                <FindCard find={f} demo={demo} locked={locked} byId={byId} stopped={isStopped(f)} own={isTheWish(f, wish)}
-                  onStop={() => void stop(f, i)} onUndo={() => void undoStop(f)} />
+                <FindCard find={f} demo={demo} locked={locked} busy={starting || running} byId={byId} stopped={isStopped(f)}
+                  own={isTheWish(f, wish)} onStop={() => void stop(f, i)} onUndo={() => void undoStop(f)}
+                  onName={(name) => nameFind(f, name)} />
               </li>
             ))}
           </ul>
-          <PriceLine wish={wish} currency={currency} locked={locked} onPrice={onPrice}>{watchWords(wish)}</PriceLine>
-          <p className="muted wish-shop-line" data-testid="prices-checked">
-            {pricing ? runWords(run!) : checkedWords(lastChecked({ ...answer!, finds: listed }))}{' '}
-            <Button variant="link" small className="wish-inline-button" data-testid="check-prices" disabled={pricesOff}
-              title={pricesOff ? title : undefined} onClick={() => begin.mutate('prices')}>Check now</Button>
-          </p>
+          {/* one quiet line: when it was last checked, or that it is being checked now, in the same place */}
+          <div className="wish-line">
+            <p className="muted" data-testid="prices-checked" role="status">
+              {inLine ? runWords(run!) : checkedWords(lastChecked({ ...answer!, finds: listed }))}
+            </p>
+            <Button small data-testid="check-prices" disabled={pricesOff} title={pricesOff ? title : undefined}
+              onClick={() => begin.mutate('prices')}>Check now</Button>
+          </div>
           {checking && said}
+          <PriceLine wish={wish} currency={currency} locked={locked} onPrice={onPrice} />
         </section>
       )}
       <section className="wish-shop" aria-label={`Looking for more for ${wish.name}`}>
-        {finds.length === 0 && <PriceLine wish={wish} currency={currency} locked={locked} onPrice={onPrice}>{searchWords(wish)}</PriceLine>}
+        {finds.length === 0 && <PriceLine wish={wish} currency={currency} locked={locked} onPrice={onPrice} />}
         <div className="row wish-shop-actions">
-          <Button small data-testid="find-some" disabled={disabled} title={title} onClick={() => begin.mutate('find')}>
+          <Button small data-testid="find-some" disabled={disabled || unnamed} title={unnamed ? NOT_NAMED : title}
+            onClick={() => begin.mutate('find')}>
             <SearchIcon /> {finds.length ? 'Find more' : 'Find some'}
           </Button>
           {!linking && (
-            <Button variant="ghost" small data-testid="add-link" disabled={busy} onClick={() => setLinking(true)}>
+            <Button small data-testid="add-link" disabled={busy} onClick={() => setLinking(true)}>
               <LinkIcon /> Add a link
             </Button>
           )}
+          {/* searched for by the site's address, it would find the shop, not the piece */}
+          {!unnamed && (
+            <a className={buttonClass({ small: true })} data-testid="google-shopping" href={googleShoppingLink(wish)}
+              target="_blank" rel="noopener noreferrer">Search Google Shopping</a>
+          )}
         </div>
-        <p className="wish-shop-line">
-          <a className={buttonClass({ variant: 'link', small: true, className: 'wish-inline-button' })} data-testid="google-shopping"
-            href={googleShoppingLink(wish)} target="_blank" rel="noopener noreferrer">Search Google Shopping</a>
-        </p>
         {linking && (
           <LinkForm submit="Add to this wish" busy={starting || running} locked={locked} onCancel={() => setLinking(false)}
             onSubmit={async (url) => {
@@ -224,15 +242,20 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
               }
             }} />
         )}
-        {!demo && <p className="muted wish-shop-line" data-testid="search-sends">{SEARCH_SENDS}</p>}
-        {demo && <p className="muted wish-shop-line">The demo closet never searches shops. Open your own closet to look for this.</p>}
-        {answer && !demo && answer.estimate.api && (
-          <p className="muted wish-shop-line">
-            If your plan can't be used, a search costs {aboutUsd(answer.estimate.find_usd)} at most with the API key
-            {finds.length > 0 ? `, and a price check ${aboutUsd(answer.estimate.prices_usd)}` : ''}.
-          </p>
-        )}
         {!checking && said}
+        {unnamed && !begin.error && <p className="muted wish-shop-line" data-testid="find-off">{NOT_NAMED}</p>}
+        {/* what is true every day, behind one closed line (DESIGN, "Reading load is a budget") */}
+        <HowItWorks className="wish-how" testId="shop-how">
+          <p>{watchWords(wish)}</p>
+          {!demo && <p data-testid="search-sends">{SEARCH_SENDS}</p>}
+          {demo && <p>The demo closet never searches shops. Open your own closet to look for this.</p>}
+          {answer && !demo && answer.estimate.api && (
+            <p>
+              If your plan can't be used, a search costs {aboutUsd(answer.estimate.find_usd)} at most with the API key
+              {finds.length > 0 ? `, and a price check ${aboutUsd(answer.estimate.prices_usd)}` : ''}.
+            </p>
+          )}
+        </HowItWorks>
       </section>
     </>
   );
@@ -256,86 +279,161 @@ function RunSaid({ run, error }: { run: ShopRun | null; error: string | null }) 
   );
 }
 
-function FindCard({ find, demo, locked, byId, stopped, own = false, onStop, onUndo }: {
+/**
+ * A find's card, in the order it is read (DESIGN, "Lead with the answer"): what it is and what it costs (the price, the
+ * price with a code, the drop), then whether it works (the verdict and its reasons, or why it is not judged), then the
+ * two things to do with it, and one closed fold for everything else (the price so far, who read it, what Claude saw,
+ * who saw the code, and the two occasional actions: the code and Stop watching).
+ */
+function FindCard({ find, demo, locked, busy = false, byId, stopped, own = false, onStop, onUndo, onName }: {
   find: Find; demo: boolean; locked: boolean; byId: Map<string, ItemSummary>;
+  /** something runs for the wish (a search, a check, a page being read): a name cannot be saved meanwhile */
+  busy?: boolean;
   /** the wish itself (made from it, with its name): the page's heading names it, so the card starts at its shop */
   own?: boolean;
-  /** you stopped watching it on this visit: it stays, saying so, with Undo where its buttons were */
+  /** you stopped watching it on this visit: it stays, saying so, with Undo where its two small buttons were */
   stopped: boolean;
   onStop(): void;
   onUndo(): void;
+  /** Names a find nobody could read (`named` false); throws with the sentence to show when it could not. */
+  onName(name: string): Promise<void>;
 }) {
   const link = webLink(find.url);
+  const naming = find.named === false;
+  // the card's height as its name is saved, kept while the answer comes in the box's place (and the line saying its
+  // page could not be read, under the price), so nothing under the card moves
+  const answerRef = useRef<HTMLDivElement>(null);
+  const [kept, setKept] = useState<number | null>(null);
+  const unread = naming ? null : unreadWords(find);
   const image = webLink(find.image_url);
   const tone = find.verdict ? verdictTone(find.verdict) : 'plain';
   const sent = linkLine(find);
   const went = historyWords(find.history);
-  const unjudged = notJudgedWords(find, demo);
+  const unjudged = naming ? null : notJudgedWords(find, demo);
+  const code = codeWords(find);
+  const from = codeFromWords(find.code);
   return (
-    <Card as="article" className="find-card" data-testid="find" aria-label={find.name} data-verdict={find.verdict ?? ''}>
+    // a grid: the picture beside what it is and what it costs; on a phone the rest runs under both, the card's whole
+    // width, and on a computer beside the picture
+    <Card as="article" className={image ? 'find-card has-image' : 'find-card'} data-testid="find" aria-label={find.name}
+      data-verdict={find.verdict ?? ''} style={kept ? { minHeight: kept } : undefined}>
       {image && <img className="find-image" src={image} alt="" loading="lazy" referrerPolicy="no-referrer" />}
-      <div className="find-body">
-        {!own && <h2 className="find-name">{find.name}</h2>}
+      {/* what it is and what it costs */}
+      <div className="find-what">
+        {/* a find nobody could read is still called by its site's address, which the shop already says */}
+        {!own && !naming && <h2 className="find-name">{find.name}</h2>}
         <p className="find-shop">
-          {find.shop} · <strong>{priceWords(find.price, find.currency)}</strong>
+          <span className="find-shop-name">{find.shop}</span> · <strong className={find.price == null ? 'find-price is-none' : 'find-price'}>{priceWords(find.price, find.currency)}</strong>
           {!find.available && <span className="find-sold"> · Sold out</span>}
         </p>
-        <FindCode find={find} locked={locked} />
+        {unread && <p className="find-unread" data-testid="find-unread">{unread}</p>}
+        {code && <p className="find-code" data-testid="find-code">{code}</p>}
         {find.drop && <p className="find-drop" data-testid="find-drop">{dropWords(find.drop)}</p>}
-        {went && <p className="muted find-piece" data-testid="find-history">{went}</p>}
-        {find.verdict_words && <p className={`find-verdict is-${tone}`} data-testid="find-verdict">{find.verdict_words}</p>}
-        {find.reasons.length > 0 && (
-          <ul className="gap-why find-reasons" aria-label="Why">
-            {find.reasons.map((r) => <li key={r}>{r}</li>)}
-          </ul>
-        )}
-        {find.piece_words && <p className="muted find-piece">Claude saw: {find.piece_words}</p>}
-        {sent && <p className="muted find-piece" data-testid="find-link">{sent}</p>}
-        {unjudged && <p className="muted find-piece" data-testid="find-not-judged">{unjudged}</p>}
-        {canSeeWorn(find) && <SeeWorn find={find} image={image} locked={locked} byId={byId} />}
+      </div>
+      {/* whether it works: the verdict and its reasons, or why it is not judged, in the same place */}
+      {(find.verdict_words || find.reasons.length > 0 || unjudged || naming) && (
+        <div className="find-answer" ref={answerRef}>
+          {naming && (
+            <NameForm locked={locked || busy} onName={(name) => {
+              const h = answerRef.current?.closest('article')?.getBoundingClientRect().height;
+              if (h) setKept(h);
+              return onName(name);
+            }} />
+          )}
+          {find.verdict_words && <p className={`find-verdict is-${tone}`} data-testid="find-verdict">{find.verdict_words}</p>}
+          {find.reasons.length > 0 && (
+            <ul className="find-reasons" aria-label="Why">
+              {find.reasons.map((r) => <li key={r}>{r}</li>)}
+            </ul>
+          )}
+          {unjudged && <p className="find-not-judged" data-testid="find-not-judged">{unjudged}</p>}
+        </div>
+      )}
+      {/* what you can do */}
+      {(canSeeWorn(find) || link) && (
+        <div className="row find-actions">
+          {canSeeWorn(find) && <SeeWorn find={find} image={image} locked={locked || stopped} byId={byId} />}
+          {link && <a className={buttonClass({ small: true })} href={link} target="_blank" rel="noopener noreferrer">Open in shop</a>}
+        </div>
+      )}
+      {/* everything else, closed */}
+      <Fold title="About this find" className="find-more" testId="find-more">
+        {went && <p data-testid="find-history">{went}</p>}
+        {sent && <p data-testid="find-link">{sent}</p>}
+        {find.piece_words && <p>Claude saw: {find.piece_words}</p>}
+        {from && <p data-testid="find-code-from">{from}</p>}
         {stopped ? (
           <p className="find-stopped" role="status" data-testid="find-stopped">
             You stopped watching it, and its daily check.{' '}
             <Button variant="link" small autoFocus disabled={locked} onClick={onUndo}>Undo</Button>
           </p>
         ) : (
-          <div className="row">
-            {link && <a className={buttonClass({ small: true })} href={link} target="_blank" rel="noopener noreferrer">Open in shop</a>}
+          <div className="row find-more-actions">
+            <CodeButton find={find} locked={locked} />
             {/* the find goes, and with it its daily check; Undo puts it back as it was */}
-            <Button variant="ghost" small disabled={locked} onClick={onStop}>Stop watching</Button>
+            <Button small disabled={locked} onClick={onStop}>Stop watching</Button>
           </div>
         )}
-      </div>
+      </Fold>
     </Card>
   );
 }
 
-/** Under a find's price: its checkout code and the price after it ("$106.20 with code SAVE40 at checkout (40% off)"),
- * who saw it, and the button that opens the code in a sheet (a popover under it on a computer): "Add a code", or
- * "Change the code" when there is one. */
-function FindCode({ find, locked }: { find: Find; locked: boolean }) {
+/** In a find's verdict's place when nobody could read what it is (`named` false): one sentence, a box for its name
+ * and Save. What could not be saved is said under the box, and what was typed stays. */
+function NameForm({ locked, onName }: { locked: boolean; onName(name: string): Promise<void> }) {
+  const [name, setName] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const hint = useId();
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    const typed = name.trim();
+    if (!typed) return setProblem('Type what it is called, as you would say it.');
+    setProblem(null);
+    setSaving(true);
+    try {
+      await onName(typed);
+    } catch (err) {
+      setProblem((err as Error).message);
+      setSaving(false);
+    }
+  }
+  return (
+    <form className="find-naming" data-testid="find-naming" onSubmit={save} noValidate aria-describedby={hint}>
+      <p id={hint}>Nines and Claude couldn't read what this is from its page. Give it a name and Nines checks it against your closet.</p>
+      <div className="find-naming-row">
+        <label className="field">
+          <span>What it is called</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={240} placeholder="e.g. Grey wool chore coat"
+            autoComplete="off" />
+        </label>
+        <Button variant="primary" small type="submit" disabled={saving || locked}>Save</Button>
+      </div>
+      {problem && <p className="form-error" role="alert">{problem}</p>}
+    </form>
+  );
+}
+
+/** "Add a code", or "Change the code" when there is one, in a find's fold: it opens the code in a sheet (a popover under
+ * it on a computer). The price after the code is said under the find's price. */
+function CodeButton({ find, locked }: { find: Find; locked: boolean }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
-  const said = codeWords(find);
-  const from = codeFromWords(find.code);
   return (
     <div className="find-code-line">
-      {said && <p className="find-code" data-testid="find-code">{said}</p>}
-      <p className="muted find-piece find-code-from">
-        {from && <span data-testid="find-code-from">{from} </span>}
-        <button ref={button} type="button" className="btn btn-link btn-small wish-inline-button" aria-haspopup="dialog"
-          aria-expanded={open} disabled={locked} onClick={() => setOpen(!open)}>
-          {find.code ? 'Change the code' : 'Add a code'}
-        </button>
-      </p>
+      <button ref={button} type="button" className="btn btn-small" aria-haspopup="dialog" aria-expanded={open} disabled={locked}
+        onClick={() => setOpen(!open)}>
+        {find.code ? 'Change the code' : 'Add a code'}
+      </button>
       {open && <CodeSheet find={find} keep={button} onClose={() => setOpen(false)} />}
     </div>
   );
 }
 
 /**
- * "See it with your clothes": one quiet button on a judged find's card, opening the outfits made with it, drawn as
- * worn on this computer (nothing is asked of Claude). They are worked out when the sheet opens.
+ * "See it with your clothes": a button on a judged find's card, opening the outfits made with it, drawn as worn on this
+ * computer (nothing is asked of Claude). They are worked out when the sheet opens.
  */
 function SeeWorn({ find, image, locked, byId }: { find: Find; image: string | null; locked: boolean; byId: Map<string, ItemSummary> }) {
   const [open, setOpen] = useState(false);
@@ -345,7 +443,7 @@ function SeeWorn({ find, image, locked, byId }: { find: Find; image: string | nu
   });
   return (
     <div className="find-worn">
-      <button ref={button} type="button" className="btn btn-link btn-small wish-inline-button" data-testid="see-worn"
+      <button ref={button} type="button" className="btn btn-small" data-testid="see-worn"
         aria-haspopup="dialog" aria-expanded={open} disabled={locked && !outfits.data} onClick={() => setOpen(!open)}>
         See it with your clothes
       </button>
@@ -419,18 +517,19 @@ function CodeSheet({ find, keep, onClose }: { find: Find; keep: RefObject<HTMLBu
   );
 }
 
-/** A sentence about the price, with the button that opens the most you'd pay in a sheet (a popover under the sentence
- * on a computer). */
-function PriceLine({ wish, currency, locked, onPrice, children }: {
-  wish: Wish; currency?: string; locked: boolean; onPrice(w: Wish, changes: PriceChange): Promise<boolean>; children: string;
+/** The most you'd pay: a small button that opens it in a sheet (a popover under it on a computer), "Set the most you'd
+ * pay"; once set, what it is and "Change". */
+function PriceLine({ wish, currency, locked, onPrice }: {
+  wish: Wish; currency?: string; locked: boolean; onPrice(w: Wish, changes: PriceChange): Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
+  const words = mostWords(wish);
   return (
     <div className="wish-price-line">
-      <p className="wish-price" data-testid="wish-price">
-        {children}{' '}
-        <button ref={button} type="button" className="btn btn-link btn-small wish-inline-button" aria-haspopup="dialog"
+      <p className="wish-line wish-price" data-testid="wish-price">
+        {words && <span>{words}</span>}{words && ' '}
+        <button ref={button} type="button" className="btn btn-small" aria-haspopup="dialog"
           aria-expanded={open} disabled={locked} onClick={() => setOpen(!open)}>
           {wish.price_max != null ? 'Change' : "Set the most you'd pay"}
         </button>

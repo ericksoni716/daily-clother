@@ -183,10 +183,10 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   await page.locator('.wouldwork-back').click();
   await page.getByTestId('wishlist-open').click();
   await page.getByTestId('wish-row').first().click();
-  await page.getByTestId('wish').getByRole('button', { name: 'Would it go with my clothes?' }).click();
+  await page.getByTestId('wish').getByRole('button', { name: 'Check one I found' }).click();
   await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
   const fromWish = page.getByTestId('would-work');
-  await expect(fromWish).toContainText(`Checking a find for ${rain.name}`);
+  await expect(fromWish).toContainText(`Photograph one you found for ${rain.name}, or describe it`);
   const kind = fromWish.getByRole('form', { name: 'Describe it by hand' });
   if (await kind.getByRole('group', { name: 'Main colour' }).count()) {   // the wish names no one colour: choose it
     await expect(kind.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -211,6 +211,37 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   await back.click();
   await expect(page).toHaveURL(new RegExp(`/wardrobe/wish/${encodeURIComponent(wishes[0].id)}$`));
   await expect(page.getByTestId('wish').getByRole('textbox', { name: 'Note' })).toHaveValue(/keeps the rain off/);
+});
+
+// On a computer, More about it and Change what it is opened below the window, where they had to be scrolled to (the
+// owner, 26 November): what opens is whole on the screen without the page moving, beside the button that opened it.
+test('would this work? from a wish on a computer: the line says what to do, and its popovers open in view', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  const made = await page.request.post('/api/wishlist', { data: { name: 'A tan rain coat' } });
+  const { id } = await made.json();
+  await page.goto(`/wardrobe/check/wish/${encodeURIComponent(id)}`);
+  const panel = page.getByTestId('would-work');
+  await expect(panel.getByRole('heading', { name: 'Would this work?', level: 1 })).toBeVisible({ timeout: 30_000 });
+  await expect(panel.locator('.page-subtitle')).toHaveText('Photograph one you found for A tan rain coat, or describe it, and Nines checks it against your closet.');
+  await expect(panel.locator('.page-subtitle strong')).toHaveText('A tan rain coat');
+  const whole = async (name: string, button: string) => {
+    const y = await page.evaluate(() => window.scrollY);
+    await panel.getByRole('button', { name: button }).click();
+    const dialog = page.getByRole('dialog', { name });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => window.scrollY)).toBe(y);
+    await dialog.getByRole('button', { name: 'Done' }).click();
+    await expect(dialog).toHaveCount(0);
+  };
+  // described by hand: More about it under the kind and the colour
+  await whole('More about it', 'More about it');
+  await checkCoat(page);
+  // with the answer: both under the verdict
+  await whole('What it is', 'Change what it is');
+  await whole('More about it', 'More about it');
 });
 
 test('would this work? by hand on a small phone: the answer as soon as the kind and colour are chosen, in view, the rest in a sheet', async ({ page }, testInfo) => {

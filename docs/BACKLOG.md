@@ -14,12 +14,16 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
-- **A link read, described and drawn properly** (26 November; DECISIONS, the section of that name). Left: the wish's
-  page does not show yet the box to name a find (`PUT …/finds/{find_id}/name`), `named`, `unread_at` or `piece.kind`
-  (another piece of work lays the page out). On the API-key way of reaching Claude a page is read through web search
+- **A link read, described and drawn properly** (26 November; DECISIONS, the section of that name). Left: on the
+  API-key way of reaching Claude a page is read through web search
   alone: giving it a tool that opens the page itself was left because it could not be tried against the real service
   from where this work was done. A link is still described from words alone, never from the shop's picture. The
   chore coat's drawing stands its collar up behind the neck like a hood.
+- **A wish's page laid out again** (26 November; DECISIONS, the section of that name). On a wish with nothing
+  watched, the line above "Set the most you'd pay" (the top of looking for more) still sits right under "Added by
+  hand". A page that could not be read for the first time at a check adds its line to the card, which moves what is
+  under it once; a find named on its card keeps the card's height while it is described, which can leave a gap at
+  the card's foot until the verdict comes.
 - **Today and a day ahead, the second review of the screens** (24 November; DECISIONS, the section of that name).
   Left: the waiting shape while the outfits are chosen is as tall as the demo closet's first outfit, so a closet whose
   reasons are much shorter or longer still moves what is under it a little; when Claude's outfits replace the rules'
@@ -178,8 +182,8 @@ only here); take a line out when it is done.
   real shops' pages, so how well a page's words alone give the colour and pattern is not known. Left
   undone: the product's picture is not sent to Claude (text only, on purpose, for now); a link that
   waited is described only when its page is read again (Check now, or the daily round the day after),
-  not as soon as Claude can be reached; "Would it go with my clothes?" on a described link still
-  starts from the name alone rather than from Claude's description; the Google Shopping search has no
+  not as soon as Claude can be reached; *(26 November: a wish made from a link no longer offers
+  to check one by hand, its card answers it)*; the Google Shopping search has no
   size or brands (step 3) and is always "men's".
 - **The wishlist's own page** (23 November; DECISIONS, "The wishlist's own page"). The toast after
   "I'll look for this" cannot open the list: toasts take no action.

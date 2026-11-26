@@ -47,6 +47,7 @@ export function Sheet({ title, onClose, popover, keep, anchor, closeLabel = 'Don
   const floating = phone || !!popover || !!anchor;
   const ref = useRef<HTMLDivElement>(null);
   const place = useAnchored(anchor && !phone ? anchor : null, ref);
+  useKeptInView(!phone && !!popover && !anchor, ref, keep);
   const close = useRef(onClose);
   useEffect(() => {
     close.current = onClose;
@@ -115,6 +116,74 @@ export function Sheet({ title, onClose, popover, keep, anchor, closeLabel = 'Don
     </>
   );
   return anchor && typeof document !== 'undefined' ? createPortal(sheet, document.body) : sheet;
+}
+
+/**
+ * A popover in the page (no `anchor`) opens where its own styles put it: under what holds it. When that would leave
+ * part of it off the screen (what holds it is far from the button that opened it, or the button is near the bottom of
+ * the window), it is moved beside that button (`keep`): under it, or over it when it fits only there; when it fits on
+ * neither side, as tall as the window lets it be, as near under the button as that allows. It is kept on screen, so
+ * what opens is seen whole without scrolling the page.
+ */
+function useKeptInView(on: boolean, sheet: RefObject<HTMLDivElement | null>, keep: RefObject<HTMLElement | null> | undefined) {
+  useLayoutEffect(() => {
+    const s = sheet.current;
+    if (!on || !s) return;
+    const gap = 8;
+    const edge = 16;
+    // the tallest its styles let it be, read before anything here changes it
+    const cap = parseFloat(getComputedStyle(s).maxHeight) || Infinity;
+    let moved = false;
+    const put = () => {
+      const vw = document.documentElement.clientWidth;
+      const vh = window.innerHeight;
+      let r = s.getBoundingClientRect();
+      if (!moved && r.top >= 0 && r.bottom <= vh && r.left >= 0 && r.right <= vw) return;
+      if (!moved) {
+        // its own styles may centre it with a translate; from here its place is worked out in plain offsets
+        s.style.translate = 'none';
+        r = s.getBoundingClientRect();
+      }
+      const full = Math.min(s.scrollHeight + (s.offsetHeight - s.clientHeight), cap);
+      const w = r.width;
+      const k = keep?.current?.getBoundingClientRect();
+      let top: number;
+      let tallest = cap;
+      if (k) {
+        const below = vh - k.bottom - gap - edge;
+        const above = k.top - gap - edge;
+        if (full <= below) top = k.bottom + gap;
+        else if (full <= above) top = k.top - gap - full;
+        else {
+          // it fits on neither side: as tall as the window lets it be, as near under the button as that allows, over
+          // the button if need be (it closes with its button, Escape or a tap outside)
+          const h = Math.min(full, vh - 2 * edge);
+          top = Math.max(edge, Math.min(k.bottom + gap, vh - edge - h));
+          tallest = h;
+        }
+      } else {
+        top = Math.max(edge, Math.min(r.top, vh - edge - full));
+      }
+      // its left edge under the button's, or its right edge under the button's right when that does not fit
+      const from = k ? (k.left + w <= vw - edge ? k.left : k.right - w) : r.left;
+      const left = Math.max(edge, Math.min(from, vw - w - edge));
+      s.style.top = `${s.offsetTop + (top - r.top)}px`;
+      s.style.left = `${s.offsetLeft + (left - r.left)}px`;
+      s.style.bottom = 'auto';
+      s.style.right = 'auto';
+      if (tallest < cap) s.style.maxHeight = `${tallest}px`;
+      moved = true;
+    };
+    put();
+    // its height changes as what is inside it changes (a choice that shows another)
+    const grown = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(put);
+    grown?.observe(s);
+    window.addEventListener('resize', put);
+    return () => {
+      grown?.disconnect();
+      window.removeEventListener('resize', put);
+    };
+  }, [on, sheet, keep]);
 }
 
 /** Where a popover opened from `anchor` floats: under it (or over it, when there is more room there), kept on screen. */

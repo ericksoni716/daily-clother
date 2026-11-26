@@ -3,7 +3,9 @@
  * that opens the wishlist, and the wishlist's and a wish's own pages. The page itself, which reads the lists, is
  * Wardrobe.tsx.
  */
+import { useQuery } from '@tanstack/react-query';
 import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { api } from '../api';
 import { CheckIcon, ChevronIcon, HangerIcon, LinkIcon, PlusIcon } from '../components/Icons';
 import { Pieces } from '../components/ItemPic';
 import {
@@ -15,7 +17,8 @@ import { swatchOf } from '../labels';
 import { Link, navigate, WISHLIST_PATH, wishPath } from '../router';
 import type { ItemSummary } from '../types';
 import { activeSituations, lifeSummary, situationLabel, type SituationId } from '../life';
-import { downWords, googleShoppingLink, linkWords, wishlistWords, withinWords } from '../shop';
+import { queryKeys } from '../queryKeys';
+import { downWords, googleShoppingLink, linkWords, wishIsAFind, wishlistWords, withinWords } from '../shop';
 import { LinkForm, WishShop } from './Shop';
 
 export const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
@@ -571,6 +574,16 @@ export function WishCard({ wish, actions, onNote, onRemoved }: {
   const saveNote = () => {
     if (note.trim() !== wish.note) void status.run(() => onNote(wish, note.trim()));
   };
+  // what is watched for it, as WishShop reads it (never asked for here): whether the wish is its own find, which once
+  // seen holds for the visit, so stopping that find's watch does not put a button in under your finger
+  const watched = useQuery({ queryKey: queryKeys.finds(wish.id), queryFn: () => api.finds(wish.id), enabled: false });
+  const finds = watched.data;
+  const isFind = wishIsAFind(wish, finds?.finds);
+  const [findSeen, setFindSeen] = useState<string | null>(null);
+  if (isFind && findSeen !== wish.id) setFindSeen(wish.id);
+  const fromLink = isFind || findSeen === wish.id;
+  // decided with what is watched, which the page waits for, so the button never arrives on its own
+  const known = finds !== undefined || watched.isError || actions.locked;
   return (
     <Card as="article" className="wish-card" data-testid="wish" aria-label={wish.name}>
       {lines.length > 0 && (
@@ -597,8 +610,12 @@ export function WishCard({ wish, actions, onNote, onRemoved }: {
         </div>
       </div>
       <div className="row wish-actions">
-        <button className="btn btn-small" disabled={busy || actions.locked} title={title ?? 'Checks a piece against your closet before you buy it'}
-          onClick={() => navigate(`/wardrobe/check/wish/${encodeURIComponent(wish.id)}`)}>Would it go with my clothes?</button>
+        {/* on a wish made from a link, its find's card already says whether it goes with your clothes */}
+        {known && !fromLink && (
+          <button className="btn btn-small" disabled={busy || actions.locked}
+            title={title ?? 'Checks a photo or a description of one you found against your closet'}
+            onClick={() => navigate(`/wardrobe/check/wish/${encodeURIComponent(wish.id)}`)}>Check one I found</button>
+        )}
         <button className="btn btn-small btn-primary" disabled={busy || actions.locked} title={title ?? 'Takes it off the list and opens Add, to photograph it'}
           onClick={() => void actions.bought(wish)}>I bought it</button>
         <button className="btn btn-small btn-ghost" disabled={busy || actions.locked} title={title}

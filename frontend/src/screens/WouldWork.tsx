@@ -114,8 +114,9 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   const titleId = useId();
   const demo = profile === 'demo';
 
-  // a wish loaded after the panel opened fills in the form, unless the owner has started on it
-  const filledFrom = useRef<string | null>(remembered || kept || !wish ? wishId : null);
+  // a wish loaded after the panel opened fills in the form, unless the owner has started on it (one there from the
+  // start has filled it already; it was the other way round, so a page opened afresh started empty)
+  const filledFrom = useRef<string | null>(remembered || kept || wish ? wishId : null);
   useEffect(() => {
     if (wish && filledFrom.current !== wish.id) {
       filledFrom.current = wish.id;
@@ -300,7 +301,7 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
       <PageHeader className="wouldwork-head" title="Would this work?" titleId={titleId}
         back={wishId ? { to: wishPath(wishId), label: 'Wish', className: 'wouldwork-back' }   // back to the wish it was opened from
           : { to: '/wardrobe', label: 'Wardrobe', className: 'wouldwork-back' }}
-        subtitle={wish ? <>Checking a find for <strong>{wish.name}</strong> against your closet.</> : 'Check a piece against your closet before you buy it.'} />
+        subtitle={wish ? <>Photograph one you found for <strong>{wish.name}</strong>, or describe it, and Nines checks it against your closet.</> :'Check a piece against your closet before you buy it.'} />
       {wide ? (
         <div className="wouldwork-columns">
           <Card as="section" className="wouldwork-left" aria-label="The piece">{describe}</Card>

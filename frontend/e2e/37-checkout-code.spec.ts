@@ -21,6 +21,8 @@ test('a page sent with a code in its text shows the price with the code, and tha
   const find = page.getByTestId('wish').getByTestId('find');
   await expect(find).toContainText('Example Shop · $68.00');
   await expect(find.getByTestId('find-code')).toHaveText('$40.80 with code TEST40 at checkout (40% off)');
+  // who saw it, and the button to change it, in the find's fold
+  await find.getByTestId('find-more').locator('summary').click();
   await expect(find.getByTestId('find-code-from')).toHaveText('Nines saw this code on the page.');
   await expect(find.getByRole('button', { name: 'Change the code' })).toBeVisible();
   expect(await axeViolations(page, '[data-testid="find"]')).toEqual([]);
@@ -40,6 +42,7 @@ test('add a code by hand and see the price with it, change it to an amount off, 
   await expect(find).toContainText('Example Shop · $68.00');
   await expect(find.getByTestId('find-code')).toHaveCount(0);
 
+  await find.getByTestId('find-more').locator('summary').click();   // in the find's fold
   await find.getByRole('button', { name: 'Add a code' }).click();
   const sheet = page.getByTestId('code-sheet');
   await expect(sheet.getByRole('heading', { name: 'A code at checkout' })).toBeVisible();

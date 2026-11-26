@@ -215,44 +215,84 @@
 .missing-side .wardrobe-section { margin: 0; }
 
 /* ---------------------------------------------------------------- shopping for a wish */
-/* what is watched, with the sentence about watching under it; then looking for more, below a line */
+/* what is watched, then a line for when it was checked and one for the most you'd pay; then looking for more, below a
+   line */
 .wish-watch { margin: 0 0 var(--space-3); }
 .wish-shop { margin: var(--space-1) 0 var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
-/* the sentence about the price, and the most you'd pay as a popover under it on a computer */
+/* a quiet line with a small button at its end (Last checked … Check now; the most you'd pay … Change): the button keeps
+   its height whatever the line says, so nothing under it moves while a check runs */
+.wish-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-2) 0; font-size: var(--text-sm); line-height: 1.45; }
+.wish-line > p { margin: 0; }
+/* the most you'd pay, as a popover under its button on a computer */
 .wish-price-line { position: relative; }
-.wish-price { margin: 0 0 var(--space-1); font-size: var(--text-sm); line-height: 1.45; }
-/* a link-style button at the end of a sentence: the sentence's own height and no padding, so the lines keep their
-   spacing and it lines up when it wraps; still 44px to tap (DESIGN, "Motion and touch") */
+/* a link-style button in a sentence (a gap's card: Search Google Shopping): the line's own height and no padding, so
+   the lines keep their spacing and it lines up when it wraps; still 44px to tap (DESIGN, "Motion and touch") */
 .btn.wish-inline-button { min-height: 0; padding: 0; }
-/* no edge when it is off either (a disabled button gets a dashed one, which made the line 2px taller while it checks) */
+/* no edge when it is off either (a disabled button gets a dashed one, which made the line 2px taller) */
 .btn.wish-inline-button:disabled { border: 0; }
 .btn.wish-inline-button::after { inset: -12px 0; }
 .wish-price-sheet .hint { margin: 0 0 var(--space-3); }
 .wish-price-fields { display: grid; grid-template-columns: minmax(0, 1fr) 6rem; gap: var(--space-2); }
 .wish-price-sheet .form-error { margin: 0 0 var(--space-2); }
-.wish-shop-actions { margin-bottom: 6px; }
-/* the wish's own buttons are 44px high, not the small 36 (the review of 24 November, 46) */
-.wish-shop-actions .btn, .wish-actions .btn { min-height: var(--tap); }
-/* "See it with your clothes" is on a line of its own: 44px high, not only its hit area */
-.find-worn .btn.wish-inline-button { min-height: var(--tap); }
+.wish-shop-actions { margin: var(--space-3) 0 var(--space-2); gap: var(--space-2); }
+/* every button on a wish is 44px high, not the small 36 (the review of 24 November, 46) */
+.wish-line .btn, .wish-shop-actions .btn, .wish-actions .btn, .find-actions .btn, .find-more .btn { min-height: var(--tap); }
 .wish-shop-actions .btn svg { width: 16px; height: 16px; }
 .wish-shop-line { margin: 4px 0; font-size: var(--text-sm); line-height: 1.45; }
-
-.find-list { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: 10px; }
-.find-card { display: flex; gap: var(--space-3); padding: var(--space-3); }
-/* "See it with your clothes": its popover opens under it on a computer */
-.find-worn { position: relative; margin: var(--space-1) 0 var(--space-2); }
 .wish-shop-notice { margin: var(--space-1) 0; }
-.find-image { flex: none; width: 76px; height: 96px; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface); }
-.find-body { min-width: 0; flex: 1; }
-.find-body .find-name { margin: 0 0 2px; font-size: var(--text-md); font-weight: var(--weight-heading); overflow-wrap: anywhere; }
-.find-shop { margin: 0 0 4px; font-size: var(--text-sm); }
-.find-sold { color: var(--warn); }
+.wish-how { margin-top: var(--space-1); }
+.wish-how .how-body p { margin: 0 0 var(--space-2); }
+
+/* A find's card, in the order it is read: what it is and what it costs; whether it works; what you can do; the rest in
+   one closed fold (Shop.tsx, FindCard) */
+.find-list { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: var(--space-3); }
+.find-card { display: grid; align-content: start; grid-template-columns: minmax(0, 1fr); column-gap: var(--space-3); padding: var(--space-4) var(--space-4) var(--space-1); }
+/* the picture beside what it is and what it costs; on a phone the rest takes the card's whole width under both, on a
+   computer it stays beside the picture */
+.find-card.has-image { grid-template-columns: auto minmax(0, 1fr); }
+.find-card.has-image > * { grid-column: 1 / -1; min-width: 0; }
+.find-card.has-image > .find-image { grid-column: 1; grid-row: 1; }
+.find-card.has-image > .find-what { grid-column: 2; grid-row: 1; }
+.find-image { width: 76px; height: 96px; object-fit: cover; border-radius: var(--radius-sm); background: var(--card); }
+@media (min-width: 700px) {
+  .find-image { width: 104px; height: 132px; }
+  .find-card.has-image > :not(.find-image) { grid-column: 2; }
+  .find-card.has-image > .find-image { grid-row: 1 / span 4; align-self: start; }
+}
+.find-what { min-width: 0; }
+.find-what .find-name { margin: 0 0 var(--space-1); font-size: var(--text-md); font-weight: var(--weight-heading); line-height: 1.3; overflow-wrap: anywhere; }
+.find-shop { margin: 0; font-size: var(--text-sm); color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }
+/* the price: the strongest thing on the card after the name */
+.find-price { font-size: var(--text-lg); font-weight: var(--weight-heading); color: var(--ink); white-space: nowrap; }
+.find-sold { color: var(--warn); font-weight: var(--weight-label); }
+/* no price to show: said plainly, not as loud as a price */
+.find-price.is-none { font-size: var(--text-sm); font-weight: var(--weight-label); }
 /* a price that went down: on a find, and on its wish's row in the wishlist */
 .find-drop, .wish-row-drop { display: inline-block; padding: 2px 8px; border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font-weight: var(--weight-label); font-size: var(--text-xs); }
-.find-drop { margin: 0 0 6px; }
-.find-verdict { margin: 0 0 4px; font-weight: var(--weight-label); }
+.find-drop { margin: var(--space-1) 0 0; }
+/* whether it works: the verdict as a heading in its tone, its reasons as plain sentences under it */
+.find-answer { margin-top: var(--space-3); }
+.find-verdict { margin: 0 0 2px; font-size: var(--text-md); font-weight: var(--weight-heading); line-height: 1.3; }
 .find-verdict.is-good { color: var(--accent); }
 .find-verdict.is-caution { color: var(--warn); }
-.find-reasons { font-size: var(--text-sm); margin-bottom: 6px; }
-.find-piece { margin: 0 0 6px; font-size: var(--text-xs); }
+.find-reasons { list-style: none; margin: 0; padding: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-2); }
+.find-reasons > li { display: inline; }
+.find-reasons > li + li::before { content: ' '; }
+.find-not-judged { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-2); }
+.find-actions { margin-top: var(--space-3); gap: var(--space-2); }
+/* "See it with your clothes": its popover opens under it on a computer */
+.find-worn { position: relative; }
+/* everything else about a find, closed: a quieter line than a section's fold */
+.find-card .find-more { margin: var(--space-2) 0 0; border-bottom: 0; }
+.find-more > summary { min-height: var(--tap); font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--ink-3); }
+.find-more > .fold-body { padding: 0 0 var(--space-1); font-size: var(--text-sm); line-height: 1.45; color: var(--ink-2); }
+.find-more > .fold-body > p { margin: 0 0 var(--space-1); overflow-wrap: anywhere; }
+.find-more-actions { margin-top: var(--space-2); gap: var(--space-2); }
+/* a page that could not be read at its last check: a quiet fact under the price, not a fault */
+.find-unread { margin: 2px 0 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-3); }
+/* a find nobody could read: a sentence, its name's box and Save, in the verdict's place */
+.find-naming > p { margin: 0 0 var(--space-2); font-size: var(--text-sm); line-height: 1.45; color: var(--ink-2); }
+.find-naming-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2); }
+.find-naming-row .field { flex: 1 1 12rem; min-width: 0; margin: 0; }
+.find-naming-row .btn { min-height: var(--tap); }
+.find-naming .form-error { margin: var(--space-2) 0 0; }

@@ -156,3 +156,30 @@ for (const width of [375, 320]) {
     await expect(sheet).toHaveCount(0);
   });
 }
+
+// On a computer the Filter is a popover under its button. Where it fits, it opens exactly where its own styles put it
+// (Sheet moves a popover only when part of it would be off the screen); at 1,024 × 700 it did not fit (it ran 80px past
+// the right edge, its Done cut off) and now opens whole, beside the button (26 November).
+test('on a computer the Filter opens under its button where it fits, and whole on the screen where it did not', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  const button = page.getByRole('button', { name: /^Filter/ });
+  await button.click();
+  const sheet = page.getByTestId('filter-sheet');
+  await expect(sheet).toBeVisible();
+  // not moved: no place of its own, its top just under the button, its left edge at the button's
+  expect(await sheet.evaluate((el) => [el.style.top, el.style.left, el.style.maxHeight])).toEqual(['', '', '']);
+  const b = (await button.boundingBox())!;
+  const s = (await sheet.boundingBox())!;
+  expect(Math.round(s.y - (b.y + b.height))).toBe(8);
+  expect(Math.abs(s.x - b.x)).toBeLessThan(2);
+  await expect(sheet).toBeInViewport({ ratio: 1 });
+  await sheet.getByRole('button', { name: 'Done' }).click();
+
+  await page.setViewportSize({ width: 1024, height: 700 });
+  await button.click();
+  await expect(sheet).toBeInViewport({ ratio: 1 });
+  await expect(sheet.getByRole('button', { name: 'Done' })).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: test.info().outputPath('filter-1024.png') });
+});

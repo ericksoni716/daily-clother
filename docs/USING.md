@@ -159,6 +159,12 @@ that packed nothing dresses you from your whole closet, and when even that has n
 (everything in the laundry, say). What you wear on the trip goes in your suitcase: the laundry day at home leaves
 it in the laundry until the first laundry day after the trip.
 
+**The day before a trip.** What you ticked as packed for a trip that starts tomorrow is in your suitcase, so
+Today leaves it out of the outfits and says so once, in one line over them: "Packed for Lisbon, so left out
+today.", which opens the trip (the trip's row further down is not shown then). Building an outfit around a
+packed piece still works: it is your choice, and the rest of the outfit comes from what is not packed. To have
+a piece back today, untick it in the trip.
+
 Below that, when a trip starts within two weeks (or is under way, and is not today's), a row with its place,
 when it starts and how much is packed ("Lisbon, in 12 days · 4 of 15 packed") opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
 outfit went, with every piece of it under the question; then the last outfits you wore (three
@@ -241,7 +247,8 @@ trip's choices wait. Once the trip has begun, the days already gone keep
 their outfits and their weather, the days to come are dressed only from what you packed, and the
 trip says the forecast changed only when it changed for the days still to come. A day on which you recorded
 another outfit than the plan's counts what you wore, once the trip is planned again. Today's day is marked
-**Today**, and Today itself dresses from the trip on that day (see Today).
+**Today**, and Today itself dresses from the trip on that day (see Today). On the day before the trip, what you
+have ticked is left out of Today's outfits; untick a piece to have it back.
 
 ## Closet
 

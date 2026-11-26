@@ -21,7 +21,7 @@ import { useApp, useKept } from '../store';
 import {
   addFirstTitle, askedOf, buildAroundPiece, canDress, occasionShown, chosenBy, closetKey, dayName, dayParts, daysAhead, joinWords, longDate, weekdayOf, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
   OCCASIONS, outfitIds, outingLine, parseTemp, placeLabel, readFor, sameOutfit, sameOutfits, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
-  timeOf, TRIP_OUTFIT_LINE, TRIP_PIECE_HINT, tripSheetLine, tripTodayLine, waitingLine, whatToAddFirst, withThing, withWorn, wornNow, wornOrder,
+  timeOf, TRIP_OUTFIT_LINE, TRIP_PIECE_HINT, packedForLine, tripSheetLine, tripTodayLine, waitingLine, whatToAddFirst, withThing, withWorn, wornNow, wornOrder,
   type Choice, type DayAnswer, type DayNote, type OnTrip, type Outfit, type Place, type RememberHow,
   type StylistState, type TodayAnswer, type TodayRequest, type TypedDay, type WearManyAnswer, type WornToday,
 } from '../today';
@@ -688,6 +688,8 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
   const ctx = phase.kind === 'ready' ? phase.answer.context : null;
   // a trip covers today: its line over the outfits, and the way home for the day behind Change
   const onTrip = !ahead ? ctx?.on_trip ?? null : null;
+  // the day before a trip: what you packed for it is left out, said once over the outfits (untick it there to have it)
+  const packedFor = !ahead && !onTrip ? ctx?.packed_for ?? null : null;
   const setDay = (t: Omit<TypedDay, 'day'> | null) => {
     const value = t ? { ...t, day: localDay() } : null;
     kept.setTyped(value);
@@ -835,6 +837,15 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
         </p>
       )}
 
+      {packedFor && (
+        // the day before a trip: one line of fixed height over the outfits, as on a day the trip covers, leading to it
+        <p className="today-plan today-trip-line" role="status" data-testid="packed-line" title={packedForLine(packedFor)}>
+          <Link to={`/trips/${encodeURIComponent(packedFor.id)}`} className="today-trip-line-link">
+            <SuitcaseIcon className="inline-icon" /> {packedForLine(packedFor)}
+          </Link>
+        </p>
+      )}
+
       {plansFailed && !tripDay && phase.kind !== 'error' && <Failed query={plansRead} what="your plans" />}
       {!plansFailed && (ahead || planned || undoPlan || (otherOutfits && !ahead)) && !tripDay && (
         <PlanLine ahead={ahead} today={today} planned={otherOutfits ? null : planned} planNow={planNow} undo={undoPlan} other={otherOutfits}
@@ -897,7 +908,7 @@ export function TodayScreen({ itemId, wide, day: forDay = null }: { itemId: stri
         </p>
       )}
 
-      {!ahead && coming && !onTrip && (
+      {!ahead && coming && !onTrip && !(packedFor && packedFor.id === coming.trip.id) && (
         <Link to={`/trips/${encodeURIComponent(coming.trip.id)}`} className="today-trip" data-testid="today-trip">
           <SuitcaseIcon />
           <span>{coming.words}</span>

@@ -190,3 +190,36 @@ test('findings 14, 18 and 25: on a trip day the foot line is gone, the trip line
   expect(await danglingDots(page)).toEqual([]);
   await page.screenshot({ path: test.info().outputPath('trip-day.png') });
 });
+
+test('the day before a trip, at 320 wide: what you packed is left out, said once in one line that leads to the trip', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 629 });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  await page.request.delete(`/api/plans/${localDay(3)}`);   // the demo's plan three days ahead
+  const weather = [1, 2, 3].map((i) => ({ date: localDay(i), low_c: 14, high_c: 20, rain: false }));
+  const r = await page.request.post('/api/trips', { data: { place: PLACE, first_day: localDay(1), last_day: localDay(3), weather } });
+  expect(r.ok()).toBeTruthy();
+  trip = (await r.json()) as SavedTrip;
+  await page.goto('/today');
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  await expect(page.getByTestId('packed-line')).toHaveCount(0);   // nothing ticked yet
+  // tick a piece of the first outfit as packed: Today asked again leaves it out and says why, once
+  const piece = (await shownIds(page))[0];
+  const ticked = await page.request.patch(`/api/trips/${trip.id}`, { data: { ticks: { [`item:${piece}`]: true } } });
+  expect(ticked.ok()).toBeTruthy();
+  await page.reload();
+  const line = page.getByTestId('packed-line');
+  await expect(line).toHaveText('Packed for Lisbon, so left out today.');
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  expect(await shownIds(page)).not.toContain(piece);
+  await expect(page.getByTestId('today-trip')).toHaveCount(0);   // the row about the trip is not said twice
+  const lines = await line.evaluate((el) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
+  expect(lines).toBeLessThan(1.5);
+  expect((await hitArea(line.getByRole('link'))).height).toBeGreaterThanOrEqual(44);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  expect(await axeViolations(page)).toEqual([]);
+  await page.screenshot({ path: test.info().outputPath('packed-for-tomorrow-320.png') });
+  await line.getByRole('link').click();
+  await expect(page).toHaveURL(new RegExp(`/trips/${trip.id}$`));
+});

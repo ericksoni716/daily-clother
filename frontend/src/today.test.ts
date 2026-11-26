@@ -3,7 +3,7 @@ import {
   askedOf, buildAroundPiece, occasionShown,
   addDays, dayName, daysAhead, onDay, weekdayOf,
   addFirstTitle, canDress, closetKey, dayParts, midName, newestOn, outingLine, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
-  parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, tripSheetLine, tripTodayLine, whatToAddFirst, wornOrder,
+  parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, tripSheetLine, tripTodayLine, packedForLine, whatToAddFirst, wornOrder,
   type DayContext, type Outfit, type SavedOutfits, withWorn, wornNow, type WornToday, shortDate,
 } from './today';
 import type { ItemSummary } from './types';
@@ -341,6 +341,14 @@ describe('a trip covers today', () => {
     for (const line of [tripTodayLine(trip), tripTodayLine({ ...trip, aside: true }), tripSheetLine(trip)]) {
       expect(line).not.toMatch(/engine|model|token|tag|feed|queue|sync|!/i);
     }
+  });
+});
+
+describe('the day before a trip', () => {
+  it('says once that what you packed is left out, naming the trip by its place', () => {
+    expect(packedForLine({ place: 'Lisbon, Portugal' })).toBe('Packed for Lisbon, so left out today.');
+    expect(packedForLine({ place: null })).toBe('Packed for your trip, so left out today.');
+    expect(packedForLine({ place: 'Lisbon' })).not.toMatch(/engine|model|token|tag|feed|queue|sync|!/i);
   });
 });
 

@@ -10,6 +10,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+### Changed
+
+- **The day before a trip.** What you ticked as packed for a trip that starts tomorrow is left out of
+  Today's outfits, and one line over them says so and opens the trip. Building an outfit around a packed
+  piece still works. To have a piece back, untick it in the trip.
+
 ### Fixed
 
 - **A page that could not be read is no longer "Sold out".** When a shop turns Nines away and Claude

@@ -168,7 +168,7 @@ the budget of 350 in `docs/DESIGN.md`.
 - Whether "Why this works" should be folded on Today.
 - Whether a laundry day during a trip should wash what was left in the basket at home. It still does;
   only the suitcase waits.
-- Whether pieces ticked for a trip that starts tomorrow should be held back from Today.
+- Whether pieces ticked for a trip that starts tomorrow should be held back from Today. *(Answered 26 November: yes. See DECISIONS, "The owner's decisions of 26 November".)*
 - What each fix left undone is in `docs/BACKLOG.md`, under "Left over from finished work".
 - Neither review could see a real iPhone, real Claude or a working forecast: those are for the owner
   to try after the next release.

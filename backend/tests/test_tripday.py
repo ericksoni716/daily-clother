@@ -372,3 +372,53 @@ def test_on_a_trip_day_the_occasion_this_device_kept_gives_way_to_the_trips_and_
     client.put(f"/api/trips/{trip['id']}/aside")
     assert suggest(client, occasion="smart_casual", occasion_kept=True)["context"]["occasion"] == "smart_casual"
     assert client.post("/api/outfits/today", json={"occasion_kept": "yes"}).status_code == 422
+
+
+# ------------------------------------------------------------------ the day before a trip (the owner's choice, 26 November)
+def tick(client, trip, ids, on=True) -> dict:
+    r = client.patch(f"/api/trips/{trip['id']}", json={"ticks": {f"item:{i}": on for i in ids}})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_what_you_ticked_as_packed_for_a_trip_that_starts_tomorrow_is_in_the_suitcase_today(client, clock, services):
+    from closet import savedtrips
+    closet(client)
+    trip = make_trip(client, TOMORROW, TOMORROW + timedelta(days=2))
+    later = make_trip(client, TOMORROW + timedelta(days=1), TOMORROW + timedelta(days=3), place=NYC)
+    packed = sorted(bag_of(trip))[:2]
+    tick(client, trip, packed)
+    tick(client, later, sorted(bag_of(later))[:1])   # a trip the day after tomorrow: not yet
+    conn = db.connect(services.cfg.db_path(services.state.get("profile")))
+    assert savedtrips.packed_before(conn, TODAY) == {"trip": {"id": trip["id"], "place": YORK["name"]}, "ids": packed}
+    # on the trip's first day it is the trip's bag that counts (`tripday`), not this
+    assert savedtrips.packed_before(conn, TOMORROW)["trip"]["id"] == later["id"]
+    # untick a piece and it is offered again; nothing ticked, nothing held back
+    tick(client, trip, packed[:1], on=False)
+    assert savedtrips.packed_before(conn, TODAY)["ids"] == packed[1:]
+    tick(client, trip, packed[1:], on=False)
+    assert savedtrips.packed_before(conn, TODAY) is None
+    conn.close()
+
+
+def test_the_day_before_a_trip_today_leaves_out_what_you_packed_unless_you_build_around_it(client, clock):
+    closet(client)
+    trip = make_trip(client, TOMORROW, TOMORROW + timedelta(days=2))
+    before = suggest(client, occasion="casual", mood="usual")
+    assert "packed_for" not in before["context"]
+    offered = {i for o in before["outfits"] for i in ids_of(o)}
+    packed = sorted(offered & bag_of(trip))[:2]
+    assert packed
+    tick(client, trip, packed)
+    body = suggest(client, occasion="casual", mood="usual")
+    assert body["outfits"] and not {i for o in body["outfits"] for i in ids_of(o)} & set(packed)
+    assert body["context"]["packed_for"] == {"id": trip["id"], "place": YORK["name"], "ids": packed}
+    # your own choice wins: an outfit built around a packed piece has it; the other places still go without the rest
+    around = suggest(client, occasion="casual", mood="usual", build_around=packed[0])
+    assert around["outfits"] and all(packed[0] in ids_of(o) for o in around["outfits"])
+    assert not {i for o in around["outfits"] for i in ids_of(o)} & set(packed[1:])
+    assert around["context"]["packed_for"]["ids"] == packed[1:]
+    # dressing for another day is not today: what is packed is not held back there
+    clock["day"] = TODAY - timedelta(days=1)
+    ahead = suggest(client, occasion="casual", mood="usual", day=TODAY.isoformat())
+    assert "packed_for" not in ahead["context"]

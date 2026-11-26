@@ -466,7 +466,7 @@ name (which opens the shop's page in your browser), the shop and price, one line
 with 6 of your pieces."), **Save** (onto the wishlist, with the product as its first find, so
 its price is checked once a day; the pick then says "On your wishlist", which opens the wish, with
 **Undo** on the same line), **More like this** (a look for more like it, which joins
-the card) and **×**, Not for me (gone for good, with Undo in its place; after three alike,
+the card, offered on a pick you saved too; on a phone it has a line of its own, so saving moves nothing) and **×**, Not for me (gone for good, with Undo in its place; after three alike,
 such as three bright colours, it may offer a line for Your style, kept only when you tap Save
 to Your style, with Undo). The newest three show, older ones behind "See earlier ones". Before
 the first look it says what it does, with **Look now** (and what a look costs through the API

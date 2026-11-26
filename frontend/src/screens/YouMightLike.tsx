@@ -170,6 +170,11 @@ function PickRow({ pick, off, busy, title, onSave, onUnsave, onMore, onRefuse }:
   const bare = !image || broken;
   const name = pickName(pick.name, bare ? PICK_NAME_BARE_MAX : PICK_NAME_MAX);
   const nameClass = bare ? 'pick-name is-bare' : 'pick-name';
+  const moreLike = (
+    <span className="pick-more">
+      <Button small variant="ghost" disabled={off || busy} title={title} onClick={onMore}>More like this</Button>
+    </span>
+  );
   return (
     <article className="pick" data-testid="pick">
       <div className="pick-pic" aria-hidden="true">
@@ -189,18 +194,22 @@ function PickRow({ pick, off, busy, title, onSave, onUnsave, onMore, onRefuse }:
       <button type="button" className="pick-refuse" aria-label={`Not for me: ${pick.name}`} title="Not for me"
         disabled={off || busy} onClick={onRefuse}><CloseIcon /></button>
       {pick.state === 'saved' && pick.wish_id ? (
-        // saved: one line, as a gap's card says it, with Undo in place of the two buttons (nothing grows)
-        <div className="pick-actions pick-saved" role="status">
-          <Link to={wishPath(pick.wish_id)} className={buttonClass({ variant: 'ghost', small: true, className: 'pick-wished' })}>
-            <CheckIcon /> On your wishlist
-          </Link>
-          <Button small variant="ghost" disabled={off || busy} title={title} aria-label={`Undo: take ${pick.name} off your wishlist`}
-            onClick={onUnsave}>Undo</Button>
+        // saved: "On your wishlist" and Undo, as a gap's card says it, in place of Save; More like this as on any pick.
+        // On a phone, More like this has a line of its own in both states, so saving moves nothing
+        <div className="pick-actions pick-saved">
+          <div className="pick-saved-line" role="status">
+            <Link to={wishPath(pick.wish_id)} className={buttonClass({ variant: 'ghost', small: true, className: 'pick-wished' })}>
+              <CheckIcon /> On your wishlist
+            </Link>
+            <Button small variant="ghost" disabled={off || busy} title={title} aria-label={`Undo: take ${pick.name} off your wishlist`}
+              onClick={onUnsave}>Undo</Button>
+          </div>
+          {moreLike}
         </div>
       ) : (
         <div className="pick-actions">
           <Button small disabled={off || busy} title={title} onClick={onSave}>Save</Button>
-          <Button small variant="ghost" disabled={off || busy} title={title} onClick={onMore}>More like this</Button>
+          {moreLike}
         </div>
       )}
     </article>

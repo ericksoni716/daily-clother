@@ -117,6 +117,9 @@ SOME_UNREAD = "Not every page gives its price in a way Nines can read."
 LINKS_ONLY = "Only the pages you sent as links were read."
 NOT_DESCRIBED = "Nines has no description of this one yet, so it can't be shown with your clothes."
 DEMO_ASKS_NOTHING = "The demo closet never sends anything to Claude."
+# a wish still called by its site's address: searching for the address finds anything
+UNNAMED = "Nines doesn't know what this one is called yet, so it can't look for more. Give it a name first."
+BAD_NAME = f"A name is 1 to {NAME_MAX} characters."
 # a code you type, refused
 BAD_CODE = "A code is 3 to 30 letters or digits, and can have - or _ in it."
 ONE_DISCOUNT = "Give the code's percent off or its amount off, one of the two."
@@ -516,6 +519,7 @@ def _find(conn: sqlite3.Connection, r: sqlite3.Row) -> dict:
     f["with_code"] = price_with(f["price"], code["percent"], code["amount"]) if code else None
     f["outfits"] = verdict.get("outfits") if verdict else None   # None: judged before outfits were counted
     f["not_judged"] = not_judged(f, marker)
+    f["named"] = not unnamed(f)
     for column in ("read_asked", "kind_asked_at"):   # what Claude was asked: kept for Nines, not shown
         f.pop(column, None)
     history = _history(conn, f["id"])
@@ -957,6 +961,37 @@ UNDO_KEEP_S = 3600
 UNDO_KEEP_MAX = 20
 
 
+def name_find(conn: sqlite3.Connection, wish_id: str, find_id: str, name: str) -> dict:
+    """The owner names a find (a link whose page gave no name): its name, and the wish's while it is still called by
+    the find's site's address (shortened as a link's name is). Gives back the find row as it is now. ItemError (404)
+    for no such find."""
+    t = db.now()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        row = conn.execute("SELECT url FROM finds WHERE id = ? AND wish_id = ?", (find_id, wish_id)).fetchone()
+        if row is None:
+            raise ItemError(NO_SUCH_FIND, 404)
+        conn.execute("UPDATE finds SET name = ?, read_asked = NULL, updated_at = ? WHERE id = ?", (name, t, find_id))
+        wish = conn.execute("SELECT name, gap_id FROM wishes WHERE id = ?", (wish_id,)).fetchone()
+        if wish and wish["gap_id"] is None and wish["name"] == placeholder(row["url"]):
+            conn.execute("UPDATE wishes SET name = ?, updated_at = ? WHERE id = ?",
+                         (shortened(name, LINK_NAME_MAX), t, wish_id))
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    return dict(conn.execute("SELECT * FROM finds WHERE id = ?", (find_id,)).fetchone())
+
+
+def called_by_address(conn: sqlite3.Connection, wish: Mapping) -> bool:
+    """Whether a wish is still called by the site's address of one of its links (made from a link whose name nobody
+    has read or given)."""
+    if wish["gap_id"] is not None:
+        return False
+    return any(wish["name"] == placeholder(r["url"]) for r in conn.execute(
+        "SELECT url FROM finds WHERE wish_id = ? AND link = 1", (wish["id"],)))
+
+
 def remove_find(conn: sqlite3.Connection, wish_id: str, find_id: str) -> dict:
     """"Stop watching": the find goes, and with it its daily check. Gives back what was removed, the find and every
     price kept for it, for `restore_find` (Undo)."""
@@ -1132,7 +1167,12 @@ class Shopper:
         """Start a search for the wish. Refused (or ItemError, no such wish) when it cannot start."""
         if profile == "demo":
             raise Refused(DEMO)
-        self._wish(profile, wish_id)
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            if called_by_address(conn, wishlist.get_wish(conn, wish_id)):
+                raise Refused(UNNAMED)
+        finally:
+            conn.close()
         if self.running(profile, wish_id):
             raise Refused(BUSY)
         routes = self._usable(shopping.FIND_SEARCHES)
@@ -1205,6 +1245,34 @@ class Shopper:
             self._end(profile, wish_id, "failed", FAILED)
             raise
         self._thread(lambda: self.read_link(profile, wish_id, find_id), profile, wish_id)
+
+    def set_name(self, profile: str, wish_id: str, find_id: str, name: str) -> None:
+        """The owner names a find (`name_find`), then, on the wish's thread as a link's reading, Claude describes it
+        from its name and shop and it is judged (`_describe_link`; in the demo closet, or when Claude cannot be asked,
+        the name is kept and the find waits). ItemError (404) for no such wish or find, Refused while something else
+        runs for the wish."""
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            wishlist.get_wish(conn, wish_id)
+            if conn.execute("SELECT 1 FROM finds WHERE id = ? AND wish_id = ?", (find_id, wish_id)).fetchone() is None:
+                raise ItemError(NO_SUCH_FIND, 404)
+        finally:
+            conn.close()
+        self._begin(profile, wish_id, "link")
+        try:
+            conn = db.connect(self.cfg.db_path(profile))
+            try:
+                name_find(conn, wish_id, find_id, name)
+            finally:
+                conn.close()
+        except Exception:
+            self._end(profile, wish_id, "failed", FAILED)
+            raise
+
+        def describe() -> None:
+            self._describe_link(profile, wish_id, find_id, None)
+            self._end(profile, wish_id, "done", None, 0)
+        self._thread(describe, profile, wish_id)
 
     def _wish(self, profile: str, wish_id: str) -> dict:
         conn = db.connect(self.cfg.db_path(profile))
@@ -1701,6 +1769,11 @@ class SeenBody(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class NameBody(BaseModel):
+    name: str = Field(max_length=2000)   # trimmed, then 1 to NAME_MAX characters
+    model_config = {"extra": "forbid"}
+
+
 class CodeBody(BaseModel):
     code: str = Field(max_length=200)   # checked by `code_problem`, with the percent or the amount
     percent: float | None = None
@@ -1811,6 +1884,13 @@ def router(shopper: Shopper, state: State, conn_dep: Callable) -> APIRouter:
             raise ItemError(NOT_PUT_BACK, 404)
         restore_find(conn, wish_id, held[1])
         return payload(conn, profile, wish_id)
+
+    @r.put("/api/wishlist/{wish_id}/finds/{find_id}/name")
+    async def put_name(wish_id: str, find_id: str, body: NameBody):
+        name = " ".join(body.name.split())
+        if not 1 <= len(name) <= NAME_MAX:
+            raise HTTPException(422, BAD_NAME)
+        return await start(wish_id, lambda profile, wid: shopper.set_name(profile, wid, find_id, name))
 
     @r.put("/api/wishlist/{wish_id}/finds/{find_id}/code")
     def put_code(wish_id: str, find_id: str, body: CodeBody, conn=Depends(conn_dep)):

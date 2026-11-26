@@ -56,7 +56,7 @@ def test_migration_0055_leaves_every_find_read_and_not_asked_again(tmp_path):
     conn = db.connect(path)
     try:
         find, = shop.list_finds(conn, wid)
-        assert find["unread_at"] is None
+        assert find["unread_at"] is None and find["named"] is True
         assert tuple(conn.execute("SELECT read_asked, kind_asked_at FROM finds").fetchone()) == (None, None)
     finally:
         conn.close()
@@ -314,3 +314,64 @@ def test_reading_a_link_whole_is_asked_with_the_web_tools_and_counted_as_a_price
         assert conn.execute("SELECT purpose FROM claude_calls").fetchone()[0] == spend.PURPOSE_PRICES
     finally:
         conn.close()
+
+
+# ------------------------------------------------------------------ 3. a link that still has no name asks for one
+def test_a_link_still_called_by_its_address_is_not_named_and_can_be_named(client, fake_shop, pages):
+    wid = add_link(client, GONE)
+    find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert find["named"] is False and find["not_judged"] == "no_name"
+    fake_shop.description = described(category="coat", color="grey", season="cool", weight_class="heavyweight")
+    r = client.put(f"/api/wishlist/{wid}/finds/{find['id']}/name", json={"name": "  Felted wool chore coat  "})
+    assert r.status_code == 200, r.text
+    assert r.json()["run"]["kind"] == "link" and r.json()["finds"][0]["name"] == "Felted wool chore coat"
+    body = settle(client, wid)
+    find, = body["finds"]
+    assert find["named"] is True and find["name"] == "Felted wool chore coat"
+    (asked, routes), = fake_shop.described
+    assert asked["name"] == "Felted wool chore coat" and asked["shop"] == "shop.example" and routes == ("plan",)
+    assert find["piece"]["category"] == "coat" and find["verdict"] and find["not_judged"] is None
+    assert client.get("/api/wishlist").json()["wishes"][0]["name"] == "Felted wool chore coat"
+    # a find named before keeps the owner's wish name; a search's find is named
+    other = add_link(client, SHIRT)
+    assert client.get(f"/api/wishlist/{other}/finds").json()["finds"][0]["named"] is True
+
+
+def test_naming_a_find_is_checked(client, fake_shop, services, monkeypatch):
+    wid = add_link(client, GONE)
+    fid = client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["id"]
+    url = f"/api/wishlist/{wid}/finds/{fid}/name"
+    for body in ({"name": "   "}, {"name": "x" * (shop.NAME_MAX + 1)}, {"name": "A coat", "url": GONE}, {}):
+        assert client.put(url, json=body).status_code == 422, body
+    assert client.put(f"/api/wishlist/{wid}/finds/nope/name", json={"name": "A coat"}).status_code == 404
+    assert client.put(f"/api/wishlist/nope/finds/{fid}/name", json={"name": "A coat"}).status_code == 404
+    services.shopper._begin("main", wid, "prices")   # something else runs for the wish
+    r = client.put(url, json={"name": "A coat"})
+    assert r.status_code == 409 and r.json()["detail"] == shop.BUSY
+    assert client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["name"] == "shop.example"
+
+
+def test_a_name_is_kept_and_waits_when_claude_cannot_be_asked_or_in_the_demo(client, fake_shop, usable):
+    usable["routes"] = ()
+    wid = add_link(client, GONE)
+    fid = client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["id"]
+    assert client.put(f"/api/wishlist/{wid}/finds/{fid}/name", json={"name": "A grey coat"}).status_code == 200
+    find, = settle(client, wid)["finds"]
+    assert find["name"] == "A grey coat" and find["not_judged"] == "waiting" and fake_shop.described == []
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    wid = add_link(client, GONE)
+    fid = client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["id"]
+    assert client.put(f"/api/wishlist/{wid}/finds/{fid}/name", json={"name": "A grey coat"}).status_code == 200
+    find, = settle(client, wid)["finds"]
+    assert find["name"] == "A grey coat" and find["not_judged"] == "waiting" and fake_shop.described == []
+
+
+def test_find_more_on_a_wish_still_called_by_an_address_asks_for_a_name_first(client, fake_shop):
+    wid = add_link(client, GONE)
+    r = client.post(f"/api/wishlist/{wid}/find")
+    assert r.status_code == 409 and r.json()["detail"] == shop.UNNAMED
+    assert [c[0] for c in fake_shop.calls] == ["read"]   # nothing searched for an address
+    fid = client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["id"]
+    client.put(f"/api/wishlist/{wid}/finds/{fid}/name", json={"name": "Felted wool chore coat"})
+    settle(client, wid)
+    assert client.post(f"/api/wishlist/{wid}/find").status_code == 202

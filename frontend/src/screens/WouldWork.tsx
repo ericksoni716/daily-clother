@@ -114,8 +114,9 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   const titleId = useId();
   const demo = profile === 'demo';
 
-  // a wish loaded after the panel opened fills in the form, unless the owner has started on it
-  const filledFrom = useRef<string | null>(remembered || kept || !wish ? wishId : null);
+  // a wish loaded after the panel opened fills in the form, unless the owner has started on it (one there from the
+  // start has filled it already; it was the other way round, so a page opened afresh started empty)
+  const filledFrom = useRef<string | null>(remembered || kept || wish ? wishId : null);
   useEffect(() => {
     if (wish && filledFrom.current !== wish.id) {
       filledFrom.current = wish.id;

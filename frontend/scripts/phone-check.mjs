@@ -68,7 +68,7 @@ const SHEETS = [
     sheet: 'detail-editor-color', name: 'item-colour' },
   { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: "Set the most you'd pay",
     sheet: 'price-sheet', name: 'wish-price' },
-  { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: 'Change the code',
+  { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, fold: 'About this find', button: 'Change the code',
     sheet: 'code-sheet', name: 'wish-code' },
   { route: ({ linkedId }) => `/wardrobe/wish/${encodeURIComponent(linkedId)}`, button: 'See it with your clothes',
     sheet: 'worn-sheet', name: 'wish-worn', wait: '[data-testid="outfit-figure"] img' },

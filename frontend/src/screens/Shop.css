@@ -1,13 +1,10 @@
-/* A find's checkout code (Shop.tsx, FindCode and CodeSheet): the price after it under the find's price, who saw it,
-   and the code in a popover under its button on a computer (a sheet from the bottom on a phone). The rest of the find
-   card is in Missing.css. */
+/* A find's checkout code (Shop.tsx, CodeButton and CodeSheet): the price after it under the find's price, and the code
+   in a popover under its button on a computer (a sheet from the bottom on a phone). The rest of the find card is in
+   Missing.css. */
 .find-code-line { position: relative; }
-.find-code { margin: 0 0 2px; font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--accent); overflow-wrap: anywhere; }
-.find-code-from { overflow-wrap: anywhere; }
-/* "Add a code" ends a small line of its own: 44px high, so it is 44px to tap (DESIGN, "Motion and touch") */
-.find-code-from .btn.wish-inline-button { min-height: var(--tap); }
+.find-code { margin: 2px 0 0; font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--accent); overflow-wrap: anywhere; }
 .find-code-sheet .hint { margin: 0 0 var(--space-3); }
 .find-code-sheet .find-code-kind { margin: 0 0 var(--space-3); }
 .find-code-sheet .form-error { margin: 0 0 var(--space-2); }
-/* a find you stopped watching on this visit: in its place, saying so, with Undo where its buttons were (as tall) */
-.find-stopped { margin: 0; min-height: var(--tap); display: flex; align-items: center; flex-wrap: wrap; column-gap: var(--space-2); font-size: var(--text-sm); color: var(--ink-3); }
+/* a find you stopped watching on this visit: in its fold, saying so, with Undo where its two buttons were (as tall) */
+.find-stopped { margin: var(--space-2) 0 0; min-height: var(--tap); display: flex; align-items: center; flex-wrap: wrap; column-gap: var(--space-2); font-size: var(--text-sm); color: var(--ink-3); }

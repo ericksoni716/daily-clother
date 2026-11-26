@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { parseRoute } from './router';
 import {
   addedByHand, atYourPrice, canSeeWorn, checkedWords, codeFromWords, codeWords, downWords, dropWords, type FindCode, findsInOrder, withStopped, googleShoppingLink,
-  historyWords, lastChecked, linkIn, linkLine, linkWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
+  historyWords, lastChecked, linkIn, linkLine, linkWords, mostWords, newsWords, notJudgedWords, offWords, typedCode, priceWords, rangeWords,
   runDoneWords, runWords, searchWords, sharedLink, SHOP_POLL_MS, shoppingWords, shopPoll, type ShopRun, watchWords,
-  webLink, wishlistAgain, wishlistWords, withinWords, isTheWish, wishTitle, titleLength,
+  webLink, wishlistAgain, wishlistWords, withinWords, isTheWish, wishIsAFind, wishTitle, titleLength,
 } from './shop';
 import { timeOf } from './today';
 
@@ -172,6 +172,15 @@ describe('the wish page and price news', () => {
     expect(searchWords(most)).toBe('Claude looks for ones up to $150.00.');
     expect(searchWords({ price_min: 50, price_max: 150, price_currency: 'USD' })).toBe('Claude looks for ones from $50.00 to $150.00.');
     expect(searchWords({ price_min: 50, price_max: null, price_currency: 'USD' })).toBe('Claude looks for ones from $50.00.');
+  });
+
+  it("says the most you'd pay in one short line, and nothing when it is not set", () => {
+    expect(mostWords(none)).toBeNull();
+    expect(mostWords(most)).toBe("The most you'd pay is $150.00.");
+    expect(mostWords({ price_min: null, price_max: 150, price_currency: 'EUR' })).toBe("The most you'd pay is €150.00.");
+    // a lower limit an older wish still has is said until it is changed
+    expect(mostWords({ price_min: 50, price_max: 150, price_currency: 'USD' })).toBe("You'd pay from $50.00 to $150.00.");
+    expect(mostWords({ price_min: 50, price_max: null, price_currency: 'USD' })).toBe("You'd pay from $50.00.");
   });
 
   it('says when the prices were last looked at, whoever looked', () => {
@@ -396,5 +405,16 @@ describe('a wish made from one product names it once (the review of 24 November,
     expect(isTheWish({ name: 'A plain shirt' }, { name: 'A plain shirt' })).toBe(true);
     expect(isTheWish({ name: 'Tan gabardine rain coat' }, { name: 'A tan rain coat' })).toBe(false);
     expect(isTheWish({ name: 'Water-repellent' }, { name: cut })).toBe(false);
+  });
+  it("knows a wish made from one of its finds, so its page does not offer to check one you found", () => {
+    const linked = { name: cut, link: { name: whole } };
+    // from the wishlist's row, before its finds are read
+    expect(wishIsAFind(linked, undefined)).toBe(true);
+    // from its finds, when the row does not carry the page's name
+    expect(wishIsAFind({ name: 'A plain shirt', link: null }, [{ name: 'A plain shirt' }])).toBe(true);
+    // a wish added by hand, or from a gap, with what Claude found for it
+    expect(wishIsAFind({ name: 'A tan rain coat', link: null }, [{ name: 'Tan gabardine rain coat' }])).toBe(false);
+    expect(wishIsAFind({ name: 'A tan rain coat' }, [])).toBe(false);
+    expect(wishIsAFind({ name: 'A tan rain coat', link: { name: 'Tan gabardine rain coat' } }, undefined)).toBe(false);
   });
 });

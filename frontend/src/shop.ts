@@ -294,7 +294,7 @@ export function rangeWords(w: Pick<Wish, 'price_min' | 'price_max' | 'price_curr
 
 type PriceOf = Pick<Wish, 'price_min' | 'price_max' | 'price_currency'>;
 
-/** What Claude's searches keep to, said where the price is offered when nothing is watched yet: "Claude looks at any
+/** What Claude's searches keep to, said in the wish page's "How this works" when an older wish has a lower limit: "Claude looks at any
  * price.", "Claude looks for ones up to $150.00." (a lower limit, which older wishes may still have, as it is). */
 export function searchWords(w: PriceOf): string {
   const range = rangeWords(w);
@@ -303,7 +303,18 @@ export function searchWords(w: PriceOf): string {
   return `Claude looks for ones ${both ? 'from ' : ''}${range.charAt(0).toLowerCase()}${range.slice(1)}.`;
 }
 
-/** The one sentence about watching, under what is watched: the price checked once a day, and what Nines tells you. */
+/** The most you'd pay, in the one short line beside its button on a wish's page: "The most you'd pay is $150.00."
+ * (a lower limit, which older wishes may still have, as it is: "You'd pay from $50.00 to $150.00."). Null when none is
+ * set: the button alone says "Set the most you'd pay". */
+export function mostWords(w: PriceOf): string | null {
+  const cur = w.price_currency ?? 'USD';
+  if (w.price_min != null) {
+    return w.price_max != null ? `You'd pay from ${priceWords(w.price_min, cur)} to ${priceWords(w.price_max, cur)}.` : `You'd pay from ${priceWords(w.price_min, cur)}.`;
+  }
+  return w.price_max != null ? `The most you'd pay is ${priceWords(w.price_max, cur)}.` : null;
+}
+
+/** The one sentence about watching, in the wish page's "How this works": the price checked once a day, and what Nines tells you. */
 export function watchWords(w: PriceOf): string {
   const most = w.price_max != null ? ` to ${priceWords(w.price_max, w.price_currency ?? 'USD')} or less` : '';
   const told = `Nines checks the price once a day while it's running and tells you when it goes down${most}.`;
@@ -358,6 +369,15 @@ export function isTheWish(find: Pick<Find, 'name'>, wish: Pick<Wish, 'name'>): b
   const start = own.slice(0, -1).trimEnd();
   // cut at a word: what follows the cut in the find's name starts a new word (or punctuation the cut dropped)
   return start.length > 0 && name.startsWith(start) && name.length > start.length && /^[\s,;:-]/.test(name.slice(start.length));
+}
+
+/** Whether a wish is one of its finds (made from a link sent or a pick saved, and named after it): its card then says
+ * whether it goes with your clothes, so the wish's page does not offer to check one you found. From its finds, or,
+ * before they are read, from its newest link on the wishlist's row. */
+export function wishIsAFind(wish: Pick<Wish, 'name'> & { link?: Pick<WishLink, 'name'> | null },
+  finds: Pick<Find, 'name'>[] | null | undefined): boolean {
+  if ((finds ?? []).some((f) => isTheWish(f, wish))) return true;
+  return !!wish.link?.name && isTheWish({ name: wish.link.name }, wish);
 }
 
 /** The wish's page heading: its name, or the whole name of the find it was made from when its own is that name cut

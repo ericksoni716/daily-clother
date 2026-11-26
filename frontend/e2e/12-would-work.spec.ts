@@ -183,7 +183,7 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   await page.locator('.wouldwork-back').click();
   await page.getByTestId('wishlist-open').click();
   await page.getByTestId('wish-row').first().click();
-  await page.getByTestId('wish').getByRole('button', { name: 'Would it go with my clothes?' }).click();
+  await page.getByTestId('wish').getByRole('button', { name: 'Check one I found' }).click();
   await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
   const fromWish = page.getByTestId('would-work');
   await expect(fromWish).toContainText(`Photograph one you found for ${rain.name}, or describe it`);

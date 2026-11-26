@@ -15,6 +15,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - **The day before a trip.** What you ticked as packed for a trip that starts tomorrow is left out of
   Today's outfits, and one line over them says so and opens the trip. Building an outfit around a packed
   piece still works. To have a piece back, untick it in the trip.
+- **A laundry day while you are away.** A laundry day that falls on a day of a trip you saved now washes
+  nothing: what you left in the laundry at home waits, like your suitcase, for the first laundry day after
+  the trip. If you did the laundry on another day, **All clean** in the closet's laundry view says so.
 
 ### Fixed
 

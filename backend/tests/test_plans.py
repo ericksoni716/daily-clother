@@ -80,6 +80,19 @@ def test_a_planned_piece_is_held_back_only_when_wearing_it_leaves_it_in_the_laun
     assert plans.held([row], planned, plan_day, policy) == {}
 
 
+def test_a_laundry_day_while_you_are_away_washes_nothing_so_a_planned_piece_is_held_until_the_next_one():
+    """The owner's choice, 26 November: a laundry day on a day of a saved trip washes nothing at home. A trip covers
+    Sunday; a tee worn on Thursday stays in the laundry until the Sunday after, so a plan for Monday holds it back."""
+    tee = piece("tee")
+    planned = [{"day": MONDAY.isoformat(), "pieces": {"base": "tee", "accessories": []}}]
+    policy = wears.Policy({"tee": 1}, SUNDAY)
+    sunday = TODAY + timedelta(days=3)
+    assert plans.held([tee], planned, THURSDAY, policy) == {}   # at home on Sunday: washed, clean on Monday
+    assert plans.held([tee], planned, THURSDAY, policy, away=lambda d: d == sunday) == {"tee": MONDAY.isoformat()}
+    assert wears.next_wash(SUNDAY, THURSDAY, lambda d: d == sunday) == sunday + timedelta(days=7)
+    assert wears.next_wash(SUNDAY, THURSDAY) == sunday
+
+
 def test_a_day_ahead_is_tomorrow_or_later_and_within_reach():
     assert plans.check_day("2026-11-13", TODAY) == TODAY + timedelta(days=1)
     for bad, words in (("2026-11-12", "after today"), ("2026-11-01", "after today"), ("tomorrow", "YYYY-MM-DD"),

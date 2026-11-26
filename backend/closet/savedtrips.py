@@ -95,12 +95,12 @@ def in_bag(trip: dict, under_way: bool) -> list[str]:
     return carried
 
 
-def in_bag_on(conn, day: date) -> set[str]:
-    """What is in the suitcase on `day`: the bag of every trip whose days hold it (under way by then, so all it packed).
-    The laundry day at home does not wash it (`wears.catch_up`)."""
+def away_on(conn, day: date) -> bool:
+    """Whether a saved trip holds `day` (its first day to its last): you are away, so a laundry day then washes nothing
+    at home, neither the suitcase nor the basket (`wears.catch_up`, `wears.washed_since`; the owner's choice, 26
+    November)."""
     iso = day.isoformat()
-    return {pid for r in conn.execute("SELECT * FROM trips WHERE first_day <= ? AND last_day >= ?", (iso, iso))
-            for pid in in_bag(_row(r), under_way=True)}
+    return conn.execute("SELECT 1 FROM trips WHERE first_day <= ? AND last_day >= ? LIMIT 1", (iso, iso)).fetchone() is not None
 
 
 def packed_before(conn, today: date) -> dict | None:

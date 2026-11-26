@@ -421,7 +421,7 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
             packed_for = {**found_packed["trip"], "ids": packed}
             ctx = dataclasses.replace(ctx, leave_out=(*ctx.leave_out, *(i for i in packed if i not in ctx.leave_out)))
     # planned pieces kept out of the laundry's way: not offered when wearing them now leaves them in the laundry then
-    held = plans.held(rows, upcoming, on_day, wears.policy())
+    held = plans.held(rows, upcoming, on_day, wears.policy(), wears.away_on(conn))
     unheld = None   # the request without the hold, for when holding the planned pieces back leaves no outfit
     if set(held) - asked:
         unheld = ctx

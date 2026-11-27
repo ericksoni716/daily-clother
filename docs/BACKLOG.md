@@ -437,8 +437,6 @@ only here); take a line out when it is done.
   - Not ported from Homestead: a sweep that counts each screen's words against the budget in
     `DESIGN.md`, a `/design-review` skill, and a README for `components/ui/`. Worth doing
     with step 6 or 8, when screens are reshaped.
-  - `README.md` still mixes the owner's guide with notes that are now in `USING.md`
-    (a trip, shoes, several pieces). Shorten it when those screens next change, not before.
   - The phone check is run by hand. Whether CI or the release should run it is the owner's
     call (it adds a few minutes).
 
